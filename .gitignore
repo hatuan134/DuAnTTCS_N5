@@ -1,0 +1,25 @@
+# Frontend
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Backend
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

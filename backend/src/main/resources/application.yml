@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: library-management-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:library_management}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${SERVER_PORT:8080}
