@@ -3,7 +3,12 @@ import {
   createBrowserRouter,
 } from 'react-router-dom'
 
-import AppLayout from '../layouts/AppLayout'
+import AppLayout
+  from '../components/layout/AppLayout'
+
+import ProtectedRoute
+  from './ProtectedRoute'
+
 import {
   appRoutes,
   publicRoutes,
@@ -20,31 +25,60 @@ function NotFoundPage() {
         <p className="mt-2 text-slate-500">
           Không tìm thấy trang.
         </p>
+
+        <a
+          href="/"
+          className="mt-5 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          Quay lại trang chủ
+        </a>
       </div>
     </div>
   )
 }
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: (
-      <Navigate
-        to="/dashboard"
-        replace
-      />
-    ),
-  },
+export const router =
+  createBrowserRouter([
+    // Mở localhost:5173/
+    // thì vào màn hình đăng nhập
+    {
+      path: '/',
+      element: (
+        <Navigate
+          to="/login"
+          replace
+        />
+      ),
+    },
 
-  ...publicRoutes,
+    // Các route public:
+    // login, forgot-password,
+    // reset-password...
+    ...publicRoutes,
 
-  {
-    element: <AppLayout />,
-    children: appRoutes,
-  },
+    // Các trang nghiệp vụ
+    // đều phải đăng nhập
+    {
+      element: (
+        <ProtectedRoute />
+      ),
 
-  {
-    path: '*',
-    element: <NotFoundPage />,
-  },
-])
+      children: [
+        {
+          element: (
+            <AppLayout />
+          ),
+
+          children:
+            appRoutes,
+        },
+      ],
+    },
+
+    {
+      path: '*',
+      element: (
+        <NotFoundPage />
+      ),
+    },
+  ])
