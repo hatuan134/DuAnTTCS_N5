@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import axios from 'axios'
+
 import {
   ArrowRight,
   BookOpen,
@@ -19,43 +21,15 @@ import {
   useNavigate,
 } from 'react-router-dom'
 
-const ACCESS_TOKEN_KEY =
-  'libra_access_token'
+import {
+  login,
+} from '../../core/auth/authService'
 
-const ACCESS_EXPIRES_KEY =
-  'libra_access_expires_at'
-
-const REFRESH_TOKEN_KEY =
-  'libra_refresh_token'
-
-const REFRESH_EXPIRES_KEY =
-  'libra_refresh_expires_at'
-
-const CURRENT_USER_KEY =
-  'libra_current_user'
-
-const LOGIN_ATTEMPTS_KEY =
-  'libra_login_attempts'
-
-const LOCK_UNTIL_KEY =
-  'libra_login_lock_until'
-
-const DEMO_EMAIL =
-  'admin@libra.edu.vn'
-
-const DEMO_PASSWORD =
-  'Admin123'
-
-const MAX_ATTEMPTS = 5
-
-const LOCK_TIME =
-  15 * 60 * 1000
-
-const ACCESS_TIME =
-  30 * 60 * 1000
-
-const REFRESH_TIME =
-  7 * 24 * 60 * 60 * 1000
+type ApiErrorResponse = {
+  message?: string
+  code?: string
+  timestamp?: string
+}
 
 export default function LoginPage() {
   const navigate =
@@ -65,10 +39,10 @@ export default function LoginPage() {
     useLocation()
 
   const [email, setEmail] =
-    useState(DEMO_EMAIL)
+    useState('')
 
   const [password, setPassword] =
-    useState(DEMO_PASSWORD)
+    useState('')
 
   const [
     showPassword,
@@ -81,53 +55,11 @@ export default function LoginPage() {
   const [loading, setLoading] =
     useState(false)
 
-  const getLockRemaining = () => {
-    const lockUntil =
-      Number(
-        localStorage.getItem(
-          LOCK_UNTIL_KEY,
-        ),
-      )
-
-    if (
-      !lockUntil ||
-      lockUntil <= Date.now()
-    ) {
-      localStorage.removeItem(
-        LOCK_UNTIL_KEY,
-      )
-
-      return 0
-    }
-
-    return (
-      lockUntil -
-      Date.now()
-    )
-  }
-
-  const handleSubmit = (
+  const handleSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-
     setError('')
-
-    const remaining =
-      getLockRemaining()
-
-    if (remaining > 0) {
-      const minutes =
-        Math.ceil(
-          remaining / 60000,
-        )
-
-      setError(
-        `Tài khoản đang bị khóa tạm. Vui lòng thử lại sau khoảng ${minutes} phút.`,
-      )
-
-      return
-    }
 
     const normalizedEmail =
       email
@@ -141,119 +73,16 @@ export default function LoginPage() {
       setError(
         'Vui lòng nhập email và mật khẩu.',
       )
-
       return
     }
 
     setLoading(true)
 
-    window.setTimeout(() => {
-      const valid =
-        normalizedEmail ===
-          DEMO_EMAIL &&
-        password ===
-          DEMO_PASSWORD
-
-      if (!valid) {
-        const attempts =
-          Number(
-            localStorage.getItem(
-              LOGIN_ATTEMPTS_KEY,
-            ) ?? '0',
-          ) + 1
-
-        if (
-          attempts >=
-          MAX_ATTEMPTS
-        ) {
-          localStorage.setItem(
-            LOCK_UNTIL_KEY,
-            String(
-              Date.now() +
-                LOCK_TIME,
-            ),
-          )
-
-          localStorage.setItem(
-            LOGIN_ATTEMPTS_KEY,
-            '0',
-          )
-
-          setError(
-            'Đăng nhập không thành công. Tài khoản đã bị khóa tạm trong 15 phút.',
-          )
-        } else {
-          localStorage.setItem(
-            LOGIN_ATTEMPTS_KEY,
-            String(attempts),
-          )
-
-          setError(
-            'Email hoặc mật khẩu không chính xác.',
-          )
-        }
-
-        setLoading(false)
-        return
-      }
-
-      const now =
-        Date.now()
-
-      localStorage.setItem(
-        LOGIN_ATTEMPTS_KEY,
-        '0',
+    try {
+      await login(
+        normalizedEmail,
+        password,
       )
-
-      localStorage.removeItem(
-        LOCK_UNTIL_KEY,
-      )
-
-      /*
-       * Access Token: 30 phút
-       */
-      localStorage.setItem(
-        ACCESS_TOKEN_KEY,
-        `mock-access-${now}`,
-      )
-
-      localStorage.setItem(
-        ACCESS_EXPIRES_KEY,
-        String(
-          now + ACCESS_TIME,
-        ),
-      )
-
-      /*
-       * Refresh Token: 7 ngày
-       */
-      localStorage.setItem(
-        REFRESH_TOKEN_KEY,
-        `mock-refresh-${now}`,
-      )
-
-      localStorage.setItem(
-        REFRESH_EXPIRES_KEY,
-        String(
-          now + REFRESH_TIME,
-        ),
-      )
-
-      /*
-       * Người dùng hiện tại
-       */
-      localStorage.setItem(
-        CURRENT_USER_KEY,
-        JSON.stringify({
-          id: 1,
-          fullName:
-            'Quản trị hệ thống',
-          email: DEMO_EMAIL,
-          role: 'ADMIN',
-        }),
-      )
-
-      setLoading(false)
 
       const state =
         location.state as
@@ -269,7 +98,20 @@ export default function LoginPage() {
           replace: true,
         },
       )
-    }, 500)
+    } catch (requestError) {
+      if (axios.isAxiosError<ApiErrorResponse>(requestError)) {
+        setError(
+          requestError.response?.data?.message ??
+            'Không thể kết nối tới hệ thống. Vui lòng thử lại.',
+        )
+      } else {
+        setError(
+          'Không thể kết nối tới hệ thống. Vui lòng thử lại.',
+        )
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -571,7 +413,7 @@ export default function LoginPage() {
                     Mật khẩu
                   </span>
 
-                  <strong className="text-blue-950">
+                  <strong className="text-right text-blue-950">
                     Admin123
                   </strong>
                 </div>

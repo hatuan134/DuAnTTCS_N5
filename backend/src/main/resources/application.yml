@@ -22,3 +22,16 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+app:
+  auth:
+    jwt-secret-base64: ${JWT_SECRET_BASE64:}
+    access-token-minutes: 30
+    refresh-token-days: 7
+    max-failed-attempts: 5
+    lock-minutes: 15
+
+  bootstrap-admin:
+    email: ${BOOTSTRAP_ADMIN_EMAIL:admin@libra.edu.vn}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:Quản trị hệ thống}
