@@ -1,9 +1,11 @@
-# Frontend
-node_modules/
-dist/
+# Local secrets / environment
 .env
 .env.*
 !.env.example
+
+# Frontend
+node_modules/
+dist/
 
 # Backend
 target/
