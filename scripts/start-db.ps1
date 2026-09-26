@@ -1,40 +1,34 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
-
 Set-Location $Root
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw 'Không tìm thấy Docker CLI. Hãy cài/mở Docker Desktop trước.'
-}
-
-if (-not (Test-Path (Join-Path $Root '.env'))) {
-    throw 'Chưa có .env. Hãy chạy .\setup.ps1 hoặc tạo .env từ .env.example.'
-}
-
+& (Join-Path $PSScriptRoot 'Ensure-Env.ps1')
 & (Join-Path $PSScriptRoot 'Import-Env.ps1')
 
-# Báo sớm nếu port host đang bị ứng dụng khác chiếm.
-$existingContainer = docker ps --filter 'name=duanttcs_n5_postgres' --format '{{.Names}}' 2>$null
-if (-not $existingContainer) {
-    $listeners = Get-NetTCPConnection -LocalPort ([int]$env:DB_PORT) -State Listen -ErrorAction SilentlyContinue
-    if ($listeners) {
-        $pids = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ', ' 
-        throw "Port $env:DB_PORT đang bị chiếm (PID: $pids). Nếu là PostgreSQL cài trực tiếp trên Windows, hãy Stop service đó rồi chạy lại."
-    }
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    throw 'Docker CLI not found. Install/open Docker Desktop first.'
 }
 
 docker info *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw 'Docker Engine chưa chạy. Hãy mở Docker Desktop và chờ Engine Running.'
+    throw 'Docker Engine is not running. Open Docker Desktop and wait until it is ready.'
 }
 
-Write-Host 'Khởi động PostgreSQL container...' -ForegroundColor Cyan
+$existingContainer = docker ps --filter 'name=duanttcs_n5_postgres' --format '{{.Names}}' 2>$null
+if (-not $existingContainer) {
+    $listeners = Get-NetTCPConnection -LocalPort ([int]$env:DB_PORT) -State Listen -ErrorAction SilentlyContinue
+    if ($listeners) {
+        $pids = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ', '
+        throw "Port $env:DB_PORT is already in use (PID: $pids). Stop the old PostgreSQL/service/process first."
+    }
+}
+
+Write-Host 'Starting PostgreSQL Docker...' -ForegroundColor Cyan
 docker compose up -d postgres
 if ($LASTEXITCODE -ne 0) {
-    throw "docker compose up thất bại. Kiểm tra Docker Desktop và port $env:DB_PORT."
+    throw 'docker compose up failed.'
 }
 
-Write-Host 'Chờ PostgreSQL healthy...' -ForegroundColor Cyan
 $healthy = $false
 for ($i = 0; $i -lt 60; $i++) {
     $status = docker inspect --format '{{.State.Health.Status}}' duanttcs_n5_postgres 2>$null
@@ -48,8 +42,28 @@ for ($i = 0; $i -lt 60; $i++) {
 if (-not $healthy) {
     docker compose ps
     docker compose logs --tail 80 postgres
-    throw 'PostgreSQL chưa đạt trạng thái healthy.'
+    throw 'PostgreSQL did not become healthy.'
 }
 
-Write-Host 'PostgreSQL đã sẵn sàng tại localhost:'$env:DB_PORT -ForegroundColor Green
-docker compose ps
+# A Docker volume can outlive .env. Synchronize the postgres password with
+# the current .env so a regenerated local config cannot break JDBC login.
+$escapedPassword = $env:DB_PASSWORD.Replace("'", "''")
+$escapedUser = $env:DB_USERNAME.Replace('"', '""')
+$sql = "ALTER ROLE `"$escapedUser`" WITH PASSWORD '$escapedPassword';"
+$sql | docker exec -i duanttcs_n5_postgres psql -U $env:DB_USERNAME -d postgres -v ON_ERROR_STOP=1 *> $null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not synchronize PostgreSQL password with .env.'
+}
+
+# On an old volume, POSTGRES_DB is not created again when .env changes.
+$escapedDb = $env:DB_NAME.Replace("'", "''")
+$dbExists = docker exec duanttcs_n5_postgres psql -U $env:DB_USERNAME -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$escapedDb';" 2>$null
+if (($dbExists | Out-String).Trim() -ne '1') {
+    Write-Host "Creating database $env:DB_NAME..." -ForegroundColor Yellow
+    docker exec duanttcs_n5_postgres createdb -U $env:DB_USERNAME $env:DB_NAME
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not create database $env:DB_NAME."
+    }
+}
+
+Write-Host "PostgreSQL READY: 127.0.0.1:$env:DB_PORT / $env:DB_NAME" -ForegroundColor Green

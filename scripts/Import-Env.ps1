@@ -1,23 +1,21 @@
-﻿param(
+param(
     [string]$EnvFile = (Join-Path (Split-Path $PSScriptRoot -Parent) '.env')
 )
 
+$ErrorActionPreference = 'Stop'
+
 if (-not (Test-Path $EnvFile)) {
-    throw "Không tìm thấy file .env: $EnvFile. Hãy chạy .\setup.ps1 trước hoặc copy .env.example thành .env."
+    throw "Missing .env: $EnvFile"
 }
 
-Get-Content -Path $EnvFile -Encoding UTF8 | ForEach-Object {
+[System.IO.File]::ReadAllLines($EnvFile, [System.Text.Encoding]::UTF8) | ForEach-Object {
     $line = $_.Trim()
 
-    if (-not $line -or $line.StartsWith('#')) {
+    if (-not $line -or $line.StartsWith('#') -or -not $line.Contains('=')) {
         return
     }
 
     $parts = $line -split '=', 2
-    if ($parts.Count -ne 2) {
-        return
-    }
-
     $name = $parts[0].Trim()
     $value = $parts[1].Trim()
 
@@ -28,5 +26,7 @@ Get-Content -Path $EnvFile -Encoding UTF8 | ForEach-Object {
         }
     }
 
-    [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+    if ($name) {
+        [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+    }
 }

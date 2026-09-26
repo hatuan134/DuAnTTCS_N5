@@ -1,212 +1,174 @@
 # Hệ thống Quản lý Mượn / Trả Sách Thư viện
 
-## Stack chuẩn của repository
+## Stack hiện tại
 
 - Backend: Spring Boot 4.1.1, Java 17, Maven Wrapper
 - Frontend: React 18, TypeScript, Vite 8, Tailwind CSS
-- Database local: PostgreSQL 15 chạy bằng Docker Compose
-- Authentication: Spring Security + JWT Access/Refresh Token + BCrypt
+- Database local: PostgreSQL 15 bằng Docker Compose
+- Authentication: Spring Security + JWT access/refresh token
 - Migration: Flyway
-- Branch chung: `develop`
+- Branch tích hợp: `develop`
 
-> Nguồn cấu hình ưu tiên khi có khác biệt: `backend/pom.xml`, `frontend/package.json`, `backend/src/main/resources/application.yml`.
+## Cách chạy dễ nhất trên Windows
 
-## 1. Setup máy mới - cách khuyến nghị
+### 1. Cài một lần
 
-### Yêu cầu tối thiểu
+Cần có:
 
-Windows 10/11 có `winget` (App Installer).
+- Git
+- JDK 17
+- Node.js 22
+- Docker Desktop
+- VS Code (khuyến nghị)
 
-Clone repository, chuyển sang `develop`, sau đó chạy PowerShell tại root repo:
-
-```powershell
-git switch develop
-git pull origin develop
-powershell -ExecutionPolicy Bypass -File .\setup.ps1
-```
-
-`setup.ps1` sẽ:
-
-1. Kiểm tra/cài bằng winget: Git, JDK 17, Node.js, VS Code, Docker Desktop.
-2. Tạo `.env` local nếu chưa có (file này bị Git ignore).
-3. Sinh DB password và JWT secret local.
-4. Khởi động PostgreSQL 15 bằng Docker Compose tại `localhost:5433`.
-5. Chạy `npm ci`.
-6. Compile Backend.
-7. Build Frontend.
-
-Nếu Docker Desktop vừa được cài lần đầu và chưa sẵn sàng, restart Windows hoặc mở Docker Desktop rồi chạy lại:
+Nếu chưa có, có thể cài bằng PowerShell/winget:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\setup.ps1 -SkipInstall
+winget install --id Git.Git -e
+winget install --id EclipseAdoptium.Temurin.17.JDK -e
+winget install --id OpenJS.NodeJS.22 -e
+winget install --id Docker.DockerDesktop -e
+winget install --id Microsoft.VisualStudioCode -e
 ```
 
-## 2. Chạy dự án hằng ngày
+Sau khi cài JDK/Docker lần đầu, restart Windows nếu PATH/Docker chưa nhận.
 
-Tại root repo:
-
-### Terminal 1 - Backend
+### 2. Clone đúng branch develop
 
 ```powershell
-.\scripts\run-backend.ps1
+git clone -b develop https://github.com/hatuan134/DuAnTTCS_N5.git
+cd DuAnTTCS_N5
 ```
 
-Script sẽ nạp `.env`, đảm bảo PostgreSQL Docker đang chạy rồi start Spring Boot.
+### 3. Khởi tạo local một lần
 
-### Terminal 2 - Frontend
-
-```powershell
-.\scripts\run-frontend.ps1
-```
-
-Frontend chạy cố định tại:
+Mở Docker Desktop và chờ Docker Engine chạy, sau đó double-click:
 
 ```text
-http://localhost:5173
+SETUP_LOCAL.cmd
 ```
 
-Backend mặc định:
-
-```text
-http://localhost:8080
-```
-
-## 3. Database Docker
-
-Database được cấu hình bởi `docker-compose.yml` và `.env`.
-
-Các lệnh thường dùng:
+Hoặc chạy trong terminal:
 
 ```powershell
-docker compose up -d
+.\SETUP_LOCAL.cmd
+```
+
+Script chỉ làm 3 việc:
+
+1. Tạo/sửa `.env` an toàn, tự sinh JWT Base64 hợp lệ.
+2. Khởi động PostgreSQL Docker và đồng bộ password với `.env` kể cả khi volume cũ còn tồn tại.
+3. Chạy `npm.cmd ci` nếu chưa có `node_modules`.
+
+> Lần đầu `npm ci` có thể mất vài phút. Những lần sau không cài lại.
+
+### 4. Chạy hằng ngày
+
+Mở Docker Desktop, rồi double-click:
+
+```text
+RUN_ALL.cmd
+```
+
+Script mở 2 cửa sổ:
+
+- Backend: `http://localhost:8080`
+- Frontend: `http://localhost:5173`
+
+Trình duyệt cũng được mở tự động.
+
+Tài khoản local mặc định:
+
+```text
+admin@libra.edu.vn
+Admin123
+```
+
+## Chạy riêng từng phần
+
+Database:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-db.ps1
+```
+
+Backend:
+
+```powershell
+.\RUN_BACKEND.cmd
+```
+
+Backend chỉ chạy thành công khi log có cả:
+
+```text
+Tomcat started on port 8080
+Started LibraryManagementBackendApplication
+```
+
+`BUILD SUCCESS` một mình không có nghĩa server đang chạy.
+
+Frontend:
+
+```powershell
+.\RUN_FRONTEND.cmd
+```
+
+Frontend script dùng `npm.cmd`, vì vậy không bị lỗi PowerShell chặn `npm.ps1`.
+
+## Các lỗi đã được xử lý trong script
+
+- PostgreSQL từ chối timezone `Asia/Saigon` -> ép `Asia/Ho_Chi_Minh`.
+- JWT secret Base64 sai/mất dấu `=` -> tự kiểm tra và sinh lại.
+- `.env` thiếu/rỗng/placeholder -> tự tạo/sửa.
+- Docker volume cũ giữ password khác `.env` -> tự đồng bộ password PostgreSQL.
+- Volume cũ chưa có `library_management` -> tự tạo DB khi cần.
+- `npm.ps1 cannot be loaded` -> dùng `npm.cmd`.
+- `npm ci EPERM` do Vite/Node đang giữ file -> script không cài lại nếu `node_modules` đã có; khi cài lần đầu hãy đóng các Vite/Node cũ.
+- Vite tự nhảy 5174 -> dùng `--strictPort`, buộc 5173.
+
+## Kiểm tra nhanh
+
+```powershell
+docker compose ps
+Test-NetConnection 127.0.0.1 -Port 8080
+Test-NetConnection 127.0.0.1 -Port 5173
+```
+
+## Database
+
+PostgreSQL host port mặc định: `5433`.
+
+```powershell
 docker compose ps
 docker compose logs postgres
 docker compose stop
-docker compose start
-docker compose down
 ```
 
-Kiểm tra trực tiếp PostgreSQL mà không cần cài `psql` trên Windows:
-
-```powershell
-docker exec -it duanttcs_n5_postgres psql -U postgres -d library_management
-```
-
-Trong psql:
-
-```sql
-\dt
-SELECT * FROM roles ORDER BY id;
-\q
-```
-
-### Cảnh báo
+Không chạy lệnh sau nếu không chủ động muốn xóa toàn bộ DB local:
 
 ```powershell
 docker compose down -v
 ```
 
-sẽ xóa volume và toàn bộ dữ liệu database local. Không chạy lệnh này nếu không chủ động muốn reset DB.
-
-## 4. Biến môi trường
-
-Mẫu nằm tại `.env.example`. File `.env` thật không được commit.
-
-Các biến chính:
-
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-- `SERVER_PORT`
-- `JWT_SECRET_BASE64`
-- `BOOTSTRAP_ADMIN_EMAIL`
-- `BOOTSTRAP_ADMIN_PASSWORD`
-- `BOOTSTRAP_ADMIN_FULL_NAME`
-
-Docker Compose và Backend dùng chung `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` để tránh lệch cấu hình.
-
-## 5. Tài khoản ADMIN local
-
-Khi database chưa có email bootstrap, Backend tạo tài khoản từ biến môi trường:
-
-```text
-BOOTSTRAP_ADMIN_EMAIL
-BOOTSTRAP_ADMIN_PASSWORD
-BOOTSTRAP_ADMIN_FULL_NAME
-```
-
-`setup.ps1` mặc định local:
-
-```text
-admin@libra.edu.vn / Admin123
-```
-
-Nếu email đã tồn tại thì đổi biến `BOOTSTRAP_ADMIN_PASSWORD` không tự đổi password của user cũ.
-
-## 6. Build/Test trước Pull Request
-
-Backend:
-
-```powershell
-.\scripts\Import-Env.ps1
-cd backend
-.\mvnw.cmd clean test
-```
-
-Frontend:
-
-```powershell
-cd frontend
-npm ci
-npm run lint
-npm run build
-```
-
-## 7. Git Flow
-
-Không code trực tiếp trên `main` hoặc `develop`.
-
-Bắt đầu feature:
+## Git Flow
 
 ```powershell
 git switch develop
 git pull origin develop
-git status
 git switch -c feature/s1-xx-ten-feature
 ```
 
-Trước khi push, cập nhật `develop` mới nhất vào feature:
+Trước khi PR:
 
 ```powershell
 git fetch origin
 git merge origin/develop
 ```
 
-Sau khi test/build thành công:
-
-```powershell
-git status
-git add <cac-file-can-commit>
-git commit -m "feat: ..."
-git push -u origin feature/s1-xx-ten-feature
-```
-
-Tạo Pull Request:
+PR:
 
 ```text
 feature/... -> develop
 ```
 
-Không tạo PR trực tiếp vào `main`.
-
-## 8. Tạo ZIP source sạch để đưa cho AI/thành viên khác
-
-Chạy tại root repository:
-
-```powershell
-git archive --format=zip --output=..\DuAnTTCS_N5-source.zip HEAD
-```
-
-ZIP này chỉ chứa file đã commit của branch hiện tại, không chứa `.git`, `node_modules`, `dist`, `target` hay `.env`.
+Không commit `.env`, `node_modules`, `dist`, `target` hoặc secret.
