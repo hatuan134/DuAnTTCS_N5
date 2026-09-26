@@ -2,8 +2,17 @@ import { BookOpen } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 import { navItems } from '../../app/featureRegistry'
+import { getCurrentUser } from '../../core/auth/authStorage'
 
 export default function Sidebar() {
+  const currentUser = getCurrentUser()
+
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      !item.roles ||
+      (currentUser?.role && item.roles.includes(currentUser.role)),
+  )
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 border-r border-slate-200 bg-white">
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
@@ -23,7 +32,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="space-y-1 p-3">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon
 
           return (

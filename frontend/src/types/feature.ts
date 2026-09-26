@@ -6,6 +6,7 @@ export interface NavItem {
   to: string
   icon: LucideIcon
   order: number
+  roles?: string[]
 }
 
 export interface FeatureModule {
