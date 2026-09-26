@@ -420,6 +420,17 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Link to reader registration */}
+            <div className="mt-5 text-center text-sm text-slate-600">
+              Chưa có tài khoản bạn đọc?{' '}
+              <Link
+                to="/register"
+                className="font-semibold text-blue-600 transition hover:text-blue-700"
+              >
+                Đăng ký ngay
+              </Link>
+            </div>
+
             <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
               <CheckCircle2
                 size={14}

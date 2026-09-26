@@ -1,7 +1,7 @@
 import { UserRoundCheck } from 'lucide-react'
 
-import FeaturePlaceholder
-  from '../../components/common/FeaturePlaceholder'
+import RegisterPage from './RegisterPage'
+import ReadersPage from './ReadersPage'
 
 import type {
   FeatureModule,
@@ -12,16 +12,17 @@ const feature: FeatureModule = {
 
   order: 30,
 
+  publicRoutes: [
+    {
+      path: '/register',
+      element: <RegisterPage />,
+    },
+  ],
+
   appRoutes: [
     {
       path: 'readers',
-      element: (
-        <FeaturePlaceholder
-          story="S1-03"
-          title="Quản lý bạn đọc"
-          description="Tiếp nhận và quản lý hồ sơ đăng ký bạn đọc."
-        />
-      ),
+      element: <ReadersPage />,
     },
   ],
 

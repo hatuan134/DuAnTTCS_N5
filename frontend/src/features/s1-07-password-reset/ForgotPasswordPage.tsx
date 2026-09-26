@@ -10,6 +10,7 @@ import {
 
 import {
   Link,
+  useSearchParams,
 } from 'react-router-dom'
 
 type RateLimitRecord = {
@@ -105,8 +106,10 @@ function generateToken() {
 }
 
 export default function ForgotPasswordPage() {
+  const [searchParams] = useSearchParams()
+  const initialEmail = searchParams.get('email') || ''
   const [email, setEmail] =
-    useState('')
+    useState(initialEmail)
 
   const [error, setError] =
     useState('')
