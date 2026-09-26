@@ -41,4 +41,35 @@ public class AuditLogService {
                 "{\"result\":\"SUCCESS\"}",
                 ipAddress);
     }
+
+    public void logUserCreated(Long actorAdminId, Long createdUserId, String email, String role, String ipAddress) {
+        auditLogRepository.insert(
+                actorAdminId,
+                "USER_CREATED",
+                "USER",
+                createdUserId.toString(),
+                "{\"email\":\"" + email + "\",\"role\":\"" + role + "\"}",
+                ipAddress);
+    }
+
+    public void logUserStatusUpdated(Long actorAdminId, Long targetUserId, String oldStatus, String newStatus, String ipAddress) {
+        auditLogRepository.insert(
+                actorAdminId,
+                "USER_STATUS_UPDATED",
+                "USER",
+                targetUserId.toString(),
+                "{\"oldStatus\":\"" + oldStatus + "\",\"newStatus\":\"" + newStatus + "\"}",
+                ipAddress);
+    }
+
+    public void logInitialPasswordSet(Long userId, String email, String ipAddress) {
+        auditLogRepository.insert(
+                userId,
+                "INITIAL_PASSWORD_SET",
+                "USER",
+                userId.toString(),
+                "{\"email\":\"" + email + "\"}",
+                ipAddress);
+    }
 }
+

@@ -5,6 +5,6 @@ public record UserPrincipal(
         String email,
         String fullName,
         String role,
-        int tokenVersion
+        Integer tokenVersion
 ) {
 }

@@ -18,4 +18,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u join fetch u.role where lower(u.email) = lower(:email)")
     Optional<User> findForLogin(@Param("email") String email);
+
+    @Query("select u from User u join fetch u.role order by u.createdAt desc")
+    java.util.List<User> findAllWithRole();
 }
+

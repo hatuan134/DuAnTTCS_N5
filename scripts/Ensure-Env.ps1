@@ -118,6 +118,14 @@ foreach ($key in $keys) {
     $lines.Add("$key=$($envMap[$key])")
 }
 
+# Preserve optional/custom values (for example SMTP settings used by S1-02/S1-07)
+# instead of silently deleting them every time RUN_ALL.cmd repairs .env.
+foreach ($entry in $envMap.GetEnumerator()) {
+    if ($keys -notcontains $entry.Key) {
+        $lines.Add("$($entry.Key)=$($entry.Value)")
+    }
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllLines($EnvPath, $lines, $utf8NoBom)
 
