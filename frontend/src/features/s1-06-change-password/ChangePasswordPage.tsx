@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import {
@@ -17,6 +17,9 @@ import {
 
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import { getCurrentUser } from '../../core/auth/authStorage'
+import { libraryCardService } from '../s1-04-library-card/libraryCardService'
+import type { MyLibraryCard } from '../s1-04-library-card/libraryCardService'
 
 type ProfileForm = {
   phone: string
@@ -40,6 +43,29 @@ const RECENT_PASSWORDS = [
 ]
 
 export default function ChangePasswordPage() {
+  const currentUser = getCurrentUser()
+  const [cardInfo, setCardInfo] = useState<MyLibraryCard | null>(null)
+
+  useEffect(() => {
+    if (currentUser?.role !== 'READER') return
+
+    libraryCardService.getMine()
+      .then(setCardInfo)
+      .catch(() => setCardInfo(null))
+  }, [currentUser?.role])
+
+  const formatCardDate = (value?: string | null) => {
+    if (!value) return '-'
+    return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN')
+  }
+
+  const cardStatusLabel = cardInfo?.registrationStatus === 'REJECTED'
+    ? 'Hồ sơ bị từ chối'
+    : cardInfo?.registrationStatus === 'PENDING'
+      ? 'Chờ duyệt'
+      : cardInfo?.cardStatus === 'ACTIVE'
+        ? 'Đang hoạt động'
+        : cardInfo?.cardStatus ?? 'Chưa được cấp'
   const [profile, setProfile] =
     useState<ProfileForm>({
       phone: '0912345678',
@@ -297,17 +323,17 @@ export default function ChangePasswordPage() {
         <div className="grid gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
           <InfoItem
             label="Mã thẻ"
-            value="TV20260001"
+            value={cardInfo?.cardNumber ?? 'Chưa được cấp'}
           />
 
           <InfoItem
             label="Loại thẻ"
-            value="Thẻ sinh viên"
+            value={cardInfo?.cardTypeName ?? '-'}
           />
 
           <InfoItem
             label="Ngày hết hạn"
-            value="26/09/2027"
+            value={formatCardDate(cardInfo?.expiresAt)}
           />
 
           <div>
@@ -315,11 +341,23 @@ export default function ChangePasswordPage() {
               Trạng thái
             </p>
 
-            <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
-              Đang hoạt động
+            <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
+              cardInfo?.registrationStatus === 'REJECTED'
+                ? 'bg-red-50 text-red-700'
+                : cardInfo?.registrationStatus === 'PENDING'
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-emerald-50 text-emerald-700'
+            }`}>
+              {cardStatusLabel}
             </span>
           </div>
         </div>
+
+        {cardInfo?.registrationStatus === 'REJECTED' && cardInfo.rejectionReason && (
+          <div className="mx-5 mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <strong>Lý do từ chối:</strong> {cardInfo.rejectionReason}
+          </div>
+        )}
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -349,12 +387,12 @@ export default function ChangePasswordPage() {
           >
             <ReadOnlyField
               label="Họ và tên"
-              value="Nguyễn Văn An"
+              value={cardInfo?.fullName ?? currentUser?.fullName ?? 'Người dùng'}
             />
 
             <ReadOnlyField
               label="Ngày sinh"
-              value="15/08/2005"
+              value={formatCardDate(cardInfo?.dateOfBirth)}
             />
 
             <div>
