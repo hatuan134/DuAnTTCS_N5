@@ -385,6 +385,7 @@ public class AuditLogService {
             case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu";
             case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ thư viện";
+            case "READER_APPLICATION_REJECTED" -> "Từ chối hồ sơ bạn đọc";
             case "CARD_TYPE_CREATED" -> "Tạo chính sách mượn";
             case "CARD_TYPE_UPDATED" -> "Sửa chính sách mượn";
             case "CARD_TYPE_ACTIVATED" -> "Áp dụng chính sách mượn";
@@ -421,6 +422,9 @@ public class AuditLogService {
                     + " cho " + valueOrDash(afterData, "readerName")
                     + ", loại " + valueOrDash(afterData, "cardTypeName")
                     + ", hạn đến " + valueOrDash(afterData, "expiresAt") + ".";
+            case "READER_APPLICATION_REJECTED" -> "Từ chối hồ sơ của "
+                    + valueOrDash(afterData, "readerName")
+                    + ". Lý do: " + valueOrDash(afterData, "reason") + ".";
             case "CARD_TYPE_CREATED", "CARD_TYPE_UPDATED", "CARD_TYPE_ACTIVATED", "CARD_TYPE_DEACTIVATED", "CARD_TYPE_DELETED" -> {
                 String explicit = text(afterData, "action");
                 String before = text(afterData, "before");
