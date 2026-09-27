@@ -27,7 +27,7 @@ public class AuditLogService {
     private static final Map<String, List<String>> ACTION_GROUPS = Map.of(
             "LOGIN", List.of("LOGIN_SUCCESS", "LOGIN_FAILED", "ACCOUNT_TEMP_LOCKED"),
             "CREATE_ACCOUNT", List.of("USER_CREATED"),
-            "UPDATE_ACCOUNT", List.of("USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET"),
+            "UPDATE_ACCOUNT", List.of("USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET", "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED"),
             "ISSUE_CARD", List.of("LIBRARY_CARD_ISSUED"),
             "UPDATE_POLICY", List.of(
                     "CARD_TYPE_CREATED",
@@ -190,6 +190,26 @@ public class AuditLogService {
         auditLogRepository.insert(
                 userId,
                 "INITIAL_PASSWORD_SET",
+                "USER",
+                userId.toString(),
+                toJson(Map.of("email", email)),
+                ipAddress);
+    }
+
+    public void logPasswordResetRequested(Long userId, String email, String ipAddress) {
+        auditLogRepository.insert(
+                userId,
+                "PASSWORD_RESET_REQUESTED",
+                "USER",
+                userId != null ? userId.toString() : email,
+                toJson(Map.of("email", email)),
+                ipAddress);
+    }
+
+    public void logPasswordResetCompleted(Long userId, String email, String ipAddress) {
+        auditLogRepository.insert(
+                userId,
+                "PASSWORD_RESET_COMPLETED",
                 "USER",
                 userId.toString(),
                 toJson(Map.of("email", email)),
@@ -362,6 +382,8 @@ public class AuditLogService {
             case "USER_CREATED" -> "Tạo tài khoản";
             case "USER_STATUS_UPDATED" -> "Sửa tài khoản";
             case "INITIAL_PASSWORD_SET" -> "Thiết lập mật khẩu lần đầu";
+            case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu";
+            case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ thư viện";
             case "CARD_TYPE_CREATED" -> "Tạo chính sách mượn";
             case "CARD_TYPE_UPDATED" -> "Sửa chính sách mượn";
@@ -393,6 +415,8 @@ public class AuditLogService {
                     + statusLabel(valueOrDash(afterData, "oldStatus")) + " sang "
                     + statusLabel(valueOrDash(afterData, "newStatus")) + ".";
             case "INITIAL_PASSWORD_SET" -> "Người dùng đã thiết lập mật khẩu lần đầu.";
+            case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu cho tài khoản " + valueOrDash(afterData, "email") + ".";
+            case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công cho tài khoản " + valueOrDash(afterData, "email") + ".";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ " + valueOrDash(afterData, "cardNumber")
                     + " cho " + valueOrDash(afterData, "readerName")
                     + ", loại " + valueOrDash(afterData, "cardTypeName")

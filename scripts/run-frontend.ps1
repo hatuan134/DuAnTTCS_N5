@@ -4,11 +4,19 @@ $Frontend = Join-Path $Root 'frontend'
 Set-Location $Frontend
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    throw 'Node.js not found. Install Node.js 22 first.'
+    if (Test-Path 'C:\Program Files\nodejs\node.exe') {
+        $env:PATH = "C:\Program Files\nodejs;$env:PATH"
+    } else {
+        throw 'Node.js not found. Install Node.js first.'
+    }
 }
 
 if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
-    throw 'npm.cmd not found. Reinstall Node.js 22.'
+    if (Test-Path 'C:\Program Files\nodejs\npm.cmd') {
+        $env:PATH = "C:\Program Files\nodejs;$env:PATH"
+    } else {
+        throw 'npm.cmd not found. Reinstall Node.js.'
+    }
 }
 
 if (-not (Test-Path (Join-Path $Frontend 'node_modules'))) {

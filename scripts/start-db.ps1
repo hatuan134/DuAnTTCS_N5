@@ -5,13 +5,19 @@ Set-Location $Root
 & (Join-Path $PSScriptRoot 'Ensure-Env.ps1')
 & (Join-Path $PSScriptRoot 'Import-Env.ps1')
 
+$isLocalNativeRunning = (Get-Service '*postgres*' -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' }) -or (Get-NetTCPConnection -LocalPort ([int]$env:DB_PORT) -State Listen -ErrorAction SilentlyContinue)
+if ($isLocalNativeRunning) {
+    Write-Host "Local PostgreSQL is already running on port $env:DB_PORT. Using native database." -ForegroundColor Green
+    return
+}
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw 'Docker CLI not found. Install/open Docker Desktop first.'
+    throw 'Docker CLI not found, and no local PostgreSQL is running.'
 }
 
 docker info *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw 'Docker Engine is not running. Open Docker Desktop and wait until it is ready.'
+    throw 'Docker Engine is not running. Open Docker Desktop or start local PostgreSQL.'
 }
 
 $existingContainer = docker ps --filter 'name=duanttcs_n5_postgres' --format '{{.Names}}' 2>$null
