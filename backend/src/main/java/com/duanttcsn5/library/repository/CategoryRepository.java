@@ -19,7 +19,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     boolean existsByNameIgnoreCaseAndParentIsNullAndIdNot(String name, Long id);
 
-    List<Category> findAllByParentId(Long parentId);
+    @Query("SELECT c FROM Category c WHERE c.parent.id = :parentId")
+    List<Category> findAllByParent_Id(@Param("parentId") Long parentId);
 
     List<Category> findAllByOrderByCreatedAtDesc();
 

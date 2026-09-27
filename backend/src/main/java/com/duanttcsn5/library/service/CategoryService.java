@@ -123,7 +123,7 @@ public class CategoryService {
             }
 
             // Nếu đang có thể loại con, không cho gán cha (để tránh biến con thành cấp 3)
-            List<Category> children = categoryRepository.findAllByParentId(id);
+            List<Category> children = categoryRepository.findAllByParent_Id(id);
             if (!children.isEmpty()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "CATEGORY_HAS_CHILDREN",
                         "Thể loại đang có thể loại con nên không thể chuyển thành cấp 2.");
@@ -172,7 +172,7 @@ public class CategoryService {
 
         // Khi ngừng danh mục cha, tự động ngừng luôn tất cả các danh mục con
         if (!nextActive) {
-            List<Category> children = categoryRepository.findAllByParentId(id);
+            List<Category> children = categoryRepository.findAllByParent_Id(id);
             for (Category child : children) {
                 if (child.isActive()) {
                     child.setActive(false);
@@ -201,7 +201,7 @@ public class CategoryService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Không tìm thấy thể loại ID: " + id));
 
-        List<Category> children = categoryRepository.findAllByParentId(id);
+        List<Category> children = categoryRepository.findAllByParent_Id(id);
         if (!children.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "CATEGORY_HAS_CHILDREN",
                     "Không thể xoá thể loại '" + category.getName() + "' vì đang có " + children.size() +

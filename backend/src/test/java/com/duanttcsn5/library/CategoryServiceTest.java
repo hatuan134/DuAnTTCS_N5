@@ -159,7 +159,7 @@ class CategoryServiceTest {
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(categoryRepository.findById(99L)).thenReturn(Optional.of(potentialParent));
-        when(categoryRepository.findAllByParentId(1L)).thenReturn(List.of(child));
+        when(categoryRepository.findAllByParent_Id(1L)).thenReturn(List.of(child));
 
         UpdateCategoryRequest request = new UpdateCategoryRequest("Văn học", "Mô tả", 99L);
 
@@ -184,7 +184,7 @@ class CategoryServiceTest {
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(parent));
         when(categoryRepository.save(parent)).thenAnswer(inv -> inv.getArgument(0));
-        when(categoryRepository.findAllByParentId(1L)).thenReturn(List.of(child1, child2));
+        when(categoryRepository.findAllByParent_Id(1L)).thenReturn(List.of(child1, child2));
         when(categoryRepository.countBooksUsingCategory(1L)).thenReturn(10L);
 
         CategoryResponse response = categoryService.toggleStatus(1L, 10L, "127.0.0.1");
@@ -204,7 +204,7 @@ class CategoryServiceTest {
         category.setId(1L);
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        when(categoryRepository.findAllByParentId(1L)).thenReturn(Collections.emptyList());
+        when(categoryRepository.findAllByParent_Id(1L)).thenReturn(Collections.emptyList());
         when(categoryRepository.countBooksUsingCategory(1L)).thenReturn(25L);
 
         ApiException ex = assertThrows(ApiException.class, () ->
@@ -225,7 +225,7 @@ class CategoryServiceTest {
         child.setId(2L);
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(parent));
-        when(categoryRepository.findAllByParentId(1L)).thenReturn(List.of(child));
+        when(categoryRepository.findAllByParent_Id(1L)).thenReturn(List.of(child));
 
         ApiException ex = assertThrows(ApiException.class, () ->
                 categoryService.deleteCategory(1L, 10L, "127.0.0.1")
@@ -243,7 +243,7 @@ class CategoryServiceTest {
         category.setId(5L);
 
         when(categoryRepository.findById(5L)).thenReturn(Optional.of(category));
-        when(categoryRepository.findAllByParentId(5L)).thenReturn(Collections.emptyList());
+        when(categoryRepository.findAllByParent_Id(5L)).thenReturn(Collections.emptyList());
         when(categoryRepository.countBooksUsingCategory(5L)).thenReturn(0L);
 
         categoryService.deleteCategory(5L, 10L, "127.0.0.1");
