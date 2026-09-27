@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -8,1368 +9,1570 @@ import type {
 } from 'react'
 
 import {
+  AlertCircle,
+  AlertTriangle,
   BookOpen,
+  CheckCircle2,
+  CornerDownRight,
   Pencil,
   Plus,
   Power,
+  RefreshCw,
   Search,
   Tags,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react'
 
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import {
+  catalogService,
+  type Author,
+  type Book,
+  type Category,
+} from './catalogService'
 
-type PageMode =
-  | 'authors'
-  | 'categories'
-
-type Author = {
-  id: number
-  name: string
-  note: string
-  bookCount: number
-  active: boolean
-}
-
-type Category = {
-  id: number
-  name: string
-  description: string
-  parentId: number | null
-  bookCount: number
-  active: boolean
-}
-
-type FormState = {
-  name: string
-  description: string
-  parentId: string
-}
+type PageMode = 'authors' | 'categories' | 'books'
 
 type Props = {
   mode: PageMode
 }
 
-const AUTHORS_KEY =
-  'libra_s1_08_authors'
+interface AuthorFormState {
+  name: string
+  note: string
+}
 
-const CATEGORIES_KEY =
-  'libra_s1_08_categories'
+interface CategoryFormState {
+  name: string
+  description: string
+  parentId: string
+}
 
-const initialAuthors: Author[] = [
-  {
-    id: 1,
-    name: 'Nguyễn Nhật Ánh',
-    note: 'Tác giả văn học Việt Nam.',
-    bookCount: 12,
-    active: true,
-  },
-  {
-    id: 2,
-    name: 'Nam Cao',
-    note: 'Nhà văn hiện thực Việt Nam.',
-    bookCount: 8,
-    active: true,
-  },
-  {
-    id: 3,
-    name: 'Tô Hoài',
-    note: 'Tác giả nhiều tác phẩm văn học thiếu nhi.',
-    bookCount: 5,
-    active: true,
-  },
-]
+interface BookFormState {
+  title: string
+  authorId: string
+  categoryId: string
+  isbn: string
+  publisher: string
+  publicationYear: string
+  description: string
+}
 
-const initialCategories: Category[] = [
-  {
-    id: 1,
-    name: 'Văn học',
-    description:
-      'Các tác phẩm văn học.',
-    parentId: null,
-    bookCount: 25,
-    active: true,
-  },
-  {
-    id: 2,
-    name: 'Văn học trong nước',
-    description:
-      'Tác phẩm văn học Việt Nam.',
-    parentId: 1,
-    bookCount: 18,
-    active: true,
-  },
-  {
-    id: 3,
-    name: 'Văn học nước ngoài',
-    description:
-      'Tác phẩm văn học nước ngoài.',
-    parentId: 1,
-    bookCount: 7,
-    active: true,
-  },
-  {
-    id: 4,
-    name: 'Công nghệ thông tin',
-    description:
-      'Sách về máy tính và công nghệ.',
-    parentId: null,
-    bookCount: 14,
-    active: true,
-  },
-]
+const emptyAuthorForm: AuthorFormState = {
+  name: '',
+  note: '',
+}
 
-const emptyForm: FormState = {
+const emptyCategoryForm: CategoryFormState = {
   name: '',
   description: '',
   parentId: '',
 }
 
-function readStorage<T>(
-  key: string,
-  fallback: T,
-): T {
-  try {
-    const raw =
-      localStorage.getItem(key)
-
-    if (!raw) {
-      return fallback
-    }
-
-    return JSON.parse(raw)
-  } catch {
-    return fallback
-  }
+const emptyBookForm: BookFormState = {
+  title: '',
+  authorId: '',
+  categoryId: '',
+  isbn: '',
+  publisher: '',
+  publicationYear: '',
+  description: '',
 }
 
-export default function CatalogManagementPage({
-  mode,
-}: Props) {
-  const [authors, setAuthors] =
-    useState<Author[]>(() =>
-      readStorage(
-        AUTHORS_KEY,
-        initialAuthors,
-      ),
-    )
+export default function CatalogManagementPage({ mode: initialMode }: Props) {
+  const [currentTab, setCurrentTab] = useState<PageMode>(initialMode)
+  const [authors, setAuthors] = useState<Author[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [books, setBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const [categories, setCategories] =
-    useState<Category[]>(() =>
-      readStorage(
-        CATEGORIES_KEY,
-        initialCategories,
-      ),
-    )
+  // Filters
+  const [search, setSearch] = useState('')
+  const [showInactive, setShowInactive] = useState(true)
 
-  const [search, setSearch] =
-    useState('')
+  // Author Modal
+  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false)
+  const [editingAuthorId, setEditingAuthorId] = useState<number | null>(null)
+  const [authorForm, setAuthorForm] = useState<AuthorFormState>(emptyAuthorForm)
+  const [authorFormError, setAuthorFormError] = useState('')
 
-  const [showInactive, setShowInactive] =
-    useState(true)
+  // Category Modal
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
+  const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm)
+  const [categoryFormError, setCategoryFormError] = useState('')
 
-  const [isModalOpen, setIsModalOpen] =
-    useState(false)
+  // Book Modal (Biên mục mới)
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false)
+  const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
+  const [bookFormError, setBookFormError] = useState('')
 
-  const [editingId, setEditingId] =
-    useState<number | null>(null)
+  // Delete constraint dialog
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean
+    type: 'author' | 'category'
+    item: Author | Category | null
+    cannotDeleteReason?: string
+  }>({
+    open: false,
+    type: 'author',
+    item: null,
+  })
 
-  const [form, setForm] =
-    useState<FormState>(emptyForm)
-
-  const [error, setError] =
-    useState('')
-
-  const isAuthors =
-    mode === 'authors'
-
-  const saveAuthors = (
-    data: Author[],
-  ) => {
-    setAuthors(data)
-
-    localStorage.setItem(
-      AUTHORS_KEY,
-      JSON.stringify(data),
-    )
-  }
-
-  const saveCategories = (
-    data: Category[],
-  ) => {
-    setCategories(data)
-
-    localStorage.setItem(
-      CATEGORIES_KEY,
-      JSON.stringify(data),
-    )
-  }
-
-  const openCreateModal = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setError('')
-    setIsModalOpen(true)
-  }
-
-  const openEditAuthor = (
-    item: Author,
-  ) => {
-    setEditingId(item.id)
-
-    setForm({
-      name: item.name,
-      description: item.note,
-      parentId: '',
-    })
-
-    setError('')
-    setIsModalOpen(true)
-  }
-
-  const openEditCategory = (
-    item: Category,
-  ) => {
-    setEditingId(item.id)
-
-    setForm({
-      name: item.name,
-      description:
-        item.description,
-      parentId:
-        item.parentId === null
-          ? ''
-          : String(
-              item.parentId,
-            ),
-    })
-
-    setError('')
-    setIsModalOpen(true)
-  }
-
-  const closeModal = () => {
-    setIsModalOpen(false)
-    setEditingId(null)
-    setForm(emptyForm)
-    setError('')
-  }
-
-  const handleAuthorSubmit = () => {
-    const name =
-      form.name.trim()
-
-    const duplicate =
-      authors.some(
-        (item) =>
-          item.name
-            .trim()
-            .toLowerCase() ===
-            name.toLowerCase() &&
-          item.id !== editingId,
-      )
-
-    if (duplicate) {
-      setError(
-        'Tên tác giả đã tồn tại.',
-      )
-      return
-    }
-
-    if (editingId !== null) {
-      const updated =
-        authors.map(
-          (item) =>
-            item.id === editingId
-              ? {
-                  ...item,
-                  name,
-                  note:
-                    form.description
-                      .trim(),
-                }
-              : item,
-        )
-
-      saveAuthors(updated)
-    } else {
-      const newAuthor: Author = {
-        id: Date.now(),
-        name,
-        note:
-          form.description.trim(),
-        bookCount: 0,
-        active: true,
-      }
-
-      saveAuthors([
-        ...authors,
-        newAuthor,
+  // Load all data
+  const loadData = async () => {
+    setLoading(true)
+    setApiError(null)
+    try {
+      const [authorsData, categoriesData, booksData] = await Promise.all([
+        catalogService.getAuthors(),
+        catalogService.getCategories(),
+        catalogService.getBooks(),
       ])
+      setAuthors(authorsData)
+      setCategories(categoriesData)
+      setBooks(booksData)
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Không thể tải dữ liệu danh mục.'
+      setApiError(msg)
+    } finally {
+      setLoading(false)
     }
-
-    closeModal()
   }
 
-  const handleCategorySubmit = () => {
-    const name =
-      form.name.trim()
+  useEffect(() => {
+    loadData()
+  }, [])
 
-    const parentId =
-      form.parentId
-        ? Number(form.parentId)
-        : null
+  useEffect(() => {
+    setCurrentTab(initialMode)
+  }, [initialMode])
 
-    /*
-     * Chặn trường hợp chỉnh sửa một
-     * danh mục thành con của chính nó.
-     */
-    if (
-      editingId !== null &&
-      parentId === editingId
-    ) {
-      setError(
-        'Thể loại không thể là thể loại cha của chính nó.',
-      )
+  const showNotification = (msg: string) => {
+    setSuccessMessage(msg)
+    setTimeout(() => {
+      setSuccessMessage(null)
+    }, 4000)
+  }
+
+  // --- Author Actions ---
+  const openCreateAuthorModal = () => {
+    setEditingAuthorId(null)
+    setAuthorForm(emptyAuthorForm)
+    setAuthorFormError('')
+    setIsAuthorModalOpen(true)
+  }
+
+  const openEditAuthorModal = (author: Author) => {
+    setEditingAuthorId(author.id)
+    setAuthorForm({
+      name: author.name,
+      note: author.note || '',
+    })
+    setAuthorFormError('')
+    setIsAuthorModalOpen(true)
+  }
+
+  const handleAuthorSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setAuthorFormError('')
+    const trimmed = authorForm.name.trim()
+    if (!trimmed) {
+      setAuthorFormError('Tên tác giả không được để trống.')
       return
     }
 
-    /*
-     * Chỉ cho chọn danh mục cấp 1
-     * làm cha => tối đa 2 cấp.
-     */
-    if (
-      parentId !== null
-    ) {
-      const parent =
-        categories.find(
-          (item) =>
-            item.id === parentId,
-        )
-
-      if (!parent) {
-        setError(
-          'Thể loại cha không tồn tại.',
-        )
-        return
+    try {
+      if (editingAuthorId !== null) {
+        await catalogService.updateAuthor(editingAuthorId, {
+          name: trimmed,
+          note: authorForm.note.trim(),
+        })
+        showNotification(`Đã cập nhật thông tin tác giả "${trimmed}".`)
+      } else {
+        await catalogService.createAuthor({
+          name: trimmed,
+          note: authorForm.note.trim(),
+        })
+        showNotification(`Đã thêm tác giả mới "${trimmed}".`)
       }
-
-      if (
-        parent.parentId !== null
-      ) {
-        setError(
-          'Thể loại chỉ được xếp tối đa 2 cấp.',
-        )
-        return
-      }
+      setIsAuthorModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi lưu tác giả.'
+      setAuthorFormError(msg)
     }
+  }
 
-    /*
-     * Chặn tên trùng trong cùng
-     * một cấp / cùng thể loại cha.
-     */
-    const duplicate =
-      categories.some(
-        (item) =>
-          item.name
-            .trim()
-            .toLowerCase() ===
-            name.toLowerCase() &&
-          item.parentId ===
-            parentId &&
-          item.id !== editingId,
-      )
-
-    if (duplicate) {
-      setError(
-        'Tên thể loại đã tồn tại trong cùng danh mục.',
-      )
-      return
+  const handleToggleAuthor = async (author: Author) => {
+    try {
+      const updated = await catalogService.toggleAuthorStatus(author.id)
+      const actionText = updated.active ? 'kích hoạt lại' : 'ngừng sử dụng'
+      showNotification(`Đã ${actionText} tác giả "${updated.name}".`)
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Không thể đổi trạng thái tác giả.'
+      setApiError(msg)
     }
+  }
 
-    /*
-     * Nếu danh mục đang có con,
-     * không cho biến nó thành
-     * danh mục cấp 2.
-     */
-    if (
-      editingId !== null &&
-      parentId !== null
-    ) {
-      const hasChildren =
-        categories.some(
-          (item) =>
-            item.parentId ===
-            editingId,
-        )
-
-      if (hasChildren) {
-        setError(
-          'Thể loại đang có thể loại con nên không thể chuyển thành cấp 2.',
-        )
-        return
-      }
-    }
-
-    if (editingId !== null) {
-      const updated =
-        categories.map(
-          (item) =>
-            item.id === editingId
-              ? {
-                  ...item,
-                  name,
-                  description:
-                    form.description
-                      .trim(),
-                  parentId,
-                }
-              : item,
-        )
-
-      saveCategories(updated)
+  const handleDeleteAuthorClick = (author: Author) => {
+    if (author.bookCount > 0) {
+      setDeleteDialog({
+        open: true,
+        type: 'author',
+        item: author,
+        cannotDeleteReason: `Không cho phép xoá: Tác giả "${author.name}" đang gắn với ${author.bookCount} đầu sách trong hệ thống. Quy tắc chỉ cho phép ngừng sử dụng để bảo toàn dữ liệu sách cũ.`,
+      })
     } else {
-      const newCategory:
-        Category = {
-        id: Date.now(),
-        name,
-        description:
-          form.description.trim(),
-        parentId,
-        bookCount: 0,
-        active: true,
+      setDeleteDialog({
+        open: true,
+        type: 'author',
+        item: author,
+        cannotDeleteReason: undefined,
+      })
+    }
+  }
+
+  // --- Category Actions ---
+  const openCreateCategoryModal = () => {
+    setEditingCategoryId(null)
+    setCategoryForm(emptyCategoryForm)
+    setCategoryFormError('')
+    setIsCategoryModalOpen(true)
+  }
+
+  const openEditCategoryModal = (category: Category) => {
+    setEditingCategoryId(category.id)
+    setCategoryForm({
+      name: category.name,
+      description: category.description || '',
+      parentId: category.parentId ? String(category.parentId) : '',
+    })
+    setCategoryFormError('')
+    setIsCategoryModalOpen(true)
+  }
+
+  const handleCategorySubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setCategoryFormError('')
+    const trimmed = categoryForm.name.trim()
+    if (!trimmed) {
+      setCategoryFormError('Tên thể loại không được để trống.')
+      return
+    }
+
+    const parentIdNum = categoryForm.parentId ? Number(categoryForm.parentId) : null
+
+    // Client check self parent
+    if (editingCategoryId !== null && parentIdNum === editingCategoryId) {
+      setCategoryFormError('Thể loại không thể là cha của chính nó.')
+      return
+    }
+
+    try {
+      if (editingCategoryId !== null) {
+        await catalogService.updateCategory(editingCategoryId, {
+          name: trimmed,
+          description: categoryForm.description.trim(),
+          parentId: parentIdNum,
+        })
+        showNotification(`Đã cập nhật thể loại "${trimmed}".`)
+      } else {
+        await catalogService.createCategory({
+          name: trimmed,
+          description: categoryForm.description.trim(),
+          parentId: parentIdNum,
+        })
+        showNotification(`Đã thêm thể loại mới "${trimmed}".`)
       }
-
-      saveCategories([
-        ...categories,
-        newCategory,
-      ])
+      setIsCategoryModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi lưu thể loại.'
+      setCategoryFormError(msg)
     }
-
-    closeModal()
   }
 
-  const handleSubmit = (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault()
-
-    setError('')
-
-    if (!form.name.trim()) {
-      setError(
-        isAuthors
-          ? 'Tên tác giả không được để trống.'
-          : 'Tên thể loại không được để trống.',
+  const handleToggleCategory = async (category: Category) => {
+    try {
+      const updated = await catalogService.toggleCategoryStatus(category.id)
+      const actionText = updated.active ? 'kích hoạt lại' : 'ngừng sử dụng'
+      showNotification(
+        `Đã ${actionText} thể loại "${updated.name}"${
+          !updated.active && category.level === 1
+            ? ' (các thể loại con cũng đã được tự động ngừng sử dụng)'
+            : ''
+        }.`,
       )
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Không thể đổi trạng thái thể loại.'
+      setApiError(msg)
+    }
+  }
+
+  const handleDeleteCategoryClick = (category: Category) => {
+    // Check if category has children
+    const hasChildren = categories.some((c) => c.parentId === category.id)
+    if (hasChildren) {
+      setDeleteDialog({
+        open: true,
+        type: 'category',
+        item: category,
+        cannotDeleteReason: `Không cho phép xoá: Thể loại "${category.name}" đang có các thể loại con trực thuộc. Vui lòng chuyển hoặc xoá các thể loại con trước.`,
+      })
       return
     }
 
-    if (isAuthors) {
-      handleAuthorSubmit()
-    } else {
-      handleCategorySubmit()
-    }
-  }
-
-  const toggleAuthor = (
-    id: number,
-  ) => {
-    const updated =
-      authors.map(
-        (item) =>
-          item.id === id
-            ? {
-                ...item,
-                active:
-                  !item.active,
-              }
-            : item,
-      )
-
-    saveAuthors(updated)
-  }
-
-  const toggleCategory = (
-    id: number,
-  ) => {
-    const item =
-      categories.find(
-        (category) =>
-          category.id === id,
-      )
-
-    if (!item) {
+    if (category.bookCount > 0) {
+      setDeleteDialog({
+        open: true,
+        type: 'category',
+        item: category,
+        cannotDeleteReason: `Không cho phép xoá: Thể loại "${category.name}" đang gắn với ${category.bookCount} đầu sách trong hệ thống. Quy tắc chỉ cho phép ngừng sử dụng để bảo toàn dữ liệu sách cũ.`,
+      })
       return
     }
 
-    const nextActive =
-      !item.active
-
-    /*
-     * Khi ngừng danh mục cha,
-     * ngừng luôn các danh mục con.
-     */
-    const updated =
-      categories.map(
-        (category) => {
-          if (
-            category.id === id
-          ) {
-            return {
-              ...category,
-              active:
-                nextActive,
-            }
-          }
-
-          if (
-            !nextActive &&
-            category.parentId ===
-              id
-          ) {
-            return {
-              ...category,
-              active: false,
-            }
-          }
-
-          return category
-        },
-      )
-
-    saveCategories(updated)
+    setDeleteDialog({
+      open: true,
+      type: 'category',
+      item: category,
+      cannotDeleteReason: undefined,
+    })
   }
 
-  const filteredAuthors =
-    useMemo(() => {
-      const keyword =
-        search
-          .trim()
-          .toLowerCase()
+  const confirmDelete = async () => {
+    if (!deleteDialog.item || deleteDialog.cannotDeleteReason) {
+      setDeleteDialog({ open: false, type: 'author', item: null })
+      return
+    }
 
-      return authors.filter(
-        (item) => {
-          const matchesSearch =
-            !keyword ||
-            item.name
-              .toLowerCase()
-              .includes(keyword) ||
-            item.note
-              .toLowerCase()
-              .includes(keyword)
+    try {
+      if (deleteDialog.type === 'author') {
+        await catalogService.deleteAuthor(deleteDialog.item.id)
+        showNotification(`Đã xoá tác giả "${deleteDialog.item.name}".`)
+      } else {
+        await catalogService.deleteCategory(deleteDialog.item.id)
+        showNotification(`Đã xoá thể loại "${deleteDialog.item.name}".`)
+      }
+      setDeleteDialog({ open: false, type: 'author', item: null })
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Không thể xoá mục này.'
+      setApiError(msg)
+      setDeleteDialog({ open: false, type: 'author', item: null })
+    }
+  }
 
-          const matchesStatus =
-            showInactive ||
-            item.active
+  // --- Book / Biên mục sách mới Actions ---
+  const openCreateBookModal = () => {
+    setBookForm(emptyBookForm)
+    setBookFormError('')
+    setIsBookModalOpen(true)
+  }
 
-          return (
-            matchesSearch &&
-            matchesStatus
-          )
-        },
-      )
-    }, [
-      authors,
-      search,
-      showInactive,
-    ])
+  const handleBookSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setBookFormError('')
 
-  const filteredCategories =
-    useMemo(() => {
-      const keyword =
-        search
-          .trim()
-          .toLowerCase()
+    if (!bookForm.title.trim()) {
+      setBookFormError('Tên đầu sách không được để trống.')
+      return
+    }
+    if (!bookForm.authorId) {
+      setBookFormError('Vui lòng chọn tác giả cho đầu sách.')
+      return
+    }
+    if (!bookForm.categoryId) {
+      setBookFormError('Vui lòng chọn thể loại cho đầu sách.')
+      return
+    }
 
-      return categories.filter(
-        (item) => {
-          const matchesSearch =
-            !keyword ||
-            item.name
-              .toLowerCase()
-              .includes(keyword) ||
-            item.description
-              .toLowerCase()
-              .includes(keyword)
+    try {
+      await catalogService.catalogBook({
+        title: bookForm.title.trim(),
+        authorId: Number(bookForm.authorId),
+        categoryId: Number(bookForm.categoryId),
+        isbn: bookForm.isbn.trim() || undefined,
+        publisher: bookForm.publisher.trim() || undefined,
+        publicationYear: bookForm.publicationYear ? Number(bookForm.publicationYear) : undefined,
+        description: bookForm.description.trim() || undefined,
+      })
+      showNotification(`Biên mục thành công đầu sách: "${bookForm.title.trim()}".`)
+      setIsBookModalOpen(false)
+      loadData()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi biên mục sách mới.'
+      setBookFormError(msg)
+    }
+  }
 
-          const matchesStatus =
-            showInactive ||
-            item.active
+  // Active authors for new cataloging dropdown (Requirement: Deactivated items do NOT appear)
+  const activeAuthorsForCataloging = useMemo(() => {
+    return authors.filter((a) => a.active)
+  }, [authors])
 
-          return (
-            matchesSearch &&
-            matchesStatus
-          )
-        },
-      )
-    }, [
-      categories,
-      search,
-      showInactive,
-    ])
+  // Active categories for new cataloging dropdown
+  const activeCategoriesForCataloging = useMemo(() => {
+    return categories.filter((c) => c.active)
+  }, [categories])
 
-  /*
-   * Chỉ danh mục cấp 1 đang hoạt động
-   * mới được chọn làm cha.
-   */
-  const parentOptions =
-    categories.filter(
-      (item) =>
-        item.parentId === null &&
-        item.active &&
-        item.id !== editingId,
+  // Parent options for category creation (Level 1 active categories, excluding self)
+  const level1CategoriesForParent = useMemo(() => {
+    return categories.filter(
+      (c) => c.parentId === null && c.active && c.id !== editingCategoryId,
     )
+  }, [categories, editingCategoryId])
 
-  const totalCount =
-    isAuthors
-      ? authors.length
-      : categories.length
+  // Check if current category being edited has child categories
+  const currentCategoryHasChildren = useMemo(() => {
+    if (editingCategoryId === null) return false
+    return categories.some((c) => c.parentId === editingCategoryId)
+  }, [categories, editingCategoryId])
 
-  const activeCount =
-    isAuthors
-      ? authors.filter(
-          (item) =>
-            item.active,
-        ).length
-      : categories.filter(
-          (item) =>
-            item.active,
-        ).length
+  // Filtered lists for tables
+  const filteredAuthors = useMemo(() => {
+    const kw = search.trim().toLowerCase()
+    return authors.filter((a) => {
+      const matchKw =
+        !kw ||
+        a.name.toLowerCase().includes(kw) ||
+        (a.note && a.note.toLowerCase().includes(kw))
+      const matchStatus = showInactive || a.active
+      return matchKw && matchStatus
+    })
+  }, [authors, search, showInactive])
 
-  const inactiveCount =
-    totalCount - activeCount
+  const filteredCategories = useMemo(() => {
+    const kw = search.trim().toLowerCase()
+    return categories.filter((c) => {
+      const matchKw =
+        !kw ||
+        c.name.toLowerCase().includes(kw) ||
+        (c.description && c.description.toLowerCase().includes(kw)) ||
+        (c.parentName && c.parentName.toLowerCase().includes(kw))
+      const matchStatus = showInactive || c.active
+      return matchKw && matchStatus
+    })
+  }, [categories, search, showInactive])
+
+  const filteredBooks = useMemo(() => {
+    const kw = search.trim().toLowerCase()
+    return books.filter((b) => {
+      return (
+        !kw ||
+        b.title.toLowerCase().includes(kw) ||
+        b.authorName.toLowerCase().includes(kw) ||
+        b.categoryName.toLowerCase().includes(kw) ||
+        (b.isbn && b.isbn.toLowerCase().includes(kw)) ||
+        (b.publisher && b.publisher.toLowerCase().includes(kw))
+      )
+    })
+  }, [books, search])
+
+  // Stats
+  const authorsActiveCount = authors.filter((a) => a.active).length
+  const categoriesActiveCount = categories.filter((c) => c.active).length
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={
-          isAuthors
-            ? 'Quản lý tác giả'
-            : 'Quản lý thể loại'
-        }
-        description={
-          isAuthors
-            ? 'Quản lý danh mục tác giả dùng khi biên mục sách.'
-            : 'Quản lý danh mục thể loại và cấu trúc phân cấp tối đa 2 cấp.'
-        }
-      />
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          title={
+            currentTab === 'authors'
+              ? 'Danh mục Tác giả'
+              : currentTab === 'categories'
+                ? 'Danh mục Thể loại'
+                : 'Biên mục Sách (Kiểm chứng danh mục)'
+          }
+          description={
+            currentTab === 'authors'
+              ? 'Khai báo và quản lý tác giả chuẩn hoá, phục vụ biên mục sách nhanh chóng.'
+              : currentTab === 'categories'
+                ? 'Khai báo danh mục thể loại phân cấp tối đa 2 cấp (ví dụ: Văn học trong nước dưới Văn học).'
+                : 'Biên mục đầu sách: kiểm chứng danh mục đã ngừng sử dụng không hiện trong ô chọn mới nhưng vẫn hiển thị trên sách cũ.'
+          }
+        />
 
-      {/* THỐNG KÊ */}
-      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={loadData}
+            title="Làm mới dữ liệu"
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <span>Tải lại</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {successMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {apiError && (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} className="text-red-600 shrink-0" />
+            <span>{apiError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setApiError(null)}
+            className="text-red-500 hover:text-red-700"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Tabs navigation */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentTab('authors')
+            setSearch('')
+          }}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+            currentTab === 'authors'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <UserRound size={17} />
+          <span>Tác giả ({authors.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentTab('categories')
+            setSearch('')
+          }}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+            currentTab === 'categories'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Tags size={17} />
+          <span>Thể loại ({categories.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentTab('books')
+            setSearch('')
+          }}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+            currentTab === 'books'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <BookOpen size={17} />
+          <span>Sách đã biên mục ({books.length})</span>
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 sm:grid-cols-4">
         <Card>
           <div className="p-5">
-            <p className="text-sm text-slate-500">
-              {isAuthors
-                ? 'Tổng tác giả'
-                : 'Tổng thể loại'}
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {totalCount}
-            </p>
+            <p className="text-sm font-medium text-slate-500">Tổng tác giả</p>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-bold text-slate-900">{authors.length}</span>
+              <span className="text-xs text-emerald-600 font-medium">
+                {authorsActiveCount} đang dùng
+              </span>
+            </div>
           </div>
         </Card>
 
         <Card>
           <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Đang sử dụng
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-emerald-700">
-              {activeCount}
-            </p>
+            <p className="text-sm font-medium text-slate-500">Tổng thể loại</p>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-bold text-slate-900">{categories.length}</span>
+              <span className="text-xs text-emerald-600 font-medium">
+                {categoriesActiveCount} đang dùng
+              </span>
+            </div>
           </div>
         </Card>
 
         <Card>
           <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Ngừng sử dụng
-            </p>
+            <p className="text-sm font-medium text-slate-500">Phân cấp thể loại</p>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-bold text-violet-700">Tối đa 2 cấp</span>
+              <span className="text-xs text-slate-500">Cấp 1 & Cấp 2</span>
+            </div>
+          </div>
+        </Card>
 
-            <p className="mt-2 text-2xl font-semibold text-slate-700">
-              {inactiveCount}
-            </p>
+        <Card>
+          <div className="p-5">
+            <p className="text-sm font-medium text-slate-500">Đầu sách trong thư viện</p>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-bold text-blue-700">{books.length}</span>
+              <span className="text-xs text-slate-500">Đã biên mục</span>
+            </div>
           </div>
         </Card>
       </div>
 
-      {/* DANH SÁCH */}
+      {/* Main Card */}
       <Card>
+        {/* Table Toolbar */}
         <div className="border-b border-slate-200 p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                {isAuthors
-                  ? 'Danh sách tác giả'
-                  : 'Danh sách thể loại'}
+                {currentTab === 'authors'
+                  ? 'Danh sách Tác giả'
+                  : currentTab === 'categories'
+                    ? 'Danh sách Thể loại (Cây phân cấp)'
+                    : 'Danh sách Đầu sách đã Biên mục'}
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
-                {isAuthors
-                  ? 'Thêm, chỉnh sửa hoặc ngừng sử dụng tác giả.'
-                  : 'Thêm, chỉnh sửa hoặc ngừng sử dụng thể loại.'}
+                {currentTab === 'authors'
+                  ? 'Quản lý tác giả: thêm mới, chỉnh sửa, đổi trạng thái hoặc xoá an toàn.'
+                  : currentTab === 'categories'
+                    ? 'Quản lý thể loại: phân cấp lồng tối đa 2 cấp, kiểm soát trùng tên trong cùng danh mục.'
+                    : 'Kiểm chứng: Sách cũ giữ nguyên tác giả/thể loại (kể cả khi đã ngừng sử dụng); Biên mục mới chỉ chọn mục đang hoạt động.'}
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative">
                 <Search
                   size={17}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-
                 <input
                   value={search}
-                  onChange={(event) =>
-                    setSearch(
-                      event.target
-                        .value,
-                    )
-                  }
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder={
-                    isAuthors
-                      ? 'Tìm tác giả...'
-                      : 'Tìm thể loại...'
+                    currentTab === 'authors'
+                      ? 'Tìm tên tác giả...'
+                      : currentTab === 'categories'
+                        ? 'Tìm thể loại...'
+                        : 'Tìm tên sách, tác giả, ISBN...'
                   }
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 sm:w-64"
+                  className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:w-64"
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={
-                  openCreateModal
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                <Plus size={18} />
+              {currentTab === 'authors' && (
+                <button
+                  type="button"
+                  onClick={openCreateAuthorModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  <Plus size={18} />
+                  <span>Thêm tác giả</span>
+                </button>
+              )}
 
-                {isAuthors
-                  ? 'Thêm tác giả'
-                  : 'Thêm thể loại'}
-              </button>
+              {currentTab === 'categories' && (
+                <button
+                  type="button"
+                  onClick={openCreateCategoryModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  <Plus size={18} />
+                  <span>Thêm thể loại</span>
+                </button>
+              )}
+
+              {currentTab === 'books' && (
+                <button
+                  type="button"
+                  onClick={openCreateBookModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Plus size={18} />
+                  <span>Biên mục sách mới</span>
+                </button>
+              )}
             </div>
           </div>
 
-          <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(event) =>
-                setShowInactive(
-                  event.target
-                    .checked,
-                )
-              }
-              className="h-4 w-4 rounded border-slate-300"
-            />
-
-            Hiển thị cả mục đã ngừng sử dụng
-          </label>
+          {currentTab !== 'books' && (
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                id="showInactiveCheckbox"
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="showInactiveCheckbox"
+                className="cursor-pointer text-sm text-slate-600"
+              >
+                Hiển thị cả mục đã ngừng sử dụng
+              </label>
+            </div>
+          )}
         </div>
 
-        {isAuthors ? (
+        {/* Content Table by Tab */}
+        {currentTab === 'authors' && (
           <AuthorsTable
-            items={
-              filteredAuthors
-            }
-            onEdit={
-              openEditAuthor
-            }
-            onToggle={
-              toggleAuthor
-            }
+            items={filteredAuthors}
+            onEdit={openEditAuthorModal}
+            onToggle={handleToggleAuthor}
+            onDelete={handleDeleteAuthorClick}
           />
-        ) : (
+        )}
+
+        {currentTab === 'categories' && (
           <CategoriesTable
-            items={
-              filteredCategories
-            }
-            allCategories={
-              categories
-            }
-            onEdit={
-              openEditCategory
-            }
-            onToggle={
-              toggleCategory
-            }
+            items={filteredCategories}
+            onEdit={openEditCategoryModal}
+            onToggle={handleToggleCategory}
+            onDelete={handleDeleteCategoryClick}
+          />
+        )}
+
+        {currentTab === 'books' && (
+          <BooksTable
+            items={filteredBooks}
+            onOpenCatalogModal={openCreateBookModal}
           />
         )}
       </Card>
 
-      {/* QUY TẮC */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <div className="flex gap-3">
-          <BookOpen
-            size={20}
-            className="mt-0.5 shrink-0 text-blue-600"
-          />
-
-          <div>
-            <p className="text-sm font-semibold text-blue-900">
-              Quy tắc danh mục
-            </p>
-
-            <p className="mt-1 text-sm leading-6 text-blue-700">
-              {isAuthors
-                ? 'Tác giả đang gắn với đầu sách không bị xóa khỏi hệ thống. Khi ngừng sử dụng, tác giả sẽ không xuất hiện trong ô chọn của lần biên mục mới nhưng vẫn hiển thị trên các sách cũ.'
-                : 'Thể loại chỉ được phân cấp tối đa 2 cấp. Thể loại đang gắn với đầu sách không bị xóa; khi ngừng sử dụng sẽ không xuất hiện trong ô chọn biên mục mới nhưng vẫn giữ trên dữ liệu sách cũ.'}
-            </p>
+      {/* Rules Notice Box */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-5">
+        <div className="flex items-start gap-3">
+          <BookOpen size={20} className="mt-0.5 shrink-0 text-blue-600" />
+          <div className="space-y-1.5">
+            <h4 className="text-sm font-semibold text-blue-900">
+              Quy tắc nghiệp vụ S1-08 (Khai báo danh mục & Biên mục sách)
+            </h4>
+            <ul className="list-disc pl-5 text-sm leading-relaxed text-blue-800 space-y-1">
+              <li>
+                <strong>Không trùng tên:</strong> Tên tác giả là duy nhất trong danh mục tác giả;
+                Tên thể loại là duy nhất trong cùng danh mục cha / cùng cấp.
+              </li>
+              <li>
+                <strong>Xếp lồng tối đa 2 cấp:</strong> Thể loại chỉ được tối đa 2 cấp (ví dụ:
+                "Văn học trong nước" nằm dưới "Văn học"). Không cho phép tạo thể loại cấp 3.
+              </li>
+              <li>
+                <strong>Bảo vệ dữ liệu sách:</strong> Không cho xoá tác giả hoặc thể loại đang gắn
+                với ít nhất một đầu sách; chỉ cho phép <em>ngừng sử dụng</em>.
+              </li>
+              <li>
+                <strong>Quy tắc biên mục:</strong> Danh mục đã ngừng sử dụng không xuất hiện trong ô
+                chọn khi biên mục mới, nhưng vẫn hiển thị đầy đủ và rõ ràng trên các sách cũ đã biên
+                mục.
+              </li>
+            </ul>
           </div>
         </div>
       </div>
 
-      {/* MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      {/* MODAL: Thêm / Sửa Tác giả */}
+      {isAuthorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  {editingId !== null
-                    ? isAuthors
-                      ? 'Chỉnh sửa tác giả'
-                      : 'Chỉnh sửa thể loại'
-                    : isAuthors
-                      ? 'Thêm tác giả'
-                      : 'Thêm thể loại'}
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {isAuthors
-                    ? 'Nhập thông tin tác giả.'
-                    : 'Nhập thông tin và cấp của thể loại.'}
-                </p>
-              </div>
-
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {editingAuthorId !== null ? 'Chỉnh sửa tác giả' : 'Thêm tác giả mới'}
+              </h3>
               <button
                 type="button"
-                onClick={closeModal}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => setIsAuthorModalOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               >
-                <X size={20} />
+                <X size={19} />
               </button>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5 p-6"
-            >
+            <form onSubmit={handleAuthorSubmit} className="space-y-4 p-6">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  {isAuthors
-                    ? 'Tên tác giả'
-                    : 'Tên thể loại'}
-
-                  <span className="ml-1 text-red-500">
-                    *
-                  </span>
+                  Tên tác giả <span className="text-red-500">*</span>
                 </label>
-
                 <input
-                  value={form.name}
-                  onChange={(event) => {
-                    setForm({
-                      ...form,
-                      name:
-                        event.target
-                          .value,
-                    })
-
-                    setError('')
+                  type="text"
+                  value={authorForm.name}
+                  onChange={(e) => {
+                    setAuthorForm({ ...authorForm, name: e.target.value })
+                    setAuthorFormError('')
                   }}
-                  placeholder={
-                    isAuthors
-                      ? 'Ví dụ: Nguyễn Nhật Ánh'
-                      : 'Ví dụ: Văn học'
-                  }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Ví dụ: Nguyễn Nhật Ánh, Nam Cao..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  autoFocus
                 />
               </div>
 
-              {!isAuthors && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Thể loại cha
-                  </label>
-
-                  <select
-                    value={
-                      form.parentId
-                    }
-                    onChange={(
-                      event,
-                    ) => {
-                      setForm({
-                        ...form,
-                        parentId:
-                          event
-                            .target
-                            .value,
-                      })
-
-                      setError('')
-                    }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                  >
-                    <option value="">
-                      Không có — Cấp 1
-                    </option>
-
-                    {parentOptions.map(
-                      (item) => (
-                        <option
-                          key={
-                            item.id
-                          }
-                          value={
-                            item.id
-                          }
-                        >
-                          {
-                            item.name
-                          }{' '}
-                          — Cấp 1
-                        </option>
-                      ),
-                    )}
-                  </select>
-
-                  <p className="mt-1 text-xs text-slate-400">
-                    Chọn một thể loại cấp 1
-                    để tạo thể loại cấp 2.
-                  </p>
-                </div>
-              )}
-
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  {isAuthors
-                    ? 'Ghi chú'
-                    : 'Mô tả'}
+                  Ghi chú / Tiểu sử
                 </label>
-
                 <textarea
                   rows={3}
-                  value={
-                    form.description
-                  }
-                  onChange={(event) => {
-                    setForm({
-                      ...form,
-                      description:
-                        event.target
-                          .value,
-                    })
-
-                    setError('')
-                  }}
-                  placeholder={
-                    isAuthors
-                      ? 'Thông tin thêm về tác giả...'
-                      : 'Mô tả thể loại...'
-                  }
-                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  value={authorForm.note}
+                  onChange={(e) => setAuthorForm({ ...authorForm, note: e.target.value })}
+                  placeholder="Thông tin thêm về tác giả..."
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
-              {error && (
-                <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
+              {authorFormError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{authorFormError}</span>
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setIsAuthorModalOpen(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  Hủy
+                  Huỷ
                 </button>
-
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm"
                 >
-                  {editingId !== null
-                    ? 'Lưu thay đổi'
-                    : isAuthors
-                      ? 'Thêm tác giả'
-                      : 'Thêm thể loại'}
+                  {editingAuthorId !== null ? 'Lưu thay đổi' : 'Thêm tác giả'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
-  )
-}
 
-type AuthorsTableProps = {
-  items: Author[]
-  onEdit: (item: Author) => void
-  onToggle: (id: number) => void
-}
-
-function AuthorsTable({
-  items,
-  onEdit,
-  onToggle,
-}: AuthorsTableProps) {
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        mode="authors"
-      />
-    )
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[800px]">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-              Tác giả
-            </th>
-
-            <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-              Đầu sách
-            </th>
-
-            <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-              Trạng thái
-            </th>
-
-            <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
-              Thao tác
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.map(
-            (item) => (
-              <tr
-                key={item.id}
-                className="border-b border-slate-100 hover:bg-slate-50"
+      {/* MODAL: Thêm / Sửa Thể loại */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {editingCategoryId !== null ? 'Chỉnh sửa thể loại' : 'Thêm thể loại mới'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               >
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                      <UserRound
-                        size={19}
-                      />
-                    </div>
+                <X size={19} />
+              </button>
+            </div>
 
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {
-                          item.name
-                        }
-                      </p>
+            <form onSubmit={handleCategorySubmit} className="space-y-4 p-6">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Tên thể loại <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={(e) => {
+                    setCategoryForm({ ...categoryForm, name: e.target.value })
+                    setCategoryFormError('')
+                  }}
+                  placeholder="Ví dụ: Văn học, Văn học trong nước, Lập trình Web..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
 
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {
-                          item.note ||
-                          'Không có ghi chú'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </td>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Thuộc thể loại cha (Phân cấp tối đa 2 cấp)
+                </label>
+                <select
+                  value={categoryForm.parentId}
+                  disabled={currentCategoryHasChildren}
+                  onChange={(e) => {
+                    setCategoryForm({ ...categoryForm, parentId: e.target.value })
+                    setCategoryFormError('')
+                  }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="">Không có — Là thể loại cấp 1</option>
+                  {level1CategoriesForParent.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name} (Cấp 1)
+                    </option>
+                  ))}
+                </select>
+                {currentCategoryHasChildren ? (
+                  <p className="mt-1 text-xs text-amber-600 font-medium">
+                    Thể loại này đang có các thể loại con nên bắt buộc giữ ở Cấp 1 (không thể chuyển
+                    thành Cấp 2).
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Chọn một thể loại Cấp 1 đang hoạt động để tạo thể loại Cấp 2. Thể loại chỉ xếp
+                    lồng tối đa 2 cấp.
+                  </p>
+                )}
+              </div>
 
-                <td className="px-5 py-4 text-center text-sm text-slate-700">
-                  {
-                    item.bookCount
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Mô tả thể loại
+                </label>
+                <textarea
+                  rows={3}
+                  value={categoryForm.description}
+                  onChange={(e) =>
+                    setCategoryForm({ ...categoryForm, description: e.target.value })
                   }
-                </td>
+                  placeholder="Mô tả tóm tắt về thể loại sách..."
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
 
-                <td className="px-5 py-4 text-center">
-                  <StatusBadge
-                    active={
-                      item.active
-                    }
-                  />
-                </td>
+              {categoryFormError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{categoryFormError}</span>
+                </div>
+              )}
 
-                <td className="px-5 py-4">
-                  <ActionButtons
-                    active={
-                      item.active
-                    }
-                    onEdit={() =>
-                      onEdit(item)
-                    }
-                    onToggle={() =>
-                      onToggle(
-                        item.id,
-                      )
-                    }
-                  />
-                </td>
-              </tr>
-            ),
-          )}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-type CategoriesTableProps = {
-  items: Category[]
-  allCategories: Category[]
-  onEdit: (
-    item: Category,
-  ) => void
-  onToggle: (
-    id: number,
-  ) => void
-}
-
-function CategoriesTable({
-  items,
-  allCategories,
-  onEdit,
-  onToggle,
-}: CategoriesTableProps) {
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        mode="categories"
-      />
-    )
-  }
-
-  const findParentName = (
-    parentId: number | null,
-  ) => {
-    if (
-      parentId === null
-    ) {
-      return '—'
-    }
-
-    return (
-      allCategories.find(
-        (item) =>
-          item.id === parentId,
-      )?.name ?? '—'
-    )
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[950px]">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-              Thể loại
-            </th>
-
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-              Thuộc thể loại
-            </th>
-
-            <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-              Cấp
-            </th>
-
-            <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-              Đầu sách
-            </th>
-
-            <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-              Trạng thái
-            </th>
-
-            <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
-              Thao tác
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.map(
-            (item) => (
-              <tr
-                key={item.id}
-                className="border-b border-slate-100 hover:bg-slate-50"
-              >
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-                      <Tags
-                        size={19}
-                      />
-                    </div>
-
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {
-                          item.name
-                        }
-                      </p>
-
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {
-                          item.description ||
-                          'Không có mô tả'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </td>
-
-                <td className="px-5 py-4 text-sm text-slate-600">
-                  {findParentName(
-                    item.parentId,
-                  )}
-                </td>
-
-                <td className="px-5 py-4 text-center">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                    Cấp{' '}
-                    {
-                      item.parentId ===
-                      null
-                        ? 1
-                        : 2
-                    }
-                  </span>
-                </td>
-
-                <td className="px-5 py-4 text-center text-sm text-slate-700">
-                  {
-                    item.bookCount
-                  }
-                </td>
-
-                <td className="px-5 py-4 text-center">
-                  <StatusBadge
-                    active={
-                      item.active
-                    }
-                  />
-                </td>
-
-                <td className="px-5 py-4">
-                  <ActionButtons
-                    active={
-                      item.active
-                    }
-                    onEdit={() =>
-                      onEdit(item)
-                    }
-                    onToggle={() =>
-                      onToggle(
-                        item.id,
-                      )
-                    }
-                  />
-                </td>
-              </tr>
-            ),
-          )}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-type StatusBadgeProps = {
-  active: boolean
-}
-
-function StatusBadge({
-  active,
-}: StatusBadgeProps) {
-  return active ? (
-    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-      Đang sử dụng
-    </span>
-  ) : (
-    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-      Ngừng sử dụng
-    </span>
-  )
-}
-
-type ActionButtonsProps = {
-  active: boolean
-  onEdit: () => void
-  onToggle: () => void
-}
-
-function ActionButtons({
-  active,
-  onEdit,
-  onToggle,
-}: ActionButtonsProps) {
-  return (
-    <div className="flex justify-end gap-2">
-      <button
-        type="button"
-        title="Chỉnh sửa"
-        onClick={onEdit}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-      >
-        <Pencil size={16} />
-      </button>
-
-      <button
-        type="button"
-        title={
-          active
-            ? 'Ngừng sử dụng'
-            : 'Sử dụng lại'
-        }
-        onClick={onToggle}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
-      >
-        <Power size={16} />
-      </button>
-    </div>
-  )
-}
-
-type EmptyStateProps = {
-  mode: PageMode
-}
-
-function EmptyState({
-  mode,
-}: EmptyStateProps) {
-  return (
-    <div className="px-6 py-14 text-center">
-      {mode === 'authors' ? (
-        <UserRound
-          size={38}
-          className="mx-auto text-slate-300"
-        />
-      ) : (
-        <Tags
-          size={38}
-          className="mx-auto text-slate-300"
-        />
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm"
+                >
+                  {editingCategoryId !== null ? 'Lưu thay đổi' : 'Thêm thể loại'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      <p className="mt-3 font-medium text-slate-700">
-        Không tìm thấy dữ liệu
-      </p>
+      {/* MODAL: Biên mục sách mới (Kiểm chứng ô chọn chỉ hiện danh mục đang dùng) */}
+      {isBookModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Biên mục đầu sách mới</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Kiểm chứng: Chỉ các tác giả và thể loại đang hoạt động mới xuất hiện trong ô chọn.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBookModalOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={19} />
+              </button>
+            </div>
 
-      <p className="mt-1 text-sm text-slate-500">
-        Thử thay đổi từ khóa tìm kiếm.
-      </p>
+            <form onSubmit={handleBookSubmit} className="space-y-4 p-6">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Tiêu đề sách <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bookForm.title}
+                  onChange={(e) => {
+                    setBookForm({ ...bookForm, title: e.target.value })
+                    setBookFormError('')
+                  }}
+                  placeholder="Ví dụ: Tôi thấy hoa vàng trên cỏ xanh..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Chọn tác giả */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Tác giả <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={bookForm.authorId}
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, authorId: e.target.value })
+                      setBookFormError('')
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  >
+                    <option value="">-- Chọn tác giả sẵn có --</option>
+                    {activeAuthorsForCataloging.map((author) => (
+                      <option key={author.id} value={author.id}>
+                        {author.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Tác giả ngừng dùng (như Vũ Trọng Phụng) không hiện tại đây.
+                  </p>
+                </div>
+
+                {/* Chọn thể loại */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Thể loại <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={bookForm.categoryId}
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, categoryId: e.target.value })
+                      setBookFormError('')
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  >
+                    <option value="">-- Chọn thể loại sẵn có --</option>
+                    {activeCategoriesForCataloging.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.level === 2 ? `↳ ${cat.name} (${cat.parentName})` : cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Thể loại ngừng dùng không hiện tại đây.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Mã ISBN
+                  </label>
+                  <input
+                    type="text"
+                    value={bookForm.isbn}
+                    onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
+                    placeholder="978-604-..."
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Nhà xuất bản
+                  </label>
+                  <input
+                    type="text"
+                    value={bookForm.publisher}
+                    onChange={(e) => setBookForm({ ...bookForm, publisher: e.target.value })}
+                    placeholder="NXB Trẻ..."
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Năm xuất bản
+                  </label>
+                  <input
+                    type="number"
+                    value={bookForm.publicationYear}
+                    onChange={(e) => setBookForm({ ...bookForm, publicationYear: e.target.value })}
+                    placeholder="2024"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Mô tả / Tóm tắt sách
+                </label>
+                <textarea
+                  rows={2}
+                  value={bookForm.description}
+                  onChange={(e) => setBookForm({ ...bookForm, description: e.target.value })}
+                  placeholder="Tóm tắt nội dung sách..."
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {bookFormError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{bookFormError}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsBookModalOpen(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm"
+                >
+                  Lưu & Biên mục
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
+      {deleteDialog.open && deleteDialog.item && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            {deleteDialog.cannotDeleteReason ? (
+              // Không cho xoá - Cảnh báo ràng buộc
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-4">
+                  <AlertTriangle size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Không thể xoá {deleteDialog.type === 'author' ? 'tác giả' : 'thể loại'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {deleteDialog.cannotDeleteReason}
+                </p>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteDialog({ open: false, type: 'author', item: null })}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  >
+                    Đã hiểu
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Cho phép xoá khi 0 đầu sách
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-4">
+                  <Trash2 size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Xác nhận xoá {deleteDialog.type === 'author' ? 'tác giả' : 'thể loại'}
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Bạn có chắc chắn muốn xoá{' '}
+                  {deleteDialog.type === 'author' ? 'tác giả' : 'thể loại'}{' '}
+                  <strong>"{deleteDialog.item.name}"</strong> khỏi hệ thống? Mục này hiện chưa gắn
+                  với đầu sách nào.
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteDialog({ open: false, type: 'author', item: null })}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Huỷ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 shadow-sm"
+                  >
+                    Xác nhận xoá
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// TABLE: Authors Table
+// ==========================================
+interface AuthorsTableProps {
+  items: Author[]
+  onEdit: (author: Author) => void
+  onToggle: (author: Author) => void
+  onDelete: (author: Author) => void
+}
+
+function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) {
+  if (items.length === 0) {
+    return (
+      <div className="py-12 text-center">
+        <UserRound size={36} className="mx-auto text-slate-300" />
+        <p className="mt-2 text-sm font-medium text-slate-600">Không tìm thấy tác giả nào</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+            <th className="px-6 py-3.5">Tác giả</th>
+            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-6 py-3.5 text-center">Trạng thái</th>
+            <th className="px-6 py-3.5 text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((author) => (
+            <tr key={author.id} className="hover:bg-slate-50/70 transition">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <UserRound size={18} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-900">{author.name}</div>
+                    <div className="text-xs text-slate-500 max-w-md truncate">
+                      {author.note || 'Chưa có ghi chú'}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <td className="px-6 py-4 text-center">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    author.bookCount > 0
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {author.bookCount} sách
+                </span>
+              </td>
+
+              <td className="px-6 py-4 text-center">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                    author.active
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {author.active ? 'Đang sử dụng' : 'Ngừng sử dụng'}
+                </span>
+              </td>
+
+              <td className="px-6 py-4 text-right">
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(author)}
+                    title="Chỉnh sửa tác giả"
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
+                  >
+                    <Pencil size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onToggle(author)}
+                    title={author.active ? 'Ngừng sử dụng tác giả' : 'Kích hoạt lại tác giả'}
+                    className={`rounded-lg p-1.5 transition ${
+                      author.active
+                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
+                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+                    }`}
+                  >
+                    <Power size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onDelete(author)}
+                    title={
+                      author.bookCount > 0
+                        ? 'Không thể xoá vì đang gắn với đầu sách'
+                        : 'Xoá tác giả'
+                    }
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ==========================================
+// TABLE: Categories Table
+// ==========================================
+interface CategoriesTableProps {
+  items: Category[]
+  onEdit: (category: Category) => void
+  onToggle: (category: Category) => void
+  onDelete: (category: Category) => void
+}
+
+function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableProps) {
+  if (items.length === 0) {
+    return (
+      <div className="py-12 text-center">
+        <Tags size={36} className="mx-auto text-slate-300" />
+        <p className="mt-2 text-sm font-medium text-slate-600">Không tìm thấy thể loại nào</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+            <th className="px-6 py-3.5">Thể loại</th>
+            <th className="px-6 py-3.5">Thuộc thể loại cha</th>
+            <th className="px-6 py-3.5 text-center">Cấp</th>
+            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-6 py-3.5 text-center">Trạng thái</th>
+            <th className="px-6 py-3.5 text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((cat) => (
+            <tr key={cat.id} className="hover:bg-slate-50/70 transition">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-2.5">
+                  {cat.level === 2 && (
+                    <CornerDownRight size={16} className="text-slate-400 shrink-0 ml-3" />
+                  )}
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                      cat.level === 1
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    <Tags size={16} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-900">{cat.name}</div>
+                    <div className="text-xs text-slate-500 max-w-sm truncate">
+                      {cat.description || 'Chưa có mô tả'}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <td className="px-6 py-4 text-sm text-slate-600">
+                {cat.parentName ? (
+                  <span className="font-medium text-violet-900">{cat.parentName}</span>
+                ) : (
+                  <span className="text-slate-400">— (Thể loại gốc)</span>
+                )}
+              </td>
+
+              <td className="px-6 py-4 text-center">
+                <span
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${
+                    cat.level === 1
+                      ? 'bg-violet-50 text-violet-700 border border-violet-200'
+                      : 'bg-sky-50 text-sky-700 border border-sky-200'
+                  }`}
+                >
+                  Cấp {cat.level}
+                </span>
+              </td>
+
+              <td className="px-6 py-4 text-center">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    cat.bookCount > 0
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {cat.bookCount} sách
+                </span>
+              </td>
+
+              <td className="px-6 py-4 text-center">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                    cat.active
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {cat.active ? 'Đang sử dụng' : 'Ngừng sử dụng'}
+                </span>
+              </td>
+
+              <td className="px-6 py-4 text-right">
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(cat)}
+                    title="Chỉnh sửa thể loại"
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
+                  >
+                    <Pencil size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onToggle(cat)}
+                    title={cat.active ? 'Ngừng sử dụng thể loại' : 'Kích hoạt lại thể loại'}
+                    className={`rounded-lg p-1.5 transition ${
+                      cat.active
+                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
+                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+                    }`}
+                  >
+                    <Power size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onDelete(cat)}
+                    title={
+                      cat.bookCount > 0
+                        ? 'Không thể xoá vì đang gắn với đầu sách'
+                        : 'Xoá thể loại'
+                    }
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ==========================================
+// TABLE: Books Table (Kiểm chứng biên mục)
+// ==========================================
+interface BooksTableProps {
+  items: Book[]
+  onOpenCatalogModal: () => void
+}
+
+function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
+  if (items.length === 0) {
+    return (
+      <div className="py-12 text-center">
+        <BookOpen size={36} className="mx-auto text-slate-300" />
+        <p className="mt-2 text-sm font-medium text-slate-600">Chưa có đầu sách nào được biên mục</p>
+        <button
+          type="button"
+          onClick={onOpenCatalogModal}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          <Plus size={15} />
+          <span>Biên mục cuốn sách đầu tiên</span>
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+            <th className="px-6 py-3.5">Tiêu đề sách / ISBN</th>
+            <th className="px-6 py-3.5">Tác giả</th>
+            <th className="px-6 py-3.5">Thể loại</th>
+            <th className="px-6 py-3.5">Nhà xuất bản</th>
+            <th className="px-6 py-3.5 text-center">Năm XB</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((book) => (
+            <tr key={book.id} className="hover:bg-slate-50/70 transition">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <BookOpen size={18} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-900">{book.title}</div>
+                    <div className="text-xs text-slate-500">
+                      {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-800">{book.authorName}</span>
+                  {!book.authorActive && (
+                    <span
+                      title="Tác giả này đã ngừng sử dụng nhưng vẫn hiển thị chính xác trên sách cũ"
+                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                    >
+                      Đã ngừng dùng
+                    </span>
+                  )}
+                </div>
+              </td>
+
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-800">{book.categoryName}</span>
+                  {!book.categoryActive && (
+                    <span
+                      title="Thể loại này đã ngừng sử dụng nhưng vẫn hiển thị chính xác trên sách cũ"
+                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                    >
+                      Đã ngừng dùng
+                    </span>
+                  )}
+                </div>
+              </td>
+
+              <td className="px-6 py-4 text-sm text-slate-600">
+                {book.publisher || '—'}
+              </td>
+
+              <td className="px-6 py-4 text-center text-sm font-medium text-slate-700">
+                {book.publicationYear || '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
