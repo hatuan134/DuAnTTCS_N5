@@ -213,7 +213,7 @@ export default function UserManagementPage() {
 
       setAccounts((current) => [created, ...current])
       setSuccess(
-        `Đã tạo tài khoản ${created.email}. Hệ thống đã tạo liên kết đặt mật khẩu lần đầu có hiệu lực 24 giờ.`,
+        `Đã tạo tài khoản ${created.email}. Email thiết lập mật khẩu đang được gửi và liên kết có hiệu lực 24 giờ.`,
       )
       closeCreate()
     } catch (requestError) {
