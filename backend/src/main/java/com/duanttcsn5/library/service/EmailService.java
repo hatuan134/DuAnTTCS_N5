@@ -67,6 +67,131 @@ public class EmailService {
         enqueueMail.run();
     }
 
+    /**
+     * Schedule the password-reset email after transaction commit.
+     */
+    public void sendResetPasswordEmail(String toEmail, String fullName, String rawToken) {
+        Runnable enqueueMail = () -> submitResetPasswordMailTask(toEmail, fullName, rawToken);
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    enqueueMail.run();
+                }
+            });
+            log.info("Queued password-reset email for {} after transaction commit", toEmail);
+            return;
+        }
+
+        enqueueMail.run();
+    }
+
+    private void submitResetPasswordMailTask(String toEmail, String fullName, String rawToken) {
+        String resetLink = frontendUrl + "/reset-password?token=" + rawToken;
+        log.info("Password reset link generated for {}: {}", toEmail, resetLink);
+        try {
+            mailTaskExecutor.execute(() -> sendResetPasswordWithRetry(toEmail, fullName, rawToken));
+        } catch (RejectedExecutionException exception) {
+            log.error("Mail queue is full; could not queue password-reset email for {}", toEmail, exception);
+        }
+    }
+
+    private void sendResetPasswordWithRetry(String toEmail, String fullName, String rawToken) {
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            log.error("JavaMailSender is unavailable; password-reset email was not sent to {}", toEmail);
+            return;
+        }
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                sendResetPasswordNow(mailSender, toEmail, fullName, rawToken);
+                log.info("Password-reset email sent successfully to {}", toEmail);
+                return;
+            } catch (Exception exception) {
+                if (attempt >= maxAttempts) {
+                    log.error(
+                            "Password-reset email failed for {} after {} attempt(s)",
+                            toEmail,
+                            maxAttempts,
+                            exception);
+                    return;
+                }
+
+                log.warn(
+                        "Password-reset email attempt {}/{} failed for {}. Retrying...",
+                        attempt,
+                        maxAttempts,
+                        toEmail);
+
+                if (!sleepBeforeRetry()) {
+                    log.warn("Mail retry interrupted for {}", toEmail);
+                    return;
+                }
+            }
+        }
+    }
+
+    private void sendResetPasswordNow(JavaMailSender mailSender, String toEmail, String fullName, String rawToken)
+            throws Exception {
+        String resetLink = frontendUrl + "/reset-password?token=" + rawToken;
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(
+                message,
+                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                StandardCharsets.UTF_8.name());
+
+        helper.setFrom(mailFrom, "Thư viện LIBRA");
+        helper.setTo(toEmail);
+        helper.setSubject("Yêu cầu đặt lại mật khẩu tài khoản Thư viện LIBRA");
+
+        String name = (fullName != null && !fullName.isBlank()) ? fullName : "bạn đọc";
+
+        String html = """
+                <!DOCTYPE html>
+                <html lang="vi">
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; }
+                        .header { text-align: center; margin-bottom: 24px; }
+                        .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+                        .btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; margin: 20px 0; }
+                        .footer { margin-top: 30px; font-size: 13px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+                        .warning { color: #dc2626; font-size: 13px; margin-top: 8px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <div class="logo">LIBRA Library Management</div>
+                        </div>
+                        <p>Kính gửi <strong>%s</strong>,</p>
+                        <p>Hệ thống Quản lý Thư viện LIBRA đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+                        <p>Để hoàn tất quá trình tạo mật khẩu mới, vui lòng nhấn vào nút bên dưới:</p>
+                        <div style="text-align: center;">
+                            <a href="%s" class="btn">Đặt lại mật khẩu</a>
+                        </div>
+                        <p>Hoặc truy cập trực tiếp bằng đường dẫn sau:</p>
+                        <p style="word-break: break-all;"><a href="%s">%s</a></p>
+                        <p class="warning">⚠️ Lưu ý: Đường dẫn này chỉ có hiệu lực trong vòng <strong>30 phút</strong> kể từ thời điểm gửi và chỉ được sử dụng duy nhất một lần.</p>
+                        <p style="font-size: 13px; color: #64748b;">Nếu bạn không yêu cầu đặt lại mật khẩu, xin vui lòng bỏ qua email này hoặc liên hệ ngay với thủ thư nếu nghi ngờ tài khoản bị xâm phạm.</p>
+                        <div class="footer">
+                            <p>Email này được gửi tự động từ Hệ thống Thư viện LIBRA. Vui lòng không trả lời thư này.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """.formatted(name, resetLink, resetLink, resetLink);
+
+        helper.setText(html, true);
+        mailSender.send(message);
+    }
+
     private void submitMailTask(String toEmail, String fullName, String rawToken) {
         try {
             mailTaskExecutor.execute(() -> sendWithRetry(toEmail, fullName, rawToken));

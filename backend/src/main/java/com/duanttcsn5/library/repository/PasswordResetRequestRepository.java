@@ -15,4 +15,10 @@ public interface PasswordResetRequestRepository extends JpaRepository<PasswordRe
             @Param("requestType") String requestType);
 
     Optional<PasswordResetRequest> findByTokenHash(String tokenHash);
+
+    @Query("select count(r) from PasswordResetRequest r where lower(r.requestedEmail) = lower(:email) and r.requestType = :requestType and r.createdAt >= :since")
+    long countByRequestedEmailIgnoreCaseAndRequestTypeAndCreatedAtAfter(
+            @Param("email") String email,
+            @Param("requestType") String requestType,
+            @Param("since") java.time.OffsetDateTime since);
 }
