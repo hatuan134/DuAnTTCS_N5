@@ -3,8 +3,7 @@ import {
   UserRound,
 } from 'lucide-react'
 
-import CatalogManagementPage
-  from './CatalogManagementPage'
+import CatalogManagementPage from './CatalogManagementPage'
 
 import type {
   FeatureModule,
@@ -32,6 +31,14 @@ const feature: FeatureModule = {
         />
       ),
     },
+    {
+      path: 'cataloging',
+      element: (
+        <CatalogManagementPage
+          mode="books"
+        />
+      ),
+    },
   ],
 
   navItems: [
@@ -40,12 +47,14 @@ const feature: FeatureModule = {
       to: '/authors',
       icon: UserRound,
       order: 80,
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
     {
       label: 'Thể loại',
       to: '/categories',
       icon: Tags,
       order: 81,
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }
