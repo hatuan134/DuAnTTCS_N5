@@ -84,8 +84,7 @@ class AuthAccountLockTest {
         when(userRepository.findForLogin("locked@libra.edu.vn")).thenReturn(Optional.of(user));
 
         LoginRequest request = new LoginRequest("locked@libra.edu.vn", "Password@123");
-        ApiException ex = assertThrows(ApiException.class, () ->
-                authService.login(request, "127.0.0.1"));
+        ApiException ex = assertThrows(ApiException.class, () -> authService.login(request, "127.0.0.1"));
 
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
         assertEquals("INVALID_CREDENTIALS", ex.getCode());
@@ -110,8 +109,7 @@ class AuthAccountLockTest {
 
         when(refreshTokenRepository.findByTokenHashWithUser(tokenHash)).thenReturn(Optional.of(rt));
 
-        ApiException ex = assertThrows(ApiException.class, () ->
-                authService.refresh(rawRefreshToken));
+        ApiException ex = assertThrows(ApiException.class, () -> authService.refresh(rawRefreshToken));
 
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
         assertEquals("INVALID_REFRESH_TOKEN", ex.getCode());
