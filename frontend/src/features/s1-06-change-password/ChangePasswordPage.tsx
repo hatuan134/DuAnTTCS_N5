@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import axios from 'axios'
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 import {
+  AlertCircle,
   CheckCircle2,
   CreditCard,
   Eye,
@@ -16,10 +18,18 @@ import {
 } from 'lucide-react'
 
 import Card from '../../components/ui/Card'
+import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
-import { getCurrentUser } from '../../core/auth/authStorage'
-import { libraryCardService } from '../s1-04-library-card/libraryCardService'
-import type { MyLibraryCard } from '../s1-04-library-card/libraryCardService'
+import {
+  getCurrentUser,
+  updateCurrentUser,
+} from '../../core/auth/authStorage'
+import {
+  profileService,
+} from './profileService'
+import type {
+  ReaderSelfProfile,
+} from './profileService'
 
 type ProfileForm = {
   phone: string
@@ -33,49 +43,31 @@ type PasswordForm = {
   confirmPassword: string
 }
 
-const MOCK_CURRENT_PASSWORD =
-  'Admin123'
+type ApiErrorBody = {
+  message?: string
+}
 
-const RECENT_PASSWORDS = [
-  'Library123',
-  'Admin456',
-  'Password789',
-]
+const PHONE_PATTERN = /^0\d{9}$/
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function ChangePasswordPage() {
   const currentUser = getCurrentUser()
-  const [cardInfo, setCardInfo] = useState<MyLibraryCard | null>(null)
 
-  useEffect(() => {
-    if (currentUser?.role !== 'READER') return
+  const [profileData, setProfileData] =
+    useState<ReaderSelfProfile | null>(null)
 
-    libraryCardService.getMine()
-      .then(setCardInfo)
-      .catch(() => setCardInfo(null))
-  }, [currentUser?.role])
-
-  const formatCardDate = (value?: string | null) => {
-    if (!value) return '-'
-    return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN')
-  }
-
-  const cardStatusLabel = cardInfo?.registrationStatus === 'REJECTED'
-    ? 'Hồ sơ bị từ chối'
-    : cardInfo?.registrationStatus === 'PENDING'
-      ? 'Chờ duyệt'
-      : cardInfo?.cardStatus === 'ACTIVE'
-        ? 'Đang hoạt động'
-        : cardInfo?.cardStatus ?? 'Chưa được cấp'
   const [profile, setProfile] =
     useState<ProfileForm>({
-      phone: '0912345678',
-      address:
-        'Phường Phan Đình Phùng, Thái Nguyên',
-      email: 'bandoc@ictu.edu.vn',
+      phone: '',
+      address: '',
+      email: '',
     })
 
-  const [savedProfile, setSavedProfile] =
-    useState(profile)
+  const [savedEmail, setSavedEmail] =
+    useState('')
+
+  const [profilePassword, setProfilePassword] =
+    useState('')
 
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>({
@@ -84,122 +76,166 @@ export default function ChangePasswordPage() {
       confirmPassword: '',
     })
 
-  const [profilePassword, setProfilePassword] =
-    useState('')
-
-  const [
-    showProfilePassword,
-    setShowProfilePassword,
-  ] = useState(false)
-
-  const [
-    showCurrentPassword,
-    setShowCurrentPassword,
-  ] = useState(false)
-
-  const [
-    showNewPassword,
-    setShowNewPassword,
-  ] = useState(false)
-
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [savingProfile, setSavingProfile] =
+    useState(false)
+  const [savingPassword, setSavingPassword] =
+    useState(false)
 
   const [profileMessage, setProfileMessage] =
     useState('')
-
   const [profileError, setProfileError] =
     useState('')
-
-  const [
-    passwordMessage,
-    setPasswordMessage,
-  ] = useState('')
-
+  const [passwordMessage, setPasswordMessage] =
+    useState('')
   const [passwordError, setPasswordError] =
     useState('')
 
-  const emailChanged =
-    profile.email.trim() !==
-    savedProfile.email.trim()
+  const [showProfilePassword, setShowProfilePassword] =
+    useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] =
+    useState(false)
+  const [showNewPassword, setShowNewPassword] =
+    useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false)
 
-  const handleProfileSubmit = (
+  useEffect(() => {
+    let active = true
+
+    const loadProfile = async () => {
+      if (currentUser?.role !== 'READER') {
+        setLoadError(
+          'Chức năng hồ sơ cá nhân S1-06 dành cho tài khoản Bạn đọc.',
+        )
+        setLoading(false)
+        return
+      }
+
+      try {
+        const data = await profileService.getMine()
+
+        if (!active) return
+
+        setProfileData(data)
+        setProfile({
+          phone: data.phone ?? '',
+          address: data.address ?? '',
+          email: data.email,
+        })
+        setSavedEmail(data.email)
+        setLoadError('')
+      } catch (error) {
+        if (!active) return
+        setLoadError(
+          getApiErrorMessage(
+            error,
+            'Không thể tải hồ sơ cá nhân. Vui lòng thử lại.',
+          ),
+        )
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadProfile()
+
+    return () => {
+      active = false
+    }
+  }, [currentUser?.role])
+
+  const emailChanged = useMemo(
+    () =>
+      profile.email.trim().toLowerCase() !==
+      savedEmail.trim().toLowerCase(),
+    [profile.email, savedEmail],
+  )
+
+  const cardStatusLabel = getCardStatusLabel(profileData)
+
+  const handleProfileSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-
     setProfileError('')
     setProfileMessage('')
 
-    if (!profile.phone.trim()) {
+    const phone = profile.phone.trim()
+    const address = profile.address.trim()
+    const email = profile.email.trim().toLowerCase()
+
+    if (!PHONE_PATTERN.test(phone)) {
       setProfileError(
-        'Số điện thoại không được để trống.',
+        'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.',
       )
       return
     }
 
-    if (!profile.address.trim()) {
+    if (address.length < 5 || address.length > 500) {
       setProfileError(
-        'Địa chỉ không được để trống.',
+        'Địa chỉ phải có từ 5 đến 500 ký tự.',
       )
       return
     }
 
-    if (!profile.email.trim()) {
+    if (!EMAIL_PATTERN.test(email)) {
+      setProfileError('Email không đúng định dạng.')
+      return
+    }
+
+    if (emailChanged && !profilePassword.trim()) {
       setProfileError(
-        'Email không được để trống.',
+        'Bạn phải nhập mật khẩu hiện tại để đổi email.',
       )
       return
     }
 
-    const emailPattern =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    setSavingProfile(true)
 
-    if (
-      !emailPattern.test(
-        profile.email.trim(),
+    try {
+      const updated = await profileService.updateContact({
+        phone,
+        address,
+        email,
+        currentPassword: emailChanged
+          ? profilePassword
+          : undefined,
+      })
+
+      setProfileData(updated)
+      setProfile({
+        phone: updated.phone ?? '',
+        address: updated.address ?? '',
+        email: updated.email,
+      })
+      setSavedEmail(updated.email)
+      setProfilePassword('')
+      updateCurrentUser({ email: updated.email })
+      setProfileMessage(
+        emailChanged
+          ? 'Cập nhật thông tin liên hệ và email thành công.'
+          : 'Cập nhật số điện thoại và địa chỉ thành công.',
       )
-    ) {
+    } catch (error) {
       setProfileError(
-        'Email không đúng định dạng.',
+        getApiErrorMessage(
+          error,
+          'Không thể cập nhật thông tin liên hệ.',
+        ),
       )
-      return
+    } finally {
+      setSavingProfile(false)
     }
-
-    if (emailChanged) {
-      if (!profilePassword) {
-        setProfileError(
-          'Bạn phải nhập mật khẩu hiện tại để đổi email.',
-        )
-        return
-      }
-
-      if (
-        profilePassword !==
-        MOCK_CURRENT_PASSWORD
-      ) {
-        setProfileError(
-          'Mật khẩu hiện tại không chính xác.',
-        )
-        return
-      }
-    }
-
-    setSavedProfile(profile)
-    setProfilePassword('')
-
-    setProfileMessage(
-      'Cập nhật thông tin cá nhân thành công.',
-    )
   }
 
-  const handlePasswordSubmit = (
+  const handlePasswordSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-
     setPasswordError('')
     setPasswordMessage('')
 
@@ -208,44 +244,26 @@ export default function ChangePasswordPage() {
       !passwordForm.newPassword ||
       !passwordForm.confirmPassword
     ) {
+      setPasswordError('Vui lòng nhập đầy đủ thông tin.')
+      return
+    }
+
+    if (
+      passwordForm.newPassword.length < 8 ||
+      passwordForm.newPassword.length > 72
+    ) {
       setPasswordError(
-        'Vui lòng nhập đầy đủ thông tin.',
+        'Mật khẩu mới phải có từ 8 đến 72 ký tự.',
       )
       return
     }
 
     if (
-      passwordForm.currentPassword !==
-      MOCK_CURRENT_PASSWORD
+      !/[A-Za-zÀ-ỹ]/.test(passwordForm.newPassword) ||
+      !/\d/.test(passwordForm.newPassword)
     ) {
       setPasswordError(
-        'Mật khẩu hiện tại không chính xác.',
-      )
-      return
-    }
-
-    if (
-      passwordForm.newPassword.length < 8
-    ) {
-      setPasswordError(
-        'Mật khẩu mới phải có ít nhất 8 ký tự.',
-      )
-      return
-    }
-
-    const hasLetter =
-      /[A-Za-z]/.test(
-        passwordForm.newPassword,
-      )
-
-    const hasNumber =
-      /\d/.test(
-        passwordForm.newPassword,
-      )
-
-    if (!hasLetter || !hasNumber) {
-      setPasswordError(
-        'Mật khẩu mới phải có cả chữ và số.',
+        'Mật khẩu mới phải chứa cả chữ và số.',
       )
       return
     }
@@ -254,41 +272,59 @@ export default function ChangePasswordPage() {
       passwordForm.newPassword !==
       passwordForm.confirmPassword
     ) {
-      setPasswordError(
-        'Xác nhận mật khẩu không khớp.',
-      )
+      setPasswordError('Xác nhận mật khẩu mới không khớp.')
       return
     }
 
-    if (
-      passwordForm.newPassword ===
-      passwordForm.currentPassword
-    ) {
+    setSavingPassword(true)
+
+    try {
+      const response = await profileService.changePassword(
+        passwordForm,
+      )
+
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      })
+      setPasswordMessage(response.message)
+    } catch (error) {
       setPasswordError(
-        'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        getApiErrorMessage(
+          error,
+          'Không thể đổi mật khẩu.',
+        ),
       )
-      return
+    } finally {
+      setSavingPassword(false)
     }
+  }
 
-    if (
-      RECENT_PASSWORDS.includes(
-        passwordForm.newPassword,
-      )
-    ) {
-      setPasswordError(
-        'Mật khẩu mới không được trùng 3 mật khẩu gần nhất.',
-      )
-      return
-    }
+  if (loading) {
+    return <LoadingState />
+  }
 
-    setPasswordForm({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
+  if (loadError || !profileData) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Hồ sơ cá nhân"
+          description="Quản lý thông tin liên hệ, thông tin thẻ thư viện và mật khẩu tài khoản."
+        />
 
-    setPasswordMessage(
-      'Đổi mật khẩu thành công.',
+        <Card>
+          <div className="flex items-start gap-3 p-5 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 shrink-0" size={19} />
+            <div>
+              <p className="font-medium">Không tải được hồ sơ</p>
+              <p className="mt-1 text-red-600">
+                {loadError || 'Không tìm thấy dữ liệu hồ sơ.'}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
     )
   }
 
@@ -296,25 +332,22 @@ export default function ChangePasswordPage() {
     <div className="space-y-6">
       <PageHeader
         title="Hồ sơ cá nhân"
-        description="Quản lý thông tin liên hệ, thông tin thẻ thư viện và mật khẩu tài khoản."
+        description="Xem thẻ thư viện, cập nhật thông tin liên hệ và đổi mật khẩu tài khoản."
       />
 
-      {/* THÔNG TIN THẺ */}
       <Card>
         <div className="border-b border-slate-200 p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <IconBox>
               <CreditCard size={22} />
-            </div>
+            </IconBox>
 
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
                 Thông tin thẻ thư viện
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
-                Thông tin này do thư viện quản lý
-                và bạn đọc không thể tự thay đổi.
+                Các thông tin thẻ chỉ đọc và do thư viện quản lý.
               </p>
             </div>
           </div>
@@ -323,63 +356,45 @@ export default function ChangePasswordPage() {
         <div className="grid gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
           <InfoItem
             label="Mã thẻ"
-            value={cardInfo?.cardNumber ?? 'Chưa được cấp'}
+            value={profileData.cardNumber ?? 'Chưa được cấp'}
           />
-
           <InfoItem
             label="Loại thẻ"
-            value={cardInfo?.cardTypeName ?? '-'}
+            value={profileData.cardTypeName ?? '-'}
           />
-
           <InfoItem
             label="Ngày hết hạn"
-            value={formatCardDate(cardInfo?.expiresAt)}
+            value={formatDate(profileData.expiresAt)}
           />
 
           <div>
-            <p className="text-sm text-slate-500">
-              Trạng thái
-            </p>
-
-            <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
-              cardInfo?.registrationStatus === 'REJECTED'
-                ? 'bg-red-50 text-red-700'
-                : cardInfo?.registrationStatus === 'PENDING'
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-emerald-50 text-emerald-700'
-            }`}>
+            <p className="text-sm text-slate-500">Trạng thái thẻ</p>
+            <span
+              className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium ${getStatusClass(
+                profileData,
+              )}`}
+            >
               {cardStatusLabel}
             </span>
           </div>
         </div>
 
-        {cardInfo?.registrationStatus === 'REJECTED' && cardInfo.rejectionReason && (
-          <div className="mx-5 mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <strong>Lý do từ chối:</strong> {cardInfo.rejectionReason}
-          </div>
-        )}
+        {profileData.registrationStatus === 'REJECTED' &&
+          profileData.rejectionReason && (
+            <div className="mx-5 mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <strong>Lý do từ chối:</strong>{' '}
+              {profileData.rejectionReason}
+            </div>
+          )}
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        {/* THÔNG TIN CÁ NHÂN */}
         <Card>
-          <div className="border-b border-slate-200 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                <User size={20} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Thông tin cá nhân
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Cập nhật thông tin liên hệ của bạn.
-                </p>
-              </div>
-            </div>
-          </div>
+          <SectionHeader
+            icon={<User size={20} />}
+            title="Thông tin cá nhân"
+            description="Chỉ số điện thoại, địa chỉ và email được phép chỉnh sửa."
+          />
 
           <form
             onSubmit={handleProfileSubmit}
@@ -387,197 +402,135 @@ export default function ChangePasswordPage() {
           >
             <ReadOnlyField
               label="Họ và tên"
-              value={cardInfo?.fullName ?? currentUser?.fullName ?? 'Người dùng'}
+              value={profileData.fullName}
             />
 
             <ReadOnlyField
               label="Ngày sinh"
-              value={formatCardDate(cardInfo?.dateOfBirth)}
+              value={formatDate(profileData.dateOfBirth)}
             />
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Số điện thoại
-              </label>
+            <ReadOnlyField
+              label="Mã thẻ"
+              value={profileData.cardNumber ?? 'Chưa được cấp'}
+            />
 
-              <div className="relative">
-                <Phone
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+            <EditableField
+              label="Số điện thoại"
+              icon={<Phone size={18} />}
+            >
+              <input
+                value={profile.phone}
+                onChange={(event) => {
+                  setProfile({
+                    ...profile,
+                    phone: event.target.value,
+                  })
+                  clearProfileFeedback()
+                }}
+                maxLength={10}
+                inputMode="numeric"
+                placeholder="Ví dụ: 0912345678"
+                className={inputClassName('pl-10')}
+              />
+            </EditableField>
 
-                <input
-                  value={profile.phone}
-                  onChange={(event) => {
-                    setProfile({
-                      ...profile,
-                      phone:
-                        event.target.value,
-                    })
+            <EditableField
+              label="Địa chỉ liên hệ"
+              icon={<MapPin size={18} />}
+              multiline
+            >
+              <textarea
+                rows={3}
+                value={profile.address}
+                onChange={(event) => {
+                  setProfile({
+                    ...profile,
+                    address: event.target.value,
+                  })
+                  clearProfileFeedback()
+                }}
+                maxLength={500}
+                placeholder="Nhập địa chỉ đang sử dụng"
+                className={inputClassName('resize-none pl-10')}
+              />
+            </EditableField>
 
-                    setProfileError('')
-                    setProfileMessage('')
-                  }}
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Địa chỉ
-              </label>
-
-              <div className="relative">
-                <MapPin
-                  size={18}
-                  className="absolute left-3 top-3 text-slate-400"
-                />
-
-                <textarea
-                  rows={3}
-                  value={profile.address}
-                  onChange={(event) => {
-                    setProfile({
-                      ...profile,
-                      address:
-                        event.target.value,
-                    })
-
-                    setProfileError('')
-                    setProfileMessage('')
-                  }}
-                  className="w-full resize-none rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
-              </label>
-
-              <div className="relative">
-                <Mail
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-
-                <input
-                  type="email"
-                  value={profile.email}
-                  onChange={(event) => {
-                    setProfile({
-                      ...profile,
-                      email:
-                        event.target.value,
-                    })
-
-                    setProfileError('')
-                    setProfileMessage('')
-                  }}
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
+            <EditableField
+              label="Email nhận thông báo"
+              icon={<Mail size={18} />}
+            >
+              <input
+                type="email"
+                value={profile.email}
+                onChange={(event) => {
+                  setProfile({
+                    ...profile,
+                    email: event.target.value,
+                  })
+                  clearProfileFeedback()
+                }}
+                className={inputClassName('pl-10')}
+              />
+            </EditableField>
 
             {emailChanged && (
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Mật khẩu hiện tại
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <label className="block text-sm font-medium text-amber-900">
+                  Xác nhận mật khẩu hiện tại
                 </label>
-
-                <p className="mb-2 text-xs text-slate-500">
-                  Bạn đang thay đổi email nên cần
-                  xác nhận mật khẩu.
+                <p className="mt-1 text-xs text-amber-700">
+                  Email đang thay đổi. S1-06 yêu cầu nhập đúng mật khẩu hiện tại trước khi lưu.
                 </p>
 
-                <div className="relative">
+                <div className="relative mt-3">
                   <KeyRound
                     size={18}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                   />
-
                   <input
-                    type={
-                      showProfilePassword
-                        ? 'text'
-                        : 'password'
-                    }
+                    type={showProfilePassword ? 'text' : 'password'}
                     value={profilePassword}
                     onChange={(event) => {
-                      setProfilePassword(
-                        event.target.value,
-                      )
-
+                      setProfilePassword(event.target.value)
                       setProfileError('')
                     }}
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-11 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={inputClassName('pl-10 pr-11')}
                   />
-
-                  <button
-                    type="button"
+                  <PasswordToggle
+                    shown={showProfilePassword}
                     onClick={() =>
-                      setShowProfilePassword(
-                        !showProfilePassword,
-                      )
+                      setShowProfilePassword((value) => !value)
                     }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                  >
-                    {showProfilePassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
+                  />
                 </div>
               </div>
             )}
 
-            {profileError && (
-              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {profileError}
-              </div>
-            )}
+            <Feedback
+              success={profileMessage}
+              error={profileError}
+            />
 
-            {profileMessage && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                <CheckCircle2 size={18} />
-                {profileMessage}
-              </div>
-            )}
-
-            <div className="flex justify-end border-t border-slate-100 pt-5">
+            <div className="flex justify-end">
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                disabled={savingProfile}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save size={17} />
-                Lưu thay đổi
+                {savingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </div>
           </form>
         </Card>
 
-        {/* ĐỔI MẬT KHẨU */}
         <Card>
-          <div className="border-b border-slate-200 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                <ShieldCheck size={20} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Đổi mật khẩu
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Thay đổi mật khẩu đăng nhập của tài khoản.
-                </p>
-              </div>
-            </div>
-          </div>
+          <SectionHeader
+            icon={<ShieldCheck size={20} />}
+            title="Đổi mật khẩu"
+            description="Mật khẩu mới phải khác 3 mật khẩu gần nhất của tài khoản."
+          />
 
           <form
             onSubmit={handlePasswordSubmit}
@@ -585,234 +538,320 @@ export default function ChangePasswordPage() {
           >
             <PasswordField
               label="Mật khẩu hiện tại"
-              value={
-                passwordForm.currentPassword
-              }
-              show={showCurrentPassword}
+              value={passwordForm.currentPassword}
+              shown={showCurrentPassword}
               onToggle={() =>
-                setShowCurrentPassword(
-                  !showCurrentPassword,
-                )
+                setShowCurrentPassword((value) => !value)
               }
               onChange={(value) => {
                 setPasswordForm({
                   ...passwordForm,
-                  currentPassword:
-                    value,
+                  currentPassword: value,
                 })
-
-                setPasswordError('')
-                setPasswordMessage('')
+                clearPasswordFeedback()
               }}
             />
 
             <PasswordField
               label="Mật khẩu mới"
-              value={
-                passwordForm.newPassword
-              }
-              show={showNewPassword}
+              value={passwordForm.newPassword}
+              shown={showNewPassword}
               onToggle={() =>
-                setShowNewPassword(
-                  !showNewPassword,
-                )
+                setShowNewPassword((value) => !value)
               }
               onChange={(value) => {
                 setPasswordForm({
                   ...passwordForm,
                   newPassword: value,
                 })
-
-                setPasswordError('')
-                setPasswordMessage('')
+                clearPasswordFeedback()
               }}
             />
 
             <PasswordField
               label="Nhập lại mật khẩu mới"
-              value={
-                passwordForm.confirmPassword
-              }
-              show={showConfirmPassword}
+              value={passwordForm.confirmPassword}
+              shown={showConfirmPassword}
               onToggle={() =>
-                setShowConfirmPassword(
-                  !showConfirmPassword,
-                )
+                setShowConfirmPassword((value) => !value)
               }
               onChange={(value) => {
                 setPasswordForm({
                   ...passwordForm,
-                  confirmPassword:
-                    value,
+                  confirmPassword: value,
                 })
-
-                setPasswordError('')
-                setPasswordMessage('')
+                clearPasswordFeedback()
               }}
             />
 
-            <div className="rounded-xl bg-slate-50 p-4">
-              <p className="text-sm font-medium text-slate-700">
-                Yêu cầu mật khẩu
-              </p>
-
-              <ul className="mt-2 space-y-1 text-sm text-slate-500">
-                <li>
-                  • Ít nhất 8 ký tự.
-                </li>
-
-                <li>
-                  • Có ít nhất một chữ và một số.
-                </li>
-
-                <li>
-                  • Không trùng mật khẩu hiện tại.
-                </li>
-
-                <li>
-                  • Không trùng 3 mật khẩu gần nhất.
-                </li>
-              </ul>
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+              <div className="flex gap-2">
+                <ShieldCheck className="mt-0.5 shrink-0" size={18} />
+                <div>
+                  <p className="font-medium">Quy tắc mật khẩu</p>
+                  <p className="mt-1 text-xs leading-5 text-blue-700">
+                    Từ 8 đến 72 ký tự, có ít nhất một chữ và một số; không được trùng mật khẩu hiện tại hoặc 2 mật khẩu liền trước.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {passwordError && (
-              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {passwordError}
-              </div>
-            )}
+            <Feedback
+              success={passwordMessage}
+              error={passwordError}
+            />
 
-            {passwordMessage && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                <CheckCircle2 size={18} />
-                {passwordMessage}
-              </div>
-            )}
-
-            <div className="flex justify-end border-t border-slate-100 pt-5">
+            <div className="flex justify-end">
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                disabled={savingPassword}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <KeyRound size={17} />
-                Đổi mật khẩu
+                {savingPassword ? 'Đang đổi...' : 'Đổi mật khẩu'}
               </button>
             </div>
           </form>
         </Card>
       </div>
+    </div>
+  )
 
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <p className="text-sm font-semibold text-blue-900">
-          Dữ liệu thử nghiệm
-        </p>
+  function clearProfileFeedback() {
+    setProfileError('')
+    setProfileMessage('')
+  }
 
-        <p className="mt-1 text-sm leading-6 text-blue-700">
-          Mật khẩu hiện tại dùng để kiểm thử frontend:
-          <strong> Admin123</strong>.
-          Dữ liệu hiện mới lưu trong giao diện và chưa kết nối backend.
-        </p>
+  function clearPasswordFeedback() {
+    setPasswordError('')
+    setPasswordMessage('')
+  }
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '-'
+  return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN')
+}
+
+function getCardStatusLabel(profile: ReaderSelfProfile | null) {
+  if (!profile) return '-'
+  if (profile.registrationStatus === 'PENDING') return 'Chờ duyệt'
+  if (profile.registrationStatus === 'REJECTED') return 'Hồ sơ bị từ chối'
+  if (!profile.cardNumber) return 'Chưa được cấp'
+
+  switch (profile.cardStatus) {
+    case 'ACTIVE':
+      return 'Đang hoạt động'
+    case 'LOCKED':
+      return 'Đã khóa'
+    case 'EXPIRED':
+      return 'Hết hạn'
+    default:
+      return profile.cardStatus ?? 'Không xác định'
+  }
+}
+
+function getStatusClass(profile: ReaderSelfProfile) {
+  if (profile.registrationStatus === 'REJECTED') {
+    return 'bg-red-50 text-red-700'
+  }
+  if (profile.registrationStatus === 'PENDING') {
+    return 'bg-amber-50 text-amber-700'
+  }
+  if (profile.cardStatus === 'ACTIVE') {
+    return 'bg-emerald-50 text-emerald-700'
+  }
+  return 'bg-slate-100 text-slate-700'
+}
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<ApiErrorBody>(error)) {
+    return error.response?.data?.message ?? fallback
+  }
+  return fallback
+}
+
+function inputClassName(extra = '') {
+  return [
+    'w-full rounded-lg border border-slate-300 bg-white py-2.5 pr-3 text-sm text-slate-900 outline-none transition',
+    'focus:border-blue-500 focus:ring-2 focus:ring-blue-100',
+    extra,
+  ].join(' ')
+}
+
+function IconBox({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+      {children}
+    </div>
+  )
+}
+
+function SectionHeader({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <div className="border-b border-slate-200 p-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
       </div>
     </div>
   )
 }
 
-type InfoItemProps = {
-  label: string
-  value: string
-}
-
-function InfoItem({
-  label,
-  value,
-}: InfoItemProps) {
+function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-sm text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-2 font-medium text-slate-900">
+      <p className="text-sm text-slate-500">{label}</p>
+      <p className="mt-2 break-words text-sm font-semibold text-slate-900">
         {value}
       </p>
     </div>
   )
 }
 
-type ReadOnlyFieldProps = {
-  label: string
-  value: string
-}
-
 function ReadOnlyField({
   label,
   value,
-}: ReadOnlyFieldProps) {
+}: {
+  label: string
+  value: string
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
       </label>
-
       <input
         value={value}
         readOnly
-        className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500"
+        disabled
+        className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-500"
       />
     </div>
   )
 }
 
-type PasswordFieldProps = {
+function EditableField({
+  label,
+  icon,
+  children,
+  multiline = false,
+}: {
   label: string
-  value: string
-  show: boolean
-  onToggle: () => void
-  onChange: (value: string) => void
+  icon: ReactNode
+  children: ReactNode
+  multiline?: boolean
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+        {label}
+      </label>
+      <div className="relative">
+        <span
+          className={`absolute left-3 text-slate-400 ${
+            multiline ? 'top-3' : 'top-1/2 -translate-y-1/2'
+          }`}
+        >
+          {icon}
+        </span>
+        {children}
+      </div>
+    </div>
+  )
 }
 
 function PasswordField({
   label,
   value,
-  show,
+  shown,
   onToggle,
   onChange,
-}: PasswordFieldProps) {
+}: {
+  label: string
+  value: string
+  shown: boolean
+  onToggle: () => void
+  onChange: (value: string) => void
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
-        <span className="ml-1 text-red-500">
-          *
-        </span>
       </label>
-
       <div className="relative">
         <KeyRound
           size={18}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
         />
-
         <input
-          type={show ? 'text' : 'password'}
+          type={shown ? 'text' : 'password'}
           value={value}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
-          className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-11 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          onChange={(event) => onChange(event.target.value)}
+          className={inputClassName('pl-10 pr-11')}
         />
-
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-        >
-          {show ? (
-            <EyeOff size={18} />
-          ) : (
-            <Eye size={18} />
-          )}
-        </button>
+        <PasswordToggle shown={shown} onClick={onToggle} />
       </div>
     </div>
   )
+}
+
+function PasswordToggle({
+  shown,
+  onClick,
+}: {
+  shown: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+      aria-label={shown ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+    >
+      {shown ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  )
+}
+
+function Feedback({
+  success,
+  error,
+}: {
+  success: string
+  error: string
+}) {
+  if (error) {
+    return (
+      <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <AlertCircle className="mt-0.5 shrink-0" size={18} />
+        <span>{error}</span>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
+        <span>{success}</span>
+      </div>
+    )
+  }
+
+  return null
 }

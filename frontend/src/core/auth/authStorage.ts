@@ -127,3 +127,21 @@ export function getCurrentUser(): AuthUser | null {
     return null
   }
 }
+
+export function updateCurrentUser(
+  updates: Partial<AuthUser>,
+) {
+  const current = getCurrentUser()
+
+  if (!current) {
+    return
+  }
+
+  localStorage.setItem(
+    CURRENT_USER_KEY,
+    JSON.stringify({
+      ...current,
+      ...updates,
+    }),
+  )
+}

@@ -18,6 +18,8 @@ public interface ReaderProfileRepository extends JpaRepository<ReaderProfile, Lo
 
     Optional<ReaderProfile> findByMemberCodeIgnoreCase(String memberCode);
 
+    long countByRegistrationStatus(String registrationStatus);
+
     @Query("select rp from ReaderProfile rp join fetch rp.user u join fetch u.role order by rp.submittedAt desc")
     List<ReaderProfile> findAllWithUser();
 

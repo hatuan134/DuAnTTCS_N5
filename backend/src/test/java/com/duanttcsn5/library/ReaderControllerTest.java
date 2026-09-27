@@ -7,6 +7,7 @@ import com.duanttcsn5.library.dto.reader.ReaderRegistrationResponse;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.exception.GlobalExceptionHandler;
 import com.duanttcsn5.library.service.ReaderRegistrationService;
+import com.duanttcsn5.library.service.ReaderSelfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class ReaderControllerTest {
 
     @Mock
     private ReaderRegistrationService readerRegistrationService;
+
+    @Mock
+    private ReaderSelfService readerSelfService;
 
     @InjectMocks
     private ReaderController readerController;

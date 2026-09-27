@@ -27,7 +27,7 @@ public class AuditLogService {
     private static final Map<String, List<String>> ACTION_GROUPS = Map.of(
             "LOGIN", List.of("LOGIN_SUCCESS", "LOGIN_FAILED", "ACCOUNT_TEMP_LOCKED"),
             "CREATE_ACCOUNT", List.of("USER_CREATED"),
-            "UPDATE_ACCOUNT", List.of("USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET", "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED"),
+            "UPDATE_ACCOUNT", List.of("USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET", "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED", "READER_CONTACT_UPDATED", "READER_PASSWORD_CHANGED"),
             "ISSUE_CARD", List.of("LIBRARY_CARD_ISSUED"),
             "UPDATE_POLICY", List.of(
                     "CARD_TYPE_CREATED",
@@ -216,6 +216,37 @@ public class AuditLogService {
                 ipAddress);
     }
 
+    public void logReaderContactUpdated(Long userId,
+                                        String oldEmail,
+                                        String newEmail,
+                                        boolean emailChanged,
+                                        boolean phoneChanged,
+                                        boolean addressChanged,
+                                        String ipAddress) {
+        auditLogRepository.insert(
+                userId,
+                "READER_CONTACT_UPDATED",
+                "USER",
+                userId.toString(),
+                toJson(Map.of(
+                        "oldEmail", oldEmail,
+                        "newEmail", newEmail,
+                        "emailChanged", emailChanged,
+                        "phoneChanged", phoneChanged,
+                        "addressChanged", addressChanged)),
+                ipAddress);
+    }
+
+    public void logReaderPasswordChanged(Long userId, String email, String ipAddress) {
+        auditLogRepository.insert(
+                userId,
+                "READER_PASSWORD_CHANGED",
+                "USER",
+                userId.toString(),
+                toJson(Map.of("email", email)),
+                ipAddress);
+    }
+
     /**
      * Điểm tích hợp dành cho S1-04. Khi chức năng cấp thẻ được triển khai,
      * service cấp thẻ chỉ cần gọi phương thức này sau khi lưu thẻ thành công.
@@ -384,6 +415,8 @@ public class AuditLogService {
             case "INITIAL_PASSWORD_SET" -> "Thiết lập mật khẩu lần đầu";
             case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu";
             case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công";
+            case "READER_CONTACT_UPDATED" -> "Cập nhật thông tin liên hệ";
+            case "READER_PASSWORD_CHANGED" -> "Đổi mật khẩu";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ thư viện";
             case "READER_APPLICATION_REJECTED" -> "Từ chối hồ sơ bạn đọc";
             case "CARD_TYPE_CREATED" -> "Tạo chính sách mượn";
@@ -418,6 +451,11 @@ public class AuditLogService {
             case "INITIAL_PASSWORD_SET" -> "Người dùng đã thiết lập mật khẩu lần đầu.";
             case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu cho tài khoản " + valueOrDash(afterData, "email") + ".";
             case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công cho tài khoản " + valueOrDash(afterData, "email") + ".";
+            case "READER_CONTACT_UPDATED" -> "Bạn đọc cập nhật thông tin liên hệ."
+                    + (afterData != null && afterData.path("emailChanged").asBoolean(false)
+                    ? " Email đổi từ " + valueOrDash(afterData, "oldEmail") + " sang " + valueOrDash(afterData, "newEmail") + "."
+                    : " Email không thay đổi.");
+            case "READER_PASSWORD_CHANGED" -> "Bạn đọc đổi mật khẩu tài khoản thành công.";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ " + valueOrDash(afterData, "cardNumber")
                     + " cho " + valueOrDash(afterData, "readerName")
                     + ", loại " + valueOrDash(afterData, "cardTypeName")

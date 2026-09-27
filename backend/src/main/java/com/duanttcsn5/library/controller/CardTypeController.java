@@ -50,7 +50,7 @@ public class CardTypeController {
     }
 
     @GetMapping("/history")
-    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<PolicyHistoryResponse>> getPolicyHistory() {
         return ResponseEntity.ok(cardTypeService.getPolicyHistory());
     }
