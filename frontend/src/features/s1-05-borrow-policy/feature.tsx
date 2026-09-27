@@ -6,6 +6,8 @@ import type {
   FeatureModule,
 } from '../../types/feature'
 
+const readerRoles = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']
+
 const feature: FeatureModule = {
   id: 's1-05-borrow-policy',
 
@@ -24,6 +26,7 @@ const feature: FeatureModule = {
       to: '/borrow-policy',
       icon: Settings,
       order: 50,
+      roles: readerRoles,
     },
   ],
 }

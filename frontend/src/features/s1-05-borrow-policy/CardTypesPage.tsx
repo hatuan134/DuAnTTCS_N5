@@ -18,6 +18,7 @@ import {
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
 import LoadingState from '../../components/ui/LoadingState'
+import { getCurrentUser } from '../../core/auth/authStorage'
 import {
   cardTypeService,
   type CardType,
@@ -76,6 +77,10 @@ function formatDate(dateStr: string) {
 }
 
 export default function CardTypesPage() {
+  const user = getCurrentUser()
+  const canRead = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(user?.role ?? '')
+  const canManage = user?.role === 'LIBRARY_MANAGER' || user?.role === 'ADMIN'
+
   const [cardTypes, setCardTypes] = useState<CardType[]>([])
   const [history, setHistory] = useState<PolicyHistory[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +97,12 @@ export default function CardTypesPage() {
   const [successMessage, setSuccessMessage] = useState('')
 
   const fetchData = async (isManualRefresh = false) => {
+    if (!canRead) {
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
     if (isManualRefresh) {
       setRefreshing(true)
     }
@@ -112,8 +123,12 @@ export default function CardTypesPage() {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (canRead) {
+      void fetchData()
+    } else {
+      setLoading(false)
+    }
+  }, [canRead])
 
   // Tự động ẩn thông báo thành công sau 4 giây
   useEffect(() => {
@@ -281,12 +296,29 @@ export default function CardTypesPage() {
     ? Math.max(...cardTypes.map((c) => c.maxBooks))
     : 10
 
+  if (!canRead) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Chính sách mượn"
+          description="Xem quy định mượn và gia hạn sách theo từng loại thẻ."
+        />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+          Tài khoản hiện tại không có quyền xem chính sách mượn.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <PageHeader
           title="Chính sách mượn"
-          description="Quản lý các loại thẻ và quy định mượn, gia hạn sách áp dụng cho từng đối tượng độc giả."
+          description={canManage
+            ? 'Quản lý các loại thẻ và quy định mượn, gia hạn sách áp dụng cho từng đối tượng độc giả.'
+            : 'Xem quy định mượn và gia hạn sách áp dụng cho từng đối tượng độc giả.'
+          }
         />
 
         <div className="flex items-center gap-2">
@@ -301,14 +333,16 @@ export default function CardTypesPage() {
             Làm mới
           </button>
 
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
-          >
-            <Plus size={18} />
-            Thêm loại thẻ
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+            >
+              <Plus size={18} />
+              Thêm loại thẻ
+            </button>
+          )}
         </div>
       </div>
 
@@ -408,7 +442,10 @@ export default function CardTypesPage() {
             <CreditCard size={40} className="mx-auto text-slate-300" />
             <p className="mt-3 font-medium text-slate-700">Chưa có loại thẻ nào</p>
             <p className="mt-1 text-sm text-slate-500">
-              Nhấn &quot;Thêm loại thẻ&quot; để khai báo chính sách mượn đầu tiên.
+              {canManage
+                ? 'Nhấn “Thêm loại thẻ” để khai báo chính sách mượn đầu tiên.'
+                : 'Hiện chưa có chính sách mượn nào được khai báo.'
+              }
             </p>
           </div>
         ) : (
@@ -440,9 +477,11 @@ export default function CardTypesPage() {
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Trạng thái
                   </th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
-                    Thao tác
-                  </th>
+                  {canManage && (
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
+                      Thao tác
+                    </th>
+                  )}
                 </tr>
               </thead>
 
@@ -509,8 +548,9 @@ export default function CardTypesPage() {
                         )}
                       </td>
 
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex justify-end gap-1.5">
+                      {canManage && (
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex justify-end gap-1.5">
                           <button
                             type="button"
                             title="Chỉnh sửa chính sách"
@@ -554,6 +594,7 @@ export default function CardTypesPage() {
                           </button>
                         </div>
                       </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -663,7 +704,7 @@ export default function CardTypesPage() {
       </Card>
 
       {/* MODAL THÊM / SỬA LOẠI THẺ */}
-      {isModalOpen && (
+      {canManage && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">

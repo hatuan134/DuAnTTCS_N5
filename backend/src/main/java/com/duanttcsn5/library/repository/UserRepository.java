@@ -15,11 +15,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u join fetch u.role where lower(u.email) = lower(:email)")
     Optional<User> findForLogin(@Param("email") String email);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u join fetch u.role where u.id = :id")
+    Optional<User> findByIdForUpdate(@Param("id") Long id);
+
     @Query("select u from User u join fetch u.role order by u.createdAt desc")
     java.util.List<User> findAllWithRole();
+
+    @Query("select count(u) from User u join u.role r where r.code = 'READER' and u.status = 'ACTIVE'")
+    long countActiveReaders();
 }
 

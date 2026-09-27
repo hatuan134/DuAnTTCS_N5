@@ -24,6 +24,7 @@ const feature: FeatureModule = {
       to: '/change-password',
       icon: UserRound,
       order: 60,
+      roles: ['READER'],
     },
   ],
 }
