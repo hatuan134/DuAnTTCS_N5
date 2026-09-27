@@ -61,15 +61,26 @@ public class AuthService {
         User user = userRepository.findForLogin(email).orElse(null);
 
         if (user == null) {
+            auditLogService.logLoginFailedUnknownEmail(email, ipAddress);
             throw invalidCredentials();
         }
 
         if (!"ACTIVE".equals(user.getStatus()) || user.getPasswordHash() == null) {
+            auditLogService.logLoginRejected(
+                    user.getId(),
+                    user.getEmail(),
+                    "ACCOUNT_INACTIVE_OR_PASSWORD_NOT_SET",
+                    ipAddress);
             throw invalidCredentials();
         }
 
         if (user.getLockedUntil() != null) {
             if (user.getLockedUntil().isAfter(now)) {
+                auditLogService.logLoginRejected(
+                        user.getId(),
+                        user.getEmail(),
+                        "ACCOUNT_TEMPORARILY_LOCKED",
+                        ipAddress);
                 throw new ApiException(
                         HttpStatus.LOCKED,
                         "ACCOUNT_TEMPORARILY_LOCKED",

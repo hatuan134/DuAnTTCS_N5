@@ -1,13 +1,12 @@
-import {
-  useMemo,
-  useState,
-} from 'react'
-
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import type { AxiosError } from 'axios'
 import {
   Activity,
   Eye,
   Filter,
   LogIn,
+  RefreshCw,
   Search,
   ShieldCheck,
   UserCog,
@@ -17,816 +16,411 @@ import {
 
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import { getCurrentUser } from '../../core/auth/authStorage'
+import {
+  auditLogService,
+} from './auditLogService'
+import type {
+  AuditActionGroup,
+  AuditFilterOptions,
+  AuditLogItem,
+} from './auditLogService'
 
-type AuditAction =
-  | 'LOGIN'
-  | 'CREATE_ACCOUNT'
-  | 'UPDATE_ACCOUNT'
-  | 'ISSUE_CARD'
-  | 'UPDATE_POLICY'
-
-type AuditLog = {
-  id: number
-  timestamp: string
-  actor: string
-  actorRole: string
-  action: AuditAction
-  target: string
-  targetType: string
-  ipAddress: string
-  detail: string
+type ApiErrorPayload = {
+  message?: string
+  code?: string
 }
 
-const CURRENT_ROLE =
-  'ADMIN'
-
-const auditLogs: AuditLog[] = [
-  {
-    id: 1,
-    timestamp:
-      '2026-09-26T08:15:22',
-    actor: 'Nguyễn Văn Admin',
-    actorRole:
-      'Quản trị hệ thống',
-    action: 'LOGIN',
-    target:
-      'Hệ thống quản lý thư viện',
-    targetType: 'Phiên đăng nhập',
-    ipAddress: '192.168.1.15',
-    detail:
-      'Đăng nhập thành công bằng email admin@libra.edu.vn.',
-  },
-  {
-    id: 2,
-    timestamp:
-      '2026-09-26T08:22:10',
-    actor: 'Nguyễn Văn Admin',
-    actorRole:
-      'Quản trị hệ thống',
-    action: 'CREATE_ACCOUNT',
-    target: 'Trần Thị Lan',
-    targetType:
-      'Tài khoản nhân viên',
-    ipAddress: '192.168.1.15',
-    detail:
-      'Tạo tài khoản mới và gán vai trò Thủ thư.',
-  },
-  {
-    id: 3,
-    timestamp:
-      '2026-09-26T08:35:44',
-    actor: 'Nguyễn Văn Admin',
-    actorRole:
-      'Quản trị hệ thống',
-    action: 'UPDATE_ACCOUNT',
-    target: 'Lê Văn Minh',
-    targetType:
-      'Tài khoản nhân viên',
-    ipAddress: '192.168.1.15',
-    detail:
-      'Cập nhật trạng thái tài khoản từ Hoạt động sang Khóa.',
-  },
-  {
-    id: 4,
-    timestamp:
-      '2026-09-26T09:02:31',
-    actor: 'Trần Thị Lan',
-    actorRole: 'Thủ thư',
-    action: 'ISSUE_CARD',
-    target: 'TV20260001',
-    targetType:
-      'Thẻ thư viện',
-    ipAddress: '192.168.1.22',
-    detail:
-      'Cấp thẻ sinh viên cho bạn đọc Nguyễn Văn An, hạn thẻ 12 tháng.',
-  },
-  {
-    id: 5,
-    timestamp:
-      '2026-09-26T09:18:08',
-    actor: 'Phạm Văn Quản lý',
-    actorRole:
-      'Quản lý thư viện',
-    action: 'UPDATE_POLICY',
-    target: 'Thẻ sinh viên',
-    targetType:
-      'Chính sách mượn',
-    ipAddress: '192.168.1.30',
-    detail:
-      'Thay đổi số ngày mượn từ 14 ngày thành 20 ngày.',
-  },
-  {
-    id: 6,
-    timestamp:
-      '2026-09-26T10:04:55',
-    actor: 'Nguyễn Văn Admin',
-    actorRole:
-      'Quản trị hệ thống',
-    action: 'LOGIN',
-    target:
-      'Hệ thống quản lý thư viện',
-    targetType: 'Phiên đăng nhập',
-    ipAddress: '10.10.20.15',
-    detail:
-      'Đăng nhập thành công bằng tài khoản quản trị.',
-  },
-  {
-    id: 7,
-    timestamp:
-      '2026-09-25T14:11:35',
-    actor: 'Trần Thị Lan',
-    actorRole: 'Thủ thư',
-    action: 'ISSUE_CARD',
-    target: 'TV20260002',
-    targetType:
-      'Thẻ thư viện',
-    ipAddress: '192.168.1.22',
-    detail:
-      'Cấp thẻ cán bộ cho bạn đọc Trần Văn Bình.',
-  },
-  {
-    id: 8,
-    timestamp:
-      '2026-09-25T15:24:12',
-    actor: 'Phạm Văn Quản lý',
-    actorRole:
-      'Quản lý thư viện',
-    action: 'UPDATE_POLICY',
-    target: 'Thẻ cán bộ',
-    targetType:
-      'Chính sách mượn',
-    ipAddress: '192.168.1.30',
-    detail:
-      'Thay đổi số lần gia hạn tối đa từ 2 thành 3 lần.',
-  },
-]
-
-function getActionLabel(
-  action: AuditAction,
-) {
-  switch (action) {
-    case 'LOGIN':
-      return 'Đăng nhập'
-
-    case 'CREATE_ACCOUNT':
-      return 'Tạo tài khoản'
-
-    case 'UPDATE_ACCOUNT':
-      return 'Sửa tài khoản'
-
-    case 'ISSUE_CARD':
-      return 'Cấp thẻ'
-
-    case 'UPDATE_POLICY':
-      return 'Sửa chính sách'
-
-    default:
-      return action
-  }
+type Filters = {
+  keyword: string
+  actorId: string
+  action: string
+  fromDate: string
+  toDate: string
 }
 
-function formatDateTime(
-  value: string,
-) {
-  return new Date(
-    value,
-  ).toLocaleString(
-    'vi-VN',
-  )
+const emptyFilters: Filters = {
+  keyword: '',
+  actorId: 'ALL',
+  action: 'ALL',
+  fromDate: '',
+  toDate: '',
 }
 
-function getActionStyle(
-  action: AuditAction,
-) {
+function getErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<ApiErrorPayload>
+  return axiosError.response?.data?.message || fallback
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+  })
+}
+
+function getActionStyle(action: AuditActionGroup) {
   switch (action) {
     case 'LOGIN':
       return {
-        className:
-          'bg-blue-50 text-blue-700',
+        className: 'bg-blue-50 text-blue-700',
         icon: LogIn,
       }
-
     case 'CREATE_ACCOUNT':
       return {
-        className:
-          'bg-emerald-50 text-emerald-700',
+        className: 'bg-emerald-50 text-emerald-700',
         icon: UserPlus,
       }
-
     case 'UPDATE_ACCOUNT':
       return {
-        className:
-          'bg-amber-50 text-amber-700',
+        className: 'bg-amber-50 text-amber-700',
         icon: UserCog,
       }
-
     case 'ISSUE_CARD':
       return {
-        className:
-          'bg-violet-50 text-violet-700',
+        className: 'bg-violet-50 text-violet-700',
         icon: ShieldCheck,
       }
-
     case 'UPDATE_POLICY':
       return {
-        className:
-          'bg-cyan-50 text-cyan-700',
+        className: 'bg-cyan-50 text-cyan-700',
         icon: Activity,
       }
-
     default:
       return {
-        className:
-          'bg-slate-100 text-slate-700',
+        className: 'bg-slate-100 text-slate-700',
         icon: Activity,
       }
   }
 }
 
 export default function AuditLogPage() {
-  const [keyword, setKeyword] =
-    useState('')
+  const currentUser = getCurrentUser()
+  const allowed = currentUser?.role === 'ADMIN'
 
-  const [actorFilter, setActorFilter] =
-    useState('ALL')
-
-  const [actionFilter, setActionFilter] =
-    useState('ALL')
-
-  const [fromDate, setFromDate] =
-    useState('')
-
-  const [toDate, setToDate] =
-    useState('')
-
-  const [
-    selectedLog,
-    setSelectedLog,
-  ] = useState<AuditLog | null>(
-    null,
-  )
-
-  const actors =
-    useMemo(() => {
-      return Array.from(
-        new Set(
-          auditLogs.map(
-            (item) =>
-              item.actor,
-          ),
-        ),
-      )
-    }, [])
-
-  const filteredLogs =
-    useMemo(() => {
-      const normalizedKeyword =
-        keyword
-          .trim()
-          .toLowerCase()
-
-      return auditLogs.filter(
-        (item) => {
-          const date =
-            item.timestamp.slice(
-              0,
-              10,
-            )
-
-          const matchesKeyword =
-            !normalizedKeyword ||
-            item.actor
-              .toLowerCase()
-              .includes(
-                normalizedKeyword,
-              ) ||
-            item.target
-              .toLowerCase()
-              .includes(
-                normalizedKeyword,
-              ) ||
-            item.ipAddress
-              .toLowerCase()
-              .includes(
-                normalizedKeyword,
-              ) ||
-            item.detail
-              .toLowerCase()
-              .includes(
-                normalizedKeyword,
-              )
-
-          const matchesActor =
-            actorFilter ===
-              'ALL' ||
-            item.actor ===
-              actorFilter
-
-          const matchesAction =
-            actionFilter ===
-              'ALL' ||
-            item.action ===
-              actionFilter
-
-          const matchesFrom =
-            !fromDate ||
-            date >= fromDate
-
-          const matchesTo =
-            !toDate ||
-            date <= toDate
-
-          return (
-            matchesKeyword &&
-            matchesActor &&
-            matchesAction &&
-            matchesFrom &&
-            matchesTo
-          )
-        },
-      )
-    }, [
-      keyword,
-      actorFilter,
-      actionFilter,
-      fromDate,
-      toDate,
-    ])
-
-  const resetFilters = () => {
-    setKeyword('')
-    setActorFilter('ALL')
-    setActionFilter('ALL')
-    setFromDate('')
-    setToDate('')
+  if (!allowed) {
+    return <AccessDenied />
   }
 
-  /*
-   * Mock frontend:
-   * S1-10 chỉ cho Admin truy cập.
-   *
-   * Khi nối backend, quyền này phải
-   * được kiểm tra lại ở API.
-   */
-  if (
-    CURRENT_ROLE !== 'ADMIN'
-  ) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center">
-        <div className="max-w-md text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600">
-            <ShieldCheck
-              size={30}
-            />
-          </div>
+  return <AuditLogContent />
+}
 
-          <h1 className="mt-5 text-xl font-semibold text-slate-900">
-            Không có quyền truy cập
-          </h1>
+function AuditLogContent() {
+  const [filters, setFilters] = useState<Filters>(emptyFilters)
+  const [logs, setLogs] = useState<AuditLogItem[]>([])
+  const [options, setOptions] = useState<AuditFilterOptions>({ actors: [], actions: [] })
+  const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Chỉ Quản trị hệ thống
-            được phép xem nhật ký
-            hoạt động.
-          </p>
-        </div>
-      </div>
-    )
+  const loadOptions = async () => {
+    try {
+      const data = await auditLogService.getFilterOptions()
+      setOptions(data)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không thể tải danh sách bộ lọc nhật ký.'))
+    }
+  }
+
+  const loadLogs = async (nextFilters: Filters = filters) => {
+    if (nextFilters.fromDate && nextFilters.toDate && nextFilters.fromDate > nextFilters.toDate) {
+      setError('Ngày bắt đầu không được sau ngày kết thúc.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      const data = await auditLogService.search({
+        keyword: nextFilters.keyword,
+        actorId: nextFilters.actorId === 'ALL' ? undefined : Number(nextFilters.actorId),
+        action: nextFilters.action,
+        fromDate: nextFilters.fromDate || undefined,
+        toDate: nextFilters.toDate || undefined,
+      })
+      setLogs(data)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không thể tải nhật ký hoạt động.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void Promise.all([loadOptions(), loadLogs(emptyFilters)])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const counts = useMemo(() => ({
+    total: logs.length,
+    login: logs.filter((item) => item.actionGroup === 'LOGIN').length,
+    account: logs.filter((item) =>
+      item.actionGroup === 'CREATE_ACCOUNT' || item.actionGroup === 'UPDATE_ACCOUNT').length,
+    library: logs.filter((item) =>
+      item.actionGroup === 'ISSUE_CARD' || item.actionGroup === 'UPDATE_POLICY').length,
+  }), [logs])
+
+  const submitFilters = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void loadLogs(filters)
+  }
+
+  const resetFilters = () => {
+    setFilters(emptyFilters)
+    void loadLogs(emptyFilters)
+  }
+
+  const openDetail = async (item: AuditLogItem) => {
+    setSelectedLog(item)
+    try {
+      const detail = await auditLogService.getById(item.id)
+      setSelectedLog(detail)
+    } catch {
+      // Dữ liệu ở bảng đã đủ để hiển thị nếu request chi tiết lỗi.
+    }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Nhật ký hoạt động"
-        description="Theo dõi các thao tác quan trọng được thực hiện trong hệ thống."
+        description="Tra cứu lịch sử đăng nhập và các thao tác quản trị quan trọng trong hệ thống."
       />
 
-      {/* THỐNG KÊ */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Tổng nhật ký
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {auditLogs.length}
-            </p>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Đăng nhập
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-blue-700">
-              {
-                auditLogs.filter(
-                  (item) =>
-                    item.action ===
-                    'LOGIN',
-                ).length
-              }
-            </p>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Tài khoản
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-amber-700">
-              {
-                auditLogs.filter(
-                  (item) =>
-                    item.action ===
-                      'CREATE_ACCOUNT' ||
-                    item.action ===
-                      'UPDATE_ACCOUNT',
-                ).length
-              }
-            </p>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="p-5">
-            <p className="text-sm text-slate-500">
-              Nghiệp vụ thư viện
-            </p>
-
-            <p className="mt-2 text-2xl font-semibold text-violet-700">
-              {
-                auditLogs.filter(
-                  (item) =>
-                    item.action ===
-                      'ISSUE_CARD' ||
-                    item.action ===
-                      'UPDATE_POLICY',
-                ).length
-              }
-            </p>
-          </div>
-        </Card>
+        <StatCard label="Kết quả đang hiển thị" value={counts.total} valueClass="text-slate-900" />
+        <StatCard label="Đăng nhập" value={counts.login} valueClass="text-blue-700" />
+        <StatCard label="Tài khoản" value={counts.account} valueClass="text-amber-700" />
+        <StatCard label="Nghiệp vụ thư viện" value={counts.library} valueClass="text-violet-700" />
       </div>
 
-      {/* BỘ LỌC */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <Card>
         <div className="border-b border-slate-200 p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
               <Filter size={19} />
             </div>
-
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Bộ lọc nhật ký
-              </h2>
-
+              <h2 className="text-lg font-semibold text-slate-900">Bộ lọc nhật ký</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Lọc theo khoảng ngày,
-                người thực hiện và loại
-                hành động.
+                Có thể kết hợp khoảng ngày, người thực hiện, loại hành động và từ khóa.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5">
-          <div className="relative">
-            <Search
-              size={17}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+        <form onSubmit={submitFilters} className="p-5">
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
+            <div className="relative">
+              <Search
+                size={17}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={filters.keyword}
+                onChange={(event) => setFilters((current) => ({
+                  ...current,
+                  keyword: event.target.value,
+                }))}
+                placeholder="Tên, email, đối tượng, IP..."
+                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
 
-            <input
-              value={keyword}
-              onChange={(event) =>
-                setKeyword(
-                  event.target.value,
-                )
-              }
-              placeholder="Tìm đối tượng, IP..."
-              className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <select
-            value={actorFilter}
-            onChange={(event) =>
-              setActorFilter(
-                event.target.value,
-              )
-            }
-            className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-          >
-            <option value="ALL">
-              Tất cả người thực hiện
-            </option>
-
-            {actors.map(
-              (actor) => (
-                <option
-                  key={actor}
-                  value={actor}
-                >
-                  {actor}
+            <select
+              value={filters.actorId}
+              onChange={(event) => setFilters((current) => ({
+                ...current,
+                actorId: event.target.value,
+              }))}
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+            >
+              <option value="ALL">Tất cả người thực hiện</option>
+              {options.actors.map((actor) => (
+                <option key={actor.id} value={actor.id}>
+                  {actor.fullName} — {actor.email}
                 </option>
-              ),
-            )}
-          </select>
+              ))}
+            </select>
 
-          <select
-            value={actionFilter}
-            onChange={(event) =>
-              setActionFilter(
-                event.target.value,
-              )
-            }
-            className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-          >
-            <option value="ALL">
-              Tất cả hành động
-            </option>
+            <select
+              value={filters.action}
+              onChange={(event) => setFilters((current) => ({
+                ...current,
+                action: event.target.value,
+              }))}
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+            >
+              <option value="ALL">Tất cả hành động</option>
+              {options.actions.map((action) => (
+                <option key={action.value} value={action.value}>
+                  {action.label}
+                </option>
+              ))}
+            </select>
 
-            <option value="LOGIN">
-              Đăng nhập
-            </option>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-500">Từ ngày</span>
+              <input
+                type="date"
+                value={filters.fromDate}
+                onChange={(event) => setFilters((current) => ({
+                  ...current,
+                  fromDate: event.target.value,
+                }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              />
+            </label>
 
-            <option value="CREATE_ACCOUNT">
-              Tạo tài khoản
-            </option>
-
-            <option value="UPDATE_ACCOUNT">
-              Sửa tài khoản
-            </option>
-
-            <option value="ISSUE_CARD">
-              Cấp thẻ
-            </option>
-
-            <option value="UPDATE_POLICY">
-              Sửa chính sách
-            </option>
-          </select>
-
-          <div>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(event) =>
-                setFromDate(
-                  event.target.value,
-                )
-              }
-              title="Từ ngày"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            />
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-500">Đến ngày</span>
+              <input
+                type="date"
+                value={filters.toDate}
+                onChange={(event) => setFilters((current) => ({
+                  ...current,
+                  toDate: event.target.value,
+                }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              />
+            </label>
           </div>
 
-          <div>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(event) =>
-                setToDate(
-                  event.target.value,
-                )
-              }
-              title="Đến ngày"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <p className="text-sm text-slate-500">
+              Tìm thấy <strong className="text-slate-800">{logs.length}</strong> nhật ký.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <RefreshCw size={16} />
+                Xóa bộ lọc
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <Search size={16} />
+                Tra cứu
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-          <p className="text-sm text-slate-500">
-            Tìm thấy{' '}
-            <strong className="text-slate-800">
-              {filteredLogs.length}
-            </strong>{' '}
-            nhật ký
-          </p>
-
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700"
-          >
-            Xóa bộ lọc
-          </button>
-        </div>
+        </form>
       </Card>
 
-      {/* DANH SÁCH LOG */}
       <Card>
-        <div className="border-b border-slate-200 p-5">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Danh sách nhật ký
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Nhật ký chỉ được xem,
-            không thể sửa hoặc xóa.
-          </p>
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-slate-900">Danh sách nhật ký</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Nhật ký chỉ đọc. Giao diện không cung cấp chức năng sửa hoặc xóa.
+            </p>
+          </div>
         </div>
 
-        {filteredLogs.length ===
-        0 ? (
-          <div className="px-6 py-14 text-center">
-            <Activity
-              size={38}
-              className="mx-auto text-slate-300"
-            />
-
-            <p className="mt-3 font-medium text-slate-700">
-              Không tìm thấy nhật ký
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Hãy thay đổi điều kiện
-              lọc để thử lại.
-            </p>
+        {loading ? (
+          <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-slate-500">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            Đang tải nhật ký...
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
+            <Search size={34} className="text-slate-300" />
+            <p className="mt-3 font-medium text-slate-700">Không tìm thấy nhật ký</p>
+            <p className="mt-1 text-sm text-slate-500">Hãy thay đổi hoặc xóa các điều kiện lọc.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px]">
+            <table className="w-full min-w-[1180px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                    Thời điểm
-                  </th>
-
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                    Người thực hiện
-                  </th>
-
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                    Hành động
-                  </th>
-
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                    Đối tượng
-                  </th>
-
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                    Địa chỉ IP
-                  </th>
-
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
-                    Chi tiết
-                  </th>
+                  <TableHead>Thời điểm</TableHead>
+                  <TableHead>Người thực hiện</TableHead>
+                  <TableHead>Hành động</TableHead>
+                  <TableHead>Đối tượng tác động</TableHead>
+                  <TableHead>Địa chỉ IP</TableHead>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">Chi tiết</th>
                 </tr>
               </thead>
-
               <tbody>
-                {filteredLogs.map(
-                  (item) => {
-                    const style =
-                      getActionStyle(
-                        item.action,
-                      )
-
-                    const Icon =
-                      style.icon
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className="border-b border-slate-100 transition hover:bg-slate-50"
-                      >
-                        <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
-                          {formatDateTime(
-                            item.timestamp,
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <p className="font-medium text-slate-900">
-                            {
-                              item.actor
-                            }
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {
-                              item.actorRole
-                            }
-                          </p>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${style.className}`}
-                          >
-                            <Icon
-                              size={14}
-                            />
-
-                            {getActionLabel(
-                              item.action,
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <p className="font-medium text-slate-800">
-                            {
-                              item.target
-                            }
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {
-                              item.targetType
-                            }
-                          </p>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                            {
-                              item.ipAddress
-                            }
-                          </code>
-                        </td>
-
-                        <td className="px-5 py-4 text-right">
-                          <button
-                            type="button"
-                            title="Xem chi tiết"
-                            onClick={() =>
-                              setSelectedLog(
-                                item,
-                              )
-                            }
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <Eye
-                              size={16}
-                            />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  },
-                )}
+                {logs.map((item) => {
+                  const style = getActionStyle(item.actionGroup)
+                  const Icon = style.icon
+                  return (
+                    <tr key={item.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                        {formatDateTime(item.timestamp)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-slate-900">{item.actor}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{item.actorRole}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${style.className}`}>
+                          <Icon size={14} />
+                          {item.actionLabel}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-slate-800">{item.target}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{item.targetType}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                          {item.ipAddress}
+                        </code>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          title="Xem chi tiết"
+                          onClick={() => void openDetail(item)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      {/* GHI CHÚ */}
       <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
         <div className="flex gap-3">
-          <ShieldCheck
-            size={20}
-            className="mt-0.5 shrink-0 text-blue-600"
-          />
-
+          <ShieldCheck size={20} className="mt-0.5 shrink-0 text-blue-600" />
           <div>
-            <p className="text-sm font-semibold text-blue-900">
-              Nhật ký hệ thống
-            </p>
-
+            <p className="text-sm font-semibold text-blue-900">Nhật ký chỉ đọc</p>
             <p className="mt-1 text-sm leading-6 text-blue-700">
-              Chỉ Quản trị hệ thống
-              được phép xem nhật ký.
-              Nhật ký không có chức năng
-              sửa hoặc xóa trên giao diện.
+              Chỉ Quản trị hệ thống được phép tra cứu. Backend từ chối mọi yêu cầu sửa hoặc xóa nhật ký.
             </p>
           </div>
         </div>
       </div>
 
-      {/* MODAL CHI TIẾT */}
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  Chi tiết nhật ký
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Mã nhật ký #
-                  {selectedLog.id}
-                </p>
+                <h2 className="text-xl font-semibold text-slate-900">Chi tiết nhật ký</h2>
+                <p className="mt-1 text-sm text-slate-500">Mã nhật ký #{selectedLog.id}</p>
               </div>
-
               <button
                 type="button"
-                onClick={() =>
-                  setSelectedLog(
-                    null,
-                  )
-                }
+                onClick={() => setSelectedLog(null)}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X size={20} />
@@ -834,46 +428,16 @@ export default function AuditLogPage() {
             </div>
 
             <div className="space-y-5 p-6">
-              <DetailItem
-                label="Thời điểm"
-                value={formatDateTime(
-                  selectedLog.timestamp,
-                )}
-              />
-
-              <DetailItem
-                label="Người thực hiện"
-                value={`${selectedLog.actor} — ${selectedLog.actorRole}`}
-              />
-
-              <DetailItem
-                label="Hành động"
-                value={getActionLabel(
-                  selectedLog.action,
-                )}
-              />
-
-              <DetailItem
-                label="Đối tượng tác động"
-                value={`${selectedLog.target} — ${selectedLog.targetType}`}
-              />
-
-              <DetailItem
-                label="Địa chỉ IP"
-                value={
-                  selectedLog.ipAddress
-                }
-              />
-
+              <DetailItem label="Thời điểm" value={formatDateTime(selectedLog.timestamp)} />
+              <DetailItem label="Người thực hiện" value={`${selectedLog.actor} — ${selectedLog.actorRole}`} />
+              <DetailItem label="Hành động" value={selectedLog.actionLabel} />
+              <DetailItem label="Mã hành động" value={selectedLog.action} />
+              <DetailItem label="Đối tượng tác động" value={`${selectedLog.target} — ${selectedLog.targetType}`} />
+              <DetailItem label="Địa chỉ IP" value={selectedLog.ipAddress} />
               <div>
-                <p className="text-sm font-medium text-slate-500">
-                  Nội dung chi tiết
-                </p>
-
+                <p className="text-sm font-medium text-slate-500">Nội dung chi tiết</p>
                 <div className="mt-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                  {
-                    selectedLog.detail
-                  }
+                  {selectedLog.detail}
                 </div>
               </div>
             </div>
@@ -881,11 +445,7 @@ export default function AuditLogPage() {
             <div className="flex justify-end border-t border-slate-100 px-6 py-4">
               <button
                 type="button"
-                onClick={() =>
-                  setSelectedLog(
-                    null,
-                  )
-                }
+                onClick={() => setSelectedLog(null)}
                 className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
               >
                 Đóng
@@ -898,24 +458,46 @@ export default function AuditLogPage() {
   )
 }
 
-type DetailItemProps = {
-  label: string
-  value: string
+function StatCard({ label, value, valueClass }: { label: string; value: number; valueClass: string }) {
+  return (
+    <Card>
+      <div className="p-5">
+        <p className="text-sm text-slate-500">{label}</p>
+        <p className={`mt-2 text-2xl font-semibold ${valueClass}`}>{value}</p>
+      </div>
+    </Card>
+  )
 }
 
-function DetailItem({
-  label,
-  value,
-}: DetailItemProps) {
+function TableHead({ children }: { children: string }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[160px_1fr] sm:gap-4">
-      <p className="text-sm font-medium text-slate-500">
-        {label}
-      </p>
+    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+      {children}
+    </th>
+  )
+}
 
-      <p className="text-sm font-medium text-slate-800">
-        {value}
-      </p>
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[170px_1fr] sm:gap-4">
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <p className="break-words text-sm font-medium text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+function AccessDenied() {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center">
+      <div className="max-w-md text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600">
+          <ShieldCheck size={30} />
+        </div>
+        <h1 className="mt-5 text-xl font-semibold text-slate-900">Không có quyền truy cập</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Chỉ Quản trị hệ thống được phép xem nhật ký hoạt động.
+        </p>
+      </div>
     </div>
   )
 }
