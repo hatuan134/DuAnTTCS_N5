@@ -9,6 +9,7 @@ import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
+import com.duanttcsn5.library.repository.LibraryCardRepository;
 import com.duanttcsn5.library.repository.ReaderProfileRepository;
 import com.duanttcsn5.library.repository.RoleRepository;
 import com.duanttcsn5.library.repository.UserRepository;
@@ -19,9 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ReaderRegistrationService {
@@ -31,17 +35,20 @@ public class ReaderRegistrationService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogRepository auditLogRepository;
+    private final LibraryCardRepository libraryCardRepository;
 
     public ReaderRegistrationService(UserRepository userRepository,
                                      ReaderProfileRepository readerProfileRepository,
                                      RoleRepository roleRepository,
                                      PasswordEncoder passwordEncoder,
-                                     AuditLogRepository auditLogRepository) {
+                                     AuditLogRepository auditLogRepository,
+                                     LibraryCardRepository libraryCardRepository) {
         this.userRepository = userRepository;
         this.readerProfileRepository = readerProfileRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogRepository = auditLogRepository;
+        this.libraryCardRepository = libraryCardRepository;
     }
 
     /**
@@ -91,6 +98,14 @@ public class ReaderRegistrationService {
     public ReaderRegistrationResponse registerReader(ReaderRegistrationRequest request, String ipAddress) {
         String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
         String normalizedMemberCode = request.memberCode().trim().toUpperCase(Locale.ROOT);
+
+        if (request.dateOfBirth() != null && request.dateOfBirth().isAfter(LocalDate.now())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_DATE_OF_BIRTH",
+                    "Ngày sinh không được vượt quá ngày hiện tại."
+            );
+        }
 
         // 1. Kiểm tra sự tồn tại của Email
         if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
@@ -165,8 +180,16 @@ public class ReaderRegistrationService {
 
     @Transactional(readOnly = true)
     public List<ReaderProfileResponse> getAllReaders() {
+        Map<Long, String> cardTypeByUserId = libraryCardRepository.findAllWithDetails().stream()
+                .collect(Collectors.toMap(
+                        card -> card.getUser().getId(),
+                        card -> card.getCardType().getName(),
+                        (first, ignored) -> first
+                ));
+
         return readerProfileRepository.findAllWithUser().stream()
-                .map(ReaderProfileResponse::fromEntity)
+                .map(profile -> ReaderProfileResponse.fromEntity(
+                        profile, cardTypeByUserId.get(profile.getUserId())))
                 .toList();
     }
 
@@ -178,6 +201,9 @@ public class ReaderRegistrationService {
                         "READER_NOT_FOUND",
                         "Không tìm thấy hồ sơ bạn đọc ID: " + id
                 ));
-        return ReaderProfileResponse.fromEntity(profile);
+        String cardTypeName = libraryCardRepository.findByUserIdWithDetails(profile.getUserId())
+                .map(card -> card.getCardType().getName())
+                .orElse(null);
+        return ReaderProfileResponse.fromEntity(profile, cardTypeName);
     }
 }

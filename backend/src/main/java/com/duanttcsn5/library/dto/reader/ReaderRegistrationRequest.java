@@ -3,6 +3,7 @@ package com.duanttcsn5.library.dto.reader;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -23,6 +24,7 @@ public record ReaderRegistrationRequest(
         String memberCode,
 
         @NotNull(message = "Ngày sinh không được để trống")
+        @PastOrPresent(message = "Ngày sinh không được vượt quá ngày hiện tại")
         LocalDate dateOfBirth,
 
         @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")

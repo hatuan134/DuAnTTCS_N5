@@ -2,6 +2,7 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.account.AccountResponse;
 import com.duanttcsn5.library.dto.account.CreateAccountRequest;
+import com.duanttcsn5.library.dto.account.UpdateAccountRequest;
 import com.duanttcsn5.library.entity.PasswordResetRequest;
 import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
@@ -128,6 +129,8 @@ public class UserManagementService {
 
         return users.stream()
                 .filter(u -> u.getRole() != null && ALLOWED_STAFF_ROLES.contains(u.getRole().getCode()))
+                .filter(u -> (status != null && "DISABLED".equalsIgnoreCase(status.trim()))
+                        || !"DISABLED".equalsIgnoreCase(u.getStatus()))
                 .filter(u -> {
                     if (search != null && !search.isBlank()) {
                         String s = search.trim().toLowerCase(Locale.ROOT);
@@ -155,6 +158,75 @@ public class UserManagementService {
     }
 
     @Transactional
+    public AccountResponse updateAccount(Long userId, UpdateAccountRequest request, Long adminId, String ipAddress) {
+        User user = getManagedStaffUser(userId);
+
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByEmailIgnoreCaseAndIdNot(email, userId)) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "DUPLICATE_EMAIL",
+                    "Email '" + email + "' đã tồn tại trong hệ thống.");
+        }
+
+        String roleCode = request.role().trim().toUpperCase(Locale.ROOT);
+        Role role = getAllowedStaffRole(roleCode);
+
+        if (adminId != null && adminId.equals(userId)
+                && !user.getRole().getCode().equals(roleCode)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "CANNOT_CHANGE_OWN_ROLE",
+                    "Không thể tự thay đổi vai trò của chính mình.");
+        }
+
+        String oldEmail = user.getEmail();
+        String oldRole = user.getRole().getCode();
+        boolean roleChanged = !oldRole.equals(roleCode);
+
+        user.setFullName(request.fullName().trim());
+        user.setEmail(email);
+        user.setPhone(request.phone() == null || request.phone().isBlank() ? null : request.phone().trim());
+        user.setRole(role);
+
+        if (roleChanged) {
+            user.setTokenVersion(user.getTokenVersion() + 1);
+            refreshTokenRepository.revokeAllActiveByUserId(userId, OffsetDateTime.now(ZoneOffset.UTC));
+        }
+
+        User savedUser = userRepository.save(user);
+        auditLogService.logUserUpdated(
+                adminId, userId, oldEmail, savedUser.getEmail(), oldRole, roleCode, ipAddress);
+        return toAccountResponse(savedUser);
+    }
+
+    @Transactional
+    public void deleteAccount(Long userId, Long adminId, String ipAddress) {
+        if (adminId != null && adminId.equals(userId)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "CANNOT_DELETE_SELF",
+                    "Không thể xóa tài khoản đang đăng nhập của chính mình.");
+        }
+
+        User user = getManagedStaffUser(userId);
+        if ("DISABLED".equalsIgnoreCase(user.getStatus())) {
+            return;
+        }
+
+        String oldStatus = user.getStatus();
+        user.setStatus("DISABLED");
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        refreshTokenRepository.revokeAllActiveByUserId(userId, OffsetDateTime.now(ZoneOffset.UTC));
+        userRepository.save(user);
+
+        auditLogService.logUserDeleted(
+                adminId, userId, user.getEmail(), oldStatus, ipAddress);
+    }
+
+    @Transactional
     public AccountResponse updateAccountStatus(Long userId, String newStatus, Long adminId, String ipAddress) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(
@@ -162,12 +234,19 @@ public class UserManagementService {
                         "USER_NOT_FOUND",
                         "Không tìm thấy tài khoản người dùng."));
 
+        if ("DISABLED".equalsIgnoreCase(user.getStatus())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "ACCOUNT_DISABLED",
+                    "Tài khoản đã được xóa khỏi danh sách quản lý và không thể đổi trạng thái.");
+        }
+
         String normalizedStatus = newStatus.trim().toUpperCase(Locale.ROOT);
         if (!"ACTIVE".equals(normalizedStatus) && !"LOCKED".equals(normalizedStatus)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_STATUS",
-                    "Trạng thái không hợp lệ. Chỉ chấp nhận ACTIVE hoặc LOCKED.");
+                    "Trạng thái không hợp lệ. Chỉ chấp nhận Đang hoạt động hoặc Đã khóa.");
         }
 
         if (adminId != null && adminId.equals(userId) && !"ACTIVE".equals(normalizedStatus)) {
@@ -201,6 +280,37 @@ public class UserManagementService {
         auditLogService.logUserStatusUpdated(adminId, userId, oldStatus, normalizedStatus, ipAddress);
 
         return toAccountResponse(savedUser);
+    }
+
+    private User getManagedStaffUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "USER_NOT_FOUND",
+                        "Không tìm thấy tài khoản người dùng."));
+
+        if (user.getRole() == null || !ALLOWED_STAFF_ROLES.contains(user.getRole().getCode())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "ACCOUNT_NOT_MANAGED_HERE",
+                    "Tài khoản này không thuộc nhóm nhân viên được quản lý tại màn hình này.");
+        }
+        return user;
+    }
+
+    private Role getAllowedStaffRole(String roleCode) {
+        if (!ALLOWED_STAFF_ROLES.contains(roleCode)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_ROLE",
+                    "Vai trò không hợp lệ. Chỉ chấp nhận Quản trị hệ thống, Quản lý thư viện hoặc Thủ thư.");
+        }
+
+        return roleRepository.findByCode(roleCode)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "ROLE_NOT_FOUND",
+                        "Không tìm thấy vai trò tương ứng trong hệ thống."));
     }
 
     public AccountResponse toAccountResponse(User user) {

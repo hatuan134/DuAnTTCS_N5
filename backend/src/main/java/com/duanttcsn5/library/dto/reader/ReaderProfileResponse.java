@@ -14,6 +14,7 @@ public record ReaderProfileResponse(
         String userStatus,
         String memberCode,
         LocalDate dateOfBirth,
+        String cardTypeName,
         String registrationStatus,
         String rejectionReason,
         OffsetDateTime submittedAt,
@@ -21,6 +22,10 @@ public record ReaderProfileResponse(
         Long reviewedBy
 ) {
     public static ReaderProfileResponse fromEntity(ReaderProfile profile) {
+        return fromEntity(profile, null);
+    }
+
+    public static ReaderProfileResponse fromEntity(ReaderProfile profile, String cardTypeName) {
         return new ReaderProfileResponse(
                 profile.getUserId(),
                 profile.getUser().getFullName(),
@@ -30,6 +35,7 @@ public record ReaderProfileResponse(
                 profile.getUser().getStatus(),
                 profile.getMemberCode(),
                 profile.getDateOfBirth(),
+                cardTypeName,
                 profile.getRegistrationStatus(),
                 profile.getRejectionReason(),
                 profile.getSubmittedAt(),

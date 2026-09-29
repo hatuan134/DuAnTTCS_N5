@@ -53,7 +53,7 @@ export default function AuthLayout({
             </div>
 
             <div className="text-sm text-blue-100">
-              Library Management System
+              Hệ thống quản lý thư viện
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function AuthLayout({
               </div>
 
               <div className="text-xs text-slate-500">
-                Library Management System
+                Hệ thống quản lý thư viện
               </div>
             </div>
           </div>

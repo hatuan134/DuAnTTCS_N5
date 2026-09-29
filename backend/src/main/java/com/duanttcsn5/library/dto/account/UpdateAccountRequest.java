@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-public record CreateAccountRequest(
+public record UpdateAccountRequest(
         @NotBlank(message = "Họ và tên không được để trống")
         @Size(max = 150, message = "Họ và tên tối đa 150 ký tự")
         String fullName,
@@ -16,12 +16,10 @@ public record CreateAccountRequest(
         String email,
 
         @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")
+        @Pattern(regexp = "^$|^[0-9+().\\s-]{8,20}$", message = "Số điện thoại không đúng định dạng")
         String phone,
 
         @NotBlank(message = "Vai trò không được để trống")
-        String role,
-
-        @Pattern(regexp = "^(ACTIVE|LOCKED)$", message = "Trạng thái chỉ có thể là Đang hoạt động hoặc Đã khóa")
-        String status
+        String role
 ) {
 }

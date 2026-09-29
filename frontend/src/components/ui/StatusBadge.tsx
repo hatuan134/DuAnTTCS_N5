@@ -20,6 +20,16 @@ export default function StatusBadge({
       'bg-red-50 text-red-700',
   }
 
+  const labels: Record<string, string> = {
+    ACTIVE: 'Đang hoạt động',
+    PENDING: 'Chờ xử lý',
+    LOCKED: 'Đã khóa',
+    DISABLED: 'Ngừng hoạt động',
+    APPROVED: 'Đã duyệt',
+    REJECTED: 'Đã từ chối',
+    EXPIRED: 'Hết hạn',
+  }
+
   return (
     <span
       className={[
@@ -28,7 +38,7 @@ export default function StatusBadge({
           'bg-slate-100 text-slate-600',
       ].join(' ')}
     >
-      {status}
+      {labels[status] ?? status}
     </span>
   )
 }

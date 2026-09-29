@@ -9,8 +9,10 @@ public record CatalogBookRequest(
         @Size(max = 255, message = "Tên đầu sách không được vượt quá 255 ký tự")
         String title,
 
-        @NotNull(message = "Vui lòng chọn tác giả")
         Long authorId,
+
+        @Size(max = 255, message = "Tên tác giả không được vượt quá 255 ký tự")
+        String authorName,
 
         @NotNull(message = "Vui lòng chọn thể loại")
         Long categoryId,

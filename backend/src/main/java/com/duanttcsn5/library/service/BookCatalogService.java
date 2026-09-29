@@ -43,13 +43,7 @@ public class BookCatalogService {
 
     @Transactional
     public BookResponse catalogBook(CatalogBookRequest request, Long currentUserId, String ipAddress) {
-        Author author = authorRepository.findById(request.authorId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "AUTHOR_NOT_FOUND", "Không tìm thấy tác giả ID: " + request.authorId()));
-
-        if (!author.isActive()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTHOR_INACTIVE",
-                    "Không thể biên mục sách với tác giả '" + author.getName() + "' đã ngừng sử dụng. Vui lòng chọn tác giả đang hoạt động.");
-        }
+        Author author = resolveAuthor(request, currentUserId, ipAddress);
 
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Không tìm thấy thể loại ID: " + request.categoryId()));
@@ -82,6 +76,55 @@ public class BookCatalogService {
         );
 
         return BookResponse.fromEntity(saved);
+    }
+
+    private Author resolveAuthor(CatalogBookRequest request, Long currentUserId, String ipAddress) {
+        if (request.authorId() != null) {
+            Author author = authorRepository.findById(request.authorId())
+                    .orElseThrow(() -> new ApiException(
+                            HttpStatus.NOT_FOUND,
+                            "AUTHOR_NOT_FOUND",
+                            "Không tìm thấy tác giả ID: " + request.authorId()));
+            ensureAuthorActive(author);
+            return author;
+        }
+
+        String authorName = request.authorName() == null ? "" : request.authorName().trim();
+        if (authorName.isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "AUTHOR_REQUIRED",
+                    "Vui lòng chọn tác giả có sẵn hoặc nhập tên tác giả mới.");
+        }
+
+        return authorRepository.findByNameIgnoreCase(authorName)
+                .map(existing -> {
+                    ensureAuthorActive(existing);
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    Author created = new Author(authorName, "Tự động tạo khi biên mục đầu sách", true);
+                    Author saved = authorRepository.save(created);
+                    auditLogRepository.insert(
+                            currentUserId,
+                            "AUTHOR_CREATED",
+                            "AUTHOR",
+                            saved.getId().toString(),
+                            "{\"action\":\"Tạo tác giả mới khi biên mục sách\",\"name\":\""
+                                    + escapeJson(saved.getName()) + "\"}",
+                            ipAddress
+                    );
+                    return saved;
+                });
+    }
+
+    private void ensureAuthorActive(Author author) {
+        if (!author.isActive()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "AUTHOR_INACTIVE",
+                    "Tác giả '" + author.getName() + "' đã ngừng sử dụng. Vui lòng kích hoạt lại tác giả trước khi biên mục sách.");
+        }
     }
 
     private String escapeJson(String input) {

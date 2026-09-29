@@ -329,7 +329,7 @@ export default function LibraryCardsPage() {
                       <td className="px-4 py-4">{card.cardTypeName}</td>
                       <td className="px-4 py-4">{formatDate(card.issuedAt)}</td>
                       <td className="px-4 py-4">{formatDate(card.expiresAt)}</td>
-                      <td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{card.status}</span></td>
+                      <td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{card.status === 'ACTIVE' ? 'Đang hoạt động' : card.status === 'LOCKED' ? 'Đã khóa' : card.status === 'EXPIRED' ? 'Hết hạn' : card.status === 'DISABLED' ? 'Ngừng hoạt động' : card.status}</span></td>
                     </tr>
                   ))}
                 </tbody>

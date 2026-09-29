@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import axios from 'axios'
@@ -29,6 +29,51 @@ type ApiErrorResponse = {
   message?: string
   code?: string
   timestamp?: string
+  details?: {
+    failedLoginAttempts?: number
+    maxFailedAttempts?: number
+    remainingAttempts?: number
+    lockedUntil?: string
+  }
+}
+
+type LoginLockState = {
+  failedLoginAttempts: number
+  maxFailedAttempts: number
+  lockedUntil?: string
+}
+
+const LOGIN_STATE_PREFIX = 'libra_login_state:'
+
+function getStoredLoginState(email: string): LoginLockState | null {
+  if (!email) return null
+
+  try {
+    const raw = window.localStorage.getItem(`${LOGIN_STATE_PREFIX}${email}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as LoginLockState
+
+    if (parsed.lockedUntil && new Date(parsed.lockedUntil).getTime() <= Date.now()) {
+      window.localStorage.removeItem(`${LOGIN_STATE_PREFIX}${email}`)
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function storeLoginState(email: string, state: LoginLockState | null) {
+  if (!email) return
+  const key = `${LOGIN_STATE_PREFIX}${email}`
+
+  if (!state) {
+    window.localStorage.removeItem(key)
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(state))
 }
 
 export default function LoginPage() {
@@ -52,8 +97,57 @@ export default function LoginPage() {
   const [error, setError] =
     useState('')
 
+  const [failedLoginAttempts, setFailedLoginAttempts] =
+    useState<number | null>(null)
+
+  const [maxFailedAttempts, setMaxFailedAttempts] =
+    useState(5)
+
+  const [lockedUntil, setLockedUntil] =
+    useState<string | null>(null)
+
+  const [clockTick, setClockTick] =
+    useState(0)
+
   const [loading, setLoading] =
     useState(false)
+
+  const normalizedEmail = email.trim().toLowerCase()
+
+  useEffect(() => {
+    const stored = getStoredLoginState(normalizedEmail)
+    setFailedLoginAttempts(stored?.failedLoginAttempts ?? null)
+    setMaxFailedAttempts(stored?.maxFailedAttempts ?? 5)
+    setLockedUntil(stored?.lockedUntil ?? null)
+  }, [normalizedEmail])
+
+  useEffect(() => {
+    if (!lockedUntil) return
+
+    const timer = window.setInterval(() => {
+      setClockTick((value) => value + 1)
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [lockedUntil])
+
+  const isTemporarilyLocked = useMemo(() => {
+    void clockTick
+    return Boolean(lockedUntil && new Date(lockedUntil).getTime() > Date.now())
+  }, [lockedUntil, clockTick])
+
+  useEffect(() => {
+    if (lockedUntil && !isTemporarilyLocked) {
+      storeLoginState(normalizedEmail, null)
+      setLockedUntil(null)
+      setFailedLoginAttempts(null)
+    }
+  }, [isTemporarilyLocked, lockedUntil, normalizedEmail])
+
+  const lockedUntilLabel = useMemo(() => {
+    if (!lockedUntil) return ''
+    return new Date(lockedUntil).toLocaleString('vi-VN')
+  }, [lockedUntil])
 
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>,
@@ -61,10 +155,10 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
 
-    const normalizedEmail =
-      email
-        .trim()
-        .toLowerCase()
+    if (isTemporarilyLocked) {
+      setError(`Tài khoản đang bị khóa tạm đến ${lockedUntilLabel}.`)
+      return
+    }
 
     if (
       !normalizedEmail ||
@@ -84,6 +178,10 @@ export default function LoginPage() {
         password,
       )
 
+      storeLoginState(normalizedEmail, null)
+      setFailedLoginAttempts(null)
+      setLockedUntil(null)
+
       const state =
         location.state as
           | {
@@ -100,8 +198,29 @@ export default function LoginPage() {
       )
     } catch (requestError) {
       if (axios.isAxiosError<ApiErrorResponse>(requestError)) {
+        const responseData = requestError.response?.data
+        const details = responseData?.details
+
+        if (typeof details?.failedLoginAttempts === 'number') {
+          setFailedLoginAttempts(details.failedLoginAttempts)
+        }
+        if (typeof details?.maxFailedAttempts === 'number') {
+          setMaxFailedAttempts(details.maxFailedAttempts)
+        }
+        if (details?.lockedUntil) {
+          setLockedUntil(details.lockedUntil)
+        }
+
+        if (typeof details?.failedLoginAttempts === 'number') {
+          storeLoginState(normalizedEmail, {
+            failedLoginAttempts: details.failedLoginAttempts,
+            maxFailedAttempts: details.maxFailedAttempts ?? maxFailedAttempts,
+            lockedUntil: details.lockedUntil,
+          })
+        }
+
         setError(
-          requestError.response?.data?.message ??
+          responseData?.message ??
             'Không thể kết nối tới hệ thống. Vui lòng thử lại.',
         )
       } else {
@@ -137,7 +256,7 @@ export default function LoginPage() {
                 </p>
 
                 <p className="text-sm text-slate-400">
-                  Library Management System
+                  Hệ thống quản lý thư viện
                 </p>
               </div>
             </div>
@@ -191,7 +310,7 @@ export default function LoginPage() {
             </span>
 
             <span>
-              Sprint 1
+              Giai đoạn 1
             </span>
           </div>
 
@@ -221,7 +340,7 @@ export default function LoginPage() {
                   </p>
 
                   <p className="text-xs text-slate-500">
-                    Library Management
+                    Quản lý thư viện
                   </p>
                 </div>
               </div>
@@ -335,6 +454,23 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {failedLoginAttempts !== null && (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${
+                  isTemporarilyLocked
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}>
+                  <div className="font-semibold">
+                    Số lần đăng nhập thất bại: {failedLoginAttempts}/{maxFailedAttempts}
+                  </div>
+                  {isTemporarilyLocked && (
+                    <div className="mt-1 text-xs">
+                      Nút đăng nhập đã được khóa đến {lockedUntilLabel}.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
                   {error}
@@ -343,13 +479,18 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isTemporarilyLocked}
                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <>
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     Đang đăng nhập...
+                  </>
+                ) : isTemporarilyLocked ? (
+                  <>
+                    <LockKeyhole size={18} />
+                    Đang tạm khóa
                   </>
                 ) : (
                   <>
@@ -378,8 +519,8 @@ export default function LoginPage() {
 
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Hệ thống sẽ khóa đăng nhập
-                  tạm thời sau 5 lần đăng nhập
-                  sai liên tiếp.
+                  tạm thời khi đạt số lần nhập sai
+                  tối đa được cấu hình.
                 </p>
               </div>
             </div>
@@ -435,7 +576,7 @@ export default function LoginPage() {
               <CheckCircle2
                 size={14}
               />
-              Access Token 30 phút · Refresh Token 7 ngày
+              Phiên truy cập 30 phút · Phiên làm mới 7 ngày
             </div>
           </div>
         </section>

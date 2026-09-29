@@ -221,6 +221,7 @@ export default function ReadersPage() {
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-4">Mã định danh</th>
                   <th className="py-3.5 px-4">Họ và tên</th>
+                  <th className="py-3.5 px-4">Loại thẻ</th>
                   <th className="py-3.5 px-4">Email liên hệ</th>
                   <th className="py-3.5 px-4">Số điện thoại</th>
                   <th className="py-3.5 px-4">Ngày nộp</th>
@@ -236,6 +237,11 @@ export default function ReadersPage() {
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
                       {reader.fullName}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">
+                      {reader.cardTypeName || (
+                        <span className="text-slate-400 italic">Chưa cấp thẻ</span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
                       <div className="flex items-center gap-1.5">
@@ -282,7 +288,13 @@ export default function ReadersPage() {
                             : 'bg-red-50 text-red-700'
                         }`}
                       >
-                        {reader.userStatus}
+                        {reader.userStatus === 'ACTIVE'
+                          ? 'Đang hoạt động'
+                          : reader.userStatus === 'LOCKED'
+                            ? 'Đã khóa'
+                            : reader.userStatus === 'DISABLED'
+                              ? 'Ngừng hoạt động'
+                              : reader.userStatus}
                       </span>
                     </td>
                   </tr>

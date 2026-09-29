@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record SetInitialPasswordRequest(
-        @NotBlank(message = "Token không được để trống")
+        @NotBlank(message = "Mã xác thực không được để trống")
         String token,
 
         @NotBlank(message = "Mật khẩu không được để trống")

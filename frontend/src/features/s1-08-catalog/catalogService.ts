@@ -52,7 +52,8 @@ export interface CategoryForm {
 
 export interface CatalogBookForm {
   title: string
-  authorId: number
+  authorId?: number
+  authorName?: string
   categoryId: number
   isbn?: string
   publisher?: string

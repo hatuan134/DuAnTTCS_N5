@@ -32,6 +32,8 @@ type ApiErrorResponse = {
 }
 
 export default function RegisterPage() {
+  const now = new Date()
+  const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   // Form states
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -136,6 +138,10 @@ export default function RegisterPage() {
       setGeneralError('Vui lòng chọn ngày sinh.')
       return
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || dateOfBirth > todayDate) {
+      setGeneralError('Ngày sinh không hợp lệ và không được vượt quá ngày hiện tại.')
+      return
+    }
     if (password.length < 6) {
       setGeneralError('Mật khẩu phải có tối thiểu 6 ký tự.')
       return
@@ -202,7 +208,7 @@ export default function RegisterPage() {
               <div>
                 <p className="text-xl font-bold tracking-wide">LIBRA</p>
                 <p className="text-sm text-slate-400">
-                  Library Management System
+                  Hệ thống quản lý thư viện
                 </p>
               </div>
             </Link>
@@ -256,7 +262,7 @@ export default function RegisterPage() {
 
           <div className="relative z-10 flex items-center justify-between text-sm text-slate-500">
             <span>LIBRA © 2026</span>
-            <span>Sprint 1 · S1-03</span>
+            <span>Giai đoạn 1 · S1-03</span>
           </div>
 
           {/* Trang trí background */}
@@ -550,8 +556,17 @@ export default function RegisterPage() {
                         <input
                           type="date"
                           required
+                          max={todayDate}
                           value={dateOfBirth}
-                          onChange={(e) => setDateOfBirth(e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (!value || value <= todayDate) {
+                              setDateOfBirth(value)
+                              setGeneralError('')
+                            } else {
+                              setGeneralError('Ngày sinh không được vượt quá ngày hiện tại.')
+                            }
+                          }}
                           className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                         />
                       </div>

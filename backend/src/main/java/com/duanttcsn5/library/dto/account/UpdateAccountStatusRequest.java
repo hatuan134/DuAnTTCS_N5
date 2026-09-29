@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Pattern;
 
 public record UpdateAccountStatusRequest(
         @NotBlank(message = "Trạng thái không được để trống")
-        @Pattern(regexp = "^(ACTIVE|LOCKED)$", message = "Trạng thái chỉ có thể là ACTIVE hoặc LOCKED")
+        @Pattern(regexp = "^(ACTIVE|LOCKED)$", message = "Trạng thái chỉ có thể là Đang hoạt động hoặc Đã khóa")
         String status
 ) {
 }

@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6">
         <h3 className="font-semibold text-slate-900">
-          Sprint 1
+          Giai đoạn 1
         </h3>
 
         <p className="mt-2 text-sm text-slate-600">

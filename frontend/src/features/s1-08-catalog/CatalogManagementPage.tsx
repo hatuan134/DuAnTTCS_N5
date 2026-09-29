@@ -54,6 +54,7 @@ interface CategoryFormState {
 interface BookFormState {
   title: string
   authorId: string
+  authorName: string
   categoryId: string
   isbn: string
   publisher: string
@@ -75,6 +76,7 @@ const emptyCategoryForm: CategoryFormState = {
 const emptyBookForm: BookFormState = {
   title: '',
   authorId: '',
+  authorName: '',
   categoryId: '',
   isbn: '',
   publisher: '',
@@ -386,8 +388,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       setBookFormError('Tên đầu sách không được để trống.')
       return
     }
-    if (!bookForm.authorId) {
-      setBookFormError('Vui lòng chọn tác giả cho đầu sách.')
+    if (!bookForm.authorId && !bookForm.authorName.trim()) {
+      setBookFormError('Vui lòng chọn tác giả có sẵn hoặc nhập tên tác giả mới.')
       return
     }
     if (!bookForm.categoryId) {
@@ -398,7 +400,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     try {
       await catalogService.catalogBook({
         title: bookForm.title.trim(),
-        authorId: Number(bookForm.authorId),
+        authorId: bookForm.authorId ? Number(bookForm.authorId) : undefined,
+        authorName: bookForm.authorId ? undefined : bookForm.authorName.trim(),
         categoryId: Number(bookForm.categoryId),
         isbn: bookForm.isbn.trim() || undefined,
         publisher: bookForm.publisher.trim() || undefined,
@@ -1024,7 +1027,11 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                   <select
                     value={bookForm.authorId}
                     onChange={(e) => {
-                      setBookForm({ ...bookForm, authorId: e.target.value })
+                      setBookForm({
+                        ...bookForm,
+                        authorId: e.target.value,
+                        authorName: e.target.value ? '' : bookForm.authorName,
+                      })
                       setBookFormError('')
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
@@ -1037,7 +1044,25 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     ))}
                   </select>
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Tác giả ngừng dùng (như Vũ Trọng Phụng) không hiện tại đây.
+                    Chọn tác giả đang có, hoặc nhập tên mới bên dưới.
+                  </p>
+                  <input
+                    type="text"
+                    value={bookForm.authorName}
+                    onChange={(e) => {
+                      setBookForm({
+                        ...bookForm,
+                        authorName: e.target.value,
+                        authorId: e.target.value ? '' : bookForm.authorId,
+                      })
+                      setBookFormError('')
+                    }}
+                    placeholder="Tên tác giả mới"
+                    maxLength={255}
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Hệ thống sẽ kiểm tra tên; nếu đã tồn tại thì dùng bản ghi cũ, nếu chưa có sẽ tự tạo mới.
                   </p>
                 </div>
 

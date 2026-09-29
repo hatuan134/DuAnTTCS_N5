@@ -57,7 +57,7 @@ export async function refreshSession() {
   if (!refreshToken) {
     clearAuthSession()
     throw new Error(
-      'Không có refresh token.',
+      'Không có mã làm mới phiên đăng nhập.',
     )
   }
 

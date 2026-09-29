@@ -38,6 +38,7 @@ export interface ReaderProfileResponse {
   userStatus: string
   memberCode: string
   dateOfBirth: string
+  cardTypeName?: string | null
   registrationStatus: string
   rejectionReason?: string | null
   submittedAt: string

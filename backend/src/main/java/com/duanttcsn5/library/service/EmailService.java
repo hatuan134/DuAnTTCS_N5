@@ -168,7 +168,7 @@ public class EmailService {
                 <body>
                     <div class="container">
                         <div class="header">
-                            <div class="logo">LIBRA Library Management</div>
+                            <div class="logo">LIBRA - Hệ thống quản lý thư viện</div>
                         </div>
                         <p>Kính gửi <strong>%s</strong>,</p>
                         <p>Hệ thống Quản lý Thư viện LIBRA đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
@@ -268,7 +268,7 @@ public class EmailService {
                 <body>
                     <div class="container">
                         <div class="header">
-                            <div class="logo">LIBRA Library Management</div>
+                            <div class="logo">LIBRA - Hệ thống quản lý thư viện</div>
                         </div>
                         <p>Kính gửi <strong>%s</strong>,</p>
                         <p>Tài khoản nhân viên của bạn tại Hệ thống Quản lý Thư viện LIBRA đã được Quản trị viên khởi tạo thành công.</p>
@@ -276,7 +276,7 @@ public class EmailService {
                         <div style="text-align: center;">
                             <a href="%s" class="btn">Thiết lập mật khẩu lần đầu</a>
                         </div>
-                        <p>Hoặc truy cập trực tiếp bằng đường link sau:</p>
+                        <p>Hoặc truy cập trực tiếp bằng đường dẫn sau:</p>
                         <p style="word-break: break-all;"><a href="%s">%s</a></p>
                         <p class="warning">⚠️ Lưu ý: Đường dẫn này chỉ có hiệu lực trong vòng <strong>24 giờ</strong> và chỉ được sử dụng duy nhất một lần. Vì lý do bảo mật, tuyệt đối không chia sẻ liên kết này cho bất kỳ ai.</p>
                         <div class="footer">

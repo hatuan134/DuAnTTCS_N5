@@ -27,7 +27,7 @@ public class AuditLogService {
     private static final Map<String, List<String>> ACTION_GROUPS = Map.of(
             "LOGIN", List.of("LOGIN_SUCCESS", "LOGIN_FAILED", "ACCOUNT_TEMP_LOCKED"),
             "CREATE_ACCOUNT", List.of("USER_CREATED"),
-            "UPDATE_ACCOUNT", List.of("USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET", "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED", "READER_CONTACT_UPDATED", "READER_PASSWORD_CHANGED"),
+            "UPDATE_ACCOUNT", List.of("USER_UPDATED", "USER_DELETED", "USER_STATUS_UPDATED", "INITIAL_PASSWORD_SET", "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED", "READER_CONTACT_UPDATED", "READER_PASSWORD_CHANGED"),
             "ISSUE_CARD", List.of("LIBRARY_CARD_ISSUED"),
             "UPDATE_POLICY", List.of(
                     "CARD_TYPE_CREATED",
@@ -92,7 +92,7 @@ public class AuditLogService {
                         row.id(),
                         row.fullName(),
                         row.email(),
-                        row.role()))
+                        roleLabel(row.role())))
                 .toList();
 
         List<AuditActionOptionResponse> actions = List.of(
@@ -171,6 +171,34 @@ public class AuditLogService {
                 toJson(Map.of(
                         "email", email,
                         "role", role)),
+                ipAddress);
+    }
+
+    public void logUserUpdated(Long actorAdminId, Long targetUserId, String oldEmail, String newEmail,
+                               String oldRole, String newRole, String ipAddress) {
+        auditLogRepository.insert(
+                actorAdminId,
+                "USER_UPDATED",
+                "USER",
+                targetUserId.toString(),
+                toJson(Map.of(
+                        "oldEmail", oldEmail,
+                        "newEmail", newEmail,
+                        "oldRole", oldRole,
+                        "newRole", newRole)),
+                ipAddress);
+    }
+
+    public void logUserDeleted(Long actorAdminId, Long targetUserId, String email, String oldStatus, String ipAddress) {
+        auditLogRepository.insert(
+                actorAdminId,
+                "USER_DELETED",
+                "USER",
+                targetUserId.toString(),
+                toJson(Map.of(
+                        "email", email,
+                        "oldStatus", oldStatus,
+                        "newStatus", "DISABLED")),
                 ipAddress);
     }
 
@@ -330,7 +358,7 @@ public class AuditLogService {
 
     private String resolveActorRole(AuditLogRepository.AuditLogRow row) {
         if (row.actorRole() != null && !row.actorRole().isBlank()) {
-            return row.actorRole();
+            return roleLabel(row.actorRole());
         }
         return "Chưa xác thực";
     }
@@ -411,7 +439,9 @@ public class AuditLogService {
             case "LOGIN_FAILED" -> "Đăng nhập thất bại";
             case "ACCOUNT_TEMP_LOCKED" -> "Khóa tạm tài khoản";
             case "USER_CREATED" -> "Tạo tài khoản";
-            case "USER_STATUS_UPDATED" -> "Sửa tài khoản";
+            case "USER_UPDATED" -> "Cập nhật tài khoản";
+            case "USER_DELETED" -> "Xóa tài khoản";
+            case "USER_STATUS_UPDATED" -> "Sửa trạng thái tài khoản";
             case "INITIAL_PASSWORD_SET" -> "Thiết lập mật khẩu lần đầu";
             case "PASSWORD_RESET_REQUESTED" -> "Yêu cầu đặt lại mật khẩu";
             case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công";
@@ -445,6 +475,12 @@ public class AuditLogService {
             case "ACCOUNT_TEMP_LOCKED" -> "Tài khoản bị khóa tạm đến " + valueOrDash(afterData, "lockedUntil") + ".";
             case "USER_CREATED" -> "Tạo tài khoản " + valueOrDash(afterData, "email")
                     + " với vai trò " + roleLabel(valueOrDash(afterData, "role")) + ".";
+            case "USER_UPDATED" -> "Cập nhật tài khoản từ " + valueOrDash(afterData, "oldEmail")
+                    + " sang " + valueOrDash(afterData, "newEmail")
+                    + ", vai trò từ " + roleLabel(valueOrDash(afterData, "oldRole"))
+                    + " sang " + roleLabel(valueOrDash(afterData, "newRole")) + ".";
+            case "USER_DELETED" -> "Xóa tài khoản " + valueOrDash(afterData, "email")
+                    + " khỏi danh sách quản lý và chuyển sang trạng thái Ngừng hoạt động.";
             case "USER_STATUS_UPDATED" -> "Cập nhật trạng thái tài khoản từ "
                     + statusLabel(valueOrDash(afterData, "oldStatus")) + " sang "
                     + statusLabel(valueOrDash(afterData, "newStatus")) + ".";

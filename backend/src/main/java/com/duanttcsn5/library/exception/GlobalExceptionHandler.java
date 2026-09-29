@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -19,7 +20,8 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(
                         exception.getMessage(),
                         exception.getCode(),
-                        OffsetDateTime.now()));
+                        OffsetDateTime.now(),
+                        exception.getDetails()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -38,7 +40,8 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(
                         message,
                         "VALIDATION_ERROR",
-                        OffsetDateTime.now()));
+                        OffsetDateTime.now(),
+                        Map.of()));
     }
 
     @ExceptionHandler(Exception.class)
@@ -48,6 +51,7 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(
                         "Hệ thống đang gặp lỗi. Vui lòng thử lại sau.",
                         "INTERNAL_SERVER_ERROR",
-                        OffsetDateTime.now()));
+                        OffsetDateTime.now(),
+                        Map.of()));
     }
 }

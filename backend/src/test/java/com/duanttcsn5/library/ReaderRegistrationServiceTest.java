@@ -8,6 +8,7 @@ import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
+import com.duanttcsn5.library.repository.LibraryCardRepository;
 import com.duanttcsn5.library.repository.ReaderProfileRepository;
 import com.duanttcsn5.library.repository.RoleRepository;
 import com.duanttcsn5.library.repository.UserRepository;
@@ -52,6 +53,9 @@ class ReaderRegistrationServiceTest {
     @Mock
     private AuditLogRepository auditLogRepository;
 
+    @Mock
+    private LibraryCardRepository libraryCardRepository;
+
     private ReaderRegistrationService service;
 
     @BeforeEach
@@ -61,7 +65,8 @@ class ReaderRegistrationServiceTest {
                 readerProfileRepository,
                 roleRepository,
                 passwordEncoder,
-                auditLogRepository
+                auditLogRepository,
+                libraryCardRepository
         );
     }
 
@@ -237,4 +242,30 @@ class ReaderRegistrationServiceTest {
         assertThat(result.suggestForgotPassword()).isTrue();
         assertThat(result.forgotPasswordUrl()).isEqualTo("/forgot-password");
     }
+
+    @Test
+    @DisplayName("S1-03: Từ chối ngày sinh vượt quá ngày hiện tại")
+    void testRegisterReader_FutureDateOfBirth_ThrowsBadRequest() {
+        ReaderRegistrationRequest request = new ReaderRegistrationRequest(
+                "Nguyen Van D",
+                "future@ictu.edu.vn",
+                "B21DCCN777",
+                LocalDate.now().plusMonths(1),
+                "0987654321",
+                "Thai Nguyen",
+                "Password123"
+        );
+
+        assertThatThrownBy(() -> service.registerReader(request, "127.0.0.1"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiException = (ApiException) ex;
+                    assertThat(apiException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(apiException.getCode()).isEqualTo("INVALID_DATE_OF_BIRTH");
+                });
+
+        verify(userRepository, never()).save(any(User.class));
+        verify(readerProfileRepository, never()).save(any(ReaderProfile.class));
+    }
+
 }

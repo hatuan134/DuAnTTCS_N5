@@ -31,6 +31,13 @@ export type CreateAccountPayload = {
   status: AccountStatus
 }
 
+export type UpdateAccountPayload = {
+  fullName: string
+  email: string
+  phone: string
+  role: AccountRole
+}
+
 export type AccountFilters = {
   search?: string
   role?: string
@@ -86,6 +93,24 @@ export async function createAccount(
   )
 
   return response.data
+}
+
+export async function updateAccount(
+  accountId: number,
+  payload: UpdateAccountPayload,
+) {
+  const response = await apiClient.put<Account>(
+    `/admin/accounts/${accountId}`,
+    payload,
+  )
+
+  return response.data
+}
+
+export async function deleteAccount(
+  accountId: number,
+) {
+  await apiClient.delete(`/admin/accounts/${accountId}`)
 }
 
 export async function updateAccountStatus(

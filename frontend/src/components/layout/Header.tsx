@@ -12,6 +12,16 @@ export default function Header() {
   const currentUser =
     getCurrentUser()
 
+  const roleLabel = (() => {
+    switch (currentUser?.role) {
+      case 'ADMIN': return 'Quản trị hệ thống'
+      case 'LIBRARY_MANAGER': return 'Quản lý thư viện'
+      case 'LIBRARIAN': return 'Thủ thư'
+      case 'READER': return 'Bạn đọc'
+      default: return '-'
+    }
+  })()
+
   const handleLogout = () => {
     clearAuthSession()
 
@@ -40,7 +50,7 @@ export default function Header() {
           </div>
 
           <div className="text-xs text-slate-500">
-            {currentUser?.role ?? '-'}
+            {roleLabel}
           </div>
         </div>
 

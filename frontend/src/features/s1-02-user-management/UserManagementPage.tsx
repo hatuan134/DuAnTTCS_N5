@@ -9,9 +9,11 @@ import type { FormEvent } from 'react'
 import {
   CheckCircle2,
   LockKeyhole,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UnlockKeyhole,
   UserRoundCog,
   X,
@@ -28,8 +30,10 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 
 import {
   createAccount,
+  deleteAccount,
   getAccounts,
   getApiErrorMessage,
+  updateAccount,
   updateAccountStatus,
 } from './accountService'
 
@@ -94,6 +98,7 @@ export default function UserManagementPage() {
   const [statusFilter, setStatusFilter] = useState('')
 
   const [showCreate, setShowCreate] = useState(false)
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [form, setForm] = useState<CreateAccountPayload>(initialForm)
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -149,6 +154,7 @@ export default function UserManagementPage() {
       return
     }
     setShowCreate(false)
+    setEditingAccount(null)
     setForm(initialForm)
     setFormError('')
   }
@@ -188,7 +194,7 @@ export default function UserManagementPage() {
     return ''
   }
 
-  const handleCreate = async (
+  const handleSave = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
@@ -204,23 +210,42 @@ export default function UserManagementPage() {
     setSubmitting(true)
 
     try {
-      const created = await createAccount({
-        ...form,
-        fullName: form.fullName.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim(),
-      })
+      if (editingAccount) {
+        const updated = await updateAccount(editingAccount.id, {
+          fullName: form.fullName.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: form.phone.trim(),
+          role: form.role,
+        })
 
-      setAccounts((current) => [created, ...current])
-      setSuccess(
-        `Đã tạo tài khoản ${created.email}. Email thiết lập mật khẩu đang được gửi và liên kết có hiệu lực 24 giờ.`,
-      )
-      closeCreate()
+        setAccounts((current) =>
+          current.map((item) => item.id === updated.id ? updated : item),
+        )
+        setSuccess(`Đã cập nhật tài khoản ${updated.email}.`)
+      } else {
+        const created = await createAccount({
+          ...form,
+          fullName: form.fullName.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: form.phone.trim(),
+        })
+
+        setAccounts((current) => [created, ...current])
+        setSuccess(
+          `Đã tạo tài khoản ${created.email}. Email thiết lập mật khẩu đang được gửi và liên kết có hiệu lực 24 giờ.`,
+        )
+      }
+      setShowCreate(false)
+      setEditingAccount(null)
+      setForm(initialForm)
+      setFormError('')
     } catch (requestError) {
       setFormError(
         getApiErrorMessage(
           requestError,
-          'Không thể tạo tài khoản. Vui lòng thử lại.',
+          editingAccount
+            ? 'Không thể cập nhật tài khoản. Vui lòng thử lại.'
+            : 'Không thể tạo tài khoản. Vui lòng thử lại.',
         ),
       )
     } finally {
@@ -269,7 +294,7 @@ export default function UserManagementPage() {
 
       setSuccess(
         targetStatus === 'LOCKED'
-          ? `Đã khóa ${updated.email}. Các phiên đăng nhập hiện tại và refresh token của tài khoản đã bị vô hiệu hóa.`
+          ? `Đã khóa ${updated.email}. Các phiên đăng nhập hiện tại và mã làm mới phiên của tài khoản đã bị vô hiệu hóa.`
           : `Đã mở khóa ${updated.email}.`,
       )
     } catch (requestError) {
@@ -277,6 +302,46 @@ export default function UserManagementPage() {
         getApiErrorMessage(
           requestError,
           `Không thể ${action} tài khoản. Vui lòng thử lại.`,
+        ),
+      )
+    } finally {
+      setChangingId(null)
+    }
+  }
+
+  const openEdit = (account: Account) => {
+    setEditingAccount(account)
+    setForm({
+      fullName: account.fullName,
+      email: account.email,
+      phone: account.phone ?? '',
+      role: account.role,
+      status: account.status === 'LOCKED' ? 'LOCKED' : 'ACTIVE',
+    })
+    setFormError('')
+    setShowCreate(false)
+  }
+
+  const handleDelete = async (account: Account) => {
+    if (currentUser?.id === account.id) return
+
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa tài khoản ${account.email}? Tài khoản sẽ bị ngừng hoạt động và các phiên đăng nhập hiện tại sẽ bị thu hồi.`,
+    )
+    if (!confirmed) return
+
+    setChangingId(account.id)
+    setError('')
+    setSuccess('')
+    try {
+      await deleteAccount(account.id)
+      setAccounts((current) => current.filter((item) => item.id !== account.id))
+      setSuccess(`Đã xóa tài khoản ${account.email} khỏi danh sách quản lý.`)
+    } catch (requestError) {
+      setError(
+        getApiErrorMessage(
+          requestError,
+          'Không thể xóa tài khoản. Vui lòng thử lại.',
         ),
       )
     } finally {
@@ -293,6 +358,7 @@ export default function UserManagementPage() {
           <Button
             type="button"
             onClick={() => {
+              setEditingAccount(null)
               setForm(initialForm)
               setFormError('')
               setShowCreate(true)
@@ -418,7 +484,7 @@ export default function UserManagementPage() {
                           {account.fullName}
                         </div>
                         <div className="mt-1 text-xs text-slate-400">
-                          ID #{account.id}
+                          Mã #{account.id}
                         </div>
                       </td>
                       <td className="px-5 py-4">
@@ -439,28 +505,54 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right">
-                        {canToggle && (
+                        <div className="flex justify-end gap-2">
                           <Button
                             type="button"
                             size="sm"
-                            variant={
-                              account.status === 'ACTIVE'
-                                ? 'danger'
-                                : 'secondary'
-                            }
+                            variant="secondary"
+                            disabled={changingId === account.id}
+                            onClick={() => openEdit(account)}
+                          >
+                            <Pencil size={15} />
+                            Sửa
+                          </Button>
+
+                          {canToggle && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={
+                                account.status === 'ACTIVE'
+                                  ? 'danger'
+                                  : 'secondary'
+                              }
+                              disabled={isSelf}
+                              loading={changingId === account.id}
+                              title={isSelf ? 'Không thể tự khóa tài khoản của chính mình' : undefined}
+                              onClick={() => void handleStatusChange(account)}
+                            >
+                              {account.status === 'ACTIVE' ? (
+                                <LockKeyhole size={15} />
+                              ) : (
+                                <UnlockKeyhole size={15} />
+                              )}
+                              {account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}
+                            </Button>
+                          )}
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
                             disabled={isSelf}
                             loading={changingId === account.id}
-                            title={isSelf ? 'Không thể tự khóa tài khoản của chính mình' : undefined}
-                            onClick={() => void handleStatusChange(account)}
+                            title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : undefined}
+                            onClick={() => void handleDelete(account)}
                           >
-                            {account.status === 'ACTIVE' ? (
-                              <LockKeyhole size={15} />
-                            ) : (
-                              <UnlockKeyhole size={15} />
-                            )}
-                            {account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}
+                            <Trash2 size={15} />
+                            Xóa
                           </Button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -471,7 +563,7 @@ export default function UserManagementPage() {
         )}
       </Card>
 
-      {showCreate && (
+      {(showCreate || editingAccount) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
@@ -481,10 +573,12 @@ export default function UserManagementPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Tạo tài khoản nhân viên
+                    {editingAccount ? 'Sửa tài khoản nhân viên' : 'Tạo tài khoản nhân viên'}
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Người dùng sẽ nhận liên kết đặt mật khẩu lần đầu có hiệu lực 24 giờ.
+                    {editingAccount
+                      ? 'Cập nhật thông tin và vai trò của tài khoản nhân viên.'
+                      : 'Người dùng sẽ nhận liên kết đặt mật khẩu lần đầu có hiệu lực 24 giờ.'}
                   </p>
                 </div>
               </div>
@@ -499,7 +593,7 @@ export default function UserManagementPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleSave}>
               <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Input
@@ -569,25 +663,27 @@ export default function UserManagementPage() {
                   </select>
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="account-status">
-                    Trạng thái hoạt động
-                  </label>
-                  <select
-                    id="account-status"
-                    value={form.status}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        status: event.target.value as AccountStatus,
-                      }))
-                    }
-                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                  >
-                    <option value="ACTIVE">Đang hoạt động</option>
-                    <option value="LOCKED">Khóa ngay sau khi tạo</option>
-                  </select>
-                </div>
+                {!editingAccount && (
+                  <div className="sm:col-span-2">
+                    <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="account-status">
+                      Trạng thái hoạt động
+                    </label>
+                    <select
+                      id="account-status"
+                      value={form.status}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          status: event.target.value as AccountStatus,
+                        }))
+                      }
+                      className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    >
+                      <option value="ACTIVE">Đang hoạt động</option>
+                      <option value="LOCKED">Khóa ngay sau khi tạo</option>
+                    </select>
+                  </div>
+                )}
 
                 {formError && (
                   <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -606,8 +702,8 @@ export default function UserManagementPage() {
                   Hủy
                 </Button>
                 <Button type="submit" loading={submitting}>
-                  <Plus size={16} />
-                  Tạo tài khoản
+                  {editingAccount ? <Pencil size={16} /> : <Plus size={16} />}
+                  {editingAccount ? 'Lưu thay đổi' : 'Tạo tài khoản'}
                 </Button>
               </div>
             </form>

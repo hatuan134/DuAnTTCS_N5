@@ -26,7 +26,7 @@ export default function Sidebar() {
           </div>
 
           <div className="text-xs text-slate-500">
-            Library Management
+            Quản lý thư viện
           </div>
         </div>
       </div>

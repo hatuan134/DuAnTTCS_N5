@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -84,7 +85,10 @@ public class AuthService {
                 throw new ApiException(
                         HttpStatus.LOCKED,
                         "ACCOUNT_TEMPORARILY_LOCKED",
-                        "Tài khoản đang bị khóa tạm. Vui lòng thử lại sau.");
+                        "Tài khoản đang bị khóa tạm. Vui lòng thử lại sau.",
+                        loginFailureDetails(
+                                user.getFailedLoginAttempts(),
+                                user.getLockedUntil()));
             }
 
             user.setLockedUntil(null);
@@ -109,10 +113,16 @@ public class AuthService {
                 throw new ApiException(
                         HttpStatus.LOCKED,
                         "ACCOUNT_TEMPORARILY_LOCKED",
-                        "Đăng nhập không thành công. Tài khoản đã bị khóa tạm trong 15 phút.");
+                        "Đăng nhập không thành công. Tài khoản đã bị khóa tạm trong "
+                                + authProperties.getLockMinutes() + " phút.",
+                        loginFailureDetails(nextFailedAttempts, lockedUntil));
             }
 
-            throw invalidCredentials();
+            throw new ApiException(
+                    HttpStatus.UNAUTHORIZED,
+                    "INVALID_CREDENTIALS",
+                    INVALID_CREDENTIALS_MESSAGE,
+                    loginFailureDetails(nextFailedAttempts, null));
         }
 
         user.setFailedLoginAttempts(0);
@@ -202,6 +212,17 @@ public class AuthService {
         }
     }
 
+    private Map<String, Object> loginFailureDetails(int failedAttempts, OffsetDateTime lockedUntil) {
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        details.put("failedLoginAttempts", failedAttempts);
+        details.put("maxFailedAttempts", authProperties.getMaxFailedAttempts());
+        details.put("remainingAttempts", Math.max(0, authProperties.getMaxFailedAttempts() - failedAttempts));
+        if (lockedUntil != null) {
+            details.put("lockedUntil", lockedUntil.toString());
+        }
+        return details;
+    }
+
     private ApiException invalidCredentials() {
         return new ApiException(
                 HttpStatus.UNAUTHORIZED,
@@ -213,6 +234,6 @@ public class AuthService {
         return new ApiException(
                 HttpStatus.UNAUTHORIZED,
                 "INVALID_REFRESH_TOKEN",
-                "Refresh token không hợp lệ hoặc đã hết hạn.");
+                "Mã làm mới phiên đăng nhập không hợp lệ hoặc đã hết hạn.");
     }
 }

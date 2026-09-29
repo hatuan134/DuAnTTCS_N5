@@ -115,4 +115,51 @@ class AuthAccountLockTest {
         assertEquals("INVALID_REFRESH_TOKEN", ex.getCode());
         verify(jwtService, never()).issueAccessToken(any());
     }
+
+    @Test
+    @DisplayName("Đăng nhập sai trả về số lần thất bại để giao diện hiển thị")
+    void testLogin_InvalidPassword_ReturnsFailedAttemptDetails() {
+        User user = new User();
+        user.setId(11L);
+        user.setEmail("reader@libra.edu.vn");
+        user.setPasswordHash("encoded-pwd");
+        user.setStatus("ACTIVE");
+        user.setFailedLoginAttempts(0);
+
+        when(userRepository.findForLogin("reader@libra.edu.vn")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "encoded-pwd")).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                authService.login(new LoginRequest("reader@libra.edu.vn", "wrong-password"), "127.0.0.1"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+        assertEquals("INVALID_CREDENTIALS", ex.getCode());
+        assertEquals(1, ex.getDetails().get("failedLoginAttempts"));
+        assertEquals(5, ex.getDetails().get("maxFailedAttempts"));
+        assertEquals(4, ex.getDetails().get("remainingAttempts"));
+    }
+
+    @Test
+    @DisplayName("Lần sai thứ năm khóa tạm và trả thời điểm mở khóa cho giao diện")
+    void testLogin_FifthInvalidPassword_ReturnsTemporaryLockDetails() {
+        User user = new User();
+        user.setId(12L);
+        user.setEmail("lockme@libra.edu.vn");
+        user.setPasswordHash("encoded-pwd");
+        user.setStatus("ACTIVE");
+        user.setFailedLoginAttempts(4);
+
+        when(userRepository.findForLogin("lockme@libra.edu.vn")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "encoded-pwd")).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                authService.login(new LoginRequest("lockme@libra.edu.vn", "wrong-password"), "127.0.0.1"));
+
+        assertEquals(HttpStatus.LOCKED, ex.getStatus());
+        assertEquals("ACCOUNT_TEMPORARILY_LOCKED", ex.getCode());
+        assertEquals(5, ex.getDetails().get("failedLoginAttempts"));
+        assertEquals(0, ex.getDetails().get("remainingAttempts"));
+        assertNotNull(ex.getDetails().get("lockedUntil"));
+    }
+
 }

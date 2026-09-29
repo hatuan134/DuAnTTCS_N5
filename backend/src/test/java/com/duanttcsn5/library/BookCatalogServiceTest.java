@@ -63,7 +63,7 @@ class BookCatalogServiceTest {
         saved.setId(100L);
         when(bookRepository.save(any(Book.class))).thenReturn(saved);
 
-        CatalogBookRequest request = new CatalogBookRequest("Tôi thấy hoa vàng trên cỏ xanh", 1L, 6L, "978-604-001", "NXB Trẻ", 2010, "Mô tả sách");
+        CatalogBookRequest request = new CatalogBookRequest("Tôi thấy hoa vàng trên cỏ xanh", 1L, null, 6L, "978-604-001", "NXB Trẻ", 2010, "Mô tả sách");
         BookResponse response = bookCatalogService.catalogBook(request, 10L, "127.0.0.1");
 
         assertNotNull(response);
@@ -85,7 +85,7 @@ class BookCatalogServiceTest {
 
         when(authorRepository.findById(4L)).thenReturn(Optional.of(inactiveAuthor));
 
-        CatalogBookRequest request = new CatalogBookRequest("Số đỏ (Tái bản mới)", 4L, 6L, "978-001", "NXB Văn học", 2024, "Mô tả");
+        CatalogBookRequest request = new CatalogBookRequest("Số đỏ (Tái bản mới)", 4L, null, 6L, "978-001", "NXB Văn học", 2024, "Mô tả");
 
         ApiException ex = assertThrows(ApiException.class, () ->
                 bookCatalogService.catalogBook(request, 10L, "127.0.0.1")
@@ -108,7 +108,7 @@ class BookCatalogServiceTest {
         when(authorRepository.findById(2L)).thenReturn(Optional.of(author));
         when(categoryRepository.findById(4L)).thenReturn(Optional.of(inactiveCategory));
 
-        CatalogBookRequest request = new CatalogBookRequest("Truyện ngắn Nam Cao", 2L, 4L, "978-002", "NXB Văn học", 2024, "Mô tả");
+        CatalogBookRequest request = new CatalogBookRequest("Truyện ngắn Nam Cao", 2L, null, 4L, "978-002", "NXB Văn học", 2024, "Mô tả");
 
         ApiException ex = assertThrows(ApiException.class, () ->
                 bookCatalogService.catalogBook(request, 10L, "127.0.0.1")
@@ -118,4 +118,31 @@ class BookCatalogServiceTest {
         assertEquals("CATEGORY_INACTIVE", ex.getCode());
         verify(bookRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Tự tạo tác giả khi biên mục nếu tên tác giả chưa tồn tại")
+    void catalogBook_NewAuthorName_CreatesAuthor() {
+        Category category = new Category("Khoa học", null, "Mô tả", true);
+        category.setId(8L);
+        when(categoryRepository.findById(8L)).thenReturn(Optional.of(category));
+        when(authorRepository.findByNameIgnoreCase("Tác giả mới")).thenReturn(Optional.empty());
+
+        Author savedAuthor = new Author("Tác giả mới", "Tự động tạo khi biên mục đầu sách", true);
+        savedAuthor.setId(20L);
+        when(authorRepository.save(any(Author.class))).thenReturn(savedAuthor);
+
+        Book savedBook = new Book("978-003", "Sách mới", savedAuthor, category, "NXB Mới", 2026, "Mô tả");
+        savedBook.setId(200L);
+        when(bookRepository.save(any(Book.class))).thenReturn(savedBook);
+
+        CatalogBookRequest request = new CatalogBookRequest(
+                "Sách mới", null, "Tác giả mới", 8L, "978-003", "NXB Mới", 2026, "Mô tả");
+
+        BookResponse response = bookCatalogService.catalogBook(request, 10L, "127.0.0.1");
+
+        assertEquals("Tác giả mới", response.authorName());
+        verify(authorRepository).save(any(Author.class));
+        verify(auditLogRepository).insert(eq(10L), eq("AUTHOR_CREATED"), eq("AUTHOR"), eq("20"), anyString(), eq("127.0.0.1"));
+    }
+
 }
