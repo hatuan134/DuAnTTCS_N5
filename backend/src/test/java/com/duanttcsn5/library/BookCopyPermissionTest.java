@@ -49,6 +49,7 @@ class BookCopyPermissionTest {
     @Test void readerCannotCreateReadOrUpdateCopiesOrReadLocations() {
         role("READER");
         assertThrows(AccessDeniedException.class, () -> copies.create(1L, request()));
+        assertThrows(AccessDeniedException.class, () -> copies.getByBookId(1L));
         assertThrows(AccessDeniedException.class, () -> copies.get(1L));
         assertThrows(AccessDeniedException.class, () -> copies.rejectUpdate(1L));
         assertThrows(AccessDeniedException.class, () -> locations.getWarehouses());
@@ -59,6 +60,7 @@ class BookCopyPermissionTest {
         for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             role(role);
             assertDoesNotThrow(() -> copies.create(1L, request()));
+            assertDoesNotThrow(() -> copies.getByBookId(1L));
             assertDoesNotThrow(() -> copies.get(1L));
             assertDoesNotThrow(() -> locations.getWarehouses());
             assertDoesNotThrow(() -> locations.getShelves(null));

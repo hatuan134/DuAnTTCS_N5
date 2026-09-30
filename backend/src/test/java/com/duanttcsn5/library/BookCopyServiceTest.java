@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -148,6 +149,37 @@ class BookCopyServiceTest {
                 () -> service.create(7L, manual("TV-001", today()))).getCode());
         verifyNoInteractions(copies, shelves);
     }
+    @Test void listsOnlyCopiesReturnedForRequestedBook() {
+        when(books.existsById(1L)).thenReturn(true);
+        BookCopy first = existing("TV-001", true);
+        BookCopy second = existing("TV-002", true);
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(first, second));
+
+        var result = service.getByBookId(1L);
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().allMatch(copy -> copy.bookId().equals(1L)));
+        assertEquals(List.of("TV-001", "TV-002"), result.stream().map(r -> r.barcode()).toList());
+        verify(copies).findAllByBookIdOrderByIdAsc(1L);
+        verify(copies, never()).findAll();
+    }
+
+    @Test void emptyBookCopyListIsReturnedForBookWithoutCopies() {
+        when(books.existsById(2L)).thenReturn(true);
+        when(copies.findAllByBookIdOrderByIdAsc(2L)).thenReturn(List.of());
+
+        assertTrue(service.getByBookId(2L).isEmpty());
+    }
+
+    @Test void listCopiesRejectsMissingBook() {
+        when(books.existsById(999L)).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.getByBookId(999L));
+
+        assertEquals("BOOK_NOT_FOUND", ex.getCode());
+        verify(copies, never()).findAllByBookIdOrderByIdAsc(anyLong());
+    }
+
     @Test void rejectsReassignmentOfExistingCopy() {
         when(copies.findById(100L)).thenReturn(Optional.of(existing("TV-001", true)));
         assertEquals("BOOK_COPY_IMMUTABLE", assertThrows(ApiException.class,
