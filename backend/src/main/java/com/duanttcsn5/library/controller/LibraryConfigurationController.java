@@ -44,6 +44,7 @@ public class LibraryConfigurationController {
     }
 
     @GetMapping("/warehouses")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<WarehouseResponse>> getWarehouses() {
         return ResponseEntity.ok(service.getWarehouses());
     }
@@ -67,6 +68,7 @@ public class LibraryConfigurationController {
     }
 
     @GetMapping("/shelves")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<ShelfResponse>> getShelves(
             @RequestParam(required = false) Long warehouseId) {
         return ResponseEntity.ok(service.getShelves(warehouseId));

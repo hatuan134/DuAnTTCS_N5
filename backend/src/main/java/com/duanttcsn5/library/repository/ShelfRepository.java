@@ -10,6 +10,10 @@ import java.util.List;
 
 @Repository
 public interface ShelfRepository extends JpaRepository<Shelf, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_READ)
+    @Query("SELECT s FROM Shelf s JOIN FETCH s.warehouse WHERE s.id = :id")
+    java.util.Optional<Shelf> findForCopyCreation(@Param("id") Long id);
+
     boolean existsByWarehouse_IdAndCodeIgnoreCase(Long warehouseId, String code);
     boolean existsByWarehouse_IdAndCodeIgnoreCaseAndIdNot(Long warehouseId, String code, Long id);
     List<Shelf> findAllByOrderByWarehouse_NameAscCodeAsc();
