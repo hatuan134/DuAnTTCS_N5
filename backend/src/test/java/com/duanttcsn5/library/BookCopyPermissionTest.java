@@ -2,6 +2,7 @@ package com.duanttcsn5.library;
 
 import com.duanttcsn5.library.controller.BookCopyController;
 import com.duanttcsn5.library.controller.LibraryConfigurationController;
+import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.dto.libraryconfig.WarehouseRequest;
 import com.duanttcsn5.library.entity.PhysicalCondition;
@@ -70,7 +71,7 @@ class BookCopyPermissionTest {
         assertThrows(AccessDeniedException.class, () -> locations.deleteShelf(1L, null, null));
     }
     private CreateBookCopyRequest request() {
-        return new CreateBookCopyRequest("TV-001", 1L, 1L, LocalDate.of(2026, 9, 30),
+        return new CreateBookCopyRequest(BarcodeMode.MANUAL, "TV-001", 1L, 1L, LocalDate.of(2026, 9, 30),
                 BigDecimal.ZERO, PhysicalCondition.NEW, null, null);
     }
 }

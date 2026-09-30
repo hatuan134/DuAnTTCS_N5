@@ -7,10 +7,16 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import { bookCopyService, copyError } from './bookCopyService'
 import type { BookCopy } from './bookCopyService'
 
+interface CreatedCopyState {
+  created?: boolean
+  generatedBarcode?: string
+}
+
 export default function BookCopyDetailPage() {
   const { copyId } = useParams()
   const id = Number(copyId)
   const location = useLocation()
+  const createdState = location.state as CreatedCopyState | null
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [copy, setCopy] = useState<BookCopy | null>(null)
   const [error, setError] = useState('')
@@ -28,7 +34,10 @@ export default function BookCopyDetailPage() {
   return (
     <div>
       <PageHeader title="Chi tiết bản sao" description="Thông tin nhận diện và vị trí lưu trữ của bản sao cá biệt." />
-      {location.state?.created && <p role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">Đã tạo bản sao thành công.</p>}
+      {createdState?.created && <p role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+        Đã tạo bản sao thành công.
+        {createdState.generatedBarcode && <> Mã vạch hệ thống cấp: <strong>{createdState.generatedBarcode}</strong>.</>}
+      </p>}
       {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{error} <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Thử lại</Button></div>}
       {!error && (!copy || copy.id !== id) && <p role="status">Đang tải bản sao…</p>}
       {copy && copy.id === id && <Card className="p-6">

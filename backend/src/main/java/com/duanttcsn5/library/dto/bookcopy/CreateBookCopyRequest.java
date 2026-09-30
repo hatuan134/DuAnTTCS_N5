@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record CreateBookCopyRequest(
-        @NotBlank(message = "Vui lòng nhập mã vạch.")
+        BarcodeMode barcodeMode,
         @Size(max = 100, message = "Mã vạch không được dài quá 100 ký tự.") String barcode,
         @NotNull(message = "Vui lòng chọn kho.")
         @Positive(message = "Kho không hợp lệ.") Long warehouseId,
@@ -19,4 +19,13 @@ public record CreateBookCopyRequest(
         @NotNull(message = "Vui lòng chọn tình trạng vật lý.") PhysicalCondition physicalCondition,
         @Null(message = "Đầu sách được xác định từ trang đang mở, không gửi bookId trong biểu mẫu.") Long bookId,
         @Null(message = "Trạng thái được hệ thống tự gán Sẵn sàng.") String status
-) {}
+) {
+    @AssertTrue(message = "Vui lòng chọn cách cấp mã vạch phù hợp và nhập mã khi chọn nhập thủ công.")
+    public boolean isBarcodeSelectionValid() {
+        BarcodeMode mode = barcodeMode == null ? BarcodeMode.MANUAL : barcodeMode;
+        if (mode == BarcodeMode.AUTO) {
+            return barcode == null || barcode.isBlank();
+        }
+        return barcode != null && !barcode.trim().isEmpty();
+    }
+}

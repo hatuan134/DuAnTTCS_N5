@@ -7,6 +7,7 @@ export const physicalConditions = {
   LIGHTLY_DAMAGED: 'Hư hỏng nhẹ', HEAVILY_DAMAGED: 'Hư hỏng nặng',
 } as const
 export type PhysicalCondition = keyof typeof physicalConditions
+export type BarcodeMode = 'AUTO' | 'MANUAL'
 
 export interface BookCopy {
   id: number
@@ -28,7 +29,8 @@ export interface BookCopy {
   statusLabel: string
 }
 export interface CreateBookCopy {
-  barcode: string
+  barcodeMode: BarcodeMode
+  barcode?: string
   warehouseId: number
   shelfId: number
   receivedDate: string

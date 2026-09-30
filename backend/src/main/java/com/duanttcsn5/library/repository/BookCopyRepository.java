@@ -15,6 +15,9 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findById(Long id);
 
+    @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
+    Long nextAutoBarcodeNumber();
+
     // PostgreSQL handles concurrent duplicate submissions without aborting this transaction.
     @Modifying
     @Query(value = """
