@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import PageHeader from '../../components/ui/PageHeader'
+import BookCopyStatusBadge from './BookCopyStatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { bookCopyService, copyError } from './bookCopyService'
 import type { BookCopy } from './bookCopyService'
@@ -43,7 +44,7 @@ export default function BookCopyDetailPage() {
       {copy && copy.id === id && <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="break-all text-xl font-semibold text-slate-900">{copy.barcode}</h3>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800">{copy.statusLabel}</span>
+          <BookCopyStatusBadge status={copy.status} label={copy.statusLabel} />
         </div>
         <p className="mt-2 text-sm text-slate-500">Bản sao #{copy.id}</p>
         <div className="mt-5 rounded-lg bg-slate-50 p-4">

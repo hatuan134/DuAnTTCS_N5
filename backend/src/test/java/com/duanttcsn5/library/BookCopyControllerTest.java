@@ -95,6 +95,31 @@ class BookCopyControllerTest {
         }
         verifyNoInteractions(service);
     }
+    @Test void listsCopiesOfRequestedBook() throws Exception {
+        when(service.getByBookId(1L)).thenReturn(java.util.List.of(
+                response("TV-001"),
+                new BookCopyResponse(101L, "TV-002", 1L, "Đầu sách A", null,
+                        10L, "KHO-A", "Kho A", 21L, "A02", "Kệ A02",
+                        LocalDate.of(2026, 9, 29), new BigDecimal("90000"),
+                        PhysicalCondition.NEW, "Mới", "BORROWED", "Đang mượn")
+        ));
+
+        mvc.perform(get("/api/v1/books/1/copies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].bookId").value(1))
+                .andExpect(jsonPath("$[0].barcode").value("TV-001"))
+                .andExpect(jsonPath("$[1].statusLabel").value("Đang mượn"));
+    }
+
+    @Test void emptyBookCopyListReturnsEmptyArray() throws Exception {
+        when(service.getByBookId(2L)).thenReturn(java.util.List.of());
+
+        mvc.perform(get("/api/v1/books/2/copies"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+    }
+
     @Test void duplicateResponseExposesLinkAndGetLinkWorks() throws Exception {
         when(service.create(eq(1L), any())).thenThrow(new ApiException(HttpStatus.CONFLICT, "BARCODE_EXISTS",
                 "Mã vạch đã tồn tại.", Map.of("existingCopyId", 100L, "copyUrl", "/book-copies/100")));

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -121,6 +122,16 @@ public class BookCopyService {
                     "Mã vạch không được dài quá 100 ký tự.");
         }
         return normalized;
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookCopyResponse> getByBookId(Long bookId) {
+        if (!books.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        return copies.findAllByBookIdOrderByIdAsc(bookId).stream()
+                .map(BookCopyResponse::fromEntity)
+                .toList();
     }
 
     @Transactional(readOnly = true)

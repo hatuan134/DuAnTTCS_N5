@@ -61,6 +61,9 @@ export const bookCopyService = {
   async getBook(id: number): Promise<Book> {
     return (await apiClient.get<Book>(`/books/${id}`)).data
   },
+  async getCopiesByBook(bookId: number): Promise<BookCopy[]> {
+    return (await apiClient.get<BookCopy[]>(`/books/${bookId}/copies`)).data
+  },
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data
   },

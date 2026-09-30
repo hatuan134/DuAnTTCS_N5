@@ -1,19 +1,28 @@
 package com.duanttcsn5.library.repository;
 
 import com.duanttcsn5.library.entity.BookCopy;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
+
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findByBarcode(String barcode);
 
     @Override
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findById(Long id);
+
+    @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
+    List<BookCopy> findAllByBookIdOrderByIdAsc(Long bookId);
 
     @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
     Long nextAutoBarcodeNumber();
@@ -25,7 +34,12 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
             VALUES (:bookId, :barcode, :shelfId, :receivedDate, :coverPrice, :physicalCondition, 'AVAILABLE')
             ON CONFLICT (barcode) DO NOTHING
             """, nativeQuery = true)
-    int insertIfBarcodeAbsent(@Param("bookId") Long bookId, @Param("barcode") String barcode,
-            @Param("shelfId") Long shelfId, @Param("receivedDate") LocalDate receivedDate,
-            @Param("coverPrice") BigDecimal coverPrice, @Param("physicalCondition") String physicalCondition);
+    int insertIfBarcodeAbsent(
+            @Param("bookId") Long bookId,
+            @Param("barcode") String barcode,
+            @Param("shelfId") Long shelfId,
+            @Param("receivedDate") LocalDate receivedDate,
+            @Param("coverPrice") BigDecimal coverPrice,
+            @Param("physicalCondition") String physicalCondition
+    );
 }
