@@ -33,6 +33,12 @@ public class BookCatalogController {
         return ResponseEntity.ok(bookCatalogService.getAllBooks());
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<BookResponse> getById(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ResponseEntity.ok(bookCatalogService.getById(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<BookResponse> catalogBook(

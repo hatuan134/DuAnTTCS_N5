@@ -41,6 +41,12 @@ public class BookCatalogService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public BookResponse getById(Long id) {
+        return BookResponse.fromEntity(bookRepository.findById(id).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.")));
+    }
+
     @Transactional
     public BookResponse catalogBook(CatalogBookRequest request, Long currentUserId, String ipAddress) {
         Author author = resolveAuthor(request, currentUserId, ipAddress);

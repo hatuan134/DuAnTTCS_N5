@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { Link } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
 import {
@@ -1551,7 +1552,8 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                     <BookOpen size={18} />
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">{book.title}</div>
+                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+                    <div className="mt-1 text-xs text-slate-500">Nhấn tên sách để xem chi tiết và thêm bản sao</div>
                     <div className="text-xs text-slate-500">
                       {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                     </div>

@@ -44,6 +44,25 @@ public class GlobalExceptionHandler {
                         Map.of()));
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadable(org.springframework.http.converter.HttpMessageNotReadableException exception) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                "Dữ liệu không hợp lệ. Kiểm tra kiểu dữ liệu, ngày theo định dạng YYYY-MM-DD và các giá trị lựa chọn.",
+                "INVALID_REQUEST", OffsetDateTime.now(), Map.of()));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(org.springframework.security.access.AccessDeniedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(
+                "Bạn không có quyền thực hiện thao tác này.", "FORBIDDEN", OffsetDateTime.now(), Map.of()));
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidParameter(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException exception) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                "Tham số yêu cầu không hợp lệ.", "INVALID_PARAMETER", OffsetDateTime.now(), Map.of()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
         return ResponseEntity
