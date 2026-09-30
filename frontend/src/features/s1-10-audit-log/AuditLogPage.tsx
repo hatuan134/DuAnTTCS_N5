@@ -215,56 +215,65 @@ function AuditLogContent() {
         </div>
 
         <form onSubmit={submitFilters} className="p-5">
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
-            <div className="relative">
-              <Search
-                size={17}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={filters.keyword}
+          <div className="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-slate-500">Từ khóa</span>
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={filters.keyword}
+                  onChange={(event) => setFilters((current) => ({
+                    ...current,
+                    keyword: event.target.value,
+                  }))}
+                  placeholder="Tên, email, đối tượng, IP..."
+                  className="h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </label>
+
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-slate-500">Người thực hiện</span>
+              <select
+                value={filters.actorId}
                 onChange={(event) => setFilters((current) => ({
                   ...current,
-                  keyword: event.target.value,
+                  actorId: event.target.value,
                 }))}
-                placeholder="Tên, email, đối tượng, IP..."
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
-              />
-            </div>
+                className="h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500"
+              >
+                <option value="ALL">Tất cả người thực hiện</option>
+                {options.actors.map((actor) => (
+                  <option key={actor.id} value={actor.id}>
+                    {actor.fullName} — {actor.email}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-            <select
-              value={filters.actorId}
-              onChange={(event) => setFilters((current) => ({
-                ...current,
-                actorId: event.target.value,
-              }))}
-              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            >
-              <option value="ALL">Tất cả người thực hiện</option>
-              {options.actors.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.fullName} — {actor.email}
-                </option>
-              ))}
-            </select>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-slate-500">Loại hành động</span>
+              <select
+                value={filters.action}
+                onChange={(event) => setFilters((current) => ({
+                  ...current,
+                  action: event.target.value,
+                }))}
+                className="h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500"
+              >
+                <option value="ALL">Tất cả hành động</option>
+                {options.actions.map((action) => (
+                  <option key={action.value} value={action.value}>
+                    {action.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-            <select
-              value={filters.action}
-              onChange={(event) => setFilters((current) => ({
-                ...current,
-                action: event.target.value,
-              }))}
-              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            >
-              <option value="ALL">Tất cả hành động</option>
-              {options.actions.map((action) => (
-                <option key={action.value} value={action.value}>
-                  {action.label}
-                </option>
-              ))}
-            </select>
-
-            <label className="space-y-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs font-medium text-slate-500">Từ ngày</span>
               <input
                 type="date"
@@ -273,11 +282,11 @@ function AuditLogContent() {
                   ...current,
                   fromDate: event.target.value,
                 }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                className="h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500"
               />
             </label>
 
-            <label className="space-y-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs font-medium text-slate-500">Đến ngày</span>
               <input
                 type="date"
@@ -286,7 +295,7 @@ function AuditLogContent() {
                   ...current,
                   toDate: event.target.value,
                 }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                className="h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500"
               />
             </label>
           </div>
@@ -374,10 +383,8 @@ function AuditLogContent() {
                         <p className="font-medium text-slate-800">{item.target}</p>
                         <p className="mt-0.5 text-xs text-slate-500">{item.targetType}</p>
                       </td>
-                      <td className="px-5 py-4">
-                        <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                          {item.ipAddress}
-                        </code>
+                      <td className="min-w-[180px] px-5 py-4">
+                        <IpAddress value={item.ipAddress} />
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
@@ -433,7 +440,10 @@ function AuditLogContent() {
               <DetailItem label="Hành động" value={selectedLog.actionLabel} />
               <DetailItem label="Mã hành động" value={selectedLog.action} />
               <DetailItem label="Đối tượng tác động" value={`${selectedLog.target} — ${selectedLog.targetType}`} />
-              <DetailItem label="Địa chỉ IP" value={selectedLog.ipAddress} />
+              <div className="grid min-w-0 gap-1 sm:grid-cols-[170px_1fr] sm:gap-4">
+                <p className="text-sm font-medium text-slate-500">Địa chỉ IP</p>
+                <IpAddress value={selectedLog.ipAddress} wrap />
+              </div>
               <div>
                 <p className="text-sm font-medium text-slate-500">Nội dung chi tiết</p>
                 <div className="mt-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
@@ -458,6 +468,30 @@ function AuditLogContent() {
   )
 }
 
+function IpAddress({ value, wrap = false }: { value: string | null | undefined; wrap?: boolean }) {
+  const address = value?.trim() || '-'
+  const isLocalhost = ['::1', '0:0:0:0:0:0:0:1', '0000:0000:0000:0000:0000:0000:0000:0001', '127.0.0.1', '::ffff:127.0.0.1'].includes(address.toLowerCase())
+
+  return (
+    <div className="min-w-0">
+      <code
+        title={address}
+        className={`inline-block rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-700 ${wrap ? 'max-w-full whitespace-normal break-all' : 'whitespace-nowrap'}`}
+      >
+        {address === '-' ? 'Không ghi nhận' : address}
+      </code>
+      {isLocalhost && (
+        <p className="mt-1 text-xs text-slate-500">
+          Máy cục bộ (localhost)
+          {address.includes(':') && (
+            <span className="mt-0.5 block">Địa chỉ IPv6 hợp lệ</span>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function StatCard({ label, value, valueClass }: { label: string; value: number; valueClass: string }) {
   return (
     <Card>
@@ -471,7 +505,7 @@ function StatCard({ label, value, valueClass }: { label: string; value: number; 
 
 function TableHead({ children }: { children: string }) {
   return (
-    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+    <th className="whitespace-nowrap px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
       {children}
     </th>
   )
