@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.entity.BookCopy;
@@ -13,10 +14,15 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class BookCopyService {
+    private static final String AUTO_BARCODE_PREFIX = "TV-";
+    private static final int AUTO_BARCODE_NUMBER_LENGTH = 6;
+    private static final long AUTO_BARCODE_MAX_NUMBER = 999_999L;
+
     private final BookCopyRepository copies;
     private final BookRepository books;
     private final ShelfRepository shelves;
@@ -41,8 +47,17 @@ public class BookCopyService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RECEIVED_DATE",
                     "Ngày nhập phải là ngày hợp lệ và không được sau hôm nay.");
         }
-        String barcode = request.barcode().trim();
-        copies.findByBarcode(barcode).ifPresent(copy -> { throw duplicate(copy); });
+
+        BarcodeMode mode = request.barcodeMode() == null ? BarcodeMode.MANUAL : request.barcodeMode();
+        String manualBarcode = null;
+        if (mode == BarcodeMode.MANUAL) {
+            manualBarcode = normalizeManualBarcode(request.barcode());
+            copies.findByBarcode(manualBarcode).ifPresent(copy -> { throw duplicate(copy); });
+        } else if (request.barcode() != null && !request.barcode().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AUTO_BARCODE_OVERRIDE",
+                    "Khi chọn hệ thống sinh mã, không được tự gửi mã vạch.");
+        }
+
         var shelf = shelves.findForCopyCreation(request.shelfId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SHELF_NOT_FOUND", "Không tìm thấy kệ."));
         if (!shelf.getWarehouse().getId().equals(request.warehouseId())) {
@@ -51,12 +66,61 @@ public class BookCopyService {
         if (!shelf.isActive() || !shelf.getWarehouse().isActive()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_INACTIVE", "Kho hoặc kệ đã ngừng sử dụng.");
         }
-        int inserted = copies.insertIfBarcodeAbsent(bookId, barcode, shelf.getId(), date,
-                request.coverPrice(), request.physicalCondition().name());
+
+        if (mode == BarcodeMode.AUTO) {
+            return createWithAutoBarcode(bookId, request, shelf.getId(), date);
+        }
+        return createWithManualBarcode(bookId, manualBarcode, request, shelf.getId(), date);
+    }
+
+    private BookCopyResponse createWithManualBarcode(Long bookId, String barcode, CreateBookCopyRequest request,
+            Long shelfId, LocalDate date) {
+        int inserted = insert(bookId, barcode, shelfId, date, request);
         BookCopy copy = copies.findByBarcode(barcode).orElseThrow(() ->
                 new ApiException(HttpStatus.CONFLICT, "COPY_RETRY", "Dữ liệu vừa thay đổi. Vui lòng thử lại."));
-        if (inserted == 0) { throw duplicate(copy); }
+        if (inserted == 0) {
+            throw duplicate(copy);
+        }
         return BookCopyResponse.fromEntity(copy);
+    }
+
+    private BookCopyResponse createWithAutoBarcode(Long bookId, CreateBookCopyRequest request,
+            Long shelfId, LocalDate date) {
+        while (true) {
+            Long number = copies.nextAutoBarcodeNumber();
+            if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {
+                throw new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
+                        "Dãy mã vạch tự sinh đã hết. Vui lòng liên hệ quản trị hệ thống.");
+            }
+            String barcode = AUTO_BARCODE_PREFIX
+                    + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
+            int inserted = insert(bookId, barcode, shelfId, date, request);
+            if (inserted == 0) {
+                // Mã này có thể đã được nhập tay trước đó hoặc vừa được tạo đồng thời.
+                // Lấy số tiếp theo trong dãy thay vì báo trùng cho chế độ tự sinh.
+                continue;
+            }
+            BookCopy copy = copies.findByBarcode(barcode).orElseThrow(() ->
+                    new ApiException(HttpStatus.CONFLICT, "COPY_RETRY", "Dữ liệu vừa thay đổi. Vui lòng thử lại."));
+            return BookCopyResponse.fromEntity(copy);
+        }
+    }
+
+    private int insert(Long bookId, String barcode, Long shelfId, LocalDate date, CreateBookCopyRequest request) {
+        return copies.insertIfBarcodeAbsent(bookId, barcode, shelfId, date,
+                request.coverPrice(), request.physicalCondition().name());
+    }
+
+    private String normalizeManualBarcode(String barcode) {
+        if (barcode == null || barcode.trim().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BARCODE_REQUIRED", "Vui lòng nhập mã vạch.");
+        }
+        String normalized = barcode.trim();
+        if (normalized.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BARCODE_TOO_LONG",
+                    "Mã vạch không được dài quá 100 ký tự.");
+        }
+        return normalized;
     }
 
     @Transactional(readOnly = true)
