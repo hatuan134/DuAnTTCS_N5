@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 
 import CatalogManagementPage from './CatalogManagementPage'
+import PublicCatalogPage from './PublicCatalogPage'
 
 import type {
   FeatureModule,
@@ -14,6 +15,13 @@ const feature: FeatureModule = {
   id: 's1-08-catalog',
 
   order: 80,
+
+  publicRoutes: [
+    {
+      path: '/catalog',
+      element: <PublicCatalogPage />,
+    },
+  ],
 
   appRoutes: [
     {

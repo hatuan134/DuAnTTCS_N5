@@ -32,6 +32,7 @@ import {
   catalogService,
   type Author,
   type Book,
+  type CatalogBookForm,
   type Category,
 } from './catalogService'
 
@@ -62,6 +63,12 @@ interface BookFormState {
   publicationYear: string
   pageCount: string
   description: string
+}
+
+interface DuplicateTitleWarningState {
+  title: string
+  matchingRule?: string
+  books: Book[]
 }
 
 const emptyAuthorForm: AuthorFormState = {
@@ -120,6 +127,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [bookFormError, setBookFormError] = useState('')
   const [isbnError, setIsbnError] = useState('')
   const [bookSubmitting, setBookSubmitting] = useState(false)
+  const [duplicateTitleWarning, setDuplicateTitleWarning] = useState<DuplicateTitleWarningState | null>(null)
 
   // Delete constraint dialog
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -387,13 +395,11 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     setBookForm(emptyBookForm)
     setBookFormError('')
     setIsbnError('')
+    setDuplicateTitleWarning(null)
     setIsBookModalOpen(true)
   }
 
-  const handleBookSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (bookSubmitting) return
-
+  const buildCatalogPayload = (confirmDuplicateTitle: boolean): CatalogBookForm | null => {
     setBookFormError('')
     setIsbnError('')
 
@@ -403,49 +409,60 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
     if (!bookForm.title.trim()) {
       setBookFormError('Nhan đề không được để trống.')
-      return
+      return null
     }
     if (bookForm.authorIds.length === 0) {
       setBookFormError('Vui lòng chọn ít nhất một tác giả từ danh mục tác giả.')
-      return
+      return null
     }
     if (!bookForm.categoryId) {
       setBookFormError('Vui lòng chọn thể loại cho đầu sách.')
-      return
+      return null
     }
     if (!bookForm.publisher) {
       setBookFormError('Vui lòng chọn nhà xuất bản từ danh mục hiện có.')
-      return
+      return null
     }
 
     const normalizedIsbn = bookForm.isbn.trim()
     if (normalizedIsbn && !/^(?:[0-9]{10}|[0-9]{13})$/.test(normalizedIsbn)) {
       setIsbnError('ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.')
-      return
+      return null
     }
 
     if (!Number.isInteger(publicationYear) || publicationYear < 1 || publicationYear > currentYear) {
       setBookFormError(`Năm xuất bản phải là số nguyên từ 1 đến ${currentYear}.`)
-      return
+      return null
     }
     if (!Number.isInteger(pageCount) || pageCount < 1) {
       setBookFormError('Số trang phải là số nguyên lớn hơn 0.')
-      return
+      return null
     }
+
+    return {
+      title: bookForm.title.trim(),
+      subtitle: bookForm.subtitle.trim() || undefined,
+      authorIds: bookForm.authorIds,
+      categoryId: Number(bookForm.categoryId),
+      isbn: normalizedIsbn || undefined,
+      publisher: bookForm.publisher,
+      publicationYear,
+      pageCount,
+      description: bookForm.description.trim() || undefined,
+      confirmDuplicateTitle,
+    }
+  }
+
+  const submitBook = async (confirmDuplicateTitle: boolean) => {
+    if (bookSubmitting) return
+
+    const payload = buildCatalogPayload(confirmDuplicateTitle)
+    if (!payload) return
 
     setBookSubmitting(true)
     try {
-      const created = await catalogService.catalogBook({
-        title: bookForm.title.trim(),
-        subtitle: bookForm.subtitle.trim() || undefined,
-        authorIds: bookForm.authorIds,
-        categoryId: Number(bookForm.categoryId),
-        isbn: normalizedIsbn || undefined,
-        publisher: bookForm.publisher,
-        publicationYear,
-        pageCount,
-        description: bookForm.description.trim() || undefined,
-      })
+      const created = await catalogService.catalogBook(payload)
+      setDuplicateTitleWarning(null)
       setIsBookModalOpen(false)
       navigate(`/books/${created.id}`, {
         state: { successMessage: `Tạo đầu sách "${created.title}" thành công.` },
@@ -453,16 +470,36 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi tạo hồ sơ đầu sách.'
       const code = err.response?.data?.code
-      const field = err.response?.data?.details?.field
+      const details = err.response?.data?.details
+      const field = details?.field
 
-      if (field === 'isbn' || code === 'INVALID_ISBN_FORMAT' || code === 'ISBN_ALREADY_EXISTS') {
-        setIsbnError(msg)
+      if (code === 'TITLE_ALREADY_EXISTS') {
+        const duplicateBooks = Array.isArray(details?.duplicates) ? details.duplicates as Book[] : []
+        setDuplicateTitleWarning({
+          title: typeof details?.title === 'string' ? details.title : bookForm.title.trim(),
+          matchingRule: typeof details?.matchingRule === 'string' ? details.matchingRule : undefined,
+          books: duplicateBooks,
+        })
       } else {
-        setBookFormError(msg)
+        setDuplicateTitleWarning(null)
+        if (field === 'isbn' || code === 'INVALID_ISBN_FORMAT' || code === 'ISBN_ALREADY_EXISTS') {
+          setIsbnError(msg)
+        } else {
+          setBookFormError(msg)
+        }
       }
     } finally {
       setBookSubmitting(false)
     }
+  }
+
+  const handleBookSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    await submitBook(false)
+  }
+
+  const confirmDuplicateTitleAndCreate = async () => {
+    await submitBook(true)
   }
 
   // Active authors for new cataloging dropdown (Requirement: Deactivated items do NOT appear)
@@ -1324,6 +1361,87 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         </div>
       )}
 
+      {/* S2-01.4: Cảnh báo nhan đề trùng. Không lưu cho tới khi thủ thư xác nhận. */}
+      {duplicateTitleWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start gap-4 border-b border-amber-200 bg-amber-50 px-6 py-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-semibold text-slate-900">Nhan đề đã tồn tại</h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                  Đã tìm thấy hồ sơ có nhan đề <strong>“{duplicateTitleWarning.title}”</strong>.
+                  Hệ thống chưa lưu đầu sách mới. Hãy kiểm tra bản ghi cũ hoặc xác nhận nếu đây thực sự là một đầu sách cần tạo riêng.
+                </p>
+                {duplicateTitleWarning.matchingRule && (
+                  <p className="mt-2 text-xs text-amber-800">{duplicateTitleWarning.matchingRule}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="max-h-[52vh] space-y-3 overflow-y-auto p-6">
+              {duplicateTitleWarning.books.length > 0 ? (
+                duplicateTitleWarning.books.map((book) => {
+                  const authorNames = (book.authors?.length
+                    ? book.authors.map((author) => author.name)
+                    : [book.authorName]
+                  ).filter(Boolean).join(', ')
+
+                  return (
+                    <div key={book.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">{book.title}</p>
+                          <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
+                            <span><strong>Tác giả:</strong> {authorNames || 'Không rõ'}</span>
+                            <span><strong>ISBN:</strong> {book.isbn || 'Chưa có ISBN'}</span>
+                            <span><strong>NXB:</strong> {book.publisher || '—'}</span>
+                            <span><strong>Năm XB:</strong> {book.publicationYear || '—'}</span>
+                          </div>
+                        </div>
+                        <Link
+                          to={`/books/${book.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                        >
+                          Mở hồ sơ cũ
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  Hệ thống phát hiện nhan đề trùng nhưng chưa tải được thông tin hồ sơ cũ. Có thể hủy để kiểm tra danh mục hoặc xác nhận vẫn tạo.
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDuplicateTitleWarning(null)}
+                disabled={bookSubmitting}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Hủy, quay lại kiểm tra
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDuplicateTitleAndCreate()}
+                disabled={bookSubmitting}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bookSubmitting ? 'Đang lưu...' : 'Vẫn tạo đầu sách mới'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
       {deleteDialog.open && deleteDialog.item && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
@@ -1704,8 +1822,19 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                     <BookOpen size={18} />
                   </div>
                   <div>
-                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
-                    <div className="mt-1 text-xs text-slate-500">Nhấn tên sách để xem chi tiết và thêm bản sao</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+                      {!book.hasCopies && (
+                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          Chưa có bản sao
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {book.hasCopies
+                        ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
+                        : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
+                    </div>
                     <div className="text-xs text-slate-500">
                       {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                     </div>

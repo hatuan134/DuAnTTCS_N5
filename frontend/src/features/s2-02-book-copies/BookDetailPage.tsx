@@ -144,7 +144,14 @@ export default function BookDetailPage() {
       {book && book.id === id && summary && (
         <>
           <Card className="p-6">
-            <h3 className="text-xl font-semibold text-slate-900">{book.title}</h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-xl font-semibold text-slate-900">{book.title}</h3>
+              {copies.length === 0 && (
+                <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                  Chưa có bản sao
+                </span>
+              )}
+            </div>
             {book.subtitle && (
               <p className="mt-1 text-sm font-medium text-slate-500">{book.subtitle}</p>
             )}

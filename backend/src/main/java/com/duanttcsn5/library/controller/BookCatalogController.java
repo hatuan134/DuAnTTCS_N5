@@ -30,11 +30,18 @@ public class BookCatalogController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<BookResponse>> getAllBooks() {
         return ResponseEntity.ok(bookCatalogService.getAllBooks());
     }
 
+    @GetMapping("/public")
+    public ResponseEntity<List<BookResponse>> getPublicBooks() {
+        return ResponseEntity.ok(bookCatalogService.getPublicBooks());
+    }
+
     @GetMapping("/publishers")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<String>> getPublisherOptions() {
         return ResponseEntity.ok(bookCatalogService.getPublisherOptions());
     }

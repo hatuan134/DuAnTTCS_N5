@@ -265,4 +265,93 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$.message", containsString("nhiều lần")));
     }
 
+    @Test
+    @DisplayName("S2-01.4 - POST /api/v1/books trả về cảnh báo cùng liên kết dữ liệu khi nhan đề trùng")
+    void catalogBook_DuplicateTitle_ReturnsConflictWithExistingBook() throws Exception {
+        BookResponse existing = new BookResponse(
+                55L,
+                "1234567890",
+                "Tôi thấy hoa vàng trên cỏ xanh",
+                null,
+                1L,
+                "Nguyễn Nhật Ánh",
+                true,
+                List.of(new BookResponse.BookAuthorResponse(1L, "Nguyễn Nhật Ánh", true)),
+                6L,
+                "Văn học trong nước",
+                true,
+                "NXB Trẻ",
+                2010,
+                378,
+                "Hồ sơ cũ",
+                OffsetDateTime.now()
+        );
+
+        when(bookCatalogService.catalogBook(any(CatalogBookRequest.class), any(), any()))
+                .thenThrow(new ApiException(
+                        HttpStatus.CONFLICT,
+                        "TITLE_ALREADY_EXISTS",
+                        "Nhan đề đã tồn tại trong hệ thống.",
+                        java.util.Map.of(
+                                "field", "title",
+                                "title", "Tôi thấy hoa vàng trên cỏ xanh",
+                                "duplicates", List.of(existing),
+                                "matchingRule", "So sánh nhan đề sau khi bỏ khoảng trắng đầu/cuối và không phân biệt chữ hoa/chữ thường."
+                        )));
+
+        bookMockMvc.perform(post("/api/v1/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"Tôi thấy hoa vàng trên cỏ xanh",
+                                  "authorIds":[1],
+                                  "categoryId":6,
+                                  "publisher":"NXB Trẻ",
+                                  "publicationYear":2025,
+                                  "pageCount":320,
+                                  "confirmDuplicateTitle":false
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TITLE_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.details.field").value("title"))
+                .andExpect(jsonPath("$.details.duplicates[0].id").value(55))
+                .andExpect(jsonPath("$.details.duplicates[0].title").value("Tôi thấy hoa vàng trên cỏ xanh"));
+    }
+
+
+    @Test
+    @DisplayName("S2-01.5 - GET /api/v1/books/public chỉ trả danh mục công khai")
+    void getPublicBooks_Success() throws Exception {
+        BookResponse visible = new BookResponse(
+                88L,
+                "9786041234567",
+                "Đầu sách đã có bản sao",
+                null,
+                1L,
+                "Nguyễn Nhật Ánh",
+                true,
+                List.of(new BookResponse.BookAuthorResponse(1L, "Nguyễn Nhật Ánh", true)),
+                6L,
+                "Văn học trong nước",
+                true,
+                "NXB Trẻ",
+                2025,
+                320,
+                "Tóm tắt",
+                OffsetDateTime.now(),
+                1L,
+                true
+        );
+
+        when(bookCatalogService.getPublicBooks()).thenReturn(List.of(visible));
+
+        bookMockMvc.perform(get("/api/v1/books/public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(88))
+                .andExpect(jsonPath("$[0].copyCount").value(1))
+                .andExpect(jsonPath("$[0].hasCopies").value(true));
+    }
+
+
 }
