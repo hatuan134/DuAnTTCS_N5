@@ -11,7 +11,14 @@ import java.util.List;
 @Repository
 public interface BookRepository extends JpaRepository<Book, Long> {
 
-    @Query("SELECT b FROM Book b JOIN FETCH b.author JOIN FETCH b.category ORDER BY b.createdAt DESC")
+    @Query("""
+            SELECT DISTINCT b
+            FROM Book b
+            LEFT JOIN FETCH b.authors
+            LEFT JOIN FETCH b.author
+            JOIN FETCH b.category
+            ORDER BY b.createdAt DESC
+            """)
     List<Book> findAllWithAuthorAndCategory();
 
     @Query(value = """
@@ -33,11 +40,7 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             """, nativeQuery = true)
     boolean existsPublisherInCatalog(@Param("publisher") String publisher);
 
-    boolean existsByAuthorId(Long authorId);
-
     boolean existsByCategoryId(Long categoryId);
-
-    long countByAuthorId(Long authorId);
 
     long countByCategoryId(Long categoryId);
 }

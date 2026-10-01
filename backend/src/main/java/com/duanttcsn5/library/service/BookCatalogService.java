@@ -16,7 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Year;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class BookCatalogService {
@@ -60,7 +64,7 @@ public class BookCatalogService {
     public BookResponse catalogBook(CatalogBookRequest request, Long currentUserId, String ipAddress) {
         validateBasicBibliographicData(request);
 
-        Author author = resolveAuthor(request, currentUserId, ipAddress);
+        List<Author> authors = resolveAuthors(request, currentUserId, ipAddress);
 
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND",
@@ -82,7 +86,9 @@ public class BookCatalogService {
         book.setTitle(request.title().trim());
         book.setSubtitle(normalizeOptional(request.subtitle()));
         book.setIsbn(normalizeOptional(request.isbn()));
-        book.setAuthor(author);
+        // Giữ author_id là tác giả đầu tiên để tương thích dữ liệu/chức năng cũ.
+        book.setAuthor(authors.get(0));
+        book.setAuthors(authors);
         book.setCategory(category);
         book.setPublisher(publisher);
         book.setPublicationYear(request.publicationYear());
@@ -91,13 +97,17 @@ public class BookCatalogService {
 
         Book saved = bookRepository.save(book);
 
+        String authorNames = authors.stream()
+                .map(Author::getName)
+                .collect(Collectors.joining(", "));
+
         auditLogRepository.insert(
                 currentUserId,
                 "BOOK_CATALOGED",
                 "BOOK",
                 saved.getId().toString(),
                 "{\"action\":\"Biên mục sách mới\",\"title\":\"" + escapeJson(saved.getTitle())
-                        + "\",\"author\":\"" + escapeJson(author.getName())
+                        + "\",\"authors\":\"" + escapeJson(authorNames)
                         + "\",\"category\":\"" + escapeJson(category.getName()) + "\"}",
                 ipAddress
         );
@@ -135,7 +145,12 @@ public class BookCatalogService {
         }
     }
 
-    private Author resolveAuthor(CatalogBookRequest request, Long currentUserId, String ipAddress) {
+    private List<Author> resolveAuthors(CatalogBookRequest request, Long currentUserId, String ipAddress) {
+        if (request.authorIds() != null && !request.authorIds().isEmpty()) {
+            return resolveSelectedAuthors(request.authorIds());
+        }
+
+        // Tương thích request cũ của S2-01.1.
         if (request.authorId() != null) {
             Author author = authorRepository.findById(request.authorId())
                     .orElseThrow(() -> new ApiException(
@@ -143,18 +158,19 @@ public class BookCatalogService {
                             "AUTHOR_NOT_FOUND",
                             "Không tìm thấy tác giả ID: " + request.authorId()));
             ensureAuthorActive(author);
-            return author;
+            return List.of(author);
         }
 
+        // Hành vi cũ được giữ để không phá client cũ; frontend S2-01.2 không sử dụng nhánh này.
         String authorName = request.authorName() == null ? "" : request.authorName().trim();
         if (authorName.isBlank()) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "AUTHOR_REQUIRED",
-                    "Vui lòng chọn tác giả có sẵn.");
+                    "Vui lòng chọn ít nhất một tác giả từ danh mục tác giả.");
         }
 
-        return authorRepository.findByNameIgnoreCase(authorName)
+        Author author = authorRepository.findByNameIgnoreCase(authorName)
                 .map(existing -> {
                     ensureAuthorActive(existing);
                     return existing;
@@ -173,6 +189,44 @@ public class BookCatalogService {
                     );
                     return saved;
                 });
+        return List.of(author);
+    }
+
+    private List<Author> resolveSelectedAuthors(List<Long> authorIds) {
+        Set<Long> seen = new HashSet<>();
+        List<Author> resolved = new ArrayList<>();
+
+        for (Long authorId : authorIds) {
+            if (authorId == null) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "AUTHOR_REQUIRED",
+                        "Danh sách tác giả chứa giá trị không hợp lệ.");
+            }
+            if (!seen.add(authorId)) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "DUPLICATE_AUTHOR",
+                        "Không thể chọn cùng một tác giả nhiều lần cho một đầu sách.");
+            }
+
+            Author author = authorRepository.findById(authorId)
+                    .orElseThrow(() -> new ApiException(
+                            HttpStatus.NOT_FOUND,
+                            "AUTHOR_NOT_FOUND",
+                            "Không tìm thấy tác giả ID: " + authorId));
+            ensureAuthorActive(author);
+            resolved.add(author);
+        }
+
+        if (resolved.isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "AUTHOR_REQUIRED",
+                    "Vui lòng chọn ít nhất một tác giả từ danh mục tác giả.");
+        }
+
+        return List.copyOf(resolved);
     }
 
     private void ensureAuthorActive(Author author) {

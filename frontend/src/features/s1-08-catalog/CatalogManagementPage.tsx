@@ -55,7 +55,7 @@ interface CategoryFormState {
 interface BookFormState {
   title: string
   subtitle: string
-  authorId: string
+  authorIds: number[]
   categoryId: string
   isbn: string
   publisher: string
@@ -78,7 +78,7 @@ const emptyCategoryForm: CategoryFormState = {
 const emptyBookForm: BookFormState = {
   title: '',
   subtitle: '',
-  authorId: '',
+  authorIds: [],
   categoryId: '',
   isbn: '',
   publisher: '',
@@ -402,8 +402,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       setBookFormError('Nhan đề không được để trống.')
       return
     }
-    if (!bookForm.authorId) {
-      setBookFormError('Vui lòng chọn tác giả từ danh mục tác giả.')
+    if (bookForm.authorIds.length === 0) {
+      setBookFormError('Vui lòng chọn ít nhất một tác giả từ danh mục tác giả.')
       return
     }
     if (!bookForm.categoryId) {
@@ -428,7 +428,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       const created = await catalogService.catalogBook({
         title: bookForm.title.trim(),
         subtitle: bookForm.subtitle.trim() || undefined,
-        authorId: Number(bookForm.authorId),
+        authorIds: bookForm.authorIds,
         categoryId: Number(bookForm.categoryId),
         isbn: bookForm.isbn.trim() || undefined,
         publisher: bookForm.publisher,
@@ -503,7 +503,9 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       return (
         !kw ||
         b.title.toLowerCase().includes(kw) ||
-        b.authorName.toLowerCase().includes(kw) ||
+        (b.authors?.length
+          ? b.authors.some((author) => author.name.toLowerCase().includes(kw))
+          : b.authorName.toLowerCase().includes(kw)) ||
         b.categoryName.toLowerCase().includes(kw) ||
         (b.isbn && b.isbn.toLowerCase().includes(kw)) ||
         (b.publisher && b.publisher.toLowerCase().includes(kw))
@@ -1073,24 +1075,72 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     Tác giả <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={bookForm.authorId}
+                    value=""
                     onChange={(e) => {
-                      setBookForm({ ...bookForm, authorId: e.target.value })
+                      const authorId = Number(e.target.value)
+                      if (!authorId) return
+
+                      if (bookForm.authorIds.includes(authorId)) {
+                        setBookFormError('Tác giả này đã được chọn cho đầu sách.')
+                        return
+                      }
+
+                      setBookForm({
+                        ...bookForm,
+                        authorIds: [...bookForm.authorIds, authorId],
+                      })
                       setBookFormError('')
                     }}
-                    required
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
-                    <option value="">-- Chọn tác giả --</option>
+                    <option value="">-- Thêm tác giả --</option>
                     {activeAuthorsForCataloging.map((author) => (
-                      <option key={author.id} value={author.id}>
-                        {author.name}
+                      <option
+                        key={author.id}
+                        value={author.id}
+                        disabled={bookForm.authorIds.includes(author.id)}
+                      >
+                        {author.name}{bookForm.authorIds.includes(author.id) ? ' — Đã chọn' : ''}
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Chỉ chọn một tác giả từ danh mục đang hoạt động trong lát S2-01.1.
-                  </p>
+
+                  {bookForm.authorIds.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {bookForm.authorIds.map((authorId) => {
+                        const author = activeAuthorsForCataloging.find((item) => item.id === authorId)
+                        if (!author) return null
+
+                        return (
+                          <span
+                            key={author.id}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700"
+                          >
+                            {author.name}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBookForm({
+                                  ...bookForm,
+                                  authorIds: bookForm.authorIds.filter((id) => id !== author.id),
+                                })
+                                setBookFormError('')
+                              }}
+                              className="rounded-full p-0.5 hover:bg-blue-100"
+                              aria-label={`Bỏ tác giả ${author.name}`}
+                              title={`Bỏ tác giả ${author.name}`}
+                            >
+                              <X size={13} />
+                            </button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Chọn ít nhất một tác giả. Có thể thêm nhiều tác giả và bỏ từng tác giả trước khi lưu.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1627,16 +1677,26 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
               </td>
 
               <td className="px-6 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-800">{book.authorName}</span>
-                  {!book.authorActive && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(book.authors?.length
+                    ? book.authors
+                    : [{ id: book.authorId ?? -1, name: book.authorName, active: book.authorActive }]
+                  ).map((author) => (
                     <span
-                      title="Tác giả này đã ngừng sử dụng nhưng vẫn hiển thị chính xác trên sách cũ"
-                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                      key={author.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
                     >
-                      Đã ngừng dùng
+                      {author.name}
+                      {!author.active && (
+                        <span
+                          title="Tác giả này đã ngừng sử dụng nhưng vẫn hiển thị chính xác trên sách cũ"
+                          className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-800"
+                        >
+                          Đã ngừng dùng
+                        </span>
+                      )}
                     </span>
-                  )}
+                  ))}
                 </div>
               </td>
 

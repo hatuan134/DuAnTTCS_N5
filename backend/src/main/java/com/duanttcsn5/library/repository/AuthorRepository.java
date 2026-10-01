@@ -22,6 +22,6 @@ public interface AuthorRepository extends JpaRepository<Author, Long> {
 
     List<Author> findAllByIsActiveTrueOrderByNameAsc();
 
-    @Query("SELECT COUNT(b) FROM Book b WHERE b.author.id = :authorId")
+    @Query("SELECT COUNT(DISTINCT b) FROM Book b JOIN b.authors a WHERE a.id = :authorId")
     long countBooksUsingAuthor(@Param("authorId") Long authorId);
 }
