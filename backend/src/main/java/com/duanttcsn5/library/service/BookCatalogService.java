@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,6 +64,7 @@ public class BookCatalogService {
     @Transactional
     public BookResponse catalogBook(CatalogBookRequest request, Long currentUserId, String ipAddress) {
         validateBasicBibliographicData(request);
+        String isbn = validateAndNormalizeIsbn(request.isbn());
 
         List<Author> authors = resolveAuthors(request, currentUserId, ipAddress);
 
@@ -85,7 +87,7 @@ public class BookCatalogService {
         Book book = new Book();
         book.setTitle(request.title().trim());
         book.setSubtitle(normalizeOptional(request.subtitle()));
-        book.setIsbn(normalizeOptional(request.isbn()));
+        book.setIsbn(isbn);
         // Giữ author_id là tác giả đầu tiên để tương thích dữ liệu/chức năng cũ.
         book.setAuthor(authors.get(0));
         book.setAuthors(authors);
@@ -143,6 +145,31 @@ public class BookCatalogService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE_COUNT",
                     "Số trang phải là số nguyên lớn hơn 0.");
         }
+    }
+
+    private String validateAndNormalizeIsbn(String rawIsbn) {
+        String isbn = normalizeOptional(rawIsbn);
+        if (isbn == null) {
+            return null;
+        }
+
+        if (!isbn.matches("(?:[0-9]{10}|[0-9]{13})")) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_ISBN_FORMAT",
+                    "ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.",
+                    Map.of("field", "isbn"));
+        }
+
+        if (bookRepository.existsByNormalizedIsbn(isbn)) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "ISBN_ALREADY_EXISTS",
+                    "ISBN '" + isbn + "' đã được sử dụng bởi một đầu sách khác.",
+                    Map.of("field", "isbn", "isbn", isbn));
+        }
+
+        return isbn;
     }
 
     private List<Author> resolveAuthors(CatalogBookRequest request, Long currentUserId, String ipAddress) {

@@ -40,6 +40,16 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             """, nativeQuery = true)
     boolean existsPublisherInCatalog(@Param("publisher") String publisher);
 
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM books
+                WHERE isbn IS NOT NULL
+                  AND REGEXP_REPLACE(isbn, '[^0-9]', '', 'g') = :isbn
+            )
+            """, nativeQuery = true)
+    boolean existsByNormalizedIsbn(@Param("isbn") String isbn);
+
     boolean existsByCategoryId(Long categoryId);
 
     long countByCategoryId(Long categoryId);
