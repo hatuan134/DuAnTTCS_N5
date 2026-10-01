@@ -118,6 +118,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
   const [bookFormError, setBookFormError] = useState('')
+  const [isbnError, setIsbnError] = useState('')
   const [bookSubmitting, setBookSubmitting] = useState(false)
 
   // Delete constraint dialog
@@ -385,6 +386,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const openCreateBookModal = () => {
     setBookForm(emptyBookForm)
     setBookFormError('')
+    setIsbnError('')
     setIsBookModalOpen(true)
   }
 
@@ -393,6 +395,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     if (bookSubmitting) return
 
     setBookFormError('')
+    setIsbnError('')
 
     const currentYear = new Date().getFullYear()
     const publicationYear = Number(bookForm.publicationYear)
@@ -414,6 +417,13 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       setBookFormError('Vui lòng chọn nhà xuất bản từ danh mục hiện có.')
       return
     }
+
+    const normalizedIsbn = bookForm.isbn.trim()
+    if (normalizedIsbn && !/^(?:[0-9]{10}|[0-9]{13})$/.test(normalizedIsbn)) {
+      setIsbnError('ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.')
+      return
+    }
+
     if (!Number.isInteger(publicationYear) || publicationYear < 1 || publicationYear > currentYear) {
       setBookFormError(`Năm xuất bản phải là số nguyên từ 1 đến ${currentYear}.`)
       return
@@ -430,7 +440,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         subtitle: bookForm.subtitle.trim() || undefined,
         authorIds: bookForm.authorIds,
         categoryId: Number(bookForm.categoryId),
-        isbn: bookForm.isbn.trim() || undefined,
+        isbn: normalizedIsbn || undefined,
         publisher: bookForm.publisher,
         publicationYear,
         pageCount,
@@ -442,7 +452,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       })
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi tạo hồ sơ đầu sách.'
-      setBookFormError(msg)
+      const code = err.response?.data?.code
+      const field = err.response?.data?.details?.field
+
+      if (field === 'isbn' || code === 'INVALID_ISBN_FORMAT' || code === 'ISBN_ALREADY_EXISTS') {
+        setIsbnError(msg)
+      } else {
+        setBookFormError(msg)
+      }
     } finally {
       setBookSubmitting(false)
     }
@@ -1021,7 +1038,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">Tạo hồ sơ đầu sách</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Nhập thông tin thư mục cơ bản. ISBN chưa áp dụng kiểm tra định dạng hoặc trùng ở lát này.
+                  ISBN có thể để trống; nếu nhập phải gồm đúng 10 hoặc 13 chữ số và không được trùng.
                 </p>
               </div>
               <button
@@ -1172,11 +1189,31 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                   <input
                     type="text"
                     value={bookForm.isbn}
-                    onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
-                    placeholder="Nhập ISBN nếu có"
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, isbn: e.target.value })
+                      setIsbnError('')
+                      setBookFormError('')
+                    }}
+                    placeholder="Nhập ISBN 10 hoặc 13 chữ số nếu có"
                     maxLength={50}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                    inputMode="numeric"
+                    aria-invalid={Boolean(isbnError)}
+                    aria-describedby={isbnError ? 'book-isbn-error' : 'book-isbn-help'}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none ${
+                      isbnError
+                        ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                        : 'border-slate-300 focus:border-blue-500'
+                    }`}
                   />
+                  {isbnError ? (
+                    <p id="book-isbn-error" className="mt-1 text-xs font-medium text-red-600">
+                      {isbnError}
+                    </p>
+                  ) : (
+                    <p id="book-isbn-help" className="mt-1 text-[11px] text-slate-400">
+                      Có thể để trống. Nếu nhập, chỉ chấp nhận đúng 10 hoặc 13 chữ số.
+                    </p>
+                  )}
                 </div>
 
                 <div>

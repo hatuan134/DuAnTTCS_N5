@@ -25,6 +25,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,7 +82,7 @@ class BookCatalogServiceTest {
                 1L,
                 null,
                 6L,
-                "978-604-001",
+                "9786040001",
                 "NXB Trẻ",
                 2010,
                 378,
@@ -210,6 +211,103 @@ class BookCatalogServiceTest {
         verify(bookRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("S2-01.3 - Cho phép để trống ISBN")
+    void catalogBook_BlankIsbn_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithIsbn("   "), 10L, "127.0.0.1");
+
+        assertNull(response.isbn());
+        verify(bookRepository, never()).existsByNormalizedIsbn(anyString());
+    }
+
+    @Test
+    @DisplayName("S2-01.3 - Cho phép ISBN 10 chữ số")
+    void catalogBook_TenDigitIsbn_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+        when(bookRepository.existsByNormalizedIsbn("1234567890")).thenReturn(false);
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithIsbn("1234567890"), 10L, "127.0.0.1");
+
+        assertEquals("1234567890", response.isbn());
+        verify(bookRepository).existsByNormalizedIsbn("1234567890");
+    }
+
+    @Test
+    @DisplayName("S2-01.3 - Cho phép ISBN 13 chữ số")
+    void catalogBook_ThirteenDigitIsbn_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+        when(bookRepository.existsByNormalizedIsbn("9786041234567")).thenReturn(false);
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithIsbn("9786041234567"), 10L, "127.0.0.1");
+
+        assertEquals("9786041234567", response.isbn());
+        verify(bookRepository).existsByNormalizedIsbn("9786041234567");
+    }
+
+    @Test
+    @DisplayName("S2-01.3 - Từ chối ISBN có 9, 11, 12 hoặc 14 chữ số")
+    void catalogBook_InvalidIsbnLength_ThrowsBadRequest() {
+        for (String isbn : List.of("123456789", "12345678901", "123456789012", "12345678901234")) {
+            ApiException ex = assertThrows(ApiException.class, () ->
+                    bookCatalogService.catalogBook(requestWithIsbn(isbn), 10L, "127.0.0.1"));
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            assertEquals("INVALID_ISBN_FORMAT", ex.getCode());
+            assertEquals("isbn", ex.getDetails().get("field"));
+        }
+        verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("S2-01.3 - Từ chối ISBN chứa chữ cái hoặc ký tự đặc biệt")
+    void catalogBook_IsbnContainsNonDigit_ThrowsBadRequest() {
+        for (String isbn : List.of("12345ABCDE", "97860412-3456", "97860412 3456")) {
+            ApiException ex = assertThrows(ApiException.class, () ->
+                    bookCatalogService.catalogBook(requestWithIsbn(isbn), 10L, "127.0.0.1"));
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            assertEquals("INVALID_ISBN_FORMAT", ex.getCode());
+            assertEquals("isbn", ex.getDetails().get("field"));
+        }
+        verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("S2-01.3 - Từ chối ISBN đã tồn tại")
+    void catalogBook_DuplicateIsbn_ThrowsConflict() {
+        when(bookRepository.existsByNormalizedIsbn("9786041234567")).thenReturn(true);
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                bookCatalogService.catalogBook(
+                        requestWithIsbn("9786041234567"), 10L, "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("ISBN_ALREADY_EXISTS", ex.getCode());
+        assertEquals("isbn", ex.getDetails().get("field"));
+        assertEquals("9786041234567", ex.getDetails().get("isbn"));
+        verify(bookRepository, never()).save(any());
+    }
+
+    private CatalogBookRequest requestWithIsbn(String isbn) {
+        return new CatalogBookRequest(
+                "Sách kiểm thử ISBN",
+                "Nhan đề phụ",
+                null,
+                null,
+                6L,
+                isbn,
+                "NXB Trẻ",
+                2025,
+                320,
+                "Tóm tắt",
+                List.of(1L));
+    }
+
     private CatalogBookRequest requestWithAuthorIds(List<Long> authorIds) {
         return new CatalogBookRequest(
                 "Sách nhiều tác giả",
@@ -217,7 +315,7 @@ class BookCatalogServiceTest {
                 null,
                 null,
                 6L,
-                "978-604-S2-012",
+                "9786041234567",
                 "NXB Trẻ",
                 2025,
                 320,
