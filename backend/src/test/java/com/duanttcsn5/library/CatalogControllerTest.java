@@ -164,8 +164,29 @@ class CatalogControllerTest {
 
         bookMockMvc.perform(post("/api/v1/books")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Sách mới\",\"authorId\":4,\"categoryId\":1}"))
+                        .content("{\"title\":\"Sách mới\",\"authorId\":4,\"categoryId\":1,\"publisher\":\"NXB Trẻ\",\"publicationYear\":2024,\"pageCount\":200}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("AUTHOR_INACTIVE"));
     }
+    @Test
+    @DisplayName("S2-01.1 - POST /api/v1/books từ chối khi bỏ trống trường bắt buộc")
+    void catalogBook_MissingRequiredFields_ReturnsBadRequest() throws Exception {
+        bookMockMvc.perform(post("/api/v1/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Sách thiếu dữ liệu\",\"authorId\":1,\"categoryId\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("S2-01.1 - POST /api/v1/books từ chối số trang không hợp lệ")
+    void catalogBook_InvalidPageCount_ReturnsBadRequest() throws Exception {
+        bookMockMvc.perform(post("/api/v1/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Sách mới\",\"authorId\":1,\"categoryId\":1,\"publisher\":\"NXB Trẻ\",\"publicationYear\":2024,\"pageCount\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("Số trang")));
+    }
+
 }

@@ -26,6 +26,9 @@ public class Book {
     @Column(nullable = false, length = 255)
     private String title;
 
+    @Column(length = 255)
+    private String subtitle;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private Author author;
@@ -40,6 +43,9 @@ public class Book {
     @Column(name = "publication_year")
     private Integer publicationYear;
 
+    @Column(name = "page_count")
+    private Integer pageCount;
+
     @Column(length = 1000)
     private String description;
 
@@ -52,13 +58,21 @@ public class Book {
     public Book() {
     }
 
-    public Book(String isbn, String title, Author author, Category category, String publisher, Integer publicationYear, String description) {
+    public Book(String isbn, String title, Author author, Category category, String publisher,
+                Integer publicationYear, String description) {
+        this(isbn, title, null, author, category, publisher, publicationYear, null, description);
+    }
+
+    public Book(String isbn, String title, String subtitle, Author author, Category category,
+                String publisher, Integer publicationYear, Integer pageCount, String description) {
         this.isbn = isbn;
         this.title = title;
+        this.subtitle = subtitle;
         this.author = author;
         this.category = category;
         this.publisher = publisher;
         this.publicationYear = publicationYear;
+        this.pageCount = pageCount;
         this.description = description;
     }
 
@@ -84,6 +98,14 @@ public class Book {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getSubtitle() {
+        return subtitle;
+    }
+
+    public void setSubtitle(String subtitle) {
+        this.subtitle = subtitle;
     }
 
     public Author getAuthor() {
@@ -116,6 +138,14 @@ public class Book {
 
     public void setPublicationYear(Integer publicationYear) {
         this.publicationYear = publicationYear;
+    }
+
+    public Integer getPageCount() {
+        return pageCount;
+    }
+
+    public void setPageCount(Integer pageCount) {
+        this.pageCount = pageCount;
     }
 
     public String getDescription() {

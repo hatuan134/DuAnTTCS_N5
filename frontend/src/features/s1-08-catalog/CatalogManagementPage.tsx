@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
 import {
@@ -54,12 +54,13 @@ interface CategoryFormState {
 
 interface BookFormState {
   title: string
+  subtitle: string
   authorId: string
-  authorName: string
   categoryId: string
   isbn: string
   publisher: string
   publicationYear: string
+  pageCount: string
   description: string
 }
 
@@ -76,20 +77,23 @@ const emptyCategoryForm: CategoryFormState = {
 
 const emptyBookForm: BookFormState = {
   title: '',
+  subtitle: '',
   authorId: '',
-  authorName: '',
   categoryId: '',
   isbn: '',
   publisher: '',
   publicationYear: '',
+  pageCount: '',
   description: '',
 }
 
 export default function CatalogManagementPage({ mode: initialMode }: Props) {
+  const navigate = useNavigate()
   const [currentTab, setCurrentTab] = useState<PageMode>(initialMode)
   const [authors, setAuthors] = useState<Author[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [books, setBooks] = useState<Book[]>([])
+  const [publisherOptions, setPublisherOptions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -114,6 +118,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
   const [bookFormError, setBookFormError] = useState('')
+  const [bookSubmitting, setBookSubmitting] = useState(false)
 
   // Delete constraint dialog
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -132,14 +137,16 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     setLoading(true)
     setApiError(null)
     try {
-      const [authorsData, categoriesData, booksData] = await Promise.all([
+      const [authorsData, categoriesData, booksData, publishersData] = await Promise.all([
         catalogService.getAuthors(),
         catalogService.getCategories(),
         catalogService.getBooks(),
+        catalogService.getPublisherOptions(),
       ])
       setAuthors(authorsData)
       setCategories(categoriesData)
       setBooks(booksData)
+      setPublisherOptions(publishersData)
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Không thể tải dữ liệu danh mục.'
       setApiError(msg)
@@ -383,38 +390,61 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
   const handleBookSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (bookSubmitting) return
+
     setBookFormError('')
 
+    const currentYear = new Date().getFullYear()
+    const publicationYear = Number(bookForm.publicationYear)
+    const pageCount = Number(bookForm.pageCount)
+
     if (!bookForm.title.trim()) {
-      setBookFormError('Tên đầu sách không được để trống.')
+      setBookFormError('Nhan đề không được để trống.')
       return
     }
-    if (!bookForm.authorId && !bookForm.authorName.trim()) {
-      setBookFormError('Vui lòng chọn tác giả có sẵn hoặc nhập tên tác giả mới.')
+    if (!bookForm.authorId) {
+      setBookFormError('Vui lòng chọn tác giả từ danh mục tác giả.')
       return
     }
     if (!bookForm.categoryId) {
       setBookFormError('Vui lòng chọn thể loại cho đầu sách.')
       return
     }
+    if (!bookForm.publisher) {
+      setBookFormError('Vui lòng chọn nhà xuất bản từ danh mục hiện có.')
+      return
+    }
+    if (!Number.isInteger(publicationYear) || publicationYear < 1 || publicationYear > currentYear) {
+      setBookFormError(`Năm xuất bản phải là số nguyên từ 1 đến ${currentYear}.`)
+      return
+    }
+    if (!Number.isInteger(pageCount) || pageCount < 1) {
+      setBookFormError('Số trang phải là số nguyên lớn hơn 0.')
+      return
+    }
 
+    setBookSubmitting(true)
     try {
-      await catalogService.catalogBook({
+      const created = await catalogService.catalogBook({
         title: bookForm.title.trim(),
-        authorId: bookForm.authorId ? Number(bookForm.authorId) : undefined,
-        authorName: bookForm.authorId ? undefined : bookForm.authorName.trim(),
+        subtitle: bookForm.subtitle.trim() || undefined,
+        authorId: Number(bookForm.authorId),
         categoryId: Number(bookForm.categoryId),
         isbn: bookForm.isbn.trim() || undefined,
-        publisher: bookForm.publisher.trim() || undefined,
-        publicationYear: bookForm.publicationYear ? Number(bookForm.publicationYear) : undefined,
+        publisher: bookForm.publisher,
+        publicationYear,
+        pageCount,
         description: bookForm.description.trim() || undefined,
       })
-      showNotification(`Biên mục thành công đầu sách: "${bookForm.title.trim()}".`)
       setIsBookModalOpen(false)
-      loadData()
+      navigate(`/books/${created.id}`, {
+        state: { successMessage: `Tạo đầu sách "${created.title}" thành công.` },
+      })
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi biên mục sách mới.'
+      const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi tạo hồ sơ đầu sách.'
       setBookFormError(msg)
+    } finally {
+      setBookSubmitting(false)
     }
   }
 
@@ -981,46 +1011,63 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         </div>
       )}
 
-      {/* MODAL: Biên mục sách mới (Kiểm chứng ô chọn chỉ hiện danh mục đang dùng) */}
+      {/* MODAL: Tạo hồ sơ đầu sách cơ bản - S2-01.1 */}
       {isBookModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Biên mục đầu sách mới</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Kiểm chứng: Chỉ các tác giả và thể loại đang hoạt động mới xuất hiện trong ô chọn.
+                <h3 className="text-lg font-semibold text-slate-900">Tạo hồ sơ đầu sách</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Nhập thông tin thư mục cơ bản. ISBN chưa áp dụng kiểm tra định dạng hoặc trùng ở lát này.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsBookModalOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                disabled={bookSubmitting}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                aria-label="Đóng biểu mẫu"
               >
                 <X size={19} />
               </button>
             </div>
 
-            <form onSubmit={handleBookSubmit} className="space-y-4 p-6">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Tiêu đề sách <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={bookForm.title}
-                  onChange={(e) => {
-                    setBookForm({ ...bookForm, title: e.target.value })
-                    setBookFormError('')
-                  }}
-                  placeholder="Ví dụ: Tôi thấy hoa vàng trên cỏ xanh..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  autoFocus
-                />
-              </div>
+            <form onSubmit={handleBookSubmit} className="space-y-5 p-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Nhan đề <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bookForm.title}
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, title: e.target.value })
+                      setBookFormError('')
+                    }}
+                    placeholder="Ví dụ: Tôi thấy hoa vàng trên cỏ xanh"
+                    maxLength={255}
+                    required
+                    autoFocus
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Chọn tác giả */}
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Nhan đề phụ
+                  </label>
+                  <input
+                    type="text"
+                    value={bookForm.subtitle}
+                    onChange={(e) => setBookForm({ ...bookForm, subtitle: e.target.value })}
+                    placeholder="Nhập nhan đề phụ nếu có"
+                    maxLength={255}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     Tác giả <span className="text-red-500">*</span>
@@ -1028,16 +1075,13 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                   <select
                     value={bookForm.authorId}
                     onChange={(e) => {
-                      setBookForm({
-                        ...bookForm,
-                        authorId: e.target.value,
-                        authorName: e.target.value ? '' : bookForm.authorName,
-                      })
+                      setBookForm({ ...bookForm, authorId: e.target.value })
                       setBookFormError('')
                     }}
+                    required
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
-                    <option value="">-- Chọn tác giả sẵn có --</option>
+                    <option value="">-- Chọn tác giả --</option>
                     {activeAuthorsForCataloging.map((author) => (
                       <option key={author.id} value={author.id}>
                         {author.name}
@@ -1045,29 +1089,10 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     ))}
                   </select>
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Chọn tác giả đang có, hoặc nhập tên mới bên dưới.
-                  </p>
-                  <input
-                    type="text"
-                    value={bookForm.authorName}
-                    onChange={(e) => {
-                      setBookForm({
-                        ...bookForm,
-                        authorName: e.target.value,
-                        authorId: e.target.value ? '' : bookForm.authorId,
-                      })
-                      setBookFormError('')
-                    }}
-                    placeholder="Tên tác giả mới"
-                    maxLength={255}
-                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Hệ thống sẽ kiểm tra tên; nếu đã tồn tại thì dùng bản ghi cũ, nếu chưa có sẽ tự tạo mới.
+                    Chỉ chọn một tác giả từ danh mục đang hoạt động trong lát S2-01.1.
                   </p>
                 </div>
 
-                {/* Chọn thể loại */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     Thể loại <span className="text-red-500">*</span>
@@ -1078,75 +1103,113 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                       setBookForm({ ...bookForm, categoryId: e.target.value })
                       setBookFormError('')
                     }}
+                    required
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
-                    <option value="">-- Chọn thể loại sẵn có --</option>
+                    <option value="">-- Chọn thể loại --</option>
                     {activeCategoriesForCataloging.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.level === 2 ? `↳ ${cat.name} (${cat.parentName})` : cat.name}
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Thể loại ngừng dùng không hiện tại đây.
-                  </p>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Mã ISBN
+                    ISBN
                   </label>
                   <input
                     type="text"
                     value={bookForm.isbn}
                     onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
-                    placeholder="978-604-..."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    placeholder="Nhập ISBN nếu có"
+                    maxLength={50}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
+
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Nhà xuất bản
+                    Nhà xuất bản <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={bookForm.publisher}
-                    onChange={(e) => setBookForm({ ...bookForm, publisher: e.target.value })}
-                    placeholder="NXB Trẻ..."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                  />
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, publisher: e.target.value })
+                      setBookFormError('')
+                    }}
+                    required
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  >
+                    <option value="">-- Chọn nhà xuất bản --</option>
+                    {publisherOptions.map((publisher) => (
+                      <option key={publisher} value={publisher}>{publisher}</option>
+                    ))}
+                  </select>
+                  {publisherOptions.length === 0 && (
+                    <p className="mt-1 text-[11px] text-amber-600">
+                      Chưa có nhà xuất bản nào trong dữ liệu đầu sách hiện tại.
+                    </p>
+                  )}
                 </div>
+
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Năm xuất bản
+                    Năm xuất bản <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={bookForm.publicationYear}
-                    onChange={(e) => setBookForm({ ...bookForm, publicationYear: e.target.value })}
-                    placeholder="2024"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, publicationYear: e.target.value })
+                      setBookFormError('')
+                    }}
+                    min={1}
+                    max={new Date().getFullYear()}
+                    step={1}
+                    required
+                    placeholder={String(new Date().getFullYear())}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Số trang <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={bookForm.pageCount}
+                    onChange={(e) => {
+                      setBookForm({ ...bookForm, pageCount: e.target.value })
+                      setBookFormError('')
+                    }}
+                    min={1}
+                    step={1}
+                    required
+                    placeholder="Ví dụ: 320"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Mô tả / Tóm tắt sách
+                  Tóm tắt nội dung
                 </label>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={bookForm.description}
                   onChange={(e) => setBookForm({ ...bookForm, description: e.target.value })}
-                  placeholder="Tóm tắt nội dung sách..."
-                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  placeholder="Nhập tóm tắt nội dung đầu sách..."
+                  maxLength={1000}
+                  className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
                 />
               </div>
 
               {bookFormError && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <AlertCircle size={16} className="shrink-0" />
                   <span>{bookFormError}</span>
                 </div>
@@ -1156,15 +1219,17 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setIsBookModalOpen(false)}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  disabled={bookSubmitting}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Huỷ
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm"
+                  disabled={bookSubmitting || publisherOptions.length === 0}
+                  className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Lưu & Biên mục
+                  {bookSubmitting ? 'Đang lưu...' : 'Lưu đầu sách'}
                 </button>
               </div>
             </form>

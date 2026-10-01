@@ -2,12 +2,16 @@ package com.duanttcsn5.library.dto.book;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public record CatalogBookRequest(
-        @NotBlank(message = "Tên đầu sách không được để trống")
-        @Size(max = 255, message = "Tên đầu sách không được vượt quá 255 ký tự")
+        @NotBlank(message = "Nhan đề không được để trống")
+        @Size(max = 255, message = "Nhan đề không được vượt quá 255 ký tự")
         String title,
+
+        @Size(max = 255, message = "Nhan đề phụ không được vượt quá 255 ký tự")
+        String subtitle,
 
         Long authorId,
 
@@ -20,12 +24,19 @@ public record CatalogBookRequest(
         @Size(max = 50, message = "Mã ISBN không được vượt quá 50 ký tự")
         String isbn,
 
+        @NotBlank(message = "Vui lòng chọn nhà xuất bản")
         @Size(max = 255, message = "Nhà xuất bản không được vượt quá 255 ký tự")
         String publisher,
 
+        @NotNull(message = "Vui lòng nhập năm xuất bản")
+        @Positive(message = "Năm xuất bản phải lớn hơn 0")
         Integer publicationYear,
 
-        @Size(max = 1000, message = "Mô tả không được vượt quá 1000 ký tự")
+        @NotNull(message = "Vui lòng nhập số trang")
+        @Positive(message = "Số trang phải lớn hơn 0")
+        Integer pageCount,
+
+        @Size(max = 1000, message = "Tóm tắt nội dung không được vượt quá 1000 ký tự")
         String description
 ) {
 }

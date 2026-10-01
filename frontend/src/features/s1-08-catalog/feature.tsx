@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Tags,
   UserRound,
 } from 'lucide-react'
@@ -54,6 +55,13 @@ const feature: FeatureModule = {
       to: '/categories',
       icon: Tags,
       order: 81,
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
+    },
+    {
+      label: 'Đầu sách',
+      to: '/cataloging',
+      icon: BookOpen,
+      order: 82,
       roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],

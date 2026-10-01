@@ -27,6 +27,7 @@ export interface Book {
   id: number
   isbn: string | null
   title: string
+  subtitle: string | null
   authorId: number
   authorName: string
   authorActive: boolean
@@ -35,6 +36,7 @@ export interface Book {
   categoryActive: boolean
   publisher: string | null
   publicationYear: number | null
+  pageCount: number | null
   description: string | null
   createdAt: string
 }
@@ -52,12 +54,13 @@ export interface CategoryForm {
 
 export interface CatalogBookForm {
   title: string
-  authorId?: number
-  authorName?: string
+  subtitle?: string
+  authorId: number
   categoryId: number
   isbn?: string
-  publisher?: string
-  publicationYear?: number
+  publisher: string
+  publicationYear: number
+  pageCount: number
   description?: string
 }
 
@@ -135,6 +138,11 @@ export const catalogService = {
   // --- BOOKS / BIÊN MỤC ---
   getBooks: async (): Promise<Book[]> => {
     const res = await apiClient.get<Book[]>('/books')
+    return res.data
+  },
+
+  getPublisherOptions: async (): Promise<string[]> => {
+    const res = await apiClient.get<string[]>('/books/publishers')
     return res.data
   },
 
