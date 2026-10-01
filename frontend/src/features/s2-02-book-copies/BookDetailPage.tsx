@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
@@ -25,6 +25,8 @@ function locationLabel(copy: BookCopy) {
 
 export default function BookDetailPage() {
   const { bookId } = useParams()
+  const location = useLocation()
+  const successMessage = (location.state as { successMessage?: string } | null)?.successMessage
   const id = Number(bookId)
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [book, setBook] = useState<Book | null>(null)
@@ -112,8 +114,17 @@ export default function BookDetailPage() {
 
       <PageHeader
         title="Chi tiết đầu sách"
-        description="Xem thông tin đầu sách, các bản sao cá biệt và vị trí hiện tại."
+        description="Xem đầy đủ thông tin thư mục của đầu sách và các bản sao cá biệt hiện có."
       />
+
+      {successMessage && (
+        <div
+          role="status"
+          className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+        >
+          {successMessage}
+        </div>
+      )}
 
       {error && (
         <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
@@ -134,6 +145,9 @@ export default function BookDetailPage() {
         <>
           <Card className="p-6">
             <h3 className="text-xl font-semibold text-slate-900">{book.title}</h3>
+            {book.subtitle && (
+              <p className="mt-1 text-sm font-medium text-slate-500">{book.subtitle}</p>
+            )}
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
               {[
                 ['Mã đầu sách', `#${book.id}`],
@@ -142,6 +156,7 @@ export default function BookDetailPage() {
                 ['Thể loại', book.categoryName],
                 ['Nhà xuất bản', book.publisher || 'Chưa ghi nhận'],
                 ['Năm xuất bản', book.publicationYear ?? 'Chưa ghi nhận'],
+                ['Số trang', book.pageCount ?? 'Chưa ghi nhận'],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-slate-500">{label}</dt>
@@ -149,9 +164,12 @@ export default function BookDetailPage() {
                 </div>
               ))}
             </dl>
-            {book.description && (
-              <p className="mt-5 whitespace-pre-wrap text-sm text-slate-600">{book.description}</p>
-            )}
+            <div className="mt-5">
+              <p className="text-sm font-medium text-slate-500">Tóm tắt nội dung</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                {book.description || 'Chưa ghi nhận'}
+              </p>
+            </div>
             {!showForm && (
               <Button className="mt-6" type="button" onClick={() => setShowForm(true)}>
                 Thêm bản sao

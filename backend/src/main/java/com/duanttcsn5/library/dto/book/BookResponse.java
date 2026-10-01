@@ -8,6 +8,7 @@ public record BookResponse(
         Long id,
         String isbn,
         String title,
+        String subtitle,
         Long authorId,
         String authorName,
         boolean authorActive,
@@ -16,6 +17,7 @@ public record BookResponse(
         boolean categoryActive,
         String publisher,
         Integer publicationYear,
+        Integer pageCount,
         String description,
         OffsetDateTime createdAt
 ) {
@@ -24,6 +26,7 @@ public record BookResponse(
                 book.getId(),
                 book.getIsbn(),
                 book.getTitle(),
+                book.getSubtitle(),
                 book.getAuthor() != null ? book.getAuthor().getId() : null,
                 book.getAuthor() != null ? book.getAuthor().getName() : "Không rõ",
                 book.getAuthor() != null && book.getAuthor().isActive(),
@@ -32,6 +35,7 @@ public record BookResponse(
                 book.getCategory() != null && book.getCategory().isActive(),
                 book.getPublisher(),
                 book.getPublicationYear(),
+                book.getPageCount(),
                 book.getDescription(),
                 book.getCreatedAt()
         );
