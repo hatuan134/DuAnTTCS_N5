@@ -28,6 +28,10 @@ export interface BookCopy {
   status: string
   statusLabel: string
 }
+export interface BookCopySummary {
+  copies: BookCopy[]
+  availableCount: number
+}
 export interface CreateBookCopy {
   barcodeMode: BarcodeMode
   barcode?: string
@@ -63,6 +67,9 @@ export const bookCopyService = {
   },
   async getCopiesByBook(bookId: number): Promise<BookCopy[]> {
     return (await apiClient.get<BookCopy[]>(`/books/${bookId}/copies`)).data
+  },
+  async getCopySummary(bookId: number): Promise<BookCopySummary> {
+    return (await apiClient.get<BookCopySummary>(`/books/${bookId}/copies/summary`)).data
   },
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data

@@ -2,6 +2,7 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
+import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.entity.BookCopy;
 import com.duanttcsn5.library.exception.ApiException;
@@ -132,6 +133,19 @@ public class BookCopyService {
         return copies.findAllByBookIdOrderByIdAsc(bookId).stream()
                 .map(BookCopyResponse::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BookCopySummaryResponse getSummaryByBookId(Long bookId) {
+        if (bookId == null || bookId < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ.");
+        }
+        // Count the same snapshot used by the table, without a second database query.
+        List<BookCopyResponse> items = getByBookId(bookId);
+        long availableCount = items.stream()
+                .filter(copy -> "AVAILABLE".equals(copy.status()))
+                .count();
+        return new BookCopySummaryResponse(items, availableCount);
     }
 
     @Transactional(readOnly = true)
