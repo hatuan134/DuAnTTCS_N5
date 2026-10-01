@@ -293,6 +293,87 @@ class BookCatalogServiceTest {
         verify(bookRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("S2-01.4 - Tạo đầu sách với nhan đề mới không cần xác nhận")
+    void catalogBook_NewTitle_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+        when(bookRepository.findAllByNormalizedTitle("Nhan đề hoàn toàn mới")).thenReturn(List.of());
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithTitle("Nhan đề hoàn toàn mới", false), 10L, "127.0.0.1");
+
+        assertEquals("Nhan đề hoàn toàn mới", response.title());
+        verify(bookRepository).findAllByNormalizedTitle("Nhan đề hoàn toàn mới");
+        verify(bookRepository).save(any(Book.class));
+    }
+
+    @Test
+    @DisplayName("S2-01.4 - Cảnh báo và không lưu khi nhan đề đã tồn tại mà chưa xác nhận")
+    void catalogBook_DuplicateTitleWithoutConfirmation_ThrowsConflict() {
+        Author selectedAuthor = activeAuthor(1L, "Nguyễn Nhật Ánh");
+        when(authorRepository.findById(1L)).thenReturn(Optional.of(selectedAuthor));
+        when(categoryRepository.findById(6L)).thenReturn(Optional.of(activeCategory(6L, "Văn học trong nước")));
+        when(bookRepository.existsPublisherInCatalog("NXB Trẻ")).thenReturn(true);
+
+        Book existing = existingBook(55L, "Tôi thấy hoa vàng trên cỏ xanh");
+        when(bookRepository.findAllByNormalizedTitle("Tôi thấy hoa vàng trên cỏ xanh"))
+                .thenReturn(List.of(existing));
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                bookCatalogService.catalogBook(
+                        requestWithTitle("  Tôi thấy hoa vàng trên cỏ xanh  ", false),
+                        10L,
+                        "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("TITLE_ALREADY_EXISTS", ex.getCode());
+        assertEquals("title", ex.getDetails().get("field"));
+        assertEquals("Tôi thấy hoa vàng trên cỏ xanh", ex.getDetails().get("title"));
+        assertTrue(ex.getDetails().containsKey("duplicates"));
+        verify(bookRepository).findAllByNormalizedTitle("Tôi thấy hoa vàng trên cỏ xanh");
+        verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("S2-01.4 - Vẫn tạo đầu sách trùng nhan đề sau khi thủ thư xác nhận")
+    void catalogBook_DuplicateTitleConfirmed_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithTitle("Tôi thấy hoa vàng trên cỏ xanh", true),
+                10L,
+                "127.0.0.1");
+
+        assertEquals("Tôi thấy hoa vàng trên cỏ xanh", response.title());
+        verify(bookRepository, never()).findAllByNormalizedTitle(anyString());
+        verify(bookRepository).save(any(Book.class));
+    }
+
+    private CatalogBookRequest requestWithTitle(String title, boolean confirmDuplicateTitle) {
+        return new CatalogBookRequest(
+                title,
+                "Nhan đề phụ",
+                null,
+                null,
+                6L,
+                null,
+                "NXB Trẻ",
+                2025,
+                320,
+                "Tóm tắt",
+                List.of(1L),
+                confirmDuplicateTitle);
+    }
+
+    private Book existingBook(Long id, String title) {
+        Author author = activeAuthor(9L, "Tác giả hồ sơ cũ");
+        Category category = activeCategory(6L, "Văn học trong nước");
+        Book book = new Book(null, title, "Nhan đề phụ cũ", author, category,
+                "NXB Trẻ", 2020, 280, "Hồ sơ cũ");
+        book.setId(id);
+        return book;
+    }
+
     private CatalogBookRequest requestWithIsbn(String isbn) {
         return new CatalogBookRequest(
                 "Sách kiểm thử ISBN",

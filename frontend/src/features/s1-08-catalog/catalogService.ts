@@ -70,6 +70,7 @@ export interface CatalogBookForm {
   publicationYear: number
   pageCount: number
   description?: string
+  confirmDuplicateTitle?: boolean
 }
 
 export const catalogService = {

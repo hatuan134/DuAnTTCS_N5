@@ -84,8 +84,11 @@ public class BookCatalogService {
                     "Nhà xuất bản '" + publisher + "' chưa có trong danh mục hiện tại. Vui lòng chọn nhà xuất bản có sẵn.");
         }
 
+        String normalizedTitle = request.title().trim();
+        validateDuplicateTitleConfirmation(normalizedTitle, request.confirmDuplicateTitle());
+
         Book book = new Book();
-        book.setTitle(request.title().trim());
+        book.setTitle(normalizedTitle);
         book.setSubtitle(normalizeOptional(request.subtitle()));
         book.setIsbn(isbn);
         // Giữ author_id là tác giả đầu tiên để tương thích dữ liệu/chức năng cũ.
@@ -145,6 +148,32 @@ public class BookCatalogService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE_COUNT",
                     "Số trang phải là số nguyên lớn hơn 0.");
         }
+    }
+
+    private void validateDuplicateTitleConfirmation(String title, Boolean confirmDuplicateTitle) {
+        if (Boolean.TRUE.equals(confirmDuplicateTitle)) {
+            return;
+        }
+
+        List<Book> duplicates = bookRepository.findAllByNormalizedTitle(title);
+        if (duplicates.isEmpty()) {
+            return;
+        }
+
+        List<BookResponse> duplicateResponses = duplicates.stream()
+                .map(BookResponse::fromEntity)
+                .toList();
+
+        throw new ApiException(
+                HttpStatus.CONFLICT,
+                "TITLE_ALREADY_EXISTS",
+                "Nhan đề '" + title + "' đã tồn tại trong hệ thống. Vui lòng kiểm tra hồ sơ cũ hoặc xác nhận vẫn tạo đầu sách mới.",
+                Map.of(
+                        "field", "title",
+                        "title", title,
+                        "duplicates", duplicateResponses,
+                        "matchingRule", "So sánh nhan đề sau khi bỏ khoảng trắng đầu/cuối và không phân biệt chữ hoa/chữ thường."
+                ));
     }
 
     private String validateAndNormalizeIsbn(String rawIsbn) {

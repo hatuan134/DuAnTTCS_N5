@@ -50,6 +50,17 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             """, nativeQuery = true)
     boolean existsByNormalizedIsbn(@Param("isbn") String isbn);
 
+    @Query("""
+            SELECT DISTINCT b
+            FROM Book b
+            LEFT JOIN FETCH b.authors
+            LEFT JOIN FETCH b.author
+            JOIN FETCH b.category
+            WHERE LOWER(TRIM(b.title)) = LOWER(TRIM(:title))
+            ORDER BY b.createdAt ASC
+            """)
+    List<Book> findAllByNormalizedTitle(@Param("title") String title);
+
     boolean existsByCategoryId(Long categoryId);
 
     long countByCategoryId(Long categoryId);
