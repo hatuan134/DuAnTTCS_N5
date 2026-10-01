@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -8,7 +8,7 @@ import type { Book } from '../s1-08-catalog/catalogService'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
 import CreateBookCopyForm from './CreateBookCopyForm'
 import { bookCopyService, copyError } from './bookCopyService'
-import type { BookCopy } from './bookCopyService'
+import type { BookCopy, BookCopySummary } from './bookCopyService'
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa ghi nhận'
@@ -28,17 +28,26 @@ export default function BookDetailPage() {
   const id = Number(bookId)
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [book, setBook] = useState<Book | null>(null)
-  const [copies, setCopies] = useState<BookCopy[]>([])
+  const [summary, setSummary] = useState<BookCopySummary | null>(null)
+  const [refreshError, setRefreshError] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshRef = useRef<() => void>(() => {})
+  const copies = summary?.copies ?? []
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let active = true
+    let pending = false
+    let loadedBook: Book | null = null
     setBook(null)
-    setCopies([])
+    setSummary(null)
     setError('')
+    setRefreshError('')
+    setRefreshing(false)
     setShowForm(false)
+    refreshRef.current = () => {}
 
     if (!allowed) return
     if (!Number.isSafeInteger(id) || id < 1) {
@@ -46,21 +55,47 @@ export default function BookDetailPage() {
       return
     }
 
-    Promise.all([
-      bookCopyService.getBook(id),
-      bookCopyService.getCopiesByBook(id),
-    ])
-      .then(([bookData, copyData]) => {
+    async function refresh() {
+      if (!active || pending) return
+      pending = true
+      setRefreshing(true)
+      try {
+        const [bookData, copySummary] = await Promise.all([
+          loadedBook ? Promise.resolve(loadedBook) : bookCopyService.getBook(id),
+          bookCopyService.getCopySummary(id),
+        ])
         if (!active) return
+        loadedBook = bookData
         setBook(bookData)
-        setCopies(copyData)
-      })
-      .catch((e) => {
-        if (active) setError(copyError(e).message)
-      })
+        // One state update keeps the count and table on the same server snapshot.
+        setSummary(copySummary)
+        setError('')
+        setRefreshError('')
+      } catch (e) {
+        if (!active) return
+        if (loadedBook) setRefreshError(copyError(e).message)
+        else setError(copyError(e).message)
+      } finally {
+        pending = false
+        if (active) setRefreshing(false)
+      }
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    refreshRef.current = () => { void refresh() }
+    void refresh()
+    const timer = window.setInterval(refreshWhenVisible, 10000)
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
 
     return () => {
       active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      refreshRef.current = () => {}
     }
   }, [id, allowed, reload])
 
@@ -95,7 +130,7 @@ export default function BookDetailPage() {
 
       {!error && (!book || book.id !== id) && <p role="status">Đang tải đầu sách…</p>}
 
-      {book && book.id === id && (
+      {book && book.id === id && summary && (
         <>
           <Card className="p-6">
             <h3 className="text-xl font-semibold text-slate-900">{book.title}</h3>
@@ -135,10 +170,40 @@ export default function BookDetailPage() {
 
           <Card className="mt-6 overflow-hidden">
             <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-lg font-semibold text-slate-900">Danh sách bản sao</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-slate-900">Danh sách bản sao</h3>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={refreshing}
+                  onClick={() => refreshRef.current()}
+                >
+                  {refreshing ? 'Đang cập nhật…' : 'Làm mới'}
+                </Button>
+              </div>
               <p className="mt-1 text-sm text-slate-500">
                 Các bản sao thuộc riêng đầu sách này, kèm vị trí và trạng thái hiện tại.
               </p>
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900"
+              >
+                <span className="font-medium">Tổng số bản đang Sẵn sàng:</span>
+                <strong className="text-3xl">{summary.availableCount}</strong>
+                <span className="text-sm">bản có thể cho mượn</span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Tự cập nhật mỗi 10 giây khi đang xem trang và khi quay lại cửa sổ.
+              </p>
+              {refreshError && (
+                <div role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                  Chưa cập nhật được dữ liệu. Bảng và tổng đang hiển thị lần tải thành công gần nhất.
+                  {' '}{refreshError} Nhấn “Làm mới” để thử lại.
+                </div>
+              )}
             </div>
 
             {copies.length === 0 ? (

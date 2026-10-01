@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
+import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.service.BookCopyService;
 import jakarta.validation.Valid;
@@ -38,6 +39,11 @@ public class BookCopyController {
     @GetMapping("/books/{bookId}/copies")
     public ResponseEntity<List<BookCopyResponse>> getByBookId(@PathVariable Long bookId) {
         return ResponseEntity.ok(service.getByBookId(bookId));
+    }
+
+    @GetMapping("/books/{bookId}/copies/summary")
+    public ResponseEntity<BookCopySummaryResponse> getSummaryByBookId(@PathVariable Long bookId) {
+        return ResponseEntity.ok(service.getSummaryByBookId(bookId));
     }
 
     @GetMapping("/book-copies/{id}")
