@@ -189,4 +189,80 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$.message", containsString("Số trang")));
     }
 
+
+    @Test
+    @DisplayName("S2-01.2 - POST /api/v1/books nhận danh sách nhiều tác giả")
+    void catalogBook_MultipleAuthors_Success() throws Exception {
+        BookResponse response = new BookResponse(
+                100L,
+                "978-604-S2-012",
+                "Sách nhiều tác giả",
+                "Nhan đề phụ",
+                1L,
+                "Nguyễn Nhật Ánh",
+                true,
+                List.of(
+                        new BookResponse.BookAuthorResponse(1L, "Nguyễn Nhật Ánh", true),
+                        new BookResponse.BookAuthorResponse(2L, "Nam Cao", true)
+                ),
+                6L,
+                "Văn học trong nước",
+                true,
+                "NXB Trẻ",
+                2025,
+                320,
+                "Tóm tắt",
+                OffsetDateTime.now()
+        );
+
+        when(bookCatalogService.catalogBook(any(CatalogBookRequest.class), any(), any()))
+                .thenReturn(response);
+
+        bookMockMvc.perform(post("/api/v1/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"Sách nhiều tác giả",
+                                  "subtitle":"Nhan đề phụ",
+                                  "authorIds":[1,2],
+                                  "categoryId":6,
+                                  "isbn":"978-604-S2-012",
+                                  "publisher":"NXB Trẻ",
+                                  "publicationYear":2025,
+                                  "pageCount":320,
+                                  "description":"Tóm tắt"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.authors.length()").value(2))
+                .andExpect(jsonPath("$.authors[0].name").value("Nguyễn Nhật Ánh"))
+                .andExpect(jsonPath("$.authors[1].name").value("Nam Cao"));
+    }
+
+    @Test
+    @DisplayName("S2-01.2 - POST /api/v1/books từ chối tác giả trùng lặp")
+    void catalogBook_DuplicateAuthors_ReturnsBadRequest() throws Exception {
+        when(bookCatalogService.catalogBook(any(CatalogBookRequest.class), any(), any()))
+                .thenThrow(new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "DUPLICATE_AUTHOR",
+                        "Không thể chọn cùng một tác giả nhiều lần cho một đầu sách."));
+
+        bookMockMvc.perform(post("/api/v1/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"Sách nhiều tác giả",
+                                  "authorIds":[1,1],
+                                  "categoryId":6,
+                                  "publisher":"NXB Trẻ",
+                                  "publicationYear":2025,
+                                  "pageCount":320
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_AUTHOR"))
+                .andExpect(jsonPath("$.message", containsString("nhiều lần")));
+    }
+
 }

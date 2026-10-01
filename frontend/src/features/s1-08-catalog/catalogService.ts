@@ -23,14 +23,22 @@ export interface Category {
   updatedAt: string
 }
 
+export interface BookAuthor {
+  id: number
+  name: string
+  active: boolean
+}
+
 export interface Book {
   id: number
   isbn: string | null
   title: string
   subtitle: string | null
-  authorId: number
+  // Ba trường dưới được giữ để tương thích response cũ.
+  authorId: number | null
   authorName: string
   authorActive: boolean
+  authors: BookAuthor[]
   categoryId: number
   categoryName: string
   categoryActive: boolean
@@ -55,7 +63,7 @@ export interface CategoryForm {
 export interface CatalogBookForm {
   title: string
   subtitle?: string
-  authorId: number
+  authorIds: number[]
   categoryId: number
   isbn?: string
   publisher: string

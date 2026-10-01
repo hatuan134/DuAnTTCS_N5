@@ -7,10 +7,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "books")
@@ -29,9 +34,21 @@ public class Book {
     @Column(length = 255)
     private String subtitle;
 
+    /**
+     * Cột author_id cũ được giữ lại để tương thích dữ liệu/chức năng đã có.
+     * Từ S2-01.2, danh sách authors trong bảng book_authors là nguồn đầy đủ cho nhiều tác giả.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private Author author;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "book_authors",
+            joinColumns = @JoinColumn(name = "book_id"),
+            inverseJoinColumns = @JoinColumn(name = "author_id")
+    )
+    private Set<Author> authors = new LinkedHashSet<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
@@ -68,7 +85,7 @@ public class Book {
         this.isbn = isbn;
         this.title = title;
         this.subtitle = subtitle;
-        this.author = author;
+        setAuthor(author);
         this.category = category;
         this.publisher = publisher;
         this.publicationYear = publicationYear;
@@ -114,6 +131,20 @@ public class Book {
 
     public void setAuthor(Author author) {
         this.author = author;
+        if (author != null && authors.isEmpty()) {
+            authors.add(author);
+        }
+    }
+
+    public Set<Author> getAuthors() {
+        return authors;
+    }
+
+    public void setAuthors(Collection<Author> authors) {
+        this.authors.clear();
+        if (authors != null) {
+            this.authors.addAll(authors);
+        }
     }
 
     public Category getCategory() {

@@ -1,9 +1,11 @@
 package com.duanttcsn5.library.dto.book;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
+
+import java.util.List;
 
 public record CatalogBookRequest(
         @NotBlank(message = "Nhan đề không được để trống")
@@ -13,6 +15,7 @@ public record CatalogBookRequest(
         @Size(max = 255, message = "Nhan đề phụ không được vượt quá 255 ký tự")
         String subtitle,
 
+        // Giữ authorId/authorName để tương thích API cũ. Frontend S2-01.2 gửi authorIds.
         Long authorId,
 
         @Size(max = 255, message = "Tên tác giả không được vượt quá 255 ký tự")
@@ -37,6 +40,26 @@ public record CatalogBookRequest(
         Integer pageCount,
 
         @Size(max = 1000, message = "Tóm tắt nội dung không được vượt quá 1000 ký tự")
-        String description
+        String description,
+
+        List<Long> authorIds
 ) {
+    /**
+     * Constructor tương thích các test/client Java cũ của S2-01.1.
+     */
+    public CatalogBookRequest(
+            String title,
+            String subtitle,
+            Long authorId,
+            String authorName,
+            Long categoryId,
+            String isbn,
+            String publisher,
+            Integer publicationYear,
+            Integer pageCount,
+            String description
+    ) {
+        this(title, subtitle, authorId, authorName, categoryId, isbn, publisher,
+                publicationYear, pageCount, description, null);
+    }
 }

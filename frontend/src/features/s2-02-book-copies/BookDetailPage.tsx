@@ -152,7 +152,12 @@ export default function BookDetailPage() {
               {[
                 ['Mã đầu sách', `#${book.id}`],
                 ['ISBN', book.isbn || 'Chưa ghi nhận'],
-                ['Tác giả', book.authorName],
+                [
+                  'Tác giả',
+                  (book.authors?.length
+                    ? book.authors.map((author) => author.name).join(', ')
+                    : book.authorName) || 'Chưa ghi nhận',
+                ],
                 ['Thể loại', book.categoryName],
                 ['Nhà xuất bản', book.publisher || 'Chưa ghi nhận'],
                 ['Năm xuất bản', book.publicationYear ?? 'Chưa ghi nhận'],
