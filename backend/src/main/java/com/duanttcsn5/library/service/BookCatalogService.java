@@ -9,6 +9,7 @@ import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.AuthorRepository;
 import com.duanttcsn5.library.repository.BookRepository;
+import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.CategoryRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,15 +31,18 @@ public class BookCatalogService {
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final BookRepository bookRepository;
+    private final BookCopyRepository bookCopyRepository;
     private final AuthorRepository authorRepository;
     private final CategoryRepository categoryRepository;
     private final AuditLogRepository auditLogRepository;
 
     public BookCatalogService(BookRepository bookRepository,
+                              BookCopyRepository bookCopyRepository,
                               AuthorRepository authorRepository,
                               CategoryRepository categoryRepository,
                               AuditLogRepository auditLogRepository) {
         this.bookRepository = bookRepository;
+        this.bookCopyRepository = bookCopyRepository;
         this.authorRepository = authorRepository;
         this.categoryRepository = categoryRepository;
         this.auditLogRepository = auditLogRepository;
@@ -45,8 +50,18 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public List<BookResponse> getAllBooks() {
+        Map<Long, Long> copyCounts = loadCopyCounts();
         return bookRepository.findAllWithAuthorAndCategory().stream()
-                .map(BookResponse::fromEntity)
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookResponse> getPublicBooks() {
+        Map<Long, Long> copyCounts = loadCopyCounts();
+        return bookRepository.findAllPublicWithAuthorAndCategory().stream()
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .filter(BookResponse::hasCopies)
                 .toList();
     }
 
@@ -57,8 +72,9 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public BookResponse getById(Long id) {
-        return BookResponse.fromEntity(bookRepository.findById(id).orElseThrow(() ->
-                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.")));
+        Book book = bookRepository.findById(id).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        return BookResponse.fromEntity(book, bookCopyRepository.countByBookId(id));
     }
 
     @Transactional
@@ -84,8 +100,11 @@ public class BookCatalogService {
                     "Nhà xuất bản '" + publisher + "' chưa có trong danh mục hiện tại. Vui lòng chọn nhà xuất bản có sẵn.");
         }
 
+        String normalizedTitle = request.title().trim();
+        validateDuplicateTitleConfirmation(normalizedTitle, request.confirmDuplicateTitle());
+
         Book book = new Book();
-        book.setTitle(request.title().trim());
+        book.setTitle(normalizedTitle);
         book.setSubtitle(normalizeOptional(request.subtitle()));
         book.setIsbn(isbn);
         // Giữ author_id là tác giả đầu tiên để tương thích dữ liệu/chức năng cũ.
@@ -114,7 +133,19 @@ public class BookCatalogService {
                 ipAddress
         );
 
-        return BookResponse.fromEntity(saved);
+        // Đầu sách vừa biên mục chưa có bản sao; trạng thái được suy ra trực tiếp từ book_copies.
+        return BookResponse.fromEntity(saved, 0L);
+    }
+
+    private Map<Long, Long> loadCopyCounts() {
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : bookCopyRepository.countAllGroupedByBookId()) {
+            if (row == null || row.length < 2 || !(row[0] instanceof Number bookId) || !(row[1] instanceof Number count)) {
+                continue;
+            }
+            result.put(bookId.longValue(), count.longValue());
+        }
+        return result;
     }
 
     private void validateBasicBibliographicData(CatalogBookRequest request) {
@@ -145,6 +176,32 @@ public class BookCatalogService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE_COUNT",
                     "Số trang phải là số nguyên lớn hơn 0.");
         }
+    }
+
+    private void validateDuplicateTitleConfirmation(String title, Boolean confirmDuplicateTitle) {
+        if (Boolean.TRUE.equals(confirmDuplicateTitle)) {
+            return;
+        }
+
+        List<Book> duplicates = bookRepository.findAllByNormalizedTitle(title);
+        if (duplicates.isEmpty()) {
+            return;
+        }
+
+        List<BookResponse> duplicateResponses = duplicates.stream()
+                .map(BookResponse::fromEntity)
+                .toList();
+
+        throw new ApiException(
+                HttpStatus.CONFLICT,
+                "TITLE_ALREADY_EXISTS",
+                "Nhan đề '" + title + "' đã tồn tại trong hệ thống. Vui lòng kiểm tra hồ sơ cũ hoặc xác nhận vẫn tạo đầu sách mới.",
+                Map.of(
+                        "field", "title",
+                        "title", title,
+                        "duplicates", duplicateResponses,
+                        "matchingRule", "So sánh nhan đề sau khi bỏ khoảng trắng đầu/cuối và không phân biệt chữ hoa/chữ thường."
+                ));
     }
 
     private String validateAndNormalizeIsbn(String rawIsbn) {

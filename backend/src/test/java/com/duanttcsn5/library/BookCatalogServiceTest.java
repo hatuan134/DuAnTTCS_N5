@@ -9,6 +9,7 @@ import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.AuthorRepository;
 import com.duanttcsn5.library.repository.BookRepository;
+import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.CategoryRepository;
 import com.duanttcsn5.library.service.BookCatalogService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -42,6 +44,9 @@ class BookCatalogServiceTest {
     private BookRepository bookRepository;
 
     @Mock
+    private BookCopyRepository bookCopyRepository;
+
+    @Mock
     private AuthorRepository authorRepository;
 
     @Mock
@@ -56,6 +61,7 @@ class BookCatalogServiceTest {
     void setUp() {
         bookCatalogService = new BookCatalogService(
                 bookRepository,
+                bookCopyRepository,
                 authorRepository,
                 categoryRepository,
                 auditLogRepository);
@@ -291,6 +297,143 @@ class BookCatalogServiceTest {
         assertEquals("isbn", ex.getDetails().get("field"));
         assertEquals("9786041234567", ex.getDetails().get("isbn"));
         verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("S2-01.4 - Tạo đầu sách với nhan đề mới không cần xác nhận")
+    void catalogBook_NewTitle_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+        when(bookRepository.findAllByNormalizedTitle("Nhan đề hoàn toàn mới")).thenReturn(List.of());
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithTitle("Nhan đề hoàn toàn mới", false), 10L, "127.0.0.1");
+
+        assertEquals("Nhan đề hoàn toàn mới", response.title());
+        verify(bookRepository).findAllByNormalizedTitle("Nhan đề hoàn toàn mới");
+        verify(bookRepository).save(any(Book.class));
+    }
+
+    @Test
+    @DisplayName("S2-01.4 - Cảnh báo và không lưu khi nhan đề đã tồn tại mà chưa xác nhận")
+    void catalogBook_DuplicateTitleWithoutConfirmation_ThrowsConflict() {
+        Author selectedAuthor = activeAuthor(1L, "Nguyễn Nhật Ánh");
+        when(authorRepository.findById(1L)).thenReturn(Optional.of(selectedAuthor));
+        when(categoryRepository.findById(6L)).thenReturn(Optional.of(activeCategory(6L, "Văn học trong nước")));
+        when(bookRepository.existsPublisherInCatalog("NXB Trẻ")).thenReturn(true);
+
+        Book existing = existingBook(55L, "Tôi thấy hoa vàng trên cỏ xanh");
+        when(bookRepository.findAllByNormalizedTitle("Tôi thấy hoa vàng trên cỏ xanh"))
+                .thenReturn(List.of(existing));
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                bookCatalogService.catalogBook(
+                        requestWithTitle("  Tôi thấy hoa vàng trên cỏ xanh  ", false),
+                        10L,
+                        "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("TITLE_ALREADY_EXISTS", ex.getCode());
+        assertEquals("title", ex.getDetails().get("field"));
+        assertEquals("Tôi thấy hoa vàng trên cỏ xanh", ex.getDetails().get("title"));
+        assertTrue(ex.getDetails().containsKey("duplicates"));
+        verify(bookRepository).findAllByNormalizedTitle("Tôi thấy hoa vàng trên cỏ xanh");
+        verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("S2-01.4 - Vẫn tạo đầu sách trùng nhan đề sau khi thủ thư xác nhận")
+    void catalogBook_DuplicateTitleConfirmed_Success() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithTitle("Tôi thấy hoa vàng trên cỏ xanh", true),
+                10L,
+                "127.0.0.1");
+
+        assertEquals("Tôi thấy hoa vàng trên cỏ xanh", response.title());
+        verify(bookRepository, never()).findAllByNormalizedTitle(anyString());
+        verify(bookRepository).save(any(Book.class));
+    }
+
+
+    @Test
+    @DisplayName("S2-01.5 - Đầu sách vừa tạo có số lượng bản sao bằng 0")
+    void catalogBook_NewBookStartsWithoutCopies() {
+        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
+
+        BookResponse response = bookCatalogService.catalogBook(
+                requestWithTitle("Đầu sách chưa có bản sao", true),
+                10L,
+                "127.0.0.1");
+
+        assertEquals(0L, response.copyCount());
+        assertFalse(response.hasCopies());
+    }
+
+    @Test
+    @DisplayName("S2-01.5 - Khu vực quản lý vẫn trả về đầu sách chưa có bản sao và đánh dấu đúng")
+    void getAllBooks_StillIncludesBooksWithoutCopies() {
+        Book withoutCopy = existingBook(201L, "Đầu sách chưa có bản sao");
+        Book withCopy = existingBook(202L, "Đầu sách đã có bản sao");
+
+        when(bookRepository.findAllWithAuthorAndCategory()).thenReturn(List.of(withoutCopy, withCopy));
+        when(bookCopyRepository.countAllGroupedByBookId())
+                .thenReturn(List.<Object[]>of(new Object[]{202L, 2L}));
+
+        List<BookResponse> result = bookCatalogService.getAllBooks();
+
+        assertEquals(2, result.size());
+        BookResponse noCopy = result.stream().filter(item -> item.id().equals(201L)).findFirst().orElseThrow();
+        BookResponse hasCopy = result.stream().filter(item -> item.id().equals(202L)).findFirst().orElseThrow();
+
+        assertEquals(0L, noCopy.copyCount());
+        assertFalse(noCopy.hasCopies());
+        assertEquals(2L, hasCopy.copyCount());
+        assertTrue(hasCopy.hasCopies());
+    }
+
+    @Test
+    @DisplayName("S2-01.5 - Tra cứu công khai chỉ dùng danh sách đầu sách đã có bản sao")
+    void getPublicBooks_ReturnsOnlyPubliclySearchableBooks() {
+        Book visible = existingBook(301L, "Đầu sách công khai");
+
+        when(bookRepository.findAllPublicWithAuthorAndCategory()).thenReturn(List.of(visible));
+        when(bookCopyRepository.countAllGroupedByBookId())
+                .thenReturn(List.<Object[]>of(new Object[]{301L, 1L}));
+
+        List<BookResponse> result = bookCatalogService.getPublicBooks();
+
+        assertEquals(1, result.size());
+        assertEquals(301L, result.get(0).id());
+        assertEquals(1L, result.get(0).copyCount());
+        assertTrue(result.get(0).hasCopies());
+        verify(bookRepository).findAllPublicWithAuthorAndCategory();
+        verify(bookRepository, never()).findAllWithAuthorAndCategory();
+    }
+
+    private CatalogBookRequest requestWithTitle(String title, boolean confirmDuplicateTitle) {
+        return new CatalogBookRequest(
+                title,
+                "Nhan đề phụ",
+                null,
+                null,
+                6L,
+                null,
+                "NXB Trẻ",
+                2025,
+                320,
+                "Tóm tắt",
+                List.of(1L),
+                confirmDuplicateTitle);
+    }
+
+    private Book existingBook(Long id, String title) {
+        Author author = activeAuthor(9L, "Tác giả hồ sơ cũ");
+        Category category = activeCategory(6L, "Văn học trong nước");
+        Book book = new Book(null, title, "Nhan đề phụ cũ", author, category,
+                "NXB Trẻ", 2020, 280, "Hồ sơ cũ");
+        book.setId(id);
+        return book;
     }
 
     private CatalogBookRequest requestWithIsbn(String isbn) {

@@ -21,6 +21,25 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             """)
     List<Book> findAllWithAuthorAndCategory();
 
+    /**
+     * Tra cứu công khai chỉ trả về đầu sách đã có ít nhất một bản sao.
+     * Điều kiện nằm ở backend để client public không thể lấy đầu sách 0 bản sao.
+     */
+    @Query("""
+            SELECT DISTINCT b
+            FROM Book b
+            LEFT JOIN FETCH b.authors
+            LEFT JOIN FETCH b.author
+            JOIN FETCH b.category
+            WHERE EXISTS (
+                SELECT bc.id
+                FROM BookCopy bc
+                WHERE bc.book = b
+            )
+            ORDER BY b.createdAt DESC
+            """)
+    List<Book> findAllPublicWithAuthorAndCategory();
+
     @Query(value = """
             SELECT DISTINCT BTRIM(publisher)
             FROM books
@@ -49,6 +68,17 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             )
             """, nativeQuery = true)
     boolean existsByNormalizedIsbn(@Param("isbn") String isbn);
+
+    @Query("""
+            SELECT DISTINCT b
+            FROM Book b
+            LEFT JOIN FETCH b.authors
+            LEFT JOIN FETCH b.author
+            JOIN FETCH b.category
+            WHERE LOWER(TRIM(b.title)) = LOWER(TRIM(:title))
+            ORDER BY b.createdAt ASC
+            """)
+    List<Book> findAllByNormalizedTitle(@Param("title") String title);
 
     boolean existsByCategoryId(Long categoryId);
 

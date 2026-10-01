@@ -572,6 +572,15 @@ export default function LoginPage() {
               </Link>
             </div>
 
+            <div className="mt-3 text-center text-sm">
+              <Link
+                to="/catalog"
+                className="font-semibold text-emerald-700 transition hover:text-emerald-800"
+              >
+                Tra cứu đầu sách công khai
+              </Link>
+            </div>
+
             <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
               <CheckCircle2
                 size={14}
