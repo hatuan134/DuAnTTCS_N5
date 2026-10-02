@@ -136,6 +136,14 @@ class UserManagementControllerTest {
     }
 
     @Test
+    @DisplayName("Admin xóa tài khoản thành công => HTTP 204 No Content")
+    void testDeleteAccount_Success() throws Exception {
+        adminMockMvc.perform(delete("/api/v1/admin/accounts/10"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+    }
+
+    @Test
     @DisplayName("Validate token mật khẩu lần đầu hợp lệ => HTTP 200 OK")
     void testValidateInitialPasswordToken_Valid() throws Exception {
         when(initialPasswordService.validateToken("valid-token"))

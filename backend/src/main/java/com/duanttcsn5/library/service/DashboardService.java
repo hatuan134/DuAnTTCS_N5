@@ -26,7 +26,7 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardStatsResponse getStats() {
         return new DashboardStatsResponse(
-                userRepository.count(),
+                userRepository.countExistingAccounts(),
                 userRepository.countActiveReaders(),
                 libraryCardRepository.count(),
                 readerProfileRepository.countByRegistrationStatus("PENDING")

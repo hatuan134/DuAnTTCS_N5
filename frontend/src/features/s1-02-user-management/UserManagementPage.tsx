@@ -326,7 +326,7 @@ export default function UserManagementPage() {
     if (currentUser?.id === account.id) return
 
     const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa tài khoản ${account.email}? Tài khoản sẽ bị ngừng hoạt động và các phiên đăng nhập hiện tại sẽ bị thu hồi.`,
+      `Bạn có chắc muốn xóa vĩnh viễn tài khoản ${account.email}? Dữ liệu đăng nhập của tài khoản sẽ bị xóa và email này có thể được dùng để tạo tài khoản mới.`,
     )
     if (!confirmed) return
 
@@ -336,7 +336,7 @@ export default function UserManagementPage() {
     try {
       await deleteAccount(account.id)
       setAccounts((current) => current.filter((item) => item.id !== account.id))
-      setSuccess(`Đã xóa tài khoản ${account.email} khỏi danh sách quản lý.`)
+      setSuccess(`Đã xóa tài khoản ${account.email} thành công.`)
     } catch (requestError) {
       setError(
         getApiErrorMessage(

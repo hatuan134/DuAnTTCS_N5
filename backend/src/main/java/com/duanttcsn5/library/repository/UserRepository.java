@@ -28,6 +28,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("select u from User u join fetch u.role order by u.createdAt desc")
     java.util.List<User> findAllWithRole();
 
+    @Query("select count(u) from User u where upper(u.status) <> 'DISABLED'")
+    long countExistingAccounts();
+
     @Query("select count(u) from User u join u.role r where r.code = 'READER' and u.status = 'ACTIVE'")
     long countActiveReaders();
 }
