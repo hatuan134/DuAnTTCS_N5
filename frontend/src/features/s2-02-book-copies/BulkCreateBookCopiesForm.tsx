@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { librarySettingsService } from '../s1-09-library-config/librarySettingsService'
 import type { ShelfItem, WarehouseItem } from '../s1-09-library-config/librarySettingsService'
-import type { BulkBarcodePreview } from './bookCopyService'
+import type { BulkBarcodePreview, BulkCreateBookCopiesResult } from './bookCopyService'
 import { bookCopyService, copyError, todayInVietnam, validReceivedDate } from './bookCopyService'
 
 export default function BulkCreateBookCopiesForm({
@@ -16,7 +16,7 @@ export default function BulkCreateBookCopiesForm({
   bookId: number
   bookTitle: string
   onCancel: () => void
-  onCreated: (createdCount: number) => void
+  onCreated: (result: BulkCreateBookCopiesResult) => void
 }) {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
   const [shelves, setShelves] = useState<ShelfItem[]>([])
@@ -69,7 +69,7 @@ export default function BulkCreateBookCopiesForm({
 
   useEffect(() => {
     let active = true
-    let lastStart: number | undefined
+    let lastPreview: string | undefined
     let pending = false
     setPreview(null)
     setPreviewError('')
@@ -82,8 +82,9 @@ export default function BulkCreateBookCopiesForm({
       try {
         const result = await bookCopyService.previewBulk(bookId, count)
         if (!active || submitting.current) return
-        if (lastStart !== undefined && lastStart !== result.startNumber) setReviewing(false)
-        lastStart = result.startNumber
+        const signature = JSON.stringify(result)
+        if (lastPreview !== undefined && lastPreview !== signature) setReviewing(false)
+        lastPreview = signature
         setPreview(result)
         setPreviewKey(formKey)
         setPreviewError('')
@@ -154,11 +155,12 @@ export default function BulkCreateBookCopiesForm({
         quantity: parsedQuantity,
         confirmed: true,
         expectedStartNumber: currentPreview.startNumber,
+        expectedSkippedBarcodes: currentPreview.skippedBarcodes,
         warehouseId: Number(warehouseId),
         shelfId: Number(shelfId),
         receivedDate,
       })
-      if (mounted.current) onCreated(result.createdCount)
+      if (mounted.current) onCreated(result)
     } catch (failure) {
       if (mounted.current) {
         setError(copyError(failure).message)
@@ -273,11 +275,16 @@ export default function BulkCreateBookCopiesForm({
         </fieldset>
 
         <div aria-live="polite" className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-slate-800">
-          <h4 className="font-semibold">Khoảng mã vạch dự kiến</h4>
+          <h4 className="font-semibold">Khoảng mã thực tế dự kiến sau khi bỏ qua mã trùng</h4>
           {currentPreview ? <>
             <p className="mt-2">Mã bắt đầu: <strong>{currentPreview.startBarcode}</strong></p>
             <p>Mã kết thúc: <strong>{currentPreview.endBarcode}</strong></p>
             <p>Số lượng mã: <strong>{currentPreview.quantity}</strong></p>
+            <p className="mt-2 font-medium">Mã đã tồn tại sẽ bỏ qua ({currentPreview.skippedBarcodes.length}):</p>
+            <p className="max-h-40 overflow-y-auto break-words">
+              {currentPreview.skippedBarcodes.length ? currentPreview.skippedBarcodes.join(', ') : 'Không có mã trùng.'}
+            </p>
+            <p className="mt-2">Khoảng mã trên không bao gồm các mã bị bỏ qua; vẫn tạo đủ {currentPreview.quantity} bản sao.</p>
             <p className="mt-2">Khoảng mã chưa được giữ chỗ; hệ thống kiểm tra lại khi xác nhận.</p>
           </> : <p>{previewError || 'Nhập số lượng từ 1 đến 50 để xem khoảng mã dự kiến.'}</p>}
           <Button type="button" variant="secondary" disabled={saving} onClick={() => setRefresh(value => value + 1)}>Cập nhật khoảng mã</Button>

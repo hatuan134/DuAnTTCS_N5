@@ -28,8 +28,13 @@ public record BulkCreateBookCopiesRequest(
         @NotNull(message = "Vui lòng nhập ngày nhập.")
         LocalDate receivedDate,
         Boolean confirmed,
-        Long expectedStartNumber
+        Long expectedStartNumber,
+        java.util.List<String> expectedSkippedBarcodes
 ) {
+    public BulkCreateBookCopiesRequest(BigDecimal quantity, Long warehouseId, Long shelfId,
+            LocalDate receivedDate, Boolean confirmed, Long expectedStartNumber) {
+        this(quantity, warehouseId, shelfId, receivedDate, confirmed, expectedStartNumber, java.util.List.of());
+    }
     public BulkCreateBookCopiesRequest(BigDecimal quantity, Long warehouseId, Long shelfId, LocalDate receivedDate) {
         this(quantity, warehouseId, shelfId, receivedDate, false, null);
     }
