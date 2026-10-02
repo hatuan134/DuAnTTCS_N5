@@ -9,6 +9,7 @@ import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.AuthorRepository;
 import com.duanttcsn5.library.repository.BookRepository;
+import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.CategoryRepository;
 import com.duanttcsn5.library.service.BookCatalogService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -42,6 +44,9 @@ class BookCatalogServiceTest {
     private BookRepository bookRepository;
 
     @Mock
+    private BookCopyRepository bookCopyRepository;
+
+    @Mock
     private AuthorRepository authorRepository;
 
     @Mock
@@ -56,6 +61,7 @@ class BookCatalogServiceTest {
     void setUp() {
         bookCatalogService = new BookCatalogService(
                 bookRepository,
+                bookCopyRepository,
                 authorRepository,
                 categoryRepository,
                 auditLogRepository);

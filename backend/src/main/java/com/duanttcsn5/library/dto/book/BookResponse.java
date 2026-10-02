@@ -26,11 +26,62 @@ public record BookResponse(
         Integer publicationYear,
         Integer pageCount,
         String description,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        long copyCount,
+        boolean hasCopies
 ) {
+    /**
+     * Constructor tương thích với các call-site/test cũ trước S2-01.5.
+     * Khi không truyền số bản sao, mặc định đầu sách chưa có bản sao.
+     */
+    public BookResponse(
+            Long id,
+            String isbn,
+            String title,
+            String subtitle,
+            Long authorId,
+            String authorName,
+            boolean authorActive,
+            List<BookAuthorResponse> authors,
+            Long categoryId,
+            String categoryName,
+            boolean categoryActive,
+            String publisher,
+            Integer publicationYear,
+            Integer pageCount,
+            String description,
+            OffsetDateTime createdAt
+    ) {
+        this(
+                id,
+                isbn,
+                title,
+                subtitle,
+                authorId,
+                authorName,
+                authorActive,
+                authors,
+                categoryId,
+                categoryName,
+                categoryActive,
+                publisher,
+                publicationYear,
+                pageCount,
+                description,
+                createdAt,
+                0L,
+                false
+        );
+    }
+
     public static BookResponse fromEntity(Book book) {
+        return fromEntity(book, 0L);
+    }
+
+    public static BookResponse fromEntity(Book book, long copyCount) {
         List<BookAuthorResponse> authorResponses = toAuthorResponses(book);
         BookAuthorResponse primary = resolvePrimaryAuthor(book, authorResponses);
+        long normalizedCopyCount = Math.max(0L, copyCount);
 
         return new BookResponse(
                 book.getId(),
@@ -48,7 +99,9 @@ public record BookResponse(
                 book.getPublicationYear(),
                 book.getPageCount(),
                 book.getDescription(),
-                book.getCreatedAt()
+                book.getCreatedAt(),
+                normalizedCopyCount,
+                normalizedCopyCount > 0
         );
     }
 

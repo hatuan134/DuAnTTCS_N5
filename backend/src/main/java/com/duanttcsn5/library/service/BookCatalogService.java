@@ -9,6 +9,7 @@ import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.AuthorRepository;
 import com.duanttcsn5.library.repository.BookRepository;
+import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.CategoryRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,15 +31,18 @@ public class BookCatalogService {
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final BookRepository bookRepository;
+    private final BookCopyRepository bookCopyRepository;
     private final AuthorRepository authorRepository;
     private final CategoryRepository categoryRepository;
     private final AuditLogRepository auditLogRepository;
 
     public BookCatalogService(BookRepository bookRepository,
+                              BookCopyRepository bookCopyRepository,
                               AuthorRepository authorRepository,
                               CategoryRepository categoryRepository,
                               AuditLogRepository auditLogRepository) {
         this.bookRepository = bookRepository;
+        this.bookCopyRepository = bookCopyRepository;
         this.authorRepository = authorRepository;
         this.categoryRepository = categoryRepository;
         this.auditLogRepository = auditLogRepository;
@@ -45,8 +50,18 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public List<BookResponse> getAllBooks() {
+        Map<Long, Long> copyCounts = loadCopyCounts();
         return bookRepository.findAllWithAuthorAndCategory().stream()
-                .map(BookResponse::fromEntity)
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookResponse> getPublicBooks() {
+        Map<Long, Long> copyCounts = loadCopyCounts();
+        return bookRepository.findAllPublicWithAuthorAndCategory().stream()
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .filter(BookResponse::hasCopies)
                 .toList();
     }
 
@@ -57,8 +72,9 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public BookResponse getById(Long id) {
-        return BookResponse.fromEntity(bookRepository.findById(id).orElseThrow(() ->
-                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.")));
+        Book book = bookRepository.findById(id).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        return BookResponse.fromEntity(book, bookCopyRepository.countByBookId(id));
     }
 
     @Transactional
@@ -117,7 +133,19 @@ public class BookCatalogService {
                 ipAddress
         );
 
-        return BookResponse.fromEntity(saved);
+        // Đầu sách vừa biên mục chưa có bản sao; trạng thái được suy ra trực tiếp từ book_copies.
+        return BookResponse.fromEntity(saved, 0L);
+    }
+
+    private Map<Long, Long> loadCopyCounts() {
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : bookCopyRepository.countAllGroupedByBookId()) {
+            if (row == null || row.length < 2 || !(row[0] instanceof Number bookId) || !(row[1] instanceof Number count)) {
+                continue;
+            }
+            result.put(bookId.longValue(), count.longValue());
+        }
+        return result;
     }
 
     private void validateBasicBibliographicData(CatalogBookRequest request) {

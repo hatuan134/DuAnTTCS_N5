@@ -47,6 +47,8 @@ export interface Book {
   pageCount: number | null
   description: string | null
   createdAt: string
+  copyCount: number
+  hasCopies: boolean
 }
 
 export interface AuthorForm {
@@ -147,6 +149,11 @@ export const catalogService = {
   // --- BOOKS / BIÊN MỤC ---
   getBooks: async (): Promise<Book[]> => {
     const res = await apiClient.get<Book[]>('/books')
+    return res.data
+  },
+
+  getPublicBooks: async (): Promise<Book[]> => {
+    const res = await apiClient.get<Book[]>('/books/public')
     return res.data
   },
 

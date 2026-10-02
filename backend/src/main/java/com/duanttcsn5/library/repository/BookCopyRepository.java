@@ -24,6 +24,15 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     List<BookCopy> findAllByBookIdOrderByIdAsc(Long bookId);
 
+    long countByBookId(Long bookId);
+
+    @Query("""
+            SELECT bc.book.id, COUNT(bc.id)
+            FROM BookCopy bc
+            GROUP BY bc.book.id
+            """)
+    List<Object[]> countAllGroupedByBookId();
+
     @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
     Long nextAutoBarcodeNumber();
 

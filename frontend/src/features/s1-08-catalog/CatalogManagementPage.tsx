@@ -1822,8 +1822,19 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                     <BookOpen size={18} />
                   </div>
                   <div>
-                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
-                    <div className="mt-1 text-xs text-slate-500">Nhấn tên sách để xem chi tiết và thêm bản sao</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+                      {!book.hasCopies && (
+                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          Chưa có bản sao
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {book.hasCopies
+                        ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
+                        : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
+                    </div>
                     <div className="text-xs text-slate-500">
                       {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                     </div>
