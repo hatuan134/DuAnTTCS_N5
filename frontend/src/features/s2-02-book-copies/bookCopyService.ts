@@ -62,9 +62,13 @@ export interface BulkBarcodePreview {
   startBarcode: string
   endBarcode: string
   quantity: number
+  skippedBarcodes: string[]
 }
 export interface BulkCreateBookCopiesResult {
   createdCount: number
+  startBarcode: string
+  endBarcode: string
+  skippedBarcodes: string[]
 }
 export interface UpdateBookCopy {
   warehouseId: number
@@ -119,7 +123,7 @@ export const bookCopyService = {
   async previewBulk(bookId: number, quantity: number): Promise<BulkBarcodePreview> {
     return (await apiClient.get<BulkBarcodePreview>(`/books/${bookId}/copies/bulk/preview`, { params: { quantity } })).data
   },
-  async createBulk(bookId: number, data: BulkCreateBookCopies & { confirmed: true; expectedStartNumber: number }): Promise<BulkCreateBookCopiesResult> {
+  async createBulk(bookId: number, data: BulkCreateBookCopies & { confirmed: true; expectedStartNumber: number; expectedSkippedBarcodes: string[] }): Promise<BulkCreateBookCopiesResult> {
     return (await apiClient.post<BulkCreateBookCopiesResult>(`/books/${bookId}/copies/bulk`, data)).data
   },
   async update(id: number, data: UpdateBookCopy): Promise<BookCopy> {

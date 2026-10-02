@@ -9,7 +9,7 @@ import BookCopyStatusBadge from './BookCopyStatusBadge'
 import BulkCreateBookCopiesForm from './BulkCreateBookCopiesForm'
 import CreateBookCopyForm from './CreateBookCopyForm'
 import { bookCopyService, copyError } from './bookCopyService'
-import type { BookCopy, BookCopySummary } from './bookCopyService'
+import type { BookCopy, BookCopySummary, BulkCreateBookCopiesResult } from './bookCopyService'
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa ghi nhận'
@@ -39,7 +39,7 @@ export default function BookDetailPage() {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showBulkForm, setShowBulkForm] = useState(false)
-  const [bulkSuccess, setBulkSuccess] = useState('')
+  const [bulkSuccess, setBulkSuccess] = useState<BulkCreateBookCopiesResult | null>(null)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -105,6 +105,8 @@ export default function BookDetailPage() {
     }
   }, [id, allowed, reload])
 
+  useEffect(() => { setBulkSuccess(null) }, [id])
+
   if (!allowed) return <p role="alert">Bạn không có quyền truy cập chức năng này.</p>
 
   return (
@@ -126,7 +128,14 @@ export default function BookDetailPage() {
           role="status"
           className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
         >
-          {bulkSuccess || successMessage}
+          {bulkSuccess ? <>
+            <p>Đã tạo thành công {bulkSuccess.createdCount} bản sao.</p>
+            <p>Khoảng mã đã sử dụng: {bulkSuccess.startBarcode} — {bulkSuccess.endBarcode} (trừ các mã bỏ qua).</p>
+            <p className="mt-2">Mã đã bỏ qua ({bulkSuccess.skippedBarcodes.length}):</p>
+            <p className="max-h-40 overflow-y-auto break-words">
+              {bulkSuccess.skippedBarcodes.length ? bulkSuccess.skippedBarcodes.join(', ') : 'Không có mã trùng.'}
+            </p>
+          </> : successMessage}
         </div>
       )}
 
@@ -190,14 +199,14 @@ export default function BookDetailPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  onClick={() => { setBulkSuccess(''); setShowBulkForm(false); setShowForm(true) }}
+                  onClick={() => { setBulkSuccess(null); setShowBulkForm(false); setShowForm(true) }}
                 >
                   Thêm bản sao
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => { setBulkSuccess(''); setShowForm(false); setShowBulkForm(true) }}
+                  onClick={() => { setBulkSuccess(null); setShowForm(false); setShowBulkForm(true) }}
                 >
                   Thêm nhiều bản sao
                 </Button>
@@ -220,8 +229,8 @@ export default function BookDetailPage() {
               bookId={book.id}
               bookTitle={book.title}
               onCancel={() => setShowBulkForm(false)}
-              onCreated={(createdCount) => {
-                setBulkSuccess(`Đã tạo thành công ${createdCount} bản sao.`)
+              onCreated={(result) => {
+                setBulkSuccess(result)
                 setShowBulkForm(false)
                 setReload((value) => value + 1)
               }}

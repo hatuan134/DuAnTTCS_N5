@@ -17,6 +17,8 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findByBarcode(String barcode);
 
+    boolean existsByBarcode(String barcode);
+
     @Override
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findById(Long id);
