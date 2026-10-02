@@ -1,5 +1,8 @@
 package com.duanttcsn5.library.controller;
 
+import com.duanttcsn5.library.security.UserPrincipal;
+import com.duanttcsn5.library.dto.bookcopy.BookCopyStatusHistoryResponse;
+import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
@@ -28,6 +31,18 @@ public class BookCopyController {
 
     public BookCopyController(BookCopyService service) {
         this.service = service;
+    }
+
+    @PostMapping("/book-copies/{id}/repair")
+    public ResponseEntity<BookCopyResponse> repair(@PathVariable Long id,
+            @Valid @RequestBody RepairBookCopyRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal UserPrincipal actor) {
+        return ResponseEntity.ok(service.repair(id, request, actor));
+    }
+
+    @GetMapping("/book-copies/{id}/status-history")
+    public ResponseEntity<List<BookCopyStatusHistoryResponse>> history(@PathVariable Long id) {
+        return ResponseEntity.ok(service.history(id));
     }
 
     @PostMapping("/books/{bookId}/copies")

@@ -24,7 +24,25 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     List<BookCopy> findAllByBookIdOrderByIdAsc(Long bookId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM BookCopy c WHERE c.id = :id")
+    Optional<BookCopy> findForStatusChange(@Param("id") Long id);
+
+    @Query(value = """
+            SELECT c.book_id, COUNT(*) FROM book_copies c
+            WHERE c.status = 'AVAILABLE'
+              AND NOT EXISTS (SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL)
+            GROUP BY c.book_id
+            """, nativeQuery = true)
+    List<Object[]> countAvailableGroupedByBookId();
+
     long countByBookId(Long bookId);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM book_copies c WHERE c.book_id = :bookId AND c.status = 'AVAILABLE'
+            AND NOT EXISTS (SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL)
+            """, nativeQuery = true)
+    long countAvailableByBookId(@Param("bookId") Long bookId);
 
     @Query("""
             SELECT bc.book.id, COUNT(bc.id)

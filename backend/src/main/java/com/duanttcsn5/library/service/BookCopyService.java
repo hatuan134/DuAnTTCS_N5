@@ -1,5 +1,9 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.security.UserPrincipal;
+import com.duanttcsn5.library.dto.bookcopy.BookCopyStatusHistoryResponse;
+import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
+import com.duanttcsn5.library.repository.BookCopyLifecycleRepository;
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
@@ -29,11 +33,14 @@ public class BookCopyService {
     private final BookCopyRepository copies;
     private final BookRepository books;
     private final ShelfRepository shelves;
+    private final BookCopyLifecycleRepository lifecycle;
 
-    public BookCopyService(BookCopyRepository copies, BookRepository books, ShelfRepository shelves) {
+    public BookCopyService(BookCopyRepository copies, BookRepository books, ShelfRepository shelves,
+            BookCopyLifecycleRepository lifecycle) {
         this.copies = copies;
         this.books = books;
         this.shelves = shelves;
+        this.lifecycle = lifecycle;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -188,6 +195,39 @@ public class BookCopyService {
         // Managed entity: transaction dirty checking persists only the edited fields.
         copies.flush();
         return BookCopyResponse.fromEntity(copy);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BookCopyResponse repair(Long id, RepairBookCopyRequest request,
+            UserPrincipal actor) {
+        if (actor == null || actor.id() == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_REQUIRED", "Vui lòng đăng nhập.");
+        }
+        String reason = request == null || request.reason() == null ? "" : request.reason().strip();
+        if (reason.isBlank() || reason.length() > 2000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REPAIR_REASON", "Lý do phải có từ 1 đến 2000 ký tự, không chỉ gồm khoảng trắng.");
+        }
+        if (id == null || id < 1) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COPY_ID", "Mã bản sao không hợp lệ.");
+        BookCopy copy = copies.findForStatusChange(id).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "COPY_NOT_FOUND", "Không tìm thấy bản sao."));
+        if (lifecycle.hasUnreturnedLoan(id) || "BORROWED".equals(copy.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "COPY_ON_LOAN", "Bản sao chưa thể sửa chữa vì đang được mượn. Cần ghi nhận trả sách trước.");
+        }
+        if (!"AVAILABLE".equals(copy.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "COPY_STATUS_NOT_ALLOWED", "Chỉ bản sao Sẵn sàng mới được chuyển sang Đang sửa chữa.");
+        }
+        String before = copy.getStatus();
+        copy.sendToRepair();
+        copies.flush();
+        lifecycle.append(id, before, actor.id(), reason);
+        return BookCopyResponse.fromEntity(copy);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookCopyStatusHistoryResponse> history(Long id) {
+        if (id == null || id < 1) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COPY_ID", "Mã bản sao không hợp lệ.");
+        if (!copies.existsById(id)) throw new ApiException(HttpStatus.NOT_FOUND, "COPY_NOT_FOUND", "Không tìm thấy bản sao.");
+        return lifecycle.history(id);
     }
 
     private ApiException duplicate(BookCopy copy) {

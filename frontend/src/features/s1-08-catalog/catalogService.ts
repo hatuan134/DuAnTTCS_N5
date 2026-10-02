@@ -49,6 +49,7 @@ export interface Book {
   createdAt: string
   copyCount: number
   hasCopies: boolean
+  availableCount: number
 }
 
 export interface AuthorForm {

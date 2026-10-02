@@ -28,7 +28,7 @@ class BookCopyUpdateControllerTest {
     @BeforeEach void setup() {
         copies = mock(BookCopyRepository.class);
         var shelves = mock(ShelfRepository.class);
-        var service = new BookCopyService(copies, mock(BookRepository.class), shelves);
+        var service = new BookCopyService(copies, mock(BookRepository.class), shelves, mock(BookCopyLifecycleRepository.class));
         Warehouse warehouse = new Warehouse(); warehouse.setId(11L); warehouse.setCode("B"); warehouse.setName("Kho B");
         Shelf shelf = new Shelf(); shelf.setId(21L); shelf.setWarehouse(warehouse); shelf.setCode("B01");
         Book book = new Book(); book.setId(1L); book.setTitle("Sách A");
