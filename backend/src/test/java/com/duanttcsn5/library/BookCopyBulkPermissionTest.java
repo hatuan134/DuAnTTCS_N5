@@ -51,6 +51,7 @@ class BookCopyBulkPermissionTest {
     void readerCannotCreateBulkCopies() {
         role("READER");
         assertThrows(AccessDeniedException.class, () -> controller.createBulk(1L, request()));
+        assertThrows(AccessDeniedException.class, () -> controller.previewBulk(1L, BigDecimal.TEN));
     }
 
     @Test
@@ -58,6 +59,7 @@ class BookCopyBulkPermissionTest {
         for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             role(role);
             assertDoesNotThrow(() -> controller.createBulk(1L, request()));
+            assertDoesNotThrow(() -> controller.previewBulk(1L, BigDecimal.TEN));
         }
     }
 
