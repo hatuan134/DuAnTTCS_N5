@@ -210,20 +210,21 @@ public class UserManagementService {
         }
 
         User user = getManagedStaffUser(userId);
-        if ("DISABLED".equalsIgnoreCase(user.getStatus())) {
-            return;
-        }
-
+        String deletedEmail = user.getEmail();
         String oldStatus = user.getStatus();
-        user.setStatus("DISABLED");
-        user.setFailedLoginAttempts(0);
-        user.setLockedUntil(null);
-        user.setTokenVersion(user.getTokenVersion() + 1);
-        refreshTokenRepository.revokeAllActiveByUserId(userId, OffsetDateTime.now(ZoneOffset.UTC));
-        userRepository.save(user);
 
+        // Xóa các nhật ký chứa dữ liệu nhận diện của tài khoản trước khi xóa user.
+        auditLogService.deleteUserPersonalData(userId, deletedEmail);
+
+        // Xóa vật lý để tổng số tài khoản giảm thật và email có thể được sử dụng lại.
+        // Các dữ liệu xác thực phụ thuộc user được DB cascade; các tham chiếu lịch sử
+        // chỉ giữ dữ liệu nghiệp vụ và được tách khỏi user bằng migration V14.
+        userRepository.delete(user);
+        userRepository.flush();
+
+        // Vẫn giữ một dấu vết xóa tối thiểu nhưng không lưu email của tài khoản đã xóa.
         auditLogService.logUserDeleted(
-                adminId, userId, user.getEmail(), oldStatus, ipAddress);
+                adminId, userId, oldStatus, ipAddress);
     }
 
     @Transactional

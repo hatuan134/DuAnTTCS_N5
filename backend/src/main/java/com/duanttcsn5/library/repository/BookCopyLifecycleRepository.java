@@ -25,7 +25,7 @@ public class BookCopyLifecycleRepository {
         return jdbc.query("""
                 SELECT * FROM book_copy_status_history WHERE book_copy_id = ? ORDER BY changed_at DESC, id DESC
                 """, (rs, n) -> new BookCopyStatusHistoryResponse(rs.getLong("id"),
-                rs.getString("previous_status"), rs.getString("new_status"), rs.getLong("actor_user_id"),
+                rs.getString("previous_status"), rs.getString("new_status"), rs.getObject("actor_user_id", Long.class),
                 rs.getString("actor_name"), rs.getObject("changed_at", OffsetDateTime.class), rs.getString("reason")), copyId);
     }
 }

@@ -189,16 +189,19 @@ public class AuditLogService {
                 ipAddress);
     }
 
-    public void logUserDeleted(Long actorAdminId, Long targetUserId, String email, String oldStatus, String ipAddress) {
+    public void deleteUserPersonalData(Long userId, String email) {
+        auditLogRepository.deleteUserPersonalData(userId, email);
+    }
+
+    public void logUserDeleted(Long actorAdminId, Long targetUserId, String oldStatus, String ipAddress) {
         auditLogRepository.insert(
                 actorAdminId,
                 "USER_DELETED",
                 "USER",
                 targetUserId.toString(),
                 toJson(Map.of(
-                        "email", email,
                         "oldStatus", oldStatus,
-                        "newStatus", "DISABLED")),
+                        "deleted", true)),
                 ipAddress);
     }
 
@@ -479,8 +482,7 @@ public class AuditLogService {
                     + " sang " + valueOrDash(afterData, "newEmail")
                     + ", vai trò từ " + roleLabel(valueOrDash(afterData, "oldRole"))
                     + " sang " + roleLabel(valueOrDash(afterData, "newRole")) + ".";
-            case "USER_DELETED" -> "Xóa tài khoản " + valueOrDash(afterData, "email")
-                    + " khỏi danh sách quản lý và chuyển sang trạng thái Ngừng hoạt động.";
+            case "USER_DELETED" -> "Đã xóa vĩnh viễn tài khoản khỏi hệ thống.";
             case "USER_STATUS_UPDATED" -> "Cập nhật trạng thái tài khoản từ "
                     + statusLabel(valueOrDash(afterData, "oldStatus")) + " sang "
                     + statusLabel(valueOrDash(afterData, "newStatus")) + ".";

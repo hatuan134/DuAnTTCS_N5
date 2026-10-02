@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -86,6 +87,34 @@ class AuditLogServiceTest {
                 eq("missing@libra.edu.vn"),
                 any(String.class),
                 eq("10.0.0.10"));
+    }
+
+    @Test
+    @DisplayName("Xóa tài khoản dọn dữ liệu nhận diện khỏi audit log")
+    void deleteUserPersonalData_DelegatesToRepository() {
+        service.deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+
+        verify(auditLogRepository).deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+    }
+
+    @Test
+    @DisplayName("Nhật ký xóa tài khoản không lưu lại email đã xóa")
+    void logUserDeleted_DoesNotPersistDeletedEmail() {
+        service.logUserDeleted(1L, 70L, "ACTIVE", "127.0.0.1");
+
+        ArgumentCaptor<String> afterData = ArgumentCaptor.forClass(String.class);
+        verify(auditLogRepository).insert(
+                eq(1L),
+                eq("USER_DELETED"),
+                eq("USER"),
+                eq("70"),
+                afterData.capture(),
+                eq("127.0.0.1"));
+
+        String json = afterData.getValue();
+        assertTrue(json.contains("ACTIVE"));
+        assertTrue(json.contains("deleted"));
+        assertTrue(!json.contains("@"));
     }
 
     @Test

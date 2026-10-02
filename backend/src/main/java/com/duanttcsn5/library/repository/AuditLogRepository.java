@@ -43,6 +43,20 @@ public class AuditLogRepository {
                 normalizeIp(ipAddress));
     }
 
+    public int deleteUserPersonalData(Long userId, String email) {
+        return jdbcTemplate.update("""
+                DELETE FROM audit_logs
+                WHERE (entity_type = 'USER' AND entity_id = ?)
+                   OR LOWER(COALESCE(entity_id, '')) = LOWER(?)
+                   OR LOWER(COALESCE(before_data::text, '')) LIKE '%' || LOWER(?) || '%'
+                   OR LOWER(COALESCE(after_data::text, '')) LIKE '%' || LOWER(?) || '%'
+                """,
+                userId.toString(),
+                email,
+                email,
+                email);
+    }
+
     public List<AuditLogRow> findByFilters(OffsetDateTime fromInclusive,
                                            OffsetDateTime toExclusive,
                                            Long actorId,

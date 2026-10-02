@@ -229,6 +229,73 @@ class UserManagementServiceTest {
     }
 
     @Test
+    @DisplayName("SuaLoiTaiKhoan: xóa tài khoản phải xóa vật lý và dọn email khỏi dữ liệu nhận diện")
+    void deleteAccount_HardDeletesUserAndPersonalAuditData() {
+        Role role = new Role();
+        role.setId(2L);
+        role.setCode("LIBRARIAN");
+        role.setName("Thủ thư");
+
+        User user = new User();
+        user.setId(70L);
+        user.setRole(role);
+        user.setFullName("Tài Khoản Cần Xóa");
+        user.setEmail("deleted@libra.edu.vn");
+        user.setStatus("ACTIVE");
+
+        when(userRepository.findById(70L)).thenReturn(Optional.of(user));
+
+        assertDoesNotThrow(() ->
+                userManagementService.deleteAccount(70L, 1L, "127.0.0.1"));
+
+        verify(auditLogService).deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+        verify(userRepository).delete(user);
+        verify(userRepository).flush();
+        verify(auditLogService).logUserDeleted(1L, 70L, "ACTIVE", "127.0.0.1");
+        verify(userRepository, never()).save(user);
+    }
+
+    @Test
+    @DisplayName("SuaLoiTaiKhoan: email của tài khoản đã xóa có thể dùng để tạo tài khoản mới")
+    void deleteThenCreateAccount_WithSameEmail_Succeeds() {
+        Role librarianRole = new Role();
+        librarianRole.setId(2L);
+        librarianRole.setCode("LIBRARIAN");
+        librarianRole.setName("Thủ thư");
+
+        User oldUser = new User();
+        oldUser.setId(71L);
+        oldUser.setRole(librarianRole);
+        oldUser.setFullName("Tài Khoản Cũ");
+        oldUser.setEmail("reuse@libra.edu.vn");
+        oldUser.setStatus("ACTIVE");
+
+        when(userRepository.findById(71L)).thenReturn(Optional.of(oldUser));
+        when(userRepository.existsByEmailIgnoreCase("reuse@libra.edu.vn")).thenReturn(false);
+        when(roleRepository.findByCode("LIBRARIAN")).thenReturn(Optional.of(librarianRole));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(72L);
+            return saved;
+        });
+
+        userManagementService.deleteAccount(71L, 1L, "127.0.0.1");
+
+        CreateAccountRequest request = new CreateAccountRequest(
+                "Tài Khoản Mới",
+                "reuse@libra.edu.vn",
+                "0912345678",
+                "LIBRARIAN",
+                "ACTIVE");
+
+        AccountResponse created = assertDoesNotThrow(() ->
+                userManagementService.createAccount(request, 1L, "127.0.0.1"));
+
+        assertEquals("reuse@libra.edu.vn", created.email());
+        assertEquals(72L, created.id());
+    }
+
+    @Test
     @DisplayName("CASE 8: Token đặt mật khẩu hợp lệ => đặt mật khẩu thành công")
     void testSetInitialPassword_ValidToken_Success() {
         String rawToken = "my-valid-secret-token-123456";
