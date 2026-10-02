@@ -29,6 +29,15 @@ export interface BookCopy {
   statusLabel: string
   notes: string | null
 }
+export interface CopyStatusHistory {
+  id: number
+  previousStatus: string
+  newStatus: string
+  actorUserId: number
+  actorName: string
+  changedAt: string
+  reason: string
+}
 export interface BookCopySummary {
   copies: BookCopy[]
   availableCount: number
@@ -69,6 +78,17 @@ export function copyError(error: unknown): { message: string; duplicate?: Duplic
   return { message: 'Không thể thực hiện thao tác. Vui lòng thử lại.' }
 }
 export const bookCopyService = {
+  async repair(id: number, reason: string): Promise<BookCopy> {
+    const copy = (await apiClient.post<BookCopy>(`/book-copies/${id}/repair`, { reason })).data
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('catalog-availability')
+      channel.postMessage('changed'); channel.close()
+    }
+    return copy
+  },
+  async history(id: number): Promise<CopyStatusHistory[]> {
+    return (await apiClient.get<CopyStatusHistory[]>(`/book-copies/${id}/status-history`)).data
+  },
   async getBook(id: number): Promise<Book> {
     return (await apiClient.get<Book>(`/books/${id}`)).data
   },

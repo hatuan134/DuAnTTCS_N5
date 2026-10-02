@@ -48,6 +48,9 @@ class BookCopyPermissionTest {
     }
     @Test void readerCannotCreateReadOrUpdateCopiesOrReadLocations() {
         role("READER");
+        assertThrows(AccessDeniedException.class, () -> copies.repair(1L,
+                new com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest("Bong gáy"), null));
+        assertThrows(AccessDeniedException.class, () -> copies.history(1L));
         assertThrows(AccessDeniedException.class, () -> copies.create(1L, request()));
         assertThrows(AccessDeniedException.class, () -> copies.getByBookId(1L));
         assertThrows(AccessDeniedException.class, () -> copies.getSummaryByBookId(1L));
@@ -60,6 +63,9 @@ class BookCopyPermissionTest {
     @Test void staffCanCreateAndReadCopiesAndReadLocations() {
         for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             role(role);
+            assertDoesNotThrow(() -> copies.repair(1L,
+                    new com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest("Bong gáy"), null));
+            assertDoesNotThrow(() -> copies.history(1L));
             assertDoesNotThrow(() -> copies.create(1L, request()));
             assertDoesNotThrow(() -> copies.getByBookId(1L));
             assertDoesNotThrow(() -> copies.getSummaryByBookId(1L));

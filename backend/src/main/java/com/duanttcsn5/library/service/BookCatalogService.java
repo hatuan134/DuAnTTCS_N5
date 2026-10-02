@@ -50,17 +50,19 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public List<BookResponse> getAllBooks() {
+        Map<Long, Long> availableCounts = loadAvailableCounts();
         Map<Long, Long> copyCounts = loadCopyCounts();
         return bookRepository.findAllWithAuthorAndCategory().stream()
-                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L), availableCounts.getOrDefault(book.getId(), 0L)))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<BookResponse> getPublicBooks() {
+        Map<Long, Long> availableCounts = loadAvailableCounts();
         Map<Long, Long> copyCounts = loadCopyCounts();
         return bookRepository.findAllPublicWithAuthorAndCategory().stream()
-                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L)))
+                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L), availableCounts.getOrDefault(book.getId(), 0L)))
                 .filter(BookResponse::hasCopies)
                 .toList();
     }
@@ -74,7 +76,7 @@ public class BookCatalogService {
     public BookResponse getById(Long id) {
         Book book = bookRepository.findById(id).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
-        return BookResponse.fromEntity(book, bookCopyRepository.countByBookId(id));
+        return BookResponse.fromEntity(book, bookCopyRepository.countByBookId(id), bookCopyRepository.countAvailableByBookId(id));
     }
 
     @Transactional
@@ -135,6 +137,14 @@ public class BookCatalogService {
 
         // Đầu sách vừa biên mục chưa có bản sao; trạng thái được suy ra trực tiếp từ book_copies.
         return BookResponse.fromEntity(saved, 0L);
+    }
+
+    private Map<Long, Long> loadAvailableCounts() {
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : bookCopyRepository.countAvailableGroupedByBookId()) {
+            result.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return result;
     }
 
     private Map<Long, Long> loadCopyCounts() {

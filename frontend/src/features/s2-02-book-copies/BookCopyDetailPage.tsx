@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import PageHeader from '../../components/ui/PageHeader'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
+import RepairBookCopyPanel from './RepairBookCopyPanel'
 import EditBookCopyForm from './EditBookCopyForm'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { bookCopyService, copyError } from './bookCopyService'
@@ -70,6 +71,7 @@ export default function BookCopyDetailPage() {
         {editing && <EditBookCopyForm key={copy.id} copy={copy} onCancel={() => setEditing(false)} onSaved={updated => {
           setCopy(updated); setEditing(false); setSaved(true)
         }} />}
+        {!editing && <RepairBookCopyPanel key={copy.id} copy={copy} onSaved={updated => { setCopy(updated); setSaved(false) }} />}
         <p className="mt-6 text-sm text-slate-500">Bản sao được gắn cố định với đầu sách. Không hỗ trợ chuyển sang đầu sách khác.</p>
         <Link to={`/books/${copy.bookId}`} className="mt-5 inline-block font-medium text-blue-600 hover:underline">← Về chi tiết đầu sách</Link>
       </Card>}

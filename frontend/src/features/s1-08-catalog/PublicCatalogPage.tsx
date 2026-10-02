@@ -31,7 +31,28 @@ export default function PublicCatalogPage() {
   }
 
   useEffect(() => {
-    void loadBooks()
+    let active = true
+    let running = false
+    const refresh = async () => {
+      if (running || document.hidden) return
+      running = true
+      try {
+        const data = await catalogService.getPublicBooks()
+        if (active) { setBooks(data); setError('') }
+      } catch { if (active) setError('Không thể cập nhật số bản sẵn sàng. Vui lòng thử lại.') }
+      finally { running = false; if (active) setLoading(false) }
+    }
+    void refresh()
+    const channel = 'BroadcastChannel' in window ? new BroadcastChannel('catalog-availability') : null
+    if (channel) channel.onmessage = () => void refresh()
+    const timer = window.setInterval(() => void refresh(), 3000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      active = false; window.clearInterval(timer); channel?.close()
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [])
 
   const filteredBooks = useMemo(() => {
@@ -178,7 +199,7 @@ export default function PublicCatalogPage() {
                         {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                       </span>
                       <span className="text-xs font-semibold text-emerald-700">
-                        {book.copyCount} bản sao
+                        {book.availableCount ?? 0} Sẵn sàng / {book.copyCount} bản sao
                       </span>
                     </div>
                   </dl>

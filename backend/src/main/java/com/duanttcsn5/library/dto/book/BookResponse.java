@@ -28,8 +28,19 @@ public record BookResponse(
         String description,
         OffsetDateTime createdAt,
         long copyCount,
-        boolean hasCopies
+        boolean hasCopies,
+        long availableCount
 ) {
+    public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
+            String authorName, boolean authorActive, List<BookAuthorResponse> authors,
+            Long categoryId, String categoryName, boolean categoryActive, String publisher,
+            Integer publicationYear, Integer pageCount, String description, OffsetDateTime createdAt,
+            long copyCount, boolean hasCopies) {
+        this(id, isbn, title, subtitle, authorId, authorName, authorActive, authors,
+                categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
+                description, createdAt, copyCount, hasCopies, 0L);
+    }
+
     /**
      * Constructor tương thích với các call-site/test cũ trước S2-01.5.
      * Khi không truyền số bản sao, mặc định đầu sách chưa có bản sao.
@@ -70,7 +81,8 @@ public record BookResponse(
                 description,
                 createdAt,
                 0L,
-                false
+                false,
+                0L
         );
     }
 
@@ -79,6 +91,10 @@ public record BookResponse(
     }
 
     public static BookResponse fromEntity(Book book, long copyCount) {
+        return fromEntity(book, copyCount, 0L);
+    }
+
+    public static BookResponse fromEntity(Book book, long copyCount, long availableCount) {
         List<BookAuthorResponse> authorResponses = toAuthorResponses(book);
         BookAuthorResponse primary = resolvePrimaryAuthor(book, authorResponses);
         long normalizedCopyCount = Math.max(0L, copyCount);
@@ -101,7 +117,8 @@ public record BookResponse(
                 book.getDescription(),
                 book.getCreatedAt(),
                 normalizedCopyCount,
-                normalizedCopyCount > 0
+                normalizedCopyCount > 0,
+                Math.max(0L, availableCount)
         );
     }
 

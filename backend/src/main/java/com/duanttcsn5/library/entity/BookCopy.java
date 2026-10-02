@@ -47,6 +47,8 @@ public class BookCopy {
         this.notes = notes;
     }
 
+    public void sendToRepair() { this.status = "REPAIR"; }
+
     public Long getId() { return id; }
     public Book getBook() { return book; }
     public String getBarcode() { return barcode; }
