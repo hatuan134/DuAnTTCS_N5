@@ -49,6 +49,7 @@ public class SecurityConfig {
                                 "/api/v1/readers/register",
                                 "/api/v1/readers/check-duplicate",
                                 "/api/v1/books/public",
+                                "/api/v1/books/public/**",
                                 "/error")
                         .permitAll()
                         .anyRequest()

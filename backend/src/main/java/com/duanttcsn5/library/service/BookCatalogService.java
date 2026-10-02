@@ -15,12 +15,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -59,12 +61,38 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public List<BookResponse> getPublicBooks() {
+        return getPublicBooks(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookResponse> getPublicBooks(String keyword) {
+        String normalizedKeyword = normalizeSearchText(keyword);
+        String normalizedIsbnKeyword = normalizeIsbnForSearch(keyword);
         Map<Long, Long> availableCounts = loadAvailableCounts();
         Map<Long, Long> copyCounts = loadCopyCounts();
+
         return bookRepository.findAllPublicWithAuthorAndCategory().stream()
-                .map(book -> BookResponse.fromEntity(book, copyCounts.getOrDefault(book.getId(), 0L), availableCounts.getOrDefault(book.getId(), 0L)))
+                .filter(book -> matchesPublicKeyword(book, normalizedKeyword, normalizedIsbnKeyword))
+                .map(book -> BookResponse.fromEntity(
+                        book,
+                        copyCounts.getOrDefault(book.getId(), 0L),
+                        availableCounts.getOrDefault(book.getId(), 0L)))
                 .filter(BookResponse::hasCopies)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BookResponse getPublicBookById(Long id) {
+        Book book = bookRepository.findPublicByIdWithAuthorAndCategory(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "PUBLIC_BOOK_NOT_FOUND",
+                        "Không tìm thấy đầu sách trên trang tra cứu công khai."));
+
+        return BookResponse.fromEntity(
+                book,
+                bookCopyRepository.countByBookId(id),
+                bookCopyRepository.countAvailableByBookId(id));
     }
 
     @Transactional(readOnly = true)
@@ -137,6 +165,62 @@ public class BookCatalogService {
 
         // Đầu sách vừa biên mục chưa có bản sao; trạng thái được suy ra trực tiếp từ book_copies.
         return BookResponse.fromEntity(saved, 0L);
+    }
+
+    private boolean matchesPublicKeyword(Book book, String normalizedKeyword, String normalizedIsbnKeyword) {
+        if (normalizedKeyword.isBlank()) {
+            return true;
+        }
+
+        if (normalizeSearchText(book.getTitle()).contains(normalizedKeyword)) {
+            return true;
+        }
+
+        if (book.getAuthors() != null) {
+            for (Author author : book.getAuthors()) {
+                if (author != null && normalizeSearchText(author.getName()).contains(normalizedKeyword)) {
+                    return true;
+                }
+            }
+        }
+
+        Author legacyAuthor = book.getAuthor();
+        if (legacyAuthor != null && normalizeSearchText(legacyAuthor.getName()).contains(normalizedKeyword)) {
+            return true;
+        }
+
+        if (book.getIsbn() == null || book.getIsbn().isBlank()) {
+            return false;
+        }
+
+        if (!normalizedIsbnKeyword.isBlank()) {
+            return normalizeIsbnForSearch(book.getIsbn()).contains(normalizedIsbnKeyword);
+        }
+
+        return normalizeSearchText(book.getIsbn()).contains(normalizedKeyword);
+    }
+
+    private String normalizeSearchText(String input) {
+        if (input == null) {
+            return "";
+        }
+
+        String withoutMarks = Normalizer.normalize(input, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+
+        return withoutMarks
+                .replace('đ', 'd')
+                .replace('Đ', 'D')
+                .toLowerCase(Locale.ROOT)
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private String normalizeIsbnForSearch(String input) {
+        if (input == null || input.chars().anyMatch(Character::isLetter)) {
+            return "";
+        }
+        return input.replaceAll("[^0-9]", "");
     }
 
     private Map<Long, Long> loadAvailableCounts() {

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -36,8 +37,14 @@ public class BookCatalogController {
     }
 
     @GetMapping("/public")
-    public ResponseEntity<List<BookResponse>> getPublicBooks() {
-        return ResponseEntity.ok(bookCatalogService.getPublicBooks());
+    public ResponseEntity<List<BookResponse>> getPublicBooks(
+            @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(bookCatalogService.getPublicBooks(keyword));
+    }
+
+    @GetMapping("/public/{id}")
+    public ResponseEntity<BookResponse> getPublicBookById(@PathVariable Long id) {
+        return ResponseEntity.ok(bookCatalogService.getPublicBookById(id));
     }
 
     @GetMapping("/publishers")

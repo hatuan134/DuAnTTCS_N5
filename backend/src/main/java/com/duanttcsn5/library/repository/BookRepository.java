@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BookRepository extends JpaRepository<Book, Long> {
@@ -39,6 +40,21 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             ORDER BY b.createdAt DESC
             """)
     List<Book> findAllPublicWithAuthorAndCategory();
+
+    @Query("""
+            SELECT DISTINCT b
+            FROM Book b
+            LEFT JOIN FETCH b.authors
+            LEFT JOIN FETCH b.author
+            JOIN FETCH b.category
+            WHERE b.id = :id
+              AND EXISTS (
+                  SELECT bc.id
+                  FROM BookCopy bc
+                  WHERE bc.book = b
+              )
+            """)
+    Optional<Book> findPublicByIdWithAuthorAndCategory(@Param("id") Long id);
 
     @Query(value = """
             SELECT DISTINCT BTRIM(publisher)
