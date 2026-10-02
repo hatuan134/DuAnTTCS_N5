@@ -64,11 +64,23 @@ export interface BulkBarcodePreview {
   quantity: number
   skippedBarcodes: string[]
 }
+export interface BulkCreatedBookCopy {
+  barcode: string
+  bookId: number
+  warehouseId: number
+  warehouseCode: string
+  warehouseName: string
+  shelfId: number
+  shelfCode: string
+  shelfName: string | null
+  receivedDate: string
+}
 export interface BulkCreateBookCopiesResult {
   createdCount: number
   startBarcode: string
   endBarcode: string
   skippedBarcodes: string[]
+  createdCopies: BulkCreatedBookCopy[]
 }
 export interface UpdateBookCopy {
   warehouseId: number

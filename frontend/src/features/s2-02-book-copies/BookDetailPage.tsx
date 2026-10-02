@@ -7,6 +7,7 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import type { Book } from '../s1-08-catalog/catalogService'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
 import BulkCreateBookCopiesForm from './BulkCreateBookCopiesForm'
+import BulkCreateBookCopiesResultPage from './BulkCreateBookCopiesResult'
 import CreateBookCopyForm from './CreateBookCopyForm'
 import { bookCopyService, copyError } from './bookCopyService'
 import type { BookCopy, BookCopySummary, BulkCreateBookCopiesResult } from './bookCopyService'
@@ -109,6 +110,19 @@ export default function BookDetailPage() {
 
   if (!allowed) return <p role="alert">Bạn không có quyền truy cập chức năng này.</p>
 
+  if (bulkSuccess && book && book.id === id) {
+    return (
+      <BulkCreateBookCopiesResultPage
+        bookTitle={book.title}
+        result={bulkSuccess}
+        onBack={() => {
+          setBulkSuccess(null)
+          setReload((value) => value + 1)
+        }}
+      />
+    )
+  }
+
   return (
     <div>
       <Link
@@ -123,19 +137,12 @@ export default function BookDetailPage() {
         description="Xem đầy đủ thông tin thư mục của đầu sách và các bản sao cá biệt hiện có."
       />
 
-      {(successMessage || bulkSuccess) && (
+      {successMessage && (
         <div
           role="status"
           className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
         >
-          {bulkSuccess ? <>
-            <p>Đã tạo thành công {bulkSuccess.createdCount} bản sao.</p>
-            <p>Khoảng mã đã sử dụng: {bulkSuccess.startBarcode} — {bulkSuccess.endBarcode} (trừ các mã bỏ qua).</p>
-            <p className="mt-2">Mã đã bỏ qua ({bulkSuccess.skippedBarcodes.length}):</p>
-            <p className="max-h-40 overflow-y-auto break-words">
-              {bulkSuccess.skippedBarcodes.length ? bulkSuccess.skippedBarcodes.join(', ') : 'Không có mã trùng.'}
-            </p>
-          </> : successMessage}
+          {successMessage}
         </div>
       )}
 
@@ -232,7 +239,6 @@ export default function BookDetailPage() {
               onCreated={(result) => {
                 setBulkSuccess(result)
                 setShowBulkForm(false)
-                setReload((value) => value + 1)
               }}
             />
           )}

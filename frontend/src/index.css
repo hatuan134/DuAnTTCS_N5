@@ -121,3 +121,47 @@ textarea {
   background: #f1f5f9;
   color: #94a3b8;
 }
+
+/* S2-04.4 - Khi in nhãn, chỉ vùng nhãn của đúng lô vừa tạo được đưa ra máy in. */
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  body.bulk-label-printing {
+    background: #fff;
+  }
+
+  body.bulk-label-printing * {
+    visibility: hidden !important;
+  }
+
+  body.bulk-label-printing .bulk-label-print-area,
+  body.bulk-label-printing .bulk-label-print-area * {
+    visibility: visible !important;
+  }
+
+  body.bulk-label-printing .bulk-label-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.bulk-label-printing .bulk-label-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4mm !important;
+  }
+
+  body.bulk-label-printing .bulk-barcode-label {
+    min-height: 42mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+  }
+}
