@@ -6,6 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import type { Book } from '../s1-08-catalog/catalogService'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
+import BulkCreateBookCopiesForm from './BulkCreateBookCopiesForm'
 import CreateBookCopyForm from './CreateBookCopyForm'
 import { bookCopyService, copyError } from './bookCopyService'
 import type { BookCopy, BookCopySummary } from './bookCopyService'
@@ -37,6 +38,8 @@ export default function BookDetailPage() {
   const copies = summary?.copies ?? []
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [showBulkForm, setShowBulkForm] = useState(false)
+  const [bulkSuccess, setBulkSuccess] = useState('')
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export default function BookDetailPage() {
     setRefreshError('')
     setRefreshing(false)
     setShowForm(false)
+    setShowBulkForm(false)
     refreshRef.current = () => {}
 
     if (!allowed) return
@@ -117,12 +121,12 @@ export default function BookDetailPage() {
         description="Xem đầy đủ thông tin thư mục của đầu sách và các bản sao cá biệt hiện có."
       />
 
-      {successMessage && (
+      {(successMessage || bulkSuccess) && (
         <div
           role="status"
           className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
         >
-          {successMessage}
+          {bulkSuccess || successMessage}
         </div>
       )}
 
@@ -182,10 +186,22 @@ export default function BookDetailPage() {
                 {book.description || 'Chưa ghi nhận'}
               </p>
             </div>
-            {!showForm && (
-              <Button className="mt-6" type="button" onClick={() => setShowForm(true)}>
-                Thêm bản sao
-              </Button>
+            {!showForm && !showBulkForm && (
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  onClick={() => { setBulkSuccess(''); setShowBulkForm(false); setShowForm(true) }}
+                >
+                  Thêm bản sao
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => { setBulkSuccess(''); setShowForm(false); setShowBulkForm(true) }}
+                >
+                  Thêm nhiều bản sao
+                </Button>
+              </div>
             )}
           </Card>
 
@@ -195,6 +211,20 @@ export default function BookDetailPage() {
               bookId={book.id}
               bookTitle={book.title}
               onCancel={() => setShowForm(false)}
+            />
+          )}
+
+          {showBulkForm && (
+            <BulkCreateBookCopiesForm
+              key={`bulk-${book.id}`}
+              bookId={book.id}
+              bookTitle={book.title}
+              onCancel={() => setShowBulkForm(false)}
+              onCreated={(createdCount) => {
+                setBulkSuccess(`Đã tạo thành công ${createdCount} bản sao.`)
+                setShowBulkForm(false)
+                setReload((value) => value + 1)
+              }}
             />
           )}
 

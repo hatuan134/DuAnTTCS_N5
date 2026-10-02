@@ -7,6 +7,8 @@ import com.duanttcsn5.library.repository.BookCopyLifecycleRepository;
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
+import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest;
+import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest;
 import com.duanttcsn5.library.entity.BookCopy;
@@ -81,6 +83,79 @@ public class BookCopyService {
             return createWithAutoBarcode(bookId, request, shelf.getId(), date);
         }
         return createWithManualBarcode(bookId, manualBarcode, request, shelf.getId(), date);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BulkCreateBookCopiesResponse createBulk(Long bookId, BulkCreateBookCopiesRequest request) {
+        if (bookId == null || bookId < 1 || !books.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        if (request == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BULK_REQUEST", "Dữ liệu tạo lô không hợp lệ.");
+        }
+
+        int quantity = parseBulkQuantity(request.quantity());
+        LocalDate date = request.receivedDate();
+        if (date == null || date.getYear() < 1 || date.isAfter(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RECEIVED_DATE",
+                    "Ngày nhập phải là ngày hợp lệ và không được sau hôm nay.");
+        }
+        if (request.warehouseId() == null || request.warehouseId() < 1
+                || request.shelfId() == null || request.shelfId() < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BULK_LOCATION",
+                    "Vui lòng chọn kho và kệ hợp lệ.");
+        }
+
+        var shelf = shelves.findForCopyCreation(request.shelfId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SHELF_NOT_FOUND", "Không tìm thấy kệ."));
+        if (!shelf.getWarehouse().getId().equals(request.warehouseId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SHELF_WAREHOUSE_MISMATCH", "Kệ không thuộc kho đã chọn.");
+        }
+        if (!shelf.isActive() || !shelf.getWarehouse().isActive()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_INACTIVE", "Kho hoặc kệ đã ngừng sử dụng.");
+        }
+
+        // S2-04.1 chỉ thu thập số lượng, kho, kệ và ngày nhập.
+        // Setting này chỉ có hiệu lực trong transaction hiện tại để migration V15
+        // cho phép cover_price/physical_condition để trống mà không làm yếu luồng tạo đơn.
+        copies.enableBulkBookCopyCreation();
+
+        for (int i = 0; i < quantity; i++) {
+            Long number = copies.nextAutoBarcodeNumber();
+            if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {
+                throw new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
+                        "Dãy mã vạch tự sinh đã hết. Vui lòng liên hệ quản trị hệ thống.");
+            }
+            String barcode = AUTO_BARCODE_PREFIX
+                    + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
+            int inserted = copies.insertBulkGeneratedCopy(bookId, barcode, shelf.getId(), date);
+            if (inserted != 1) {
+                // AC1 chưa bao gồm xử lý mã trùng trong dãy. Toàn bộ transaction được rollback
+                // thay vì âm thầm bỏ qua và lưu thiếu số lượng người dùng yêu cầu.
+                throw new ApiException(HttpStatus.CONFLICT, "BULK_BARCODE_CONFLICT",
+                        "Không thể tạo đủ số lượng bản sao do mã vạch tự sinh đã tồn tại. Vui lòng thử lại.");
+            }
+        }
+
+        return new BulkCreateBookCopiesResponse(quantity);
+    }
+
+    private int parseBulkQuantity(java.math.BigDecimal quantity) {
+        if (quantity == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BULK_QUANTITY",
+                    "Số lượng bản sao phải là số nguyên từ 1 đến 50.");
+        }
+        try {
+            int value = quantity.intValueExact();
+            if (value < 1 || value > 50) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BULK_QUANTITY",
+                        "Số lượng bản sao phải là số nguyên từ 1 đến 50.");
+            }
+            return value;
+        } catch (ArithmeticException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BULK_QUANTITY",
+                    "Số lượng bản sao phải là số nguyên từ 1 đến 50.");
+        }
     }
 
     private BookCopyResponse createWithManualBarcode(Long bookId, String barcode, CreateBookCopyRequest request,

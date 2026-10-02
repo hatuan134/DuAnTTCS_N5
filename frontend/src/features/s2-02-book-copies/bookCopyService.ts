@@ -51,6 +51,15 @@ export interface CreateBookCopy {
   coverPrice: string
   physicalCondition: PhysicalCondition
 }
+export interface BulkCreateBookCopies {
+  quantity: number
+  warehouseId: number
+  shelfId: number
+  receivedDate: string
+}
+export interface BulkCreateBookCopiesResult {
+  createdCount: number
+}
 export interface UpdateBookCopy {
   warehouseId: number
   shelfId: number
@@ -100,6 +109,9 @@ export const bookCopyService = {
   },
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data
+  },
+  async createBulk(bookId: number, data: BulkCreateBookCopies): Promise<BulkCreateBookCopiesResult> {
+    return (await apiClient.post<BulkCreateBookCopiesResult>(`/books/${bookId}/copies/bulk`, data)).data
   },
   async update(id: number, data: UpdateBookCopy): Promise<BookCopy> {
     return (await apiClient.put<BookCopy>(`/book-copies/${id}`, data)).data
