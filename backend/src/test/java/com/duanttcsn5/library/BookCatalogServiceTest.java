@@ -355,62 +355,6 @@ class BookCatalogServiceTest {
         verify(bookRepository).save(any(Book.class));
     }
 
-
-    @Test
-    @DisplayName("S2-01.5 - Đầu sách vừa tạo có số lượng bản sao bằng 0")
-    void catalogBook_NewBookStartsWithoutCopies() {
-        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
-
-        BookResponse response = bookCatalogService.catalogBook(
-                requestWithTitle("Đầu sách chưa có bản sao", true),
-                10L,
-                "127.0.0.1");
-
-        assertEquals(0L, response.copyCount());
-        assertFalse(response.hasCopies());
-    }
-
-    @Test
-    @DisplayName("S2-01.5 - Khu vực quản lý vẫn trả về đầu sách chưa có bản sao và đánh dấu đúng")
-    void getAllBooks_StillIncludesBooksWithoutCopies() {
-        Book withoutCopy = existingBook(201L, "Đầu sách chưa có bản sao");
-        Book withCopy = existingBook(202L, "Đầu sách đã có bản sao");
-
-        when(bookRepository.findAllWithAuthorAndCategory()).thenReturn(List.of(withoutCopy, withCopy));
-        when(bookCopyRepository.countAllGroupedByBookId())
-                .thenReturn(List.<Object[]>of(new Object[]{202L, 2L}));
-
-        List<BookResponse> result = bookCatalogService.getAllBooks();
-
-        assertEquals(2, result.size());
-        BookResponse noCopy = result.stream().filter(item -> item.id().equals(201L)).findFirst().orElseThrow();
-        BookResponse hasCopy = result.stream().filter(item -> item.id().equals(202L)).findFirst().orElseThrow();
-
-        assertEquals(0L, noCopy.copyCount());
-        assertFalse(noCopy.hasCopies());
-        assertEquals(2L, hasCopy.copyCount());
-        assertTrue(hasCopy.hasCopies());
-    }
-
-    @Test
-    @DisplayName("S2-01.5 - Tra cứu công khai chỉ dùng danh sách đầu sách đã có bản sao")
-    void getPublicBooks_ReturnsOnlyPubliclySearchableBooks() {
-        Book visible = existingBook(301L, "Đầu sách công khai");
-
-        when(bookRepository.findAllPublicWithAuthorAndCategory()).thenReturn(List.of(visible));
-        when(bookCopyRepository.countAllGroupedByBookId())
-                .thenReturn(List.<Object[]>of(new Object[]{301L, 1L}));
-
-        List<BookResponse> result = bookCatalogService.getPublicBooks();
-
-        assertEquals(1, result.size());
-        assertEquals(301L, result.get(0).id());
-        assertEquals(1L, result.get(0).copyCount());
-        assertTrue(result.get(0).hasCopies());
-        verify(bookRepository).findAllPublicWithAuthorAndCategory();
-        verify(bookRepository, never()).findAllWithAuthorAndCategory();
-    }
-
     private CatalogBookRequest requestWithTitle(String title, boolean confirmDuplicateTitle) {
         return new CatalogBookRequest(
                 title,

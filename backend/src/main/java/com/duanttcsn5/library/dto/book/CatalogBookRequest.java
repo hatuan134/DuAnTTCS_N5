@@ -1,9 +1,9 @@
 package com.duanttcsn5.library.dto.book;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
@@ -42,7 +42,10 @@ public record CatalogBookRequest(
         @Size(max = 1000, message = "Tóm tắt nội dung không được vượt quá 1000 ký tự")
         String description,
 
-        List<Long> authorIds
+        List<Long> authorIds,
+
+        // S2-01.4: chỉ cho phép lưu nhan đề trùng khi thủ thư đã xác nhận rõ ràng.
+        Boolean confirmDuplicateTitle
 ) {
     /**
      * Constructor tương thích các test/client Java cũ của S2-01.1.
@@ -60,6 +63,26 @@ public record CatalogBookRequest(
             String description
     ) {
         this(title, subtitle, authorId, authorName, categoryId, isbn, publisher,
-                publicationYear, pageCount, description, null);
+                publicationYear, pageCount, description, null, false);
+    }
+
+    /**
+     * Constructor tương thích S2-01.2/S2-01.3 trước khi có cờ xác nhận nhan đề trùng.
+     */
+    public CatalogBookRequest(
+            String title,
+            String subtitle,
+            Long authorId,
+            String authorName,
+            Long categoryId,
+            String isbn,
+            String publisher,
+            Integer publicationYear,
+            Integer pageCount,
+            String description,
+            List<Long> authorIds
+    ) {
+        this(title, subtitle, authorId, authorName, categoryId, isbn, publisher,
+                publicationYear, pageCount, description, authorIds, false);
     }
 }

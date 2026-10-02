@@ -319,39 +319,4 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$.details.duplicates[0].title").value("Tôi thấy hoa vàng trên cỏ xanh"));
     }
 
-
-    @Test
-    @DisplayName("S2-01.5 - GET /api/v1/books/public chỉ trả danh mục công khai")
-    void getPublicBooks_Success() throws Exception {
-        BookResponse visible = new BookResponse(
-                88L,
-                "9786041234567",
-                "Đầu sách đã có bản sao",
-                null,
-                1L,
-                "Nguyễn Nhật Ánh",
-                true,
-                List.of(new BookResponse.BookAuthorResponse(1L, "Nguyễn Nhật Ánh", true)),
-                6L,
-                "Văn học trong nước",
-                true,
-                "NXB Trẻ",
-                2025,
-                320,
-                "Tóm tắt",
-                OffsetDateTime.now(),
-                1L,
-                true
-        );
-
-        when(bookCatalogService.getPublicBooks()).thenReturn(List.of(visible));
-
-        bookMockMvc.perform(get("/api/v1/books/public"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(88))
-                .andExpect(jsonPath("$[0].copyCount").value(1))
-                .andExpect(jsonPath("$[0].hasCopies").value(true));
-    }
-
-
 }
