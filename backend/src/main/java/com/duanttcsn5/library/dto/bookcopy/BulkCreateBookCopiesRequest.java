@@ -26,8 +26,18 @@ public record BulkCreateBookCopiesRequest(
         Long shelfId,
 
         @NotNull(message = "Vui lòng nhập ngày nhập.")
-        LocalDate receivedDate
+        LocalDate receivedDate,
+        Boolean confirmed,
+        Long expectedStartNumber,
+        java.util.List<String> expectedSkippedBarcodes
 ) {
+    public BulkCreateBookCopiesRequest(BigDecimal quantity, Long warehouseId, Long shelfId,
+            LocalDate receivedDate, Boolean confirmed, Long expectedStartNumber) {
+        this(quantity, warehouseId, shelfId, receivedDate, confirmed, expectedStartNumber, java.util.List.of());
+    }
+    public BulkCreateBookCopiesRequest(BigDecimal quantity, Long warehouseId, Long shelfId, LocalDate receivedDate) {
+        this(quantity, warehouseId, shelfId, receivedDate, false, null);
+    }
     @AssertTrue(message = "Số lượng bản sao phải là số nguyên từ 1 đến 50.")
     public boolean isQuantityInteger() {
         return quantity == null || quantity.stripTrailingZeros().scale() <= 0;

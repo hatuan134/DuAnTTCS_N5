@@ -17,6 +17,8 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findByBarcode(String barcode);
 
+    boolean existsByBarcode(String barcode);
+
     @Override
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findById(Long id);
@@ -50,6 +52,13 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
             GROUP BY bc.book.id
             """)
     List<Object[]> countAllGroupedByBookId();
+
+    // Shared by preview, bulk creation and single AUTO creation; released at transaction end.
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(20402)", nativeQuery = true)
+    Integer lockAutoBarcodeSequence();
+
+    @Query(value = "SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END FROM book_copy_barcode_seq", nativeQuery = true)
+    Long peekAutoBarcodeNumber();
 
     @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
     Long nextAutoBarcodeNumber();

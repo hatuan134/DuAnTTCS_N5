@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { librarySettingsService } from '../s1-09-library-config/librarySettingsService'
 import type { ShelfItem, WarehouseItem } from '../s1-09-library-config/librarySettingsService'
+import type { BulkBarcodePreview, BulkCreateBookCopiesResult } from './bookCopyService'
 import { bookCopyService, copyError, todayInVietnam, validReceivedDate } from './bookCopyService'
 
 export default function BulkCreateBookCopiesForm({
@@ -15,7 +16,7 @@ export default function BulkCreateBookCopiesForm({
   bookId: number
   bookTitle: string
   onCancel: () => void
-  onCreated: (createdCount: number) => void
+  onCreated: (result: BulkCreateBookCopiesResult) => void
 }) {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
   const [shelves, setShelves] = useState<ShelfItem[]>([])
@@ -28,6 +29,13 @@ export default function BulkCreateBookCopiesForm({
   const [receivedDate, setReceivedDate] = useState(todayInVietnam)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [preview, setPreview] = useState<BulkBarcodePreview | null>(null)
+  const [previewError, setPreviewError] = useState('')
+  const [reviewing, setReviewing] = useState(false)
+  const [refresh, setRefresh] = useState(0)
+  const [previewKey, setPreviewKey] = useState('')
+  const formKey = JSON.stringify([bookId, quantity, warehouseId, shelfId, receivedDate])
+  const currentPreview = previewKey === formKey ? preview : null
   const submitting = useRef(false)
   const mounted = useRef(true)
 
@@ -59,6 +67,49 @@ export default function BulkCreateBookCopiesForm({
     return () => { active = false }
   }, [reload])
 
+  useEffect(() => {
+    let active = true
+    let lastPreview: string | undefined
+    let pending = false
+    setPreview(null)
+    setPreviewError('')
+    setReviewing(false)
+    const count = Number(quantity)
+    if (!/^\d+$/.test(quantity) || !Number.isSafeInteger(count) || count < 1 || count > 50) return
+    async function updatePreview() {
+      if (submitting.current || pending) return
+      pending = true
+      try {
+        const result = await bookCopyService.previewBulk(bookId, count)
+        if (!active || submitting.current) return
+        const signature = JSON.stringify(result)
+        if (lastPreview !== undefined && lastPreview !== signature) setReviewing(false)
+        lastPreview = signature
+        setPreview(result)
+        setPreviewKey(formKey)
+        setPreviewError('')
+      } catch (failure) {
+        if (active && !submitting.current) {
+          setPreview(null)
+          setReviewing(false)
+          setPreviewError(copyError(failure).message)
+        }
+      } finally {
+        pending = false
+      }
+    }
+    const timer = window.setTimeout(() => { void updatePreview() }, 250)
+    const interval = window.setInterval(() => { void updatePreview() }, 5000)
+    const focus = () => { void updatePreview() }
+    window.addEventListener('focus', focus)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+      window.clearInterval(interval)
+      window.removeEventListener('focus', focus)
+    }
+  }, [bookId, quantity, formKey, refresh])
+
   const shelfOptions = shelves.filter((shelf) => shelf.warehouseId === Number(warehouseId))
   const selectClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100'
 
@@ -89,18 +140,34 @@ export default function BulkCreateBookCopiesForm({
       return
     }
 
+    if (!currentPreview) {
+      setError('Vui lòng đợi khoảng mã dự kiến tải xong trước khi tiếp tục.')
+      return
+    }
+    if (!reviewing) {
+      setReviewing(true)
+      return
+    }
     submitting.current = true
     setSaving(true)
     try {
       const result = await bookCopyService.createBulk(bookId, {
         quantity: parsedQuantity,
+        confirmed: true,
+        expectedStartNumber: currentPreview.startNumber,
+        expectedSkippedBarcodes: currentPreview.skippedBarcodes,
         warehouseId: Number(warehouseId),
         shelfId: Number(shelfId),
         receivedDate,
       })
-      if (mounted.current) onCreated(result.createdCount)
+      if (mounted.current) onCreated(result)
     } catch (failure) {
-      if (mounted.current) setError(copyError(failure).message)
+      if (mounted.current) {
+        setError(copyError(failure).message)
+        setReviewing(false)
+        setPreview(null)
+        setRefresh(value => value + 1)
+      }
     } finally {
       submitting.current = false
       if (mounted.current) setSaving(false)
@@ -131,7 +198,7 @@ export default function BulkCreateBookCopiesForm({
       )}
 
       <form onSubmit={submit} className="mt-5" noValidate>
-        <fieldset disabled={saving || loading || !!loadError}>
+        <fieldset disabled={saving || reviewing || loading || !!loadError}>
           <div className="grid gap-5 sm:grid-cols-2">
             <Input
               id="bulk-copy-quantity"
@@ -207,6 +274,25 @@ export default function BulkCreateBookCopiesForm({
           </div>
         </fieldset>
 
+        <div aria-live="polite" className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-slate-800">
+          <h4 className="font-semibold">Khoảng mã thực tế dự kiến sau khi bỏ qua mã trùng</h4>
+          {currentPreview ? <>
+            <p className="mt-2">Mã bắt đầu: <strong>{currentPreview.startBarcode}</strong></p>
+            <p>Mã kết thúc: <strong>{currentPreview.endBarcode}</strong></p>
+            <p>Số lượng mã: <strong>{currentPreview.quantity}</strong></p>
+            <p className="mt-2 font-medium">Mã đã tồn tại sẽ bỏ qua ({currentPreview.skippedBarcodes.length}):</p>
+            <p className="max-h-40 overflow-y-auto break-words">
+              {currentPreview.skippedBarcodes.length ? currentPreview.skippedBarcodes.join(', ') : 'Không có mã trùng.'}
+            </p>
+            <p className="mt-2">Khoảng mã trên không bao gồm các mã bị bỏ qua; vẫn tạo đủ {currentPreview.quantity} bản sao.</p>
+            <p className="mt-2">Khoảng mã chưa được giữ chỗ; hệ thống kiểm tra lại khi xác nhận.</p>
+          </> : <p>{previewError || 'Nhập số lượng từ 1 đến 50 để xem khoảng mã dự kiến.'}</p>}
+          <Button type="button" variant="secondary" disabled={saving} onClick={() => setRefresh(value => value + 1)}>Cập nhật khoảng mã</Button>
+        </div>
+        {reviewing && <div role="status" className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+          Kiểm tra khoảng mã, kho, kệ và ngày nhập phía trên. Chỉ khi bấm “Xác nhận tạo lô” hệ thống mới tạo bản sao.
+        </div>}
+
         {error && (
           <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
@@ -217,10 +303,11 @@ export default function BulkCreateBookCopiesForm({
           <Button
             type="submit"
             loading={saving}
-            disabled={loading || !!loadError || warehouses.length === 0}
+            disabled={saving || loading || !!loadError || warehouses.length === 0 || !currentPreview}
           >
-            {saving ? 'Đang tạo lô…' : 'Tạo lô bản sao'}
+            {saving ? 'Đang tạo lô…' : reviewing ? 'Xác nhận tạo lô' : 'Tiếp tục xác nhận'}
           </Button>
+          {reviewing && <Button type="button" variant="secondary" disabled={saving} onClick={() => setReviewing(false)}>Quay lại chỉnh sửa</Button>}
           <Button type="button" variant="secondary" disabled={saving} onClick={onCancel}>
             Hủy
           </Button>

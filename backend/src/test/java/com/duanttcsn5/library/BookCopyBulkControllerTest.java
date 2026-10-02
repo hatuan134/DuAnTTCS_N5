@@ -83,13 +83,57 @@ class BookCopyBulkControllerTest {
         verifyNoInteractions(service);
     }
 
+    @Test
+    void previewReturnsRangeWithoutCreating() throws Exception {
+        when(service.previewBulk(eq(1L), any())).thenReturn(
+                new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(1, "TV-000001", "TV-000010", 10));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/books/1/copies/bulk/preview").param("quantity", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startBarcode").value("TV-000001"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-000010"))
+                .andExpect(jsonPath("$.quantity").value(10));
+        org.mockito.Mockito.verify(service, org.mockito.Mockito.never()).createBulk(any(), any());
+    }
+
+    @Test
+    void serializesSkippedBarcodesAndActualRangeBeforeAndAfterCreation() throws Exception {
+        var skipped = java.util.List.of("TV-000001", "TV-000003");
+        when(service.previewBulk(eq(1L), any())).thenReturn(
+                new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(
+                        1, "TV-000002", "TV-000007", 5, skipped));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/books/1/copies/bulk/preview").param("quantity", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startNumber").value(1))
+                .andExpect(jsonPath("$.startBarcode").value("TV-000002"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
+                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
+                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"));
+        when(service.createBulk(eq(1L), any())).thenReturn(
+                new BulkCreateBookCopiesResponse(5, "TV-000002", "TV-000007", skipped));
+        mvc.perform(post("/api/v1/books/1/copies/bulk").contentType(MediaType.APPLICATION_JSON)
+                        .content(valid(5).replace("\"expectedSkippedBarcodes\":[]",
+                                "\"expectedSkippedBarcodes\":[\"TV-000001\",\"TV-000003\"]")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.createdCount").value(5))
+                .andExpect(jsonPath("$.startBarcode").value("TV-000002"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
+                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
+                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"));
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest.class);
+        org.mockito.Mockito.verify(service).createBulk(eq(1L), request.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(skipped, request.getValue().expectedSkippedBarcodes());
+    }
+
     private String valid(int quantity) {
         return valid(Integer.toString(quantity));
     }
 
     private String valid(String quantity) {
         return """
-                {"quantity":%s,"warehouseId":10,"shelfId":20,"receivedDate":"2026-09-30"}
+                {"quantity":%s,"warehouseId":10,"shelfId":20,"receivedDate":"2026-09-30","confirmed":true,"expectedStartNumber":1,"expectedSkippedBarcodes":[]}
                 """.formatted(quantity);
     }
 }

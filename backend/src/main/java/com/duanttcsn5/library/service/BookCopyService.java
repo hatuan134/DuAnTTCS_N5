@@ -5,6 +5,7 @@ import com.duanttcsn5.library.dto.bookcopy.BookCopyStatusHistoryResponse;
 import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
 import com.duanttcsn5.library.repository.BookCopyLifecycleRepository;
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
+import com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest;
@@ -86,6 +87,55 @@ public class BookCopyService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BulkBarcodePreviewResponse previewBulk(Long bookId, java.math.BigDecimal quantity) {
+        if (bookId == null || bookId < 1 || !books.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        int count = parseBulkQuantity(quantity);
+        copies.lockAutoBarcodeSequence();
+        return previewRange(count);
+    }
+
+    private BulkBarcodePreviewResponse previewRange(int quantity) {
+        Long start = copies.peekAutoBarcodeNumber();
+        if (start == null || start < 1 || start > AUTO_BARCODE_MAX_NUMBER) {
+            throw exhaustedRange();
+        }
+        var skipped = new java.util.ArrayList<String>();
+        String first = null;
+        String last = null;
+        int accepted = 0;
+        for (long number = start; accepted < quantity; number++) {
+            if (number > AUTO_BARCODE_MAX_NUMBER) throw exhaustedRange();
+            String barcode = formatBarcode(number);
+            // Global lookup: copies of other books and all statuses also occupy a barcode.
+            if (copies.existsByBarcode(barcode)) {
+                skipped.add(barcode);
+                continue;
+            }
+            if (first == null) first = barcode;
+            last = barcode;
+            accepted++;
+        }
+        // startNumber is the sequence cursor, not necessarily the first usable barcode.
+        return new BulkBarcodePreviewResponse(start, first, last, quantity, List.copyOf(skipped));
+    }
+
+    private ApiException exhaustedRange() {
+        return new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
+                "Dãy mã vạch tự sinh không còn đủ mã cho lô này.");
+    }
+
+    private ApiException stalePreview() {
+        return new ApiException(HttpStatus.CONFLICT, "BULK_PREVIEW_STALE",
+                "Dãy mã hoặc danh sách mã bỏ qua đã thay đổi. Vui lòng xem lại và xác nhận lại.");
+    }
+
+    private String formatBarcode(long number) {
+        return AUTO_BARCODE_PREFIX + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BulkCreateBookCopiesResponse createBulk(Long bookId, BulkCreateBookCopiesRequest request) {
         if (bookId == null || bookId < 1 || !books.existsById(bookId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
@@ -115,29 +165,41 @@ public class BookCopyService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_INACTIVE", "Kho hoặc kệ đã ngừng sử dụng.");
         }
 
+        if (!Boolean.TRUE.equals(request.confirmed()) || request.expectedStartNumber() == null
+                || request.expectedSkippedBarcodes() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BULK_CONFIRMATION_REQUIRED",
+                    "Vui lòng xem trước và xác nhận khoảng mã vạch trước khi tạo lô.");
+        }
+        copies.lockAutoBarcodeSequence();
+        var preview = previewRange(quantity);
+        if (preview.startNumber() != request.expectedStartNumber()
+                || !preview.skippedBarcodes().equals(request.expectedSkippedBarcodes())) {
+            throw stalePreview();
+        }
+
         // S2-04.1 chỉ thu thập số lượng, kho, kệ và ngày nhập.
         // Setting này chỉ có hiệu lực trong transaction hiện tại để migration V15
         // cho phép cover_price/physical_condition để trống mà không làm yếu luồng tạo đơn.
         copies.enableBulkBookCopyCreation();
 
-        for (int i = 0; i < quantity; i++) {
+        var skipped = new java.util.HashSet<>(preview.skippedBarcodes());
+        int created = 0;
+        long expectedNumber = preview.startNumber();
+        while (created < quantity) {
             Long number = copies.nextAutoBarcodeNumber();
-            if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {
-                throw new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
-                        "Dãy mã vạch tự sinh đã hết. Vui lòng liên hệ quản trị hệ thống.");
-            }
-            String barcode = AUTO_BARCODE_PREFIX
-                    + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
+            if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) throw exhaustedRange();
+            if (number != expectedNumber++) throw stalePreview();
+            String barcode = formatBarcode(number);
+            if (skipped.contains(barcode)) continue;
             int inserted = copies.insertBulkGeneratedCopy(bookId, barcode, shelf.getId(), date);
-            if (inserted != 1) {
-                // AC1 chưa bao gồm xử lý mã trùng trong dãy. Toàn bộ transaction được rollback
-                // thay vì âm thầm bỏ qua và lưu thiếu số lượng người dùng yêu cầu.
-                throw new ApiException(HttpStatus.CONFLICT, "BULK_BARCODE_CONFLICT",
-                        "Không thể tạo đủ số lượng bản sao do mã vạch tự sinh đã tồn tại. Vui lòng thử lại.");
-            }
+            // A writer outside this service may still win the UNIQUE constraint.
+            // Roll back the entire batch so nothing differs silently from the confirmed preview.
+            if (inserted != 1) throw stalePreview();
+            created++;
         }
 
-        return new BulkCreateBookCopiesResponse(quantity);
+        return new BulkCreateBookCopiesResponse(created, preview.startBarcode(), preview.endBarcode(),
+                preview.skippedBarcodes());
     }
 
     private int parseBulkQuantity(java.math.BigDecimal quantity) {
@@ -160,6 +222,8 @@ public class BookCopyService {
 
     private BookCopyResponse createWithManualBarcode(Long bookId, String barcode, CreateBookCopyRequest request,
             Long shelfId, LocalDate date) {
+        // Same lock/order as bulk creation: shelf first, then the barcode sequence.
+        copies.lockAutoBarcodeSequence();
         int inserted = insert(bookId, barcode, shelfId, date, request);
         BookCopy copy = copies.findByBarcode(barcode).orElseThrow(() ->
                 new ApiException(HttpStatus.CONFLICT, "COPY_RETRY", "Dữ liệu vừa thay đổi. Vui lòng thử lại."));
@@ -171,6 +235,7 @@ public class BookCopyService {
 
     private BookCopyResponse createWithAutoBarcode(Long bookId, CreateBookCopyRequest request,
             Long shelfId, LocalDate date) {
+        copies.lockAutoBarcodeSequence();
         while (true) {
             Long number = copies.nextAutoBarcodeNumber();
             if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {

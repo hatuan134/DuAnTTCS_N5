@@ -54,6 +54,14 @@ public class BookCopyController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(bookId, request));
     }
 
+    @GetMapping("/books/{bookId}/copies/bulk/preview")
+    public ResponseEntity<com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse> previewBulk(
+            @PathVariable Long bookId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") java.math.BigDecimal quantity) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(service.previewBulk(bookId, quantity));
+    }
+
     @PostMapping("/books/{bookId}/copies/bulk")
     public ResponseEntity<BulkCreateBookCopiesResponse> createBulk(
             @PathVariable Long bookId,
