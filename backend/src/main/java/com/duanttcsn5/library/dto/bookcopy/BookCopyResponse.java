@@ -23,7 +23,8 @@ public record BookCopyResponse(
         PhysicalCondition physicalCondition,
         String physicalConditionLabel,
         String status,
-        String statusLabel
+        String statusLabel,
+        String notes
 ) {
     public static BookCopyResponse fromEntity(BookCopy copy) {
         var book = copy.getBook();
@@ -48,7 +49,8 @@ public record BookCopyResponse(
                 condition,
                 condition == null ? "Chưa ghi nhận" : condition.getLabel(),
                 copy.getStatus(),
-                statusLabel(copy.getStatus())
+                statusLabel(copy.getStatus()),
+                copy.getNotes()
         );
     }
 

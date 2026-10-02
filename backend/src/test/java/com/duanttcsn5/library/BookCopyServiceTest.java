@@ -181,9 +181,10 @@ class BookCopyServiceTest {
     }
 
     @Test void rejectsReassignmentOfExistingCopy() {
-        when(copies.findById(100L)).thenReturn(Optional.of(existing("TV-001", true)));
-        assertEquals("BOOK_COPY_IMMUTABLE", assertThrows(ApiException.class,
-                () -> service.rejectUpdate(100L)).getCode());
+        var request = new com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest(
+                10L, 20L, PhysicalCondition.GOOD, null, null, 2L, null);
+        assertEquals("COPY_FIXED_FIELDS", assertThrows(ApiException.class,
+                () -> service.update(100L, request)).getCode());
         verify(copies, never()).save(any());
     }
     @Test void missingCopyReturnsNotFound() {

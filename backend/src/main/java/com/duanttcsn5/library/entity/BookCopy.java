@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "book_copies")
 public class BookCopy {
     @Id
@@ -15,7 +16,7 @@ public class BookCopy {
     @JoinColumn(name = "book_id", nullable = false, updatable = false)
     private Book book;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, unique = true, length = 100, updatable = false)
     private String barcode;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -34,6 +35,17 @@ public class BookCopy {
     @Enumerated(EnumType.STRING)
     @Column(name = "physical_condition", length = 30)
     private PhysicalCondition physicalCondition;
+
+    @Column(length = 2000)
+    private String notes;
+
+    public String getNotes() { return notes; }
+
+    public void updateDetails(Shelf shelf, PhysicalCondition physicalCondition, String notes) {
+        this.shelf = shelf;
+        this.physicalCondition = physicalCondition;
+        this.notes = notes;
+    }
 
     public Long getId() { return id; }
     public Book getBook() { return book; }

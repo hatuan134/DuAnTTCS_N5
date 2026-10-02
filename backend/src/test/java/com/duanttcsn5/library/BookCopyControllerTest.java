@@ -101,7 +101,7 @@ class BookCopyControllerTest {
                 new BookCopyResponse(101L, "TV-002", 1L, "Đầu sách A", null,
                         10L, "KHO-A", "Kho A", 21L, "A02", "Kệ A02",
                         LocalDate.of(2026, 9, 29), new BigDecimal("90000"),
-                        PhysicalCondition.NEW, "Mới", "BORROWED", "Đang mượn")
+                        PhysicalCondition.NEW, "Mới", "BORROWED", "Đang mượn", null)
         ));
 
         mvc.perform(get("/api/v1/books/1/copies"))
@@ -131,16 +131,16 @@ class BookCopyControllerTest {
                 .andExpect(jsonPath("$.barcode").value("TV-001"));
     }
     @Test void putAndPatchCannotReassignBook() throws Exception {
-        doThrow(new ApiException(HttpStatus.CONFLICT, "BOOK_COPY_IMMUTABLE", "Không được chuyển đầu sách."))
-                .when(service).rejectUpdate(100L);
-        mvc.perform(put("/api/v1/book-copies/100").contentType(MediaType.APPLICATION_JSON).content("{\"bookId\":2}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOK_COPY_IMMUTABLE"));
-        mvc.perform(patch("/api/v1/book-copies/100").contentType(MediaType.APPLICATION_JSON).content("{\"bookId\":2}"))
-                .andExpect(status().isConflict());
+        for (var method : new org.springframework.http.HttpMethod[]{org.springframework.http.HttpMethod.PUT, org.springframework.http.HttpMethod.PATCH}) {
+            mvc.perform(request(method, "/api/v1/book-copies/100").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"warehouseId\":10,\"shelfId\":20,\"physicalCondition\":\"GOOD\",\"bookId\":2}"))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
     }
     private BookCopyResponse response(String barcode) {
         return new BookCopyResponse(100L, barcode, 1L, "Đầu sách A", null, 10L, "KHO-A", "Kho A",
                 20L, "A01", "Kệ A01", LocalDate.of(2026, 9, 30), new BigDecimal("85000"),
-                PhysicalCondition.GOOD, "Tốt", "AVAILABLE", "Sẵn sàng");
+                PhysicalCondition.GOOD, "Tốt", "AVAILABLE", "Sẵn sàng", null);
     }
 }

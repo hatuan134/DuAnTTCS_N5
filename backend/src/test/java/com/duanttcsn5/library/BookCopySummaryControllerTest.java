@@ -72,6 +72,6 @@ class BookCopySummaryControllerTest {
     private BookCopyResponse copy(Long id, String status, String label) {
         return new BookCopyResponse(id, "TEST-" + id, 1L, "Đầu sách A", null,
                 10L, "KHO-A", "Kho A", 20L, "A01", "Kệ A01",
-                null, null, null, "Chưa ghi nhận", status, label);
+                null, null, null, "Chưa ghi nhận", status, label, null);
     }
 }
