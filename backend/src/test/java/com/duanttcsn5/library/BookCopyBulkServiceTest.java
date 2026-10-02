@@ -260,6 +260,16 @@ class BookCopyBulkServiceTest {
         assertEquals(expectedSkipped, result.skippedBarcodes());
         assertEquals(preview.startBarcode(), result.startBarcode());
         assertEquals(preview.endBarcode(), result.endBarcode());
+        assertEquals(expectedCreated,
+                result.createdCopies().stream().map(item -> item.barcode()).toList());
+        result.createdCopies().forEach(item -> {
+            assertEquals(1L, item.bookId());
+            assertEquals(10L, item.warehouseId());
+            assertEquals("KHO-A", item.warehouseCode());
+            assertEquals(20L, item.shelfId());
+            assertEquals("A01", item.shelfCode());
+            assertEquals(today(), item.receivedDate());
+        });
         var codes = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(copies, times(5)).insertBulkGeneratedCopy(eq(1L), codes.capture(), eq(20L), eq(today()));
         assertEquals(expectedCreated, codes.getAllValues());
@@ -337,8 +347,11 @@ class BookCopyBulkServiceTest {
         var response = service.createBulk(1L, request(Integer.toString(quantity), today()));
 
         assertEquals(quantity, response.createdCount());
+        assertEquals(quantity, response.createdCopies().size());
         for (int i = 1; i <= quantity; i++) {
-            verify(copies).insertBulkGeneratedCopy(1L, String.format(java.util.Locale.ROOT, "TV-%06d", i), 20L, today());
+            String barcode = String.format(java.util.Locale.ROOT, "TV-%06d", i);
+            verify(copies).insertBulkGeneratedCopy(1L, barcode, 20L, today());
+            assertEquals(barcode, response.createdCopies().get(i - 1).barcode());
         }
         var order = org.mockito.Mockito.inOrder(copies);
         order.verify(copies).lockAutoBarcodeSequence();

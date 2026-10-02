@@ -110,8 +110,15 @@ class BookCopyBulkControllerTest {
                 .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
                 .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
                 .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"));
+        var createdCopies = java.util.List.of(
+                createdCopy("TV-000002"),
+                createdCopy("TV-000004"),
+                createdCopy("TV-000005"),
+                createdCopy("TV-000006"),
+                createdCopy("TV-000007")
+        );
         when(service.createBulk(eq(1L), any())).thenReturn(
-                new BulkCreateBookCopiesResponse(5, "TV-000002", "TV-000007", skipped));
+                new BulkCreateBookCopiesResponse(5, "TV-000002", "TV-000007", skipped, createdCopies));
         mvc.perform(post("/api/v1/books/1/copies/bulk").contentType(MediaType.APPLICATION_JSON)
                         .content(valid(5).replace("\"expectedSkippedBarcodes\":[]",
                                 "\"expectedSkippedBarcodes\":[\"TV-000001\",\"TV-000003\"]")))
@@ -120,11 +127,24 @@ class BookCopyBulkControllerTest {
                 .andExpect(jsonPath("$.startBarcode").value("TV-000002"))
                 .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
                 .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
-                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"));
+                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"))
+                .andExpect(jsonPath("$.createdCopies.length()").value(5))
+                .andExpect(jsonPath("$.createdCopies[0].barcode").value("TV-000002"))
+                .andExpect(jsonPath("$.createdCopies[0].bookId").value(1))
+                .andExpect(jsonPath("$.createdCopies[0].warehouseCode").value("KHO-A"))
+                .andExpect(jsonPath("$.createdCopies[0].shelfCode").value("A01"))
+                .andExpect(jsonPath("$.createdCopies[0].receivedDate").value("2026-09-30"))
+                .andExpect(jsonPath("$.createdCopies[4].barcode").value("TV-000007"));
         var request = org.mockito.ArgumentCaptor.forClass(
                 com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest.class);
         org.mockito.Mockito.verify(service).createBulk(eq(1L), request.capture());
         org.junit.jupiter.api.Assertions.assertEquals(skipped, request.getValue().expectedSkippedBarcodes());
+    }
+
+    private com.duanttcsn5.library.dto.bookcopy.BulkCreatedBookCopyResponse createdCopy(String barcode) {
+        return new com.duanttcsn5.library.dto.bookcopy.BulkCreatedBookCopyResponse(
+                barcode, 1L, 10L, "KHO-A", "Kho A", 20L, "A01", "Kệ A01",
+                java.time.LocalDate.of(2026, 9, 30));
     }
 
     private String valid(int quantity) {

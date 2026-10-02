@@ -6,6 +6,7 @@ import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
 import com.duanttcsn5.library.repository.BookCopyLifecycleRepository;
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse;
+import com.duanttcsn5.library.dto.bookcopy.BulkCreatedBookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest;
@@ -183,9 +184,9 @@ public class BookCopyService {
         copies.enableBulkBookCopyCreation();
 
         var skipped = new java.util.HashSet<>(preview.skippedBarcodes());
-        int created = 0;
+        var createdCopies = new java.util.ArrayList<BulkCreatedBookCopyResponse>(quantity);
         long expectedNumber = preview.startNumber();
-        while (created < quantity) {
+        while (createdCopies.size() < quantity) {
             Long number = copies.nextAutoBarcodeNumber();
             if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) throw exhaustedRange();
             if (number != expectedNumber++) throw stalePreview();
@@ -195,11 +196,14 @@ public class BookCopyService {
             // A writer outside this service may still win the UNIQUE constraint.
             // Roll back the entire batch so nothing differs silently from the confirmed preview.
             if (inserted != 1) throw stalePreview();
-            created++;
+
+            // S2-04.4: lưu chính xác từng mã vừa INSERT thành công để response chỉ chứa
+            // các bản sao của lô hiện tại, không phải toàn bộ bản sao cũ của đầu sách.
+            createdCopies.add(BulkCreatedBookCopyResponse.of(barcode, bookId, shelf, date));
         }
 
-        return new BulkCreateBookCopiesResponse(created, preview.startBarcode(), preview.endBarcode(),
-                preview.skippedBarcodes());
+        return new BulkCreateBookCopiesResponse(createdCopies.size(), preview.startBarcode(), preview.endBarcode(),
+                preview.skippedBarcodes(), createdCopies);
     }
 
     private int parseBulkQuantity(java.math.BigDecimal quantity) {
