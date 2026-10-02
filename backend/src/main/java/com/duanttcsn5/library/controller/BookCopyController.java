@@ -3,6 +3,7 @@ package com.duanttcsn5.library.controller;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
+import com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest;
 import com.duanttcsn5.library.service.BookCopyService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -51,10 +52,9 @@ public class BookCopyController {
         return ResponseEntity.ok(service.getById(id));
     }
 
-    // Explicit rejection makes an attempted reassignment reviewable, without implementing an editor.
     @RequestMapping(value = "/book-copies/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
-    public ResponseEntity<Void> rejectUpdate(@PathVariable Long id) {
-        service.rejectUpdate(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<BookCopyResponse> update(@PathVariable Long id,
+            @Valid @RequestBody UpdateBookCopyRequest request) {
+        return ResponseEntity.ok(service.update(id, request));
     }
 }

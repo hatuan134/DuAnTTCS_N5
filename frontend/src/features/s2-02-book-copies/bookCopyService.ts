@@ -27,6 +27,7 @@ export interface BookCopy {
   physicalConditionLabel: string
   status: string
   statusLabel: string
+  notes: string | null
 }
 export interface BookCopySummary {
   copies: BookCopy[]
@@ -40,6 +41,12 @@ export interface CreateBookCopy {
   receivedDate: string
   coverPrice: string
   physicalCondition: PhysicalCondition
+}
+export interface UpdateBookCopy {
+  warehouseId: number
+  shelfId: number
+  physicalCondition: PhysicalCondition
+  notes: string
 }
 export interface DuplicateCopy {
   existingCopyId: number
@@ -73,6 +80,9 @@ export const bookCopyService = {
   },
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data
+  },
+  async update(id: number, data: UpdateBookCopy): Promise<BookCopy> {
+    return (await apiClient.put<BookCopy>(`/book-copies/${id}`, data)).data
   },
   async getCopy(id: number): Promise<BookCopy> {
     return (await apiClient.get<BookCopy>(`/book-copies/${id}`)).data

@@ -4,6 +4,7 @@ import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
+import com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest;
 import com.duanttcsn5.library.entity.BookCopy;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.BookCopyRepository;
@@ -154,11 +155,39 @@ public class BookCopyService {
                 new ApiException(HttpStatus.NOT_FOUND, "COPY_NOT_FOUND", "Không tìm thấy bản sao.")));
     }
 
-    @Transactional(readOnly = true)
-    public void rejectUpdate(Long id) {
-        getById(id);
-        throw new ApiException(HttpStatus.CONFLICT, "BOOK_COPY_IMMUTABLE",
-                "Không được chuyển bản sao sang đầu sách khác. Lát này chưa hỗ trợ chỉnh sửa bản sao.");
+    @Transactional
+    public BookCopyResponse update(Long id, UpdateBookCopyRequest request) {
+        if (id == null || id < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COPY_ID", "Mã bản sao không hợp lệ.");
+        }
+        if (request.barcode() != null || request.bookId() != null || request.status() != null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "COPY_FIXED_FIELDS",
+                    "Không được thay đổi mã vạch, đầu sách hoặc trạng thái trong chức năng này.");
+        }
+        if (request.warehouseId() == null || request.warehouseId() < 1
+                || request.shelfId() == null || request.shelfId() < 1 || request.physicalCondition() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COPY_DETAILS",
+                    "Vui lòng chọn kho, kệ và tình trạng vật lý hợp lệ.");
+        }
+        if (request.notes() != null && request.notes().length() > 2000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "NOTES_TOO_LONG", "Ghi chú không được dài quá 2000 ký tự.");
+        }
+        BookCopy copy = copies.findById(id).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "COPY_NOT_FOUND", "Không tìm thấy bản sao."));
+        // Reuse the location lock and validation convention of copy creation.
+        var shelf = shelves.findForCopyCreation(request.shelfId()).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "SHELF_NOT_FOUND", "Không tìm thấy kệ."));
+        if (!shelf.getWarehouse().getId().equals(request.warehouseId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SHELF_WAREHOUSE_MISMATCH", "Kệ không thuộc kho đã chọn.");
+        }
+        if (!shelf.isActive() || !shelf.getWarehouse().isActive()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_INACTIVE", "Kho hoặc kệ đã ngừng sử dụng.");
+        }
+        String notes = request.notes() == null ? null : request.notes().trim();
+        copy.updateDetails(shelf, request.physicalCondition(), notes == null || notes.isEmpty() ? null : notes);
+        // Managed entity: transaction dirty checking persists only the edited fields.
+        copies.flush();
+        return BookCopyResponse.fromEntity(copy);
     }
 
     private ApiException duplicate(BookCopy copy) {

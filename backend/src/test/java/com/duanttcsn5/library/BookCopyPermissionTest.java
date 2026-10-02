@@ -52,7 +52,7 @@ class BookCopyPermissionTest {
         assertThrows(AccessDeniedException.class, () -> copies.getByBookId(1L));
         assertThrows(AccessDeniedException.class, () -> copies.getSummaryByBookId(1L));
         assertThrows(AccessDeniedException.class, () -> copies.get(1L));
-        assertThrows(AccessDeniedException.class, () -> copies.rejectUpdate(1L));
+        assertThrows(AccessDeniedException.class, () -> copies.update(1L, updateRequest()));
         assertThrows(AccessDeniedException.class, () -> locations.getWarehouses());
         assertThrows(AccessDeniedException.class, () -> locations.getShelves(null));
         verifyNoInteractions(context.getBean(BookCopyService.class));
@@ -64,6 +64,7 @@ class BookCopyPermissionTest {
             assertDoesNotThrow(() -> copies.getByBookId(1L));
             assertDoesNotThrow(() -> copies.getSummaryByBookId(1L));
             assertDoesNotThrow(() -> copies.get(1L));
+            assertDoesNotThrow(() -> copies.update(1L, updateRequest()));
             assertDoesNotThrow(() -> locations.getWarehouses());
             assertDoesNotThrow(() -> locations.getShelves(null));
         }
@@ -73,6 +74,10 @@ class BookCopyPermissionTest {
         assertThrows(AccessDeniedException.class, () -> locations.createWarehouse(
                 new WarehouseRequest("TEST", "Kho thử", ""), null, null));
         assertThrows(AccessDeniedException.class, () -> locations.deleteShelf(1L, null, null));
+    }
+    private com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest updateRequest() {
+        return new com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest(
+                1L, 1L, PhysicalCondition.GOOD, "Ghi chú", null, null, null);
     }
     private CreateBookCopyRequest request() {
         return new CreateBookCopyRequest(BarcodeMode.MANUAL, "TV-001", 1L, 1L, LocalDate.of(2026, 9, 30),
