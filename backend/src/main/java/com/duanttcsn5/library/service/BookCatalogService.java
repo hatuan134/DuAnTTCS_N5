@@ -2,6 +2,7 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
+import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
 import com.duanttcsn5.library.entity.Author;
 import com.duanttcsn5.library.entity.Book;
 import com.duanttcsn5.library.entity.Category;
@@ -19,6 +20,7 @@ import java.text.Normalizer;
 import java.time.Year;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,19 +68,74 @@ public class BookCatalogService {
 
     @Transactional(readOnly = true)
     public List<BookResponse> getPublicBooks(String keyword) {
+        return getPublicBooks(keyword, null, null, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookResponse> getPublicBooks(String keyword, Long categoryId,
+                                             Integer publicationYear, boolean availableOnly) {
+        validatePublicFilters(categoryId, publicationYear);
         String normalizedKeyword = normalizeSearchText(keyword);
         String normalizedIsbnKeyword = normalizeIsbnForSearch(keyword);
         Map<Long, Long> availableCounts = loadAvailableCounts();
         Map<Long, Long> copyCounts = loadCopyCounts();
 
         return bookRepository.findAllPublicWithAuthorAndCategory().stream()
+                .filter(book -> categoryId == null || (book.getCategory() != null
+                        && categoryId.equals(book.getCategory().getId())))
+                .filter(book -> publicationYear == null || publicationYear.equals(book.getPublicationYear()))
                 .filter(book -> matchesPublicKeyword(book, normalizedKeyword, normalizedIsbnKeyword))
                 .map(book -> BookResponse.fromEntity(
                         book,
                         copyCounts.getOrDefault(book.getId(), 0L),
                         availableCounts.getOrDefault(book.getId(), 0L)))
                 .filter(BookResponse::hasCopies)
+                .filter(book -> !availableOnly || book.availableCount() > 0)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PublicCatalogFilterOptionsResponse getPublicFilterOptions() {
+        // Chỉ lấy lựa chọn từ đầu sách công khai; không phụ thuộc từ khóa/bộ lọc đang chọn.
+        // Giữ cả thể loại ngừng sử dụng nếu vẫn có sách công khai thuộc thể loại đó.
+        List<Book> publicBooks = bookRepository.findAllPublicWithAuthorAndCategory();
+        Map<Long, PublicCatalogFilterOptionsResponse.CategoryOption> categories = new HashMap<>();
+        Set<Integer> years = new HashSet<>();
+        for (Book book : publicBooks) {
+            Category category = book.getCategory();
+            if (category != null && category.getId() != null) {
+                categories.putIfAbsent(category.getId(),
+                        new PublicCatalogFilterOptionsResponse.CategoryOption(category.getId(), category.getName()));
+            }
+            if (book.getPublicationYear() != null && book.getPublicationYear() > 0
+                    && book.getPublicationYear() <= Year.now(LIBRARY_ZONE).getValue()) {
+                years.add(book.getPublicationYear());
+            }
+        }
+        return new PublicCatalogFilterOptionsResponse(
+                categories.values().stream()
+                        .sorted(Comparator.comparing(PublicCatalogFilterOptionsResponse.CategoryOption::name)
+                                .thenComparing(PublicCatalogFilterOptionsResponse.CategoryOption::id))
+                        .toList(),
+                years.stream().sorted(Comparator.reverseOrder()).toList());
+    }
+
+    private void validatePublicFilters(Long categoryId, Integer publicationYear) {
+        if (categoryId != null) {
+            if (categoryId <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY_FILTER",
+                        "Mã thể loại phải là số nguyên lớn hơn 0.");
+            }
+            if (!categoryRepository.existsById(categoryId)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "CATEGORY_NOT_FOUND",
+                        "Thể loại được chọn không tồn tại. Vui lòng chọn lại thể loại.");
+            }
+        }
+        if (publicationYear != null && (publicationYear < 1
+                || publicationYear > Year.now(LIBRARY_ZONE).getValue())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PUBLICATION_YEAR",
+                    "Năm xuất bản phải là số nguyên từ 1 đến năm hiện tại.");
+        }
     }
 
     @Transactional(readOnly = true)

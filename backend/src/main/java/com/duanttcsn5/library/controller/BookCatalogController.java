@@ -2,6 +2,7 @@ package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
+import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
 import com.duanttcsn5.library.service.BookCatalogService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,8 +39,17 @@ public class BookCatalogController {
 
     @GetMapping("/public")
     public ResponseEntity<List<BookResponse>> getPublicBooks(
-            @RequestParam(required = false) String keyword) {
-        return ResponseEntity.ok(bookCatalogService.getPublicBooks(keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer publicationYear,
+            @RequestParam(defaultValue = "false") boolean availableOnly) {
+        return ResponseEntity.ok(bookCatalogService.getPublicBooks(
+                keyword, categoryId, publicationYear, availableOnly));
+    }
+
+    @GetMapping("/public/filters")
+    public ResponseEntity<PublicCatalogFilterOptionsResponse> getPublicFilterOptions() {
+        return ResponseEntity.ok(bookCatalogService.getPublicFilterOptions());
     }
 
     @GetMapping("/public/{id}")

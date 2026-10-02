@@ -43,7 +43,7 @@ class PublicCatalogControllerTest {
     @Test
     @DisplayName("S2-05.1 - GET public nhận từ khóa và trả danh sách kết quả")
     void searchPublicBooks() throws Exception {
-        when(bookCatalogService.getPublicBooks("nguyen nhat anh"))
+        when(bookCatalogService.getPublicBooks("nguyen nhat anh", null, null, false))
                 .thenReturn(List.of(bookResponse()));
 
         mockMvc.perform(get("/api/v1/books/public")

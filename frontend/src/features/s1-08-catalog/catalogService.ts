@@ -52,6 +52,17 @@ export interface Book {
   availableCount: number
 }
 
+export interface PublicCatalogFilters {
+  categoryId?: number
+  publicationYear?: number
+  availableOnly?: boolean
+}
+
+export interface PublicCatalogFilterOptions {
+  categories: { id: number; name: string }[]
+  publicationYears: number[]
+}
+
 export interface AuthorForm {
   name: string
   note: string
@@ -153,11 +164,26 @@ export const catalogService = {
     return res.data
   },
 
-  getPublicBooks: async (keyword?: string): Promise<Book[]> => {
+  getPublicBooks: async (
+    keyword?: string,
+    filters: PublicCatalogFilters = {},
+    signal?: AbortSignal,
+  ): Promise<Book[]> => {
     const normalizedKeyword = keyword?.trim()
     const res = await apiClient.get<Book[]>('/books/public', {
-      params: normalizedKeyword ? { keyword: normalizedKeyword } : undefined,
+      params: {
+        keyword: normalizedKeyword || undefined,
+        categoryId: filters.categoryId,
+        publicationYear: filters.publicationYear,
+        availableOnly: filters.availableOnly || undefined,
+      },
+      signal,
     })
+    return res.data
+  },
+
+  getPublicFilterOptions: async (signal?: AbortSignal): Promise<PublicCatalogFilterOptions> => {
+    const res = await apiClient.get<PublicCatalogFilterOptions>('/books/public/filters', { signal })
     return res.data
   },
 
