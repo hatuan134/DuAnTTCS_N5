@@ -54,6 +54,22 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
     Long nextAutoBarcodeNumber();
 
+    @Query(value = "SELECT set_config('app.bulk_book_copy_creation', 'true', true)", nativeQuery = true)
+    String enableBulkBookCopyCreation();
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO book_copies (book_id, barcode, shelf_id, received_date, status)
+            VALUES (:bookId, :barcode, :shelfId, :receivedDate, 'AVAILABLE')
+            ON CONFLICT (barcode) DO NOTHING
+            """, nativeQuery = true)
+    int insertBulkGeneratedCopy(
+            @Param("bookId") Long bookId,
+            @Param("barcode") String barcode,
+            @Param("shelfId") Long shelfId,
+            @Param("receivedDate") LocalDate receivedDate
+    );
+
     // PostgreSQL handles concurrent duplicate submissions without aborting this transaction.
     @Modifying
     @Query(value = """

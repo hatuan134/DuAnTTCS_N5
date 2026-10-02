@@ -5,6 +5,8 @@ import com.duanttcsn5.library.dto.bookcopy.BookCopyStatusHistoryResponse;
 import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
+import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest;
+import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesResponse;
 import com.duanttcsn5.library.dto.bookcopy.CreateBookCopyRequest;
 import com.duanttcsn5.library.dto.bookcopy.UpdateBookCopyRequest;
 import com.duanttcsn5.library.service.BookCopyService;
@@ -50,6 +52,13 @@ public class BookCopyController {
             @PathVariable Long bookId,
             @Valid @RequestBody CreateBookCopyRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(bookId, request));
+    }
+
+    @PostMapping("/books/{bookId}/copies/bulk")
+    public ResponseEntity<BulkCreateBookCopiesResponse> createBulk(
+            @PathVariable Long bookId,
+            @Valid @RequestBody BulkCreateBookCopiesRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createBulk(bookId, request));
     }
 
     @GetMapping("/books/{bookId}/copies")
