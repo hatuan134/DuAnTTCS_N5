@@ -153,8 +153,16 @@ export const catalogService = {
     return res.data
   },
 
-  getPublicBooks: async (): Promise<Book[]> => {
-    const res = await apiClient.get<Book[]>('/books/public')
+  getPublicBooks: async (keyword?: string): Promise<Book[]> => {
+    const normalizedKeyword = keyword?.trim()
+    const res = await apiClient.get<Book[]>('/books/public', {
+      params: normalizedKeyword ? { keyword: normalizedKeyword } : undefined,
+    })
+    return res.data
+  },
+
+  getPublicBookById: async (id: number): Promise<Book> => {
+    const res = await apiClient.get<Book>(`/books/public/${id}`)
     return res.data
   },
 

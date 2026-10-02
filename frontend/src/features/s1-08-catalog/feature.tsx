@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 
 import CatalogManagementPage from './CatalogManagementPage'
+import PublicBookDetailPage from './PublicBookDetailPage'
 import PublicCatalogPage from './PublicCatalogPage'
 
 import type {
@@ -20,6 +21,10 @@ const feature: FeatureModule = {
     {
       path: '/catalog',
       element: <PublicCatalogPage />,
+    },
+    {
+      path: '/catalog/books/:bookId',
+      element: <PublicBookDetailPage />,
     },
   ],
 
