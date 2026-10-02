@@ -170,6 +170,7 @@ class BookCopyBulkServiceTest {
     @Test
     void doesNotSkipBarcodeConflictInThisSlice() {
         prepareValidLocation();
+        when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
         when(copies.enableBulkBookCopyCreation()).thenReturn("true");
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L);
         when(copies.insertBulkGeneratedCopy(1L, "TV-000001", 20L, today())).thenReturn(0);
@@ -181,8 +182,56 @@ class BookCopyBulkServiceTest {
         verify(copies, times(1)).insertBulkGeneratedCopy(anyLong(), any(), anyLong(), any());
     }
 
+    @Test
+    void previewsOneTenAndChangedQuantityWithoutConsumingSequence() {
+        when(books.existsById(1L)).thenReturn(true);
+        when(copies.peekAutoBarcodeNumber()).thenReturn(21L, 21L, 35L);
+        var one = service.previewBulk(1L, BigDecimal.ONE);
+        assertEquals("TV-000021", one.startBarcode());
+        assertEquals("TV-000021", one.endBarcode());
+        assertEquals(1, one.quantity());
+        var ten = service.previewBulk(1L, BigDecimal.TEN);
+        assertEquals("TV-000030", ten.endBarcode());
+        assertEquals(10, ten.quantity());
+        assertEquals("TV-000039", service.previewBulk(1L, BigDecimal.valueOf(5)).endBarcode());
+        verify(copies, never()).nextAutoBarcodeNumber();
+        verify(copies, never()).enableBulkBookCopyCreation();
+    }
+
+    @Test
+    void requiresExplicitConfirmation() {
+        prepareValidLocation();
+        var unconfirmed = new BulkCreateBookCopiesRequest(BigDecimal.TEN, 10L, 20L, today());
+        assertEquals("BULK_CONFIRMATION_REQUIRED", assertThrows(ApiException.class,
+                () -> service.createBulk(1L, unconfirmed)).getCode());
+        verify(copies, never()).nextAutoBarcodeNumber();
+    }
+
+    @Test
+    void rejectsStalePreviewWithoutConsumingSequence() {
+        prepareValidLocation();
+        when(copies.peekAutoBarcodeNumber()).thenReturn(11L);
+        assertEquals("BULK_PREVIEW_STALE", assertThrows(ApiException.class,
+                () -> service.createBulk(1L, request("10", today()))).getCode());
+        verify(copies, never()).nextAutoBarcodeNumber();
+        verify(copies, never()).enableBulkBookCopyCreation();
+    }
+
+    @Test
+    void previewRejectsInvalidQuantityAndExhaustedRange() {
+        when(books.existsById(1L)).thenReturn(true);
+        for (String value : new String[]{"0", "51", "1.5"}) {
+            assertEquals("INVALID_BULK_QUANTITY", assertThrows(ApiException.class,
+                    () -> service.previewBulk(1L, new BigDecimal(value))).getCode());
+        }
+        when(copies.peekAutoBarcodeNumber()).thenReturn(999995L);
+        assertEquals("BARCODE_SEQUENCE_EXHAUSTED", assertThrows(ApiException.class,
+                () -> service.previewBulk(1L, BigDecimal.TEN)).getCode());
+    }
+
     private void assertSuccessfulBatch(int quantity) {
         prepareValidLocation();
+        when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
         when(copies.enableBulkBookCopyCreation()).thenReturn("true");
         AtomicLong sequence = new AtomicLong(1);
         when(copies.nextAutoBarcodeNumber()).thenAnswer(invocation -> sequence.getAndIncrement());
@@ -191,6 +240,13 @@ class BookCopyBulkServiceTest {
         var response = service.createBulk(1L, request(Integer.toString(quantity), today()));
 
         assertEquals(quantity, response.createdCount());
+        for (int i = 1; i <= quantity; i++) {
+            verify(copies).insertBulkGeneratedCopy(1L, String.format(java.util.Locale.ROOT, "TV-%06d", i), 20L, today());
+        }
+        var order = org.mockito.Mockito.inOrder(copies);
+        order.verify(copies).lockAutoBarcodeSequence();
+        order.verify(copies).peekAutoBarcodeNumber();
+        order.verify(copies).enableBulkBookCopyCreation();
         verify(copies).enableBulkBookCopyCreation();
         verify(copies, times(quantity)).nextAutoBarcodeNumber();
         verify(copies, times(quantity)).insertBulkGeneratedCopy(eq(1L), any(), eq(20L), eq(today()));
@@ -202,7 +258,7 @@ class BookCopyBulkServiceTest {
     }
 
     private BulkCreateBookCopiesRequest request(String quantity, LocalDate date) {
-        return new BulkCreateBookCopiesRequest(new BigDecimal(quantity), 10L, 20L, date);
+        return new BulkCreateBookCopiesRequest(new BigDecimal(quantity), 10L, 20L, date, true, 1L);
     }
 
     private LocalDate today() {

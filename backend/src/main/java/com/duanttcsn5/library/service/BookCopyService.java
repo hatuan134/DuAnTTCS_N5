@@ -5,6 +5,7 @@ import com.duanttcsn5.library.dto.bookcopy.BookCopyStatusHistoryResponse;
 import com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest;
 import com.duanttcsn5.library.repository.BookCopyLifecycleRepository;
 import com.duanttcsn5.library.dto.bookcopy.BarcodeMode;
+import com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopyResponse;
 import com.duanttcsn5.library.dto.bookcopy.BookCopySummaryResponse;
 import com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest;
@@ -86,6 +87,29 @@ public class BookCopyService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BulkBarcodePreviewResponse previewBulk(Long bookId, java.math.BigDecimal quantity) {
+        if (bookId == null || bookId < 1 || !books.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        int count = parseBulkQuantity(quantity);
+        copies.lockAutoBarcodeSequence();
+        return previewRange(count);
+    }
+
+    private BulkBarcodePreviewResponse previewRange(int quantity) {
+        Long start = copies.peekAutoBarcodeNumber();
+        if (start == null || start < 1 || start > AUTO_BARCODE_MAX_NUMBER - quantity + 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
+                    "Dãy mã vạch tự sinh không còn đủ mã cho lô này.");
+        }
+        return new BulkBarcodePreviewResponse(start, formatBarcode(start), formatBarcode(start + quantity - 1), quantity);
+    }
+
+    private String formatBarcode(long number) {
+        return AUTO_BARCODE_PREFIX + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BulkCreateBookCopiesResponse createBulk(Long bookId, BulkCreateBookCopiesRequest request) {
         if (bookId == null || bookId < 1 || !books.existsById(bookId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
@@ -115,6 +139,17 @@ public class BookCopyService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_INACTIVE", "Kho hoặc kệ đã ngừng sử dụng.");
         }
 
+        if (!Boolean.TRUE.equals(request.confirmed()) || request.expectedStartNumber() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BULK_CONFIRMATION_REQUIRED",
+                    "Vui lòng xem trước và xác nhận khoảng mã vạch trước khi tạo lô.");
+        }
+        copies.lockAutoBarcodeSequence();
+        var preview = previewRange(quantity);
+        if (preview.startNumber() != request.expectedStartNumber()) {
+            throw new ApiException(HttpStatus.CONFLICT, "BULK_PREVIEW_STALE",
+                    "Dãy mã đã thay đổi. Vui lòng xem lại khoảng mã mới và xác nhận lại.");
+        }
+
         // S2-04.1 chỉ thu thập số lượng, kho, kệ và ngày nhập.
         // Setting này chỉ có hiệu lực trong transaction hiện tại để migration V15
         // cho phép cover_price/physical_condition để trống mà không làm yếu luồng tạo đơn.
@@ -125,6 +160,10 @@ public class BookCopyService {
             if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {
                 throw new ApiException(HttpStatus.CONFLICT, "BARCODE_SEQUENCE_EXHAUSTED",
                         "Dãy mã vạch tự sinh đã hết. Vui lòng liên hệ quản trị hệ thống.");
+            }
+            if (number != preview.startNumber() + i) {
+                throw new ApiException(HttpStatus.CONFLICT, "BULK_PREVIEW_STALE",
+                        "Dãy mã đã thay đổi. Vui lòng xem trước và xác nhận lại.");
             }
             String barcode = AUTO_BARCODE_PREFIX
                     + String.format(Locale.ROOT, "%0" + AUTO_BARCODE_NUMBER_LENGTH + "d", number);
@@ -171,6 +210,7 @@ public class BookCopyService {
 
     private BookCopyResponse createWithAutoBarcode(Long bookId, CreateBookCopyRequest request,
             Long shelfId, LocalDate date) {
+        copies.lockAutoBarcodeSequence();
         while (true) {
             Long number = copies.nextAutoBarcodeNumber();
             if (number == null || number < 1 || number > AUTO_BARCODE_MAX_NUMBER) {

@@ -83,13 +83,26 @@ class BookCopyBulkControllerTest {
         verifyNoInteractions(service);
     }
 
+    @Test
+    void previewReturnsRangeWithoutCreating() throws Exception {
+        when(service.previewBulk(eq(1L), any())).thenReturn(
+                new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(1, "TV-000001", "TV-000010", 10));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/books/1/copies/bulk/preview").param("quantity", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startBarcode").value("TV-000001"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-000010"))
+                .andExpect(jsonPath("$.quantity").value(10));
+        org.mockito.Mockito.verify(service, org.mockito.Mockito.never()).createBulk(any(), any());
+    }
+
     private String valid(int quantity) {
         return valid(Integer.toString(quantity));
     }
 
     private String valid(String quantity) {
         return """
-                {"quantity":%s,"warehouseId":10,"shelfId":20,"receivedDate":"2026-09-30"}
+                {"quantity":%s,"warehouseId":10,"shelfId":20,"receivedDate":"2026-09-30","confirmed":true,"expectedStartNumber":1}
                 """.formatted(quantity);
     }
 }

@@ -57,6 +57,12 @@ export interface BulkCreateBookCopies {
   shelfId: number
   receivedDate: string
 }
+export interface BulkBarcodePreview {
+  startNumber: number
+  startBarcode: string
+  endBarcode: string
+  quantity: number
+}
 export interface BulkCreateBookCopiesResult {
   createdCount: number
 }
@@ -110,7 +116,10 @@ export const bookCopyService = {
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data
   },
-  async createBulk(bookId: number, data: BulkCreateBookCopies): Promise<BulkCreateBookCopiesResult> {
+  async previewBulk(bookId: number, quantity: number): Promise<BulkBarcodePreview> {
+    return (await apiClient.get<BulkBarcodePreview>(`/books/${bookId}/copies/bulk/preview`, { params: { quantity } })).data
+  },
+  async createBulk(bookId: number, data: BulkCreateBookCopies & { confirmed: true; expectedStartNumber: number }): Promise<BulkCreateBookCopiesResult> {
     return (await apiClient.post<BulkCreateBookCopiesResult>(`/books/${bookId}/copies/bulk`, data)).data
   },
   async update(id: number, data: UpdateBookCopy): Promise<BookCopy> {
