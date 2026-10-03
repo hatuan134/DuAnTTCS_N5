@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
+import BookCoverImage from '../s2-10-book-cover/BookCoverImage'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
@@ -175,6 +176,11 @@ export default function BookDetailPage() {
             {book.subtitle && (
               <p className="mt-1 text-sm font-medium text-slate-500">{book.subtitle}</p>
             )}
+            {book.coverImageUrl && <BookCoverImage bookId={book.id} url={book.coverImageUrl} title={book.title} />}
+            {!book.coverImageUrl && <Link to={`/books/${book.id}/cover/edit`}
+              className="mt-4 inline-block rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-slate-50">
+              Chỉnh sửa ảnh bìa
+            </Link>}
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
               {[
                 ['Mã đầu sách', `#${book.id}`],
