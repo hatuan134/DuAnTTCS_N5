@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.entity.Book;
 import com.duanttcsn5.library.entity.BookCopy;
 import com.duanttcsn5.library.entity.BookReservation;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 public class BookReservationService {
@@ -99,6 +101,32 @@ public class BookReservationService {
                 : "Đặt giữ thành công. Thư viện đã dành một bản sách cho bạn. Vui lòng đến nhận trước hạn hiển thị.";
         return new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
                 saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReadyForPickupReservationResponse> getReadyForPickup() {
+        return reservations.findReadyForPickup().stream().map(this::toReadyResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ReadyForPickupReservationResponse getReadyForPickupById(Long reservationId) {
+        if (reservationId == null || reservationId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_ID",
+                    "Mã đơn đặt giữ không hợp lệ.");
+        }
+        BookReservation reservation = reservations.findReadyForPickupById(reservationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "READY_RESERVATION_NOT_FOUND",
+                        "Không tìm thấy đơn đặt giữ đang chờ nhận. Đơn có thể đã đổi trạng thái."));
+        return toReadyResponse(reservation);
+    }
+
+    private ReadyForPickupReservationResponse toReadyResponse(BookReservation reservation) {
+        BookCopy copy = reservation.getBookCopy();
+        return new ReadyForPickupReservationResponse(
+                reservation.getId(), reservation.getBook().getId(), reservation.getBook().getTitle(),
+                copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode(),
+                reservation.getReader().getId(), reservation.getReader().getFullName(),
+                reservation.getStatus(), reservation.getReservedAt(), reservation.getPickupDeadline());
     }
 
     private void validateCard(LibraryCard card, LocalDate today) {

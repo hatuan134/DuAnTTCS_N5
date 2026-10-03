@@ -6,8 +6,30 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
+
+    // Keep legacy READY rows with no allocated copy/deadline visible. Unknown
+    // deadlines belong last; id makes ordering deterministic for equal deadlines.
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            JOIN FETCH r.reader
+            LEFT JOIN FETCH r.bookCopy
+            WHERE r.status = 'READY_FOR_PICKUP'
+            ORDER BY r.pickupDeadline ASC NULLS LAST, r.id ASC
+            """)
+    List<BookReservation> findReadyForPickup();
+
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            JOIN FETCH r.reader
+            LEFT JOIN FETCH r.bookCopy
+            WHERE r.id = :reservationId AND r.status = 'READY_FOR_PICKUP'
+            """)
+    Optional<BookReservation> findReadyForPickupById(@Param("reservationId") Long reservationId);
 
     // Compare against the persisted timestamp so PostgreSQL microsecond precision
     // cannot move the newly created row out of its own queue position.
