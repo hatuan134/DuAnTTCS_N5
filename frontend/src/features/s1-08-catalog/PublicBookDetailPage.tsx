@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BookOpen, LogIn } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  Bookmark,
+  Calendar,
+  CheckCircle2,
+  FileText,
+  ImageOff,
+  Library,
+  LogIn,
+  Tag,
+  User,
+} from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { catalogService } from './catalogService'
@@ -17,6 +30,7 @@ export default function PublicBookDetailPage() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     const id = Number(bookId)
@@ -31,6 +45,7 @@ export default function PublicBookDetailPage() {
     const loadBook = async () => {
       setLoading(true)
       setError('')
+      setImageError(false)
       try {
         const data = await catalogService.getPublicBookById(id)
         if (active) {
@@ -56,22 +71,23 @@ export default function PublicBookDetailPage() {
   }, [bookId])
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      {/* Header */}
+      <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
           <Link to="/catalog" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-200">
               <BookOpen size={22} />
             </div>
             <div>
-              <p className="font-semibold text-slate-900">LIBRA</p>
+              <p className="font-bold tracking-tight text-slate-900">LIBRA</p>
               <p className="text-xs text-slate-500">Chi tiết đầu sách công khai</p>
             </div>
           </Link>
 
           <Link
             to="/login"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-400"
           >
             <LogIn size={17} />
             Đăng nhập
@@ -79,6 +95,7 @@ export default function PublicBookDetailPage() {
         </div>
       </header>
 
+      {/* Main Container */}
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <Link
           to="/catalog"
@@ -89,52 +106,190 @@ export default function PublicBookDetailPage() {
         </Link>
 
         {loading && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 shadow-sm">
+            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
             Đang tải thông tin đầu sách…
           </div>
         )}
 
         {!loading && error && (
-          <div role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            {error}
+          <div
+            role="alert"
+            className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm"
+          >
+            <AlertCircle size={20} className="shrink-0 text-red-500 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-800">Thông báo</p>
+              <p className="mt-1">{error}</p>
+            </div>
           </div>
         )}
 
         {!loading && !error && book && (
           <article className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-slate-900 px-6 py-7 text-white sm:px-8">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-300">Đầu sách</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight">{book.title}</h1>
-              {book.subtitle && (
-                <p className="mt-2 text-sm text-slate-300">{book.subtitle}</p>
-              )}
+            {/* Top Overview: Cover Image + Key Metadata */}
+            <div className="p-6 sm:p-8 border-b border-slate-100">
+              <div className="flex flex-col md:flex-row gap-8 items-start">
+                {/* Book Cover Image / Fallback Placeholder */}
+                <div className="w-full md:w-56 shrink-0 flex flex-col items-center">
+                  {book.coverImageUrl && !imageError ? (
+                    <div className="relative aspect-[3/4] w-48 sm:w-56 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-md">
+                      <img
+                        src={book.coverImageUrl}
+                        alt={`Bìa sách ${book.title}`}
+                        onError={() => setImageError(true)}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    /* Fallback when book has no cover image or image failed to load */
+                    <div
+                      aria-label="Hình thay thế bìa sách"
+                      className="flex aspect-[3/4] w-48 sm:w-56 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-gradient-to-b from-slate-100 to-slate-200/70 p-4 text-center text-slate-400 shadow-inner"
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-slate-500 mb-3 shadow-sm">
+                        <ImageOff size={28} />
+                      </div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Chưa có ảnh bìa
+                      </p>
+                      <p className="mt-1.5 line-clamp-2 text-xs text-slate-400 italic">
+                        {book.title}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Main Information */}
+                <div className="flex-1 w-full">
+                  {/* Category Chip */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                      <Tag size={12} />
+                      {book.categoryName}
+                    </span>
+
+                    {/* Availability Status Badge */}
+                    {book.availableCount > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                        Sẵn sàng cho mượn
+                      </span>
+                    ) : book.copyCount > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+                        <AlertCircle size={13} className="text-amber-600" />
+                        Tạm hết bản sẵn sàng
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 border border-slate-200">
+                        <AlertCircle size={13} className="text-slate-500" />
+                        Chưa có bản sao
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title and Subtitle */}
+                  <h1 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
+                    {book.title}
+                  </h1>
+                  {book.subtitle && (
+                    <p className="mt-1.5 text-base sm:text-lg text-slate-600 font-medium">
+                      {book.subtitle}
+                    </p>
+                  )}
+
+                  {/* Inventory Availability Summary Cards */}
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 transition">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                        Số bản Sẵn sàng
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-3xl font-extrabold text-emerald-800">
+                          {book.availableCount ?? 0}
+                        </span>
+                        <span className="text-xs text-emerald-600">bản khả dụng</span>
+                      </div>
+                      <p className="mt-1 text-xs text-emerald-600/80">
+                        {book.availableCount > 0
+                          ? 'Có thể làm thủ tục mượn ngay tại thư viện'
+                          : 'Hiện không có bản sao nào sẵn sàng'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Tổng số bản
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-3xl font-extrabold text-slate-800">
+                          {book.copyCount}
+                        </span>
+                        <span className="text-xs text-slate-500">bản sao</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Tổng số bản sao đã ghi nhận thuộc đầu sách
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-6 p-6 sm:grid-cols-2 sm:p-8">
-              <Info label="Tác giả" value={authorNames(book)} />
-              <Info label="ISBN" value={book.isbn || '—'} />
-              <Info label="Thể loại" value={book.categoryName} />
-              <Info label="Năm xuất bản" value={book.publicationYear?.toString() ?? '—'} />
-              <Info label="Nhà xuất bản" value={book.publisher || '—'} />
-              <Info label="Số trang" value={book.pageCount?.toString() ?? '—'} />
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm text-emerald-700">Số bản rảnh</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-800">{book.availableCount ?? 0}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm text-slate-500">Tổng số bản sao</p>
-                <p className="mt-1 text-2xl font-bold text-slate-800">{book.copyCount}</p>
-              </div>
+            {/* Bibliographic Details Table / Grid */}
+            <div className="p-6 sm:p-8 bg-slate-50/50">
+              <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <FileText size={18} className="text-slate-500" />
+                Thông tin thư mục
+              </h2>
+
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                <InfoItem
+                  icon={<User size={16} className="text-slate-400" />}
+                  label="Tác giả"
+                  value={authorNames(book)}
+                />
+                <InfoItem
+                  icon={<Bookmark size={16} className="text-slate-400" />}
+                  label="Mã ISBN"
+                  value={book.isbn || '—'}
+                />
+                <InfoItem
+                  icon={<Tag size={16} className="text-slate-400" />}
+                  label="Thể loại"
+                  value={book.categoryName}
+                />
+                <InfoItem
+                  icon={<Library size={16} className="text-slate-400" />}
+                  label="Nhà xuất bản"
+                  value={book.publisher || '—'}
+                />
+                <InfoItem
+                  icon={<Calendar size={16} className="text-slate-400" />}
+                  label="Năm xuất bản"
+                  value={book.publicationYear?.toString() ?? '—'}
+                />
+                <InfoItem
+                  icon={<BookOpen size={16} className="text-slate-400" />}
+                  label="Số trang"
+                  value={book.pageCount ? `${book.pageCount} trang` : '—'}
+                />
+              </dl>
             </div>
 
-            {book.description && (
-              <div className="border-t border-slate-100 px-6 py-6 sm:px-8">
-                <h2 className="font-semibold text-slate-900">Mô tả</h2>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+            {/* Summary / Description */}
+            <div className="border-t border-slate-100 p-6 sm:p-8">
+              <h2 className="text-base font-bold text-slate-900">Tóm tắt nội dung</h2>
+              {book.description ? (
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">
                   {book.description}
                 </p>
-              </div>
-            )}
+              ) : (
+                <p className="mt-3 text-sm italic text-slate-400">
+                  Chưa có thông tin tóm tắt nội dung cho đầu sách này.
+                </p>
+              )}
+            </div>
           </article>
         )}
       </main>
@@ -142,11 +297,22 @@ export default function PublicBookDetailPage() {
   )
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function InfoItem({
+  icon,
+  label,
+  value,
+}: {
+  icon?: React.ReactNode
+  label: string
+  value: string
+}) {
   return (
-    <div>
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-1 font-semibold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className="mt-1 font-semibold text-slate-900 break-words text-sm">{value}</p>
     </div>
   )
 }

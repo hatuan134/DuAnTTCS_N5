@@ -66,6 +66,9 @@ public class Book {
     @Column(length = 1000)
     private String description;
 
+    @Column(name = "cover_image_url", length = 1000)
+    private String coverImageUrl;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -201,5 +204,13 @@ public class Book {
 
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getCoverImageUrl() {
+        return coverImageUrl;
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 }

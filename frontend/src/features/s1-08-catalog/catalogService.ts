@@ -50,6 +50,7 @@ export interface Book {
   copyCount: number
   hasCopies: boolean
   availableCount: number
+  coverImageUrl: string | null
 }
 
 export interface PublicCatalogFilters {

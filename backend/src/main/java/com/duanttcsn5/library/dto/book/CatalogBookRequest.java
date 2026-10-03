@@ -45,8 +45,28 @@ public record CatalogBookRequest(
         List<Long> authorIds,
 
         // S2-01.4: chỉ cho phép lưu nhan đề trùng khi thủ thư đã xác nhận rõ ràng.
-        Boolean confirmDuplicateTitle
+        Boolean confirmDuplicateTitle,
+
+        @Size(max = 1000, message = "Đường dẫn ảnh bìa không được vượt quá 1000 ký tự")
+        String coverImageUrl
 ) {
+    public CatalogBookRequest(
+            String title,
+            String subtitle,
+            Long authorId,
+            String authorName,
+            Long categoryId,
+            String isbn,
+            String publisher,
+            Integer publicationYear,
+            Integer pageCount,
+            String description,
+            List<Long> authorIds,
+            Boolean confirmDuplicateTitle
+    ) {
+        this(title, subtitle, authorId, authorName, categoryId, isbn, publisher,
+                publicationYear, pageCount, description, authorIds, confirmDuplicateTitle, null);
+    }
     /**
      * Constructor tương thích các test/client Java cũ của S2-01.1.
      */
