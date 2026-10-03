@@ -6,14 +6,17 @@ import {
   Bookmark,
   Calendar,
   CheckCircle2,
+  Clock,
   FileText,
   ImageOff,
+  Info,
   Layers,
   Library,
   LogIn,
   MapPin,
   Tag,
   User,
+  Users,
   Warehouse,
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
@@ -26,6 +29,24 @@ function authorNames(book: Book) {
     return book.authors.map((author) => author.name).join(', ')
   }
   return book.authorName || 'Không rõ'
+}
+
+function formatDate(dateString?: string | null) {
+  if (!dateString) return ''
+  try {
+    const parts = dateString.split('-')
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`
+    }
+    const d = new Date(dateString)
+    if (isNaN(d.getTime())) return dateString
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    return `${day}/${month}/${year}`
+  } catch {
+    return dateString
+  }
 }
 
 export default function PublicBookDetailPage() {
@@ -347,6 +368,97 @@ export default function PublicBookDetailPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* S2-06.3: Queue and Expected Return Date Section - ONLY visible when availableCount === 0 */}
+            {book.availableCount === 0 && (
+              <div className="border-t border-amber-200/70 bg-gradient-to-br from-amber-50/60 via-white to-amber-50/30 p-6 sm:p-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-amber-200/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-800 shadow-xs border border-amber-200">
+                      <Clock size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">
+                        Hàng đợi đặt giữ & Dự kiến có sách
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        Đầu sách hiện không còn bản Sẵn sàng. Bạn đọc có thể theo dõi hàng đợi chờ có bản trả về:
+                      </p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 border border-amber-300 w-fit">
+                    <Users size={13} />
+                    {book.queueCount && book.queueCount > 0
+                      ? `${book.queueCount} người đang xếp hàng`
+                      : 'Chưa có ai xếp hàng'}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card 1: Số người đang xếp hàng */}
+                  <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-xs">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-800 mb-2">
+                      <Users size={15} className="text-amber-600" />
+                      Số người đang xếp hàng đặt giữ
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-extrabold text-amber-900">
+                        {book.queueCount ?? 0}
+                      </span>
+                      <span className="text-xs font-medium text-amber-700">bạn đọc đang chờ</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                      {book.queueCount && book.queueCount > 0
+                        ? `Đầu sách hiện có ${book.queueCount} yêu cầu đặt giữ đang trong hàng đợi chờ có bản sao trả về.`
+                        : 'Hiện chưa có ai xếp hàng đặt giữ đầu sách này. Bạn có thể là người đầu tiên nhận sách khi có bản trả về.'}
+                    </p>
+                  </div>
+
+                  {/* Card 2: Ngày dự kiến có bản trả về sớm nhất */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
+                      <Calendar size={15} className="text-blue-600" />
+                      Ngày dự kiến có bản trả về sớm nhất
+                    </div>
+
+                    {book.earliestExpectedReturnDate ? (
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl sm:text-3xl font-extrabold text-blue-900">
+                            {formatDate(book.earliestExpectedReturnDate)}
+                          </span>
+                          <span className="text-xs font-medium text-blue-600">dự kiến sớm nhất</span>
+                        </div>
+                        {book.expectedReturnNotice && (
+                          <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                            {book.expectedReturnNotice}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-base font-bold text-slate-700">
+                            Chưa xác định được ngày
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                          {book.expectedReturnNotice ||
+                            'Chưa có thông tin ngày hẹn trả cụ thể cho các bản sao thuộc đầu sách này.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50/80 border border-amber-200/70 p-3 text-xs text-amber-900">
+                  <Info size={15} className="text-amber-700 shrink-0 mt-0.5" />
+                  <span>
+                    Lưu ý: Thời điểm có sách thực tế phụ thuộc vào việc bạn đọc đang mượn hoàn trả sách đúng hạn hoặc gia hạn phiếu mượn.
+                  </span>
                 </div>
               </div>
             )}

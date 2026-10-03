@@ -3,6 +3,7 @@ package com.duanttcsn5.library.dto.book;
 import com.duanttcsn5.library.entity.Author;
 import com.duanttcsn5.library.entity.Book;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,8 +32,23 @@ public record BookResponse(
         boolean hasCopies,
         long availableCount,
         String coverImageUrl,
-        List<BookAvailableCopyLocationResponse> availableCopies
+        List<BookAvailableCopyLocationResponse> availableCopies,
+        Long queueCount,
+        LocalDate earliestExpectedReturnDate,
+        String expectedReturnNotice
 ) {
+    public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
+            String authorName, boolean authorActive, List<BookAuthorResponse> authors,
+            Long categoryId, String categoryName, boolean categoryActive, String publisher,
+            Integer publicationYear, Integer pageCount, String description, OffsetDateTime createdAt,
+            long copyCount, boolean hasCopies, long availableCount, String coverImageUrl,
+            List<BookAvailableCopyLocationResponse> availableCopies) {
+        this(id, isbn, title, subtitle, authorId, authorName, authorActive, authors,
+                categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
+                description, createdAt, copyCount, hasCopies, availableCount, coverImageUrl,
+                availableCopies, null, null, null);
+    }
+
     public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
             String authorName, boolean authorActive, List<BookAuthorResponse> authors,
             Long categoryId, String categoryName, boolean categoryActive, String publisher,
@@ -52,6 +68,7 @@ public record BookResponse(
                 categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
                 description, createdAt, copyCount, hasCopies, availableCount, null, List.of());
     }
+
     public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
             String authorName, boolean authorActive, List<BookAuthorResponse> authors,
             Long categoryId, String categoryName, boolean categoryActive, String publisher,
@@ -121,6 +138,13 @@ public record BookResponse(
 
     public static BookResponse fromEntity(Book book, long copyCount, long availableCount,
                                           List<BookAvailableCopyLocationResponse> availableCopies) {
+        return fromEntity(book, copyCount, availableCount, availableCopies, null, null, null);
+    }
+
+    public static BookResponse fromEntity(Book book, long copyCount, long availableCount,
+                                          List<BookAvailableCopyLocationResponse> availableCopies,
+                                          Long queueCount, LocalDate earliestExpectedReturnDate,
+                                          String expectedReturnNotice) {
         List<BookAuthorResponse> authorResponses = toAuthorResponses(book);
         BookAuthorResponse primary = resolvePrimaryAuthor(book, authorResponses);
         long normalizedCopyCount = Math.max(0L, copyCount);
@@ -147,7 +171,10 @@ public record BookResponse(
                 normalizedCopyCount > 0,
                 Math.max(0L, availableCount),
                 book.getCoverImageUrl(),
-                safeCopies
+                safeCopies,
+                queueCount,
+                earliestExpectedReturnDate,
+                expectedReturnNotice
         );
     }
 

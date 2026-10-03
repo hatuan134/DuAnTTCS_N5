@@ -52,6 +52,16 @@ export interface Book {
   availableCount: number
   coverImageUrl: string | null
   availableCopies?: BookAvailableCopyLocation[]
+  queueCount?: number | null
+  earliestExpectedReturnDate?: string | null
+  expectedReturnNotice?: string | null
+}
+
+export interface BookQueueInfo {
+  queueCount: number
+  earliestExpectedReturnDate?: string | null
+  expectedReturnNotice?: string | null
+  hasOverdueCopies: boolean
 }
 
 export interface BookAvailableCopyLocation {
@@ -245,6 +255,11 @@ export const catalogService = {
 
   getPublicAvailableCopies: async (id: number): Promise<BookAvailableCopyLocation[]> => {
     const res = await apiClient.get<BookAvailableCopyLocation[]>(`/books/public/${id}/available-copies`)
+    return res.data
+  },
+
+  getPublicBookQueue: async (id: number): Promise<BookQueueInfo> => {
+    const res = await apiClient.get<BookQueueInfo>(`/books/public/${id}/queue`)
     return res.data
   },
 

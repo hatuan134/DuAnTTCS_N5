@@ -77,6 +77,11 @@ public class BookCatalogController {
         return ResponseEntity.ok(bookCatalogService.getAvailableCopiesByBookId(id));
     }
 
+    @GetMapping("/public/{id}/queue")
+    public ResponseEntity<com.duanttcsn5.library.dto.book.BookQueueInfoResponse> getPublicBookQueue(@PathVariable Long id) {
+        return ResponseEntity.ok(bookCatalogService.getPublicBookQueue(id));
+    }
+
     @GetMapping("/publishers")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<String>> getPublisherOptions() {
