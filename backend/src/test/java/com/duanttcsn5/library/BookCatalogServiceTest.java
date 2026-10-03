@@ -143,6 +143,9 @@ class BookCatalogServiceTest {
     @Test
     @DisplayName("S2-01.2 - Từ chối cùng một tác giả xuất hiện nhiều lần")
     void catalogBook_DuplicateAuthorIds_ThrowsBadRequest() {
+        // Tác giả phải tồn tại để test đi đến nhánh phát hiện ID trùng.
+        when(authorRepository.findById(1L))
+                .thenReturn(Optional.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
         CatalogBookRequest request = requestWithAuthorIds(List.of(1L, 1L));
 
         ApiException ex = assertThrows(ApiException.class, () ->

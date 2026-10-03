@@ -3,6 +3,7 @@ package com.duanttcsn5.library.controller;
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
 import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
+import com.duanttcsn5.library.dto.book.PublicCatalogPageResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
 import com.duanttcsn5.library.service.BookCatalogService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,6 +46,19 @@ public class BookCatalogController {
             @RequestParam(defaultValue = "false") boolean availableOnly) {
         return ResponseEntity.ok(bookCatalogService.getPublicBooks(
                 keyword, categoryId, publicationYear, availableOnly));
+    }
+
+    @GetMapping("/public/search")
+    public ResponseEntity<PublicCatalogPageResponse> searchPublicBooks(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer publicationYear,
+            @RequestParam(defaultValue = "false") boolean availableOnly,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "relevance") String sort) {
+        return ResponseEntity.ok(bookCatalogService.searchPublicBooks(
+                keyword, categoryId, publicationYear, availableOnly, page, size, sort));
     }
 
     @GetMapping("/public/filters")
