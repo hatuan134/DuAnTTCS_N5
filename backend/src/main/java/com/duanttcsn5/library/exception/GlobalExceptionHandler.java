@@ -63,6 +63,22 @@ public class GlobalExceptionHandler {
                 "Tham số yêu cầu không hợp lệ.", "INVALID_PARAMETER", OffsetDateTime.now(), Map.of()));
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleOversizedUpload(
+            org.springframework.web.multipart.MaxUploadSizeExceededException exception) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ErrorResponse(
+                com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
+                "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidMultipart(
+            org.springframework.web.multipart.MultipartException exception) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
+                "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
         return ResponseEntity

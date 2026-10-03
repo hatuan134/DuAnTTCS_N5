@@ -1,3 +1,4 @@
+import { publicCoverUrl } from '../s2-10-book-cover/bookCoverService'
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
@@ -159,7 +160,7 @@ export default function PublicBookDetailPage() {
                   {book.coverImageUrl && !imageError ? (
                     <div className="relative aspect-[3/4] w-48 sm:w-56 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-md">
                       <img
-                        src={book.coverImageUrl}
+                        src={publicCoverUrl(book.coverImageUrl)}
                         alt={`Bìa sách ${book.title}`}
                         onError={() => setImageError(true)}
                         className="h-full w-full object-cover"

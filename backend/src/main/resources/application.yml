@@ -2,6 +2,12 @@ spring:
   application:
     name: library-management-backend
 
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      # Allow multipart headers in addition to a file exactly 3MB in size.
+      max-request-size: 4MB
+
   devtools:
     restart:
       enabled: false

@@ -12,6 +12,11 @@ import java.util.Optional;
 @Repository
 public interface BookRepository extends JpaRepository<Book, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Book b WHERE b.id = :id")
+    Optional<Book> findForCoverUpload(@Param("id") Long id);
+
+
     @Query("""
             SELECT DISTINCT b
             FROM Book b

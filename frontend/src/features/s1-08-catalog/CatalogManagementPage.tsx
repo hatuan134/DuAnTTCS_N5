@@ -1838,6 +1838,11 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                     <div className="text-xs text-slate-500">
                       {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                     </div>
+                    <div className="mt-2">
+                      <Link to={`/books/${book.id}/cover/edit`} className="text-xs font-semibold text-blue-600 hover:underline">
+                        Chỉnh sửa ảnh bìa
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </td>
