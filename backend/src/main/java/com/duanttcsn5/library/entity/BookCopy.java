@@ -47,6 +47,13 @@ public class BookCopy {
         this.notes = notes;
     }
 
+    public void holdForReservation() {
+        if (!"AVAILABLE".equals(status)) {
+            throw new IllegalStateException("Chỉ bản sao Sẵn sàng mới được dành cho đặt giữ.");
+        }
+        this.status = "HELD";
+    }
+
     public void sendToRepair() { this.status = "REPAIR"; }
 
     public Long getId() { return id; }

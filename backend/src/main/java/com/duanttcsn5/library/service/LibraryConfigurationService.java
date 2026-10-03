@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -497,6 +498,55 @@ public class LibraryConfigurationService {
                 HttpStatus.CONFLICT,
                 "NEXT_OPEN_DATE_NOT_FOUND",
                 "Không tìm thấy ngày mở cửa kế tiếp trong phạm vi kiểm tra.");
+    }
+
+    /**
+     * S2-07.2 policy: exclude the creation date, count three subsequent open
+     * dates, and use the third date's closing time in the library timezone.
+     * A specific closed date always overrides the weekly opening schedule.
+     */
+    @Transactional(readOnly = true)
+    public OffsetDateTime calculateReservationPickupDeadline(OffsetDateTime createdAt) {
+        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
+        Map<Integer, LibraryWeeklySchedule> byDay = new HashMap<>();
+        List<LibraryWeeklySchedule> schedule = weeklyScheduleRepository.findAllByOrderByDayOfWeekAsc();
+        for (LibraryWeeklySchedule day : schedule) {
+            int number = day.getDayOfWeek();
+            if (number < 1 || number > 7 || byDay.put(number, day) != null) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE",
+                        "Lịch làm việc theo tuần chưa được cấu hình đúng 7 ngày.");
+            }
+            if (day.isOpen() && (day.getOpenTime() == null || day.getCloseTime() == null
+                    || !day.getCloseTime().isAfter(day.getOpenTime()))) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INVALID",
+                        "Ngày mở cửa chưa có giờ mở và đóng cửa hợp lệ. Vui lòng kiểm tra lịch thư viện.");
+            }
+        }
+        if (byDay.size() != 7) {
+            throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE",
+                    "Lịch làm việc theo tuần chưa được cấu hình đủ 7 ngày.");
+        }
+        if (schedule.stream().noneMatch(LibraryWeeklySchedule::isOpen)) {
+            throw new ApiException(HttpStatus.CONFLICT, "PICKUP_DEADLINE_NOT_FOUND",
+                    "Thư viện chưa có ngày mở cửa. Không thể xác định hạn đến nhận sách.");
+        }
+        Set<LocalDate> closedDates = closedDateRepository.findAllByOrderByClosedDateAsc().stream()
+                .map(LibraryClosedDate::getClosedDate)
+                .collect(java.util.stream.Collectors.toSet());
+        LocalDate candidate = createdAt.atZoneSameInstant(zone).toLocalDate();
+        int openDays = 0;
+        // With finite special closures and at least one open weekday this loop terminates.
+        while (openDays < 3) {
+            candidate = candidate.plusDays(1);
+            LibraryWeeklySchedule day = byDay.get(candidate.getDayOfWeek().getValue());
+            if (day.isOpen() && !closedDates.contains(candidate)) {
+                openDays++;
+                if (openDays == 3) {
+                    return candidate.atTime(day.getCloseTime()).atZone(zone).toOffsetDateTime();
+                }
+            }
+        }
+        throw new IllegalStateException("Không thể xác định hạn đến nhận sách.");
     }
 
     private Warehouse getWarehouseEntity(Long id) {

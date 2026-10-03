@@ -263,10 +263,10 @@ export default function PublicBookDetailPage() {
             </div>
 
             <ReserveBookPanel key={book.id} bookId={book.id} onReserved={() => {
-              void catalogService.getPublicBookQueue(book.id).then((queue) => {
-                setBook((current) => current?.id === book.id ? { ...current, ...queue } : current)
+              void catalogService.getPublicBookById(book.id).then((updated) => {
+                setBook((current) => current?.id === book.id ? updated : current)
               }).catch(() => {
-                // The reservation succeeded; a later page reload can refresh the queue.
+                // Keep the successful reservation visible if refreshing the catalog fails.
               })
             }} />
 

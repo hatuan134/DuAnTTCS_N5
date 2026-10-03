@@ -94,7 +94,7 @@ class BookReservationControllerTest {
         token("READER");
         when(service.reserve(7L, 12L)).thenReturn(new BookReservationResponse(
                 100L, 7L, "PENDING", OffsetDateTime.parse("2026-10-03T16:00:00+07:00"),
-                2L, "Đặt giữ thành công. Vị trí hiện tại trong hàng đợi: 2."));
+                2L, "Đặt giữ thành công. Vị trí hiện tại trong hàng đợi: 2.", null, null));
         mvc.perform(post("/api/v1/books/7/reservations").header("Authorization", "Bearer test-token")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"readerId\":999,\"bookCopyId\":123}"))
                 .andExpect(status().isCreated())
@@ -114,6 +114,31 @@ class BookReservationControllerTest {
                     .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value(code))
                     .andExpect(jsonPath("$.message").value("Thẻ không đủ điều kiện."));
         }
+    }
+
+    @Test void readyResponseContainsCopyLocationAndDeadline() throws Exception {
+        token("READER");
+        var copy = new BookReservationResponse.ReservedCopy(101L, "LIB-101", "KHO-A", "Kho A", "A01", "Kệ Văn học");
+        when(service.reserve(7L, 12L)).thenReturn(new BookReservationResponse(100L, 7L, "READY_FOR_PICKUP",
+                OffsetDateTime.parse("2026-10-03T16:00:00+07:00"), null, "Đã dành một bản sách.",
+                OffsetDateTime.parse("2026-10-07T17:00:00+07:00"), copy));
+        mvc.perform(post("/api/v1/books/7/reservations").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("READY_FOR_PICKUP"))
+                .andExpect(jsonPath("$.reservedCopy.copyId").value(101))
+                .andExpect(jsonPath("$.reservedCopy.barcode").value("LIB-101"))
+                .andExpect(jsonPath("$.reservedCopy.warehouseName").value("Kho A"))
+                .andExpect(jsonPath("$.reservedCopy.shelfCode").value("A01"))
+                .andExpect(jsonPath("$.pickupDeadline").exists())
+                .andExpect(jsonPath("$.queuePosition").doesNotExist())
+                .andExpect(jsonPath("$.readerId").doesNotExist());
+    }
+
+    @Test void calendarConflictUsesExistingErrorResponse() throws Exception {
+        token("READER");
+        doThrow(new ApiException(HttpStatus.CONFLICT, "PICKUP_DEADLINE_NOT_FOUND", "Chưa có ngày mở cửa."))
+                .when(service).reserve(7L, 12L);
+        mvc.perform(post("/api/v1/books/7/reservations").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PICKUP_DEADLINE_NOT_FOUND"));
     }
 
     @Test void invalidPathUsesExistingValidation() throws Exception {

@@ -7,7 +7,18 @@ public record BookReservationResponse(
         Long bookId,
         String status,
         OffsetDateTime reservedAt,
-        long queuePosition,
-        String message
+        Long queuePosition,
+        String message,
+        OffsetDateTime pickupDeadline,
+        ReservedCopy reservedCopy
 ) {
+    public record ReservedCopy(
+            Long copyId,
+            String barcode,
+            String warehouseCode,
+            String warehouseName,
+            String shelfCode,
+            String shelfName
+    ) {
+    }
 }
