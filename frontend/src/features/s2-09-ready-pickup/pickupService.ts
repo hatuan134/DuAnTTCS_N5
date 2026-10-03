@@ -15,6 +15,9 @@ export interface ReadyPickupReservation {
 
 export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED'
 
+export const reservationFilterStatuses = ['PENDING', 'READY_FOR_PICKUP', 'FULFILLED', 'CANCELLED'] as const
+export type ReservationStatusFilter = typeof reservationFilterStatuses[number] | ''
+
 export interface ReservationQueueEntry {
   id: number
   readerId: number
@@ -36,8 +39,8 @@ export function reservationStatusLabel(status: ReservationStatus): string {
   const labels: Record<ReservationStatus, string> = {
     PENDING: 'Đang xếp hàng',
     READY_FOR_PICKUP: 'Đang chờ nhận',
-    FULFILLED: 'Đã hoàn tất',
-    CANCELLED: 'Đã hủy',
+    FULFILLED: 'Đã chuyển thành phiếu mượn',
+    CANCELLED: 'Đã huỷ',
     EXPIRED: 'Hết hạn nhận',
   }
   return labels[status] ?? 'Chưa xác định'
@@ -58,8 +61,10 @@ export function formatPickupDate(value: string | null, includeSeconds = false): 
 }
 
 export const pickupService = {
-  queue: async (bookId: number): Promise<BookReservationQueue> => {
-    const response = await apiClient.get<BookReservationQueue>(`/books/${bookId}/reservations`)
+  queue: async (bookId: number, status: ReservationStatusFilter = ''): Promise<BookReservationQueue> => {
+    const response = await apiClient.get<BookReservationQueue>(`/books/${bookId}/reservations`, {
+      params: status ? { status } : undefined,
+    })
     return response.data
   },
   list: async (): Promise<ReadyPickupReservation[]> => {

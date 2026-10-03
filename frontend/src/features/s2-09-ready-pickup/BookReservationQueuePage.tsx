@@ -7,8 +7,8 @@ import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
-import { formatPickupDate, pickupRoles, pickupService, reservationStatusLabel } from './pickupService'
-import type { BookReservationQueue, ReservationStatus } from './pickupService'
+import { formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
+import type { BookReservationQueue, ReservationStatus, ReservationStatusFilter } from './pickupService'
 
 const statusClasses: Record<ReservationStatus, string> = {
   PENDING: 'border-blue-200 bg-blue-50 text-blue-800',
@@ -36,6 +36,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
   const [queue, setQueue] = useState<BookReservationQueue | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [status, setStatus] = useState<ReservationStatusFilter>('')
   const refreshRef = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -48,9 +49,12 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       setLoading(true)
       setError('')
       try {
-        const data = await pickupService.queue(bookId)
+        const data = await pickupService.queue(bookId, status)
         if (active) {
           if (data.bookId !== bookId) throw new Error('Wrong title in queue response')
+          if (status && data.items.some((item) => item.status !== status)) {
+            throw new Error('Wrong status in queue response')
+          }
           // Replace the whole snapshot: rows and positions must update together.
           setQueue(data)
         }
@@ -80,7 +84,16 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       document.removeEventListener('visibilitychange', refreshWhenVisible)
       refreshRef.current = () => {}
     }
-  }, [bookId])
+  }, [bookId, status])
+
+  function changeStatus(value: ReservationStatusFilter) {
+    if (value === status) return
+    // Hide the previous filter's rows immediately while fetching the new snapshot.
+    setQueue(null)
+    setError('')
+    setLoading(true)
+    setStatus(value)
+  }
 
   const items = queue?.items ?? []
   const pendingCount = items.filter((item) => item.status === 'PENDING').length
@@ -97,25 +110,45 @@ function ReservationQueue({ bookId }: { bookId: number }) {
           onClick={() => refreshRef.current()}>Làm mới</Button>}
       />
       <p className="mb-4 text-sm text-slate-500">
-        Toàn bộ đơn của đầu sách, theo thời điểm đặt từ sớm đến muộn. Vị trí chỉ tính các đơn Đang xếp hàng;
+        Các đơn của đầu sách theo thời điểm đặt từ sớm đến muộn trong từng trạng thái. Vị trí chỉ tính các đơn Đang xếp hàng;
         {' '}đơn đã cấp bản hoặc kết thúc không còn vị trí trong hàng đợi.
         {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 10 giây khi đang xem trang.
       </p>
+      <div className="mb-5 flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-80">
+          <label htmlFor="reservation-status" className="mb-2 block text-sm font-medium text-slate-700">
+            Trạng thái đơn đặt giữ
+          </label>
+          <select id="reservation-status" value={status}
+            onChange={(event) => changeStatus(event.target.value as ReservationStatusFilter)}
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+            <option value="">Tất cả trạng thái</option>
+            {reservationFilterStatuses.map((value) => <option key={value} value={value}>
+              {reservationStatusLabel(value)}
+            </option>)}
+          </select>
+        </div>
+        {status && <Button type="button" variant="secondary" onClick={() => changeStatus('')}>
+          Bỏ bộ lọc
+        </Button>}
+      </div>
       {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
         {error} Nhấn “Làm mới” để thử lại.
       </div>}
       {loading && <div role="status"><LoadingState /></div>}
       {!loading && !error && queue && items.length === 0 && <EmptyState
-        title="Đầu sách chưa có đơn đặt giữ"
-        description="Chưa có bạn đọc nào đặt giữ đầu sách này."
+        title={status ? 'Không có đơn ở trạng thái đã chọn' : 'Đầu sách chưa có đơn đặt giữ'}
+        description={status
+          ? `Không có đơn ${reservationStatusLabel(status)} cho đầu sách này. Chọn trạng thái khác hoặc bỏ bộ lọc.`
+          : 'Chưa có bạn đọc nào đặt giữ đầu sách này.'}
       />}
       {!loading && !error && queue && items.length > 0 && <Card className="overflow-hidden">
         <div role="status" className="border-b border-slate-200 px-5 py-4 text-sm text-slate-700">
-          <strong>{items.length}</strong> đơn đặt giữ; <strong>{pendingCount}</strong> đơn đang xếp hàng.
+          <strong>{items.length}</strong> đơn hiển thị; <strong>{pendingCount}</strong> đơn đang xếp hàng trong kết quả.
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <caption className="sr-only">Các đơn đặt giữ của {queue.bookTitle}, từ sớm đến muộn</caption>
+            <caption className="sr-only">Các đơn đặt giữ của {queue.bookTitle}, {status ? reservationStatusLabel(status) : 'tất cả trạng thái'}, từ sớm đến muộn</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="px-5 py-3">Đơn</th>

@@ -24,9 +24,12 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 @Service
 public class BookReservationService {
+    private static final Set<String> QUEUE_FILTER_STATUSES = Set.of(
+            "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED");
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final BookRepository books;
@@ -107,8 +110,19 @@ public class BookReservationService {
 
     @Transactional(readOnly = true)
     public BookReservationQueueResponse getQueueByBookId(Long bookId) {
+        return getQueueByBookId(bookId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public BookReservationQueueResponse getQueueByBookId(Long bookId, String status) {
         if (bookId == null || bookId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ.");
+        }
+        String filter = status == null || status.isBlank() ? null : status.trim();
+        if (filter != null && !QUEUE_FILTER_STATUSES.contains(filter)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_STATUS",
+                    "Trạng thái lọc không hợp lệ. Chọn Đang xếp hàng, Đang chờ nhận, "
+                            + "Đã chuyển thành phiếu mượn hoặc Đã huỷ.");
         }
         Book book = books.findById(bookId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
@@ -120,6 +134,9 @@ public class BookReservationService {
         long pendingPosition = 0;
         for (BookReservation reservation : ordered) {
             Long position = "PENDING".equals(reservation.getStatus()) ? ++pendingPosition : null;
+            // Count current PENDING positions before applying the display filter.
+            // Retain the repository's (reservedAt, id) order for every status.
+            if (filter != null && !filter.equals(reservation.getStatus())) continue;
             BookCopy copy = reservation.getBookCopy();
             items.add(new BookReservationQueueResponse.QueueEntry(
                     reservation.getId(), reservation.getReader().getId(), reservation.getReader().getFullName(),

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -36,8 +37,9 @@ public class BookReservationController {
 
     @GetMapping("/books/{bookId}/reservations")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
-    public ResponseEntity<BookReservationQueueResponse> getQueueByBookId(@PathVariable Long bookId) {
-        return ResponseEntity.ok(reservations.getQueueByBookId(bookId));
+    public ResponseEntity<BookReservationQueueResponse> getQueueByBookId(
+            @PathVariable Long bookId, @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(reservations.getQueueByBookId(bookId, status));
     }
 
     @GetMapping("/reservations/ready-for-pickup")

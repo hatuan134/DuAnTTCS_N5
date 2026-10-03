@@ -126,4 +126,35 @@ class BookReservationQueueRepositoryTest {
         assertThat(repository.findAllForQueueByBookId(other.bookId())).extracting(BookReservation::getId)
                 .containsExactly(unrelated);
     }
+
+    @Test
+    void filtersKeepDatabaseTimeIdOrderAndNeverIncludeAnotherTitle() {
+        Fixture f = fixture(), other = fixture();
+        Long late = add(f, "PENDING", "2030-01-03T10:00:00+07:00", null);
+        Long early = add(f, "PENDING", "2030-01-03T02:00:00Z", null);
+        Long tie = add(f, "PENDING", "2030-01-03T10:00:00+07:00", null);
+        Long ready = add(f, "READY_FOR_PICKUP", "2030-01-02T08:00:00+07:00", "S2093-" + UUID.randomUUID());
+        Long cancelled = add(f, "CANCELLED", "2030-01-01T08:00:00+07:00", null);
+        Long expired = add(f, "EXPIRED", "2030-01-01T09:00:00+07:00", null);
+        add(other, "PENDING", "2029-12-01T08:00:00+07:00", null);
+        add(other, "FULFILLED", "2029-12-01T09:00:00+07:00", null);
+        var pending = service.getQueueByBookId(f.bookId(), "PENDING").items();
+        assertThat(pending).extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(early, late, tie);
+        assertThat(pending).extracting(BookReservationQueueResponse.QueueEntry::queuePosition).containsExactly(1L, 2L, 3L);
+        assertThat(service.getQueueByBookId(f.bookId(), "READY_FOR_PICKUP").items())
+                .extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(ready);
+        assertThat(service.getQueueByBookId(f.bookId(), "CANCELLED").items())
+                .extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(cancelled);
+        assertThat(service.getQueueByBookId(f.bookId(), "FULFILLED").items()).isEmpty();
+        assertThat(service.getQueueByBookId(f.bookId(), "").items())
+                .extracting(BookReservationQueueResponse.QueueEntry::id)
+                .containsExactly(cancelled, expired, ready, early, late, tie);
+        jdbc.update("UPDATE book_reservations SET status = 'FULFILLED' WHERE id = ?", early);
+        entityManager.clear();
+        assertThat(service.getQueueByBookId(f.bookId(), "FULFILLED").items())
+                .extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(early);
+        var refreshed = service.getQueueByBookId(f.bookId(), "PENDING").items();
+        assertThat(refreshed).extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(late, tie);
+        assertThat(refreshed).extracting(BookReservationQueueResponse.QueueEntry::queuePosition).containsExactly(1L, 2L);
+    }
 }
