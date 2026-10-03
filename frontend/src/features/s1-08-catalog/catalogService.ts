@@ -51,6 +51,18 @@ export interface Book {
   hasCopies: boolean
   availableCount: number
   coverImageUrl: string | null
+  availableCopies?: BookAvailableCopyLocation[]
+}
+
+export interface BookAvailableCopyLocation {
+  copyId: number
+  barcode: string | null
+  warehouseId: number
+  warehouseCode: string
+  warehouseName: string
+  shelfId: number
+  shelfCode: string
+  shelfName: string | null
 }
 
 export interface PublicCatalogFilters {
@@ -228,6 +240,11 @@ export const catalogService = {
 
   getPublicBookById: async (id: number): Promise<Book> => {
     const res = await apiClient.get<Book>(`/books/public/${id}`)
+    return res.data
+  },
+
+  getPublicAvailableCopies: async (id: number): Promise<BookAvailableCopyLocation[]> => {
+    const res = await apiClient.get<BookAvailableCopyLocation[]>(`/books/public/${id}/available-copies`)
     return res.data
   },
 

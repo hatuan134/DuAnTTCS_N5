@@ -8,10 +8,13 @@ import {
   CheckCircle2,
   FileText,
   ImageOff,
+  Layers,
   Library,
   LogIn,
+  MapPin,
   Tag,
   User,
+  Warehouse,
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -276,6 +279,77 @@ export default function PublicBookDetailPage() {
                 />
               </dl>
             </div>
+
+            {/* Vị trí các bản Sẵn sàng cho mượn (S2-06.2) */}
+            {book.availableCount > 0 && book.availableCopies && book.availableCopies.length > 0 && (
+              <div className="border-t border-slate-100 p-6 sm:p-8 bg-emerald-50/20">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <MapPin size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">
+                        Vị trí các bản đang Sẵn sàng
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        Bạn đọc có thể đến trực tiếp các kho và kệ sau để lấy sách làm thủ tục mượn:
+                      </p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
+                    {book.availableCopies.length} vị trí khả dụng
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {book.availableCopies.map((copy, index) => (
+                    <div
+                      key={copy.copyId || index}
+                      className="rounded-xl border border-emerald-200 bg-white p-4 shadow-xs hover:border-emerald-300 transition"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                          Bản #{index + 1}
+                        </span>
+                        {copy.barcode && (
+                          <span className="text-xs font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                            {copy.barcode}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <Warehouse size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                          <div>
+                            <span className="text-xs text-slate-500 block">Kho:</span>
+                            <span className="font-semibold text-slate-900">
+                              {copy.warehouseName}
+                              {copy.warehouseCode && (
+                                <span className="text-xs text-slate-500 font-normal ml-1">
+                                  ({copy.warehouseCode})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2">
+                          <Layers size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                          <div>
+                            <span className="text-xs text-slate-500 block">Kệ:</span>
+                            <span className="font-semibold text-slate-900">
+                              {copy.shelfName ? `${copy.shelfName} (${copy.shelfCode})` : `Kệ ${copy.shelfCode}`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Summary / Description */}
             <div className="border-t border-slate-100 p-6 sm:p-8">

@@ -46,6 +46,23 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
             """, nativeQuery = true)
     long countAvailableByBookId(@Param("bookId") Long bookId);
 
+    @Query(value = """
+            SELECT c.id, c.barcode, w.id AS warehouse_id, w.code AS warehouse_code, w.name AS warehouse_name,
+                   s.id AS shelf_id, s.code AS shelf_code, s.name AS shelf_name
+            FROM book_copies c
+            JOIN shelves s ON c.shelf_id = s.id
+            JOIN warehouses w ON s.warehouse_id = w.id
+            WHERE c.book_id = :bookId
+              AND c.status = 'AVAILABLE'
+              AND NOT EXISTS (
+                  SELECT 1 FROM loan_items li
+                  WHERE li.book_copy_id = c.id
+                    AND li.returned_at IS NULL
+              )
+            ORDER BY w.name ASC, s.code ASC, c.id ASC
+            """, nativeQuery = true)
+    List<Object[]> findAvailableCopyLocationsByBookId(@Param("bookId") Long bookId);
+
     @Query("""
             SELECT bc.book.id, COUNT(bc.id)
             FROM BookCopy bc

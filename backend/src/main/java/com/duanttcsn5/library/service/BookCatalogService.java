@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.book.BookAvailableCopyLocationResponse;
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
 import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
@@ -189,10 +190,56 @@ public class BookCatalogService {
                         "PUBLIC_BOOK_NOT_FOUND",
                         "Không tìm thấy đầu sách trên trang tra cứu công khai."));
 
+        long copyCount = bookCopyRepository.countByBookId(id);
+        List<BookAvailableCopyLocationResponse> availableCopies = loadAvailableCopyLocations(id);
+        long availableCount = availableCopies.isEmpty()
+                ? bookCopyRepository.countAvailableByBookId(id)
+                : availableCopies.size();
+
         return BookResponse.fromEntity(
                 book,
-                bookCopyRepository.countByBookId(id),
-                bookCopyRepository.countAvailableByBookId(id));
+                copyCount,
+                availableCount,
+                availableCopies);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookAvailableCopyLocationResponse> getAvailableCopiesByBookId(Long bookId) {
+        if (!bookRepository.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        return loadAvailableCopyLocations(bookId);
+    }
+
+    public List<BookAvailableCopyLocationResponse> loadAvailableCopyLocations(Long bookId) {
+        List<Object[]> rows = bookCopyRepository.findAvailableCopyLocationsByBookId(bookId);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<BookAvailableCopyLocationResponse> locations = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            Long copyId = row[0] != null ? ((Number) row[0]).longValue() : null;
+            String barcode = row[1] != null ? row[1].toString() : null;
+            Long warehouseId = row[2] != null ? ((Number) row[2]).longValue() : null;
+            String warehouseCode = row[3] != null ? row[3].toString() : null;
+            String warehouseName = row[4] != null ? row[4].toString() : null;
+            Long shelfId = row[5] != null ? ((Number) row[5]).longValue() : null;
+            String shelfCode = row[6] != null ? row[6].toString() : null;
+            String shelfName = row[7] != null ? row[7].toString() : null;
+
+            locations.add(new BookAvailableCopyLocationResponse(
+                    copyId,
+                    barcode,
+                    warehouseId,
+                    warehouseCode,
+                    warehouseName,
+                    shelfId,
+                    shelfCode,
+                    shelfName
+            ));
+        }
+        return List.copyOf(locations);
     }
 
     @Transactional(readOnly = true)

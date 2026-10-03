@@ -30,8 +30,19 @@ public record BookResponse(
         long copyCount,
         boolean hasCopies,
         long availableCount,
-        String coverImageUrl
+        String coverImageUrl,
+        List<BookAvailableCopyLocationResponse> availableCopies
 ) {
+    public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
+            String authorName, boolean authorActive, List<BookAuthorResponse> authors,
+            Long categoryId, String categoryName, boolean categoryActive, String publisher,
+            Integer publicationYear, Integer pageCount, String description, OffsetDateTime createdAt,
+            long copyCount, boolean hasCopies, long availableCount, String coverImageUrl) {
+        this(id, isbn, title, subtitle, authorId, authorName, authorActive, authors,
+                categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
+                description, createdAt, copyCount, hasCopies, availableCount, coverImageUrl, List.of());
+    }
+
     public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
             String authorName, boolean authorActive, List<BookAuthorResponse> authors,
             Long categoryId, String categoryName, boolean categoryActive, String publisher,
@@ -39,7 +50,7 @@ public record BookResponse(
             long copyCount, boolean hasCopies, long availableCount) {
         this(id, isbn, title, subtitle, authorId, authorName, authorActive, authors,
                 categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
-                description, createdAt, copyCount, hasCopies, availableCount, null);
+                description, createdAt, copyCount, hasCopies, availableCount, null, List.of());
     }
     public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
             String authorName, boolean authorActive, List<BookAuthorResponse> authors,
@@ -105,9 +116,15 @@ public record BookResponse(
     }
 
     public static BookResponse fromEntity(Book book, long copyCount, long availableCount) {
+        return fromEntity(book, copyCount, availableCount, List.of());
+    }
+
+    public static BookResponse fromEntity(Book book, long copyCount, long availableCount,
+                                          List<BookAvailableCopyLocationResponse> availableCopies) {
         List<BookAuthorResponse> authorResponses = toAuthorResponses(book);
         BookAuthorResponse primary = resolvePrimaryAuthor(book, authorResponses);
         long normalizedCopyCount = Math.max(0L, copyCount);
+        List<BookAvailableCopyLocationResponse> safeCopies = availableCopies != null ? availableCopies : List.of();
 
         return new BookResponse(
                 book.getId(),
@@ -129,7 +146,8 @@ public record BookResponse(
                 normalizedCopyCount,
                 normalizedCopyCount > 0,
                 Math.max(0L, availableCount),
-                book.getCoverImageUrl()
+                book.getCoverImageUrl(),
+                safeCopies
         );
     }
 

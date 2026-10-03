@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.controller;
 
+import com.duanttcsn5.library.dto.book.BookAvailableCopyLocationResponse;
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
 import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
@@ -69,6 +70,11 @@ public class BookCatalogController {
     @GetMapping("/public/{id}")
     public ResponseEntity<BookResponse> getPublicBookById(@PathVariable Long id) {
         return ResponseEntity.ok(bookCatalogService.getPublicBookById(id));
+    }
+
+    @GetMapping("/public/{id}/available-copies")
+    public ResponseEntity<List<BookAvailableCopyLocationResponse>> getAvailableCopiesByBookId(@PathVariable Long id) {
+        return ResponseEntity.ok(bookCatalogService.getAvailableCopiesByBookId(id));
     }
 
     @GetMapping("/publishers")
