@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookAvailableCopyLocationResponse;
+import com.duanttcsn5.library.dto.book.BookQueueInfoResponse;
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
 import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
@@ -13,6 +14,7 @@ import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.AuthorRepository;
 import com.duanttcsn5.library.repository.BookRepository;
 import com.duanttcsn5.library.repository.BookCopyRepository;
+import com.duanttcsn5.library.repository.BookReservationRepository;
 import com.duanttcsn5.library.repository.CategoryRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,8 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
 
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.Year;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -42,17 +46,29 @@ public class BookCatalogService {
     private final AuthorRepository authorRepository;
     private final CategoryRepository categoryRepository;
     private final AuditLogRepository auditLogRepository;
+    private final BookReservationRepository bookReservationRepository;
 
     public BookCatalogService(BookRepository bookRepository,
                               BookCopyRepository bookCopyRepository,
                               AuthorRepository authorRepository,
                               CategoryRepository categoryRepository,
                               AuditLogRepository auditLogRepository) {
+        this(bookRepository, bookCopyRepository, authorRepository, categoryRepository, auditLogRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BookCatalogService(BookRepository bookRepository,
+                              BookCopyRepository bookCopyRepository,
+                              AuthorRepository authorRepository,
+                              CategoryRepository categoryRepository,
+                              AuditLogRepository auditLogRepository,
+                              BookReservationRepository bookReservationRepository) {
         this.bookRepository = bookRepository;
         this.bookCopyRepository = bookCopyRepository;
         this.authorRepository = authorRepository;
         this.categoryRepository = categoryRepository;
         this.auditLogRepository = auditLogRepository;
+        this.bookReservationRepository = bookReservationRepository;
     }
 
     @Transactional(readOnly = true)
@@ -196,11 +212,118 @@ public class BookCatalogService {
                 ? bookCopyRepository.countAvailableByBookId(id)
                 : availableCopies.size();
 
+        Long queueCount = null;
+        LocalDate earliestExpectedReturnDate = null;
+        String expectedReturnNotice = null;
+
+        if (availableCount == 0) {
+            BookQueueInfoResponse queueInfo = loadQueueAndExpectedReturnInfo(id);
+            queueCount = queueInfo.queueCount();
+            earliestExpectedReturnDate = queueInfo.earliestExpectedReturnDate();
+            expectedReturnNotice = queueInfo.expectedReturnNotice();
+        }
+
         return BookResponse.fromEntity(
                 book,
                 copyCount,
                 availableCount,
-                availableCopies);
+                availableCopies,
+                queueCount,
+                earliestExpectedReturnDate,
+                expectedReturnNotice);
+    }
+
+    @Transactional(readOnly = true)
+    public BookQueueInfoResponse getPublicBookQueue(Long bookId) {
+        if (!bookRepository.existsById(bookId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách.");
+        }
+        return loadQueueAndExpectedReturnInfo(bookId);
+    }
+
+    public BookQueueInfoResponse loadQueueAndExpectedReturnInfo(Long bookId) {
+        if (bookReservationRepository == null) {
+            return new BookQueueInfoResponse(0L, null, "Chưa xác định được ngày dự kiến trả.", false);
+        }
+
+        long queueCount = bookReservationRepository.countPendingQueueByBookId(bookId);
+        List<Object[]> unreturnedLoans = bookReservationRepository.findUnreturnedLoanDatesByBookId(bookId);
+
+        if (unreturnedLoans == null || unreturnedLoans.isEmpty()) {
+            return new BookQueueInfoResponse(
+                    queueCount,
+                    null,
+                    "Hiện không có bản sao nào đang được mượn, chưa xác định được ngày dự kiến trả.",
+                    false
+            );
+        }
+
+        LocalDate today = LocalDate.now(LIBRARY_ZONE);
+        LocalDate earliestFutureDueDate = null;
+        boolean hasOverdue = false;
+        int withDueDateCount = 0;
+
+        for (Object[] row : unreturnedLoans) {
+            if (row == null || row.length == 0) continue;
+            LocalDate dueDate = extractLocalDate(row[0]);
+            if (dueDate != null) {
+                withDueDateCount++;
+                if (dueDate.isBefore(today)) {
+                    hasOverdue = true;
+                } else {
+                    if (earliestFutureDueDate == null || dueDate.isBefore(earliestFutureDueDate)) {
+                        earliestFutureDueDate = dueDate;
+                    }
+                }
+            }
+        }
+
+        String notice;
+        if (earliestFutureDueDate != null) {
+            String formattedDate = DateTimeFormatter.ofPattern("dd/MM/yyyy").format(earliestFutureDueDate);
+            if (hasOverdue) {
+                notice = "Có bản mượn quá hạn; bản dự kiến trả sớm nhất vào ngày " + formattedDate + ".";
+            } else {
+                notice = "Dự kiến có bản trả về sớm nhất vào ngày " + formattedDate + ".";
+            }
+        } else if (hasOverdue) {
+            notice = "Tất cả các bản mượn hiện đã quá hạn, chưa xác định được ngày trả chính xác.";
+        } else if (withDueDateCount == 0) {
+            notice = "Chưa có thông tin ngày hẹn trả cụ thể cho các bản đang mượn.";
+        } else {
+            notice = "Chưa xác định được ngày dự kiến trả.";
+        }
+
+        return new BookQueueInfoResponse(
+                queueCount,
+                earliestFutureDueDate,
+                notice,
+                hasOverdue
+        );
+    }
+
+    private static LocalDate extractLocalDate(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof java.sql.Timestamp ts) {
+            return ts.toInstant().atZone(LIBRARY_ZONE).toLocalDate();
+        }
+        if (obj instanceof java.sql.Date d) {
+            return d.toLocalDate();
+        }
+        if (obj instanceof java.time.LocalDate ld) {
+            return ld;
+        }
+        if (obj instanceof java.time.OffsetDateTime odt) {
+            return odt.atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
+        }
+        if (obj instanceof java.time.Instant inst) {
+            return inst.atZone(LIBRARY_ZONE).toLocalDate();
+        }
+        try {
+            return LocalDate.parse(obj.toString().substring(0, 10));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)
