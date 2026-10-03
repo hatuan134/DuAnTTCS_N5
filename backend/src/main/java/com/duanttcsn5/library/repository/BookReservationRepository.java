@@ -9,6 +9,18 @@ import java.util.List;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
 
+    // Compare against the persisted timestamp so PostgreSQL microsecond precision
+    // cannot move the newly created row out of its own queue position.
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM book_reservations queued
+            JOIN book_reservations target ON target.id = :reservationId
+            WHERE queued.book_id = target.book_id
+              AND queued.status = 'PENDING'
+              AND (queued.reserved_at, queued.id) <= (target.reserved_at, target.id)
+            """, nativeQuery = true)
+    long findPendingQueuePosition(@Param("reservationId") Long reservationId);
+
     @Query(value = """
             SELECT COUNT(*) FROM book_reservations
             WHERE book_id = :bookId

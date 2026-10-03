@@ -24,13 +24,18 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
+        String message = "POST".equals(request.getMethod())
+                && request.getRequestURI().substring(request.getContextPath().length()).matches("/api/v1/books/[^/]+/reservations")
+                ? "Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập để đặt giữ đầu sách."
+                : "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.";
+
         String json = """
                 {
-                  "message": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
+                  "message": "%s",
                   "code": "UNAUTHORIZED",
                   "timestamp": "%s"
                 }
-                """.formatted(OffsetDateTime.now());
+                """.formatted(message, OffsetDateTime.now());
 
         response.getWriter().write(json);
         response.getWriter().flush();
