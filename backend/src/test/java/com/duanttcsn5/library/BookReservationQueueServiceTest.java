@@ -149,4 +149,73 @@ class BookReservationQueueServiceTest {
         });
         verifyNoInteractions(repository);
     }
+
+    @Test
+    void eachFilterReturnsOnlyItsCurrentStatusInOriginalOrder() {
+        existingBook();
+        var time = "2026-10-01T08:00:00+07:00";
+        var rows = List.of(row(20, "CANCELLED", "Cũ", time, null),
+                row(21, "PENDING", "An", time, null),
+                row(22, "READY_FOR_PICKUP", "Bình", time, "LIB-022"),
+                row(23, "FULFILLED", "Chi", time, null),
+                row(24, "PENDING", "Dũng", time, null),
+                row(25, "EXPIRED", "Hà", time, null),
+                row(26, "CANCELLED", "Lan", time, null));
+        when(repository.findAllForQueueByBookId(7L)).thenReturn(rows);
+        String[] statuses = {"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED"};
+        List<List<Long>> ids = List.of(List.of(21L, 24L), List.of(22L), List.of(23L), List.of(20L, 26L));
+        for (int i = 0; i < statuses.length; i++) {
+            String filter = statuses[i];
+            var items = service.getQueueByBookId(7L, filter).items();
+            assertThat(items).allMatch(item -> filter.equals(item.status()));
+            assertThat(items).extracting(BookReservationQueueResponse.QueueEntry::id)
+                    .containsExactlyElementsOf(ids.get(i));
+            assertThat(items).extracting(BookReservationQueueResponse.QueueEntry::queuePosition)
+                    .containsExactlyElementsOf("PENDING".equals(filter) ? List.of(1L, 2L)
+                            : java.util.Collections.nCopies(items.size(), null));
+        }
+        assertThat(service.getQueueByBookId(7L, "READY_FOR_PICKUP").items().get(0).barcode()).isEqualTo("LIB-022");
+    }
+
+    @Test
+    void absentStatusIsEmptyAndClearingFilterRestoresExpiredHistoryToo() {
+        existingBook();
+        when(repository.findAllForQueueByBookId(7L)).thenReturn(List.of(
+                row(21, "PENDING", "An", "2026-10-01T08:00:00+07:00", null),
+                row(22, "EXPIRED", "Bình", "2026-10-02T08:00:00+07:00", null)));
+        assertThat(service.getQueueByBookId(7L, "FULFILLED").items()).isEmpty();
+        for (String filter : new String[]{null, "", "   "}) {
+            assertThat(service.getQueueByBookId(7L, filter).items())
+                    .extracting(BookReservationQueueResponse.QueueEntry::id).containsExactly(21L, 22L);
+        }
+        assertThat(service.getQueueByBookId(7L, " PENDING ").items()).hasSize(1);
+    }
+
+    @Test
+    void filteredRefreshUsesCurrentStatusAndRecalculatesRemainingPositions() {
+        existingBook();
+        var first = row(21, "PENDING", "An", "2026-10-01T08:00:00+07:00", null);
+        var second = row(22, "PENDING", "Bình", "2026-10-02T08:00:00+07:00", null);
+        when(repository.findAllForQueueByBookId(7L)).thenReturn(List.of(first, second));
+        assertThat(service.getQueueByBookId(7L, "PENDING").items()).hasSize(2);
+        first.setStatus("FULFILLED");
+        var current = service.getQueueByBookId(7L, "PENDING").items();
+        assertThat(current).hasSize(1);
+        assertThat(current.get(0).id()).isEqualTo(22L);
+        assertThat(current.get(0).queuePosition()).isEqualTo(1L);
+        assertThat(service.getQueueByBookId(7L, "FULFILLED").items().get(0).id()).isEqualTo(21L);
+    }
+
+    @Test
+    void invalidFilterRejectsBeforeDatabaseAccess() {
+        for (String filter : new String[]{"UNKNOWN", "pending", "EXPIRED", "PENDING,CANCELLED"}) {
+            assertThatThrownBy(() -> service.getQueueByBookId(7L, filter))
+                    .isInstanceOfSatisfying(ApiException.class, e -> {
+                        assertThat(e.getStatus().value()).isEqualTo(400);
+                        assertThat(e.getCode()).isEqualTo("INVALID_RESERVATION_STATUS");
+                        assertThat(e.getMessage()).contains("Trạng thái lọc không hợp lệ");
+                    });
+        }
+        verifyNoInteractions(books, repository);
+    }
 }

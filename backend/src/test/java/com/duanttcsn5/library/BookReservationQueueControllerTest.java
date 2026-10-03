@@ -90,7 +90,7 @@ class BookReservationQueueControllerTest {
 
     @Test
     void librarianManagerAndAdminCanReadEmptyQueue() throws Exception {
-        when(service.getQueueByBookId(7L)).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
+        when(service.getQueueByBookId(7L, null)).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
         for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             token(role);
             mvc.perform(get(URL).header("Authorization", "Bearer test-token"))
@@ -98,14 +98,14 @@ class BookReservationQueueControllerTest {
                     .andExpect(jsonPath("$.bookTitle").value("Mắt biếc"))
                     .andExpect(jsonPath("$.items").isEmpty());
         }
-        verify(service, times(3)).getQueueByBookId(7L);
+        verify(service, times(3)).getQueueByBookId(7L, null);
     }
 
     @Test
     void payloadContainsAllStatusesPositionsAndAllocatedBarcodeWithoutAccountSecrets() throws Exception {
         token("LIBRARIAN");
         var created = OffsetDateTime.parse("2026-10-03T08:00:00+07:00");
-        when(service.getQueueByBookId(7L)).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of(
+        when(service.getQueueByBookId(7L, null)).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of(
                 new BookReservationQueueResponse.QueueEntry(21L, 12L, "Nguyễn Văn An", created,
                         "READY_FOR_PICKUP", null, 101L, "LIB-101"),
                 new BookReservationQueueResponse.QueueEntry(22L, 13L, "Trần Bình", created.plusHours(1),
@@ -131,13 +131,13 @@ class BookReservationQueueControllerTest {
     }
 
     @Test
-    void queryParametersCannotSelectAnotherBookOrFilterHistory() throws Exception {
+    void statusIsForwardedButBookQueryParameterCannotSelectAnotherBook() throws Exception {
         token("LIBRARIAN");
-        when(service.getQueueByBookId(7L)).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
+        when(service.getQueueByBookId(7L, "PENDING")).thenReturn(new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
         mvc.perform(get(URL).queryParam("bookId", "99").queryParam("status", "PENDING")
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.bookId").value(7));
-        verify(service).getQueueByBookId(7L);
+        verify(service).getQueueByBookId(7L, "PENDING");
         verifyNoMoreInteractions(service);
     }
 
@@ -147,13 +147,40 @@ class BookReservationQueueControllerTest {
         mvc.perform(get("/api/v1/books/abc/reservations").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
         verifyNoInteractions(service);
-        when(service.getQueueByBookId(0L)).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
+        when(service.getQueueByBookId(0L, null)).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
                 "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ."));
         mvc.perform(get("/api/v1/books/0/reservations").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Mã đầu sách không hợp lệ."));
-        when(service.getQueueByBookId(99L)).thenThrow(new ApiException(HttpStatus.NOT_FOUND,
+        when(service.getQueueByBookId(99L, null)).thenThrow(new ApiException(HttpStatus.NOT_FOUND,
                 "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
         mvc.perform(get("/api/v1/books/99/reservations").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("BOOK_NOT_FOUND"));
+    }
+
+    @Test
+    void fourFiltersAndClearingFilterAreForwardedWithStaffPermissions() throws Exception {
+        token("LIBRARIAN");
+        for (String filter : new String[]{"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", ""}) {
+            when(service.getQueueByBookId(7L, filter)).thenReturn(
+                    new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
+            mvc.perform(get(URL).queryParam("status", filter).header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+            verify(service).getQueueByBookId(7L, filter);
+        }
+        token("READER");
+        mvc.perform(get(URL).queryParam("status", "PENDING").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
+        verify(service, times(1)).getQueueByBookId(7L, "PENDING");
+    }
+
+    @Test
+    void invalidFilterUsesExistingVietnameseErrorResponse() throws Exception {
+        token("LIBRARIAN");
+        when(service.getQueueByBookId(7L, "UNKNOWN")).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_RESERVATION_STATUS", "Trạng thái lọc không hợp lệ."));
+        mvc.perform(get(URL).queryParam("status", "UNKNOWN").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_STATUS"))
+                .andExpect(jsonPath("$.message").value("Trạng thái lọc không hợp lệ."));
     }
 }
