@@ -37,8 +37,9 @@ class BookCopySummaryServiceTest {
 
     @Test void countsEveryCopyWhenAllAreAvailable() {
         when(books.existsById(1L)).thenReturn(true);
-        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(
-                copy(1L, 1L, "AVAILABLE"), copy(2L, 1L, "AVAILABLE"), copy(3L, 1L, "AVAILABLE")));
+        List<BookCopy> availableCopies = List.of(
+                copy(1L, 1L, "AVAILABLE"), copy(2L, 1L, "AVAILABLE"), copy(3L, 1L, "AVAILABLE"));
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(availableCopies);
         var result = service.getSummaryByBookId(1L);
         assertEquals(3L, result.availableCount());
         assertEquals(3, result.copies().size());
@@ -46,11 +47,12 @@ class BookCopySummaryServiceTest {
 
     @Test void mixedStatusesCountOnlyAvailableButKeepEveryTableRow() {
         when(books.existsById(1L)).thenReturn(true);
-        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(
+        List<BookCopy> mixedCopies = List.of(
                 copy(1L, 1L, "AVAILABLE"), copy(2L, 1L, "BORROWED"),
                 copy(3L, 1L, "HELD"), copy(4L, 1L, "REPAIR"),
                 copy(5L, 1L, "REMOVED"), copy(6L, 1L, "AVAILABLE"),
-                copy(7L, 1L, "LOST"), copy(8L, 1L, "DAMAGED")));
+                copy(7L, 1L, "LOST"), copy(8L, 1L, "DAMAGED"));
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(mixedCopies);
         var result = service.getSummaryByBookId(1L);
         assertEquals(2L, result.availableCount());
         assertEquals(8, result.copies().size());
@@ -62,9 +64,10 @@ class BookCopySummaryServiceTest {
 
     @Test void noAvailableCopiesReturnsZeroWithNonemptyTable() {
         when(books.existsById(1L)).thenReturn(true);
-        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(
+        List<BookCopy> unavailableCopies = List.of(
                 copy(1L, 1L, "BORROWED"), copy(2L, 1L, "HELD"),
-                copy(3L, 1L, "REPAIR"), copy(4L, 1L, "REMOVED")));
+                copy(3L, 1L, "REPAIR"), copy(4L, 1L, "REMOVED"));
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(unavailableCopies);
         var result = service.getSummaryByBookId(1L);
         assertEquals(0L, result.availableCount());
         assertEquals(4, result.copies().size());
@@ -91,8 +94,10 @@ class BookCopySummaryServiceTest {
     @Test void requestingAnotherBookDoesNotMixCounts() {
         when(books.existsById(1L)).thenReturn(true);
         when(books.existsById(2L)).thenReturn(true);
-        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(copy(1L, 1L, "AVAILABLE")));
-        when(copies.findAllByBookIdOrderByIdAsc(2L)).thenReturn(List.of(copy(2L, 2L, "HELD")));
+        BookCopy firstBookCopy = copy(1L, 1L, "AVAILABLE");
+        BookCopy secondBookCopy = copy(2L, 2L, "HELD");
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(firstBookCopy));
+        when(copies.findAllByBookIdOrderByIdAsc(2L)).thenReturn(List.of(secondBookCopy));
         assertEquals(1L, service.getSummaryByBookId(1L).availableCount());
         var result = service.getSummaryByBookId(2L);
         assertEquals(0L, result.availableCount());

@@ -1,0 +1,23 @@
+{
+  "label": "after",
+  "startedAt": "2026-10-03T03:31:41.400Z",
+  "api": "http://localhost:8080/api/v1",
+  "web": "http://localhost:5173",
+  "runs": 10,
+  "limitMs": 1500,
+  "timing": "API: before fetch -> parsed JSON; UI: capture click/change -> correct DOM confirmed + two animation frames. No samples discarded.",
+  "cache": "Warm cache after fixture preflight; first navigation and typing/filter preparation excluded. Background refresh remains enabled.",
+  "environment": {
+    "node": "v22.23.2",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12450H",
+    "logicalCpus": 12,
+    "memoryBytes": 16866684928,
+    "commit": "38f1cbd712b82ac5e3a074537b9b8961a016a240"
+  },
+  "status": "SETUP_FAILED",
+  "samples": [],
+  "error": "TypeError: fetch failed",
+  "finishedAt": "2026-10-03T03:31:41.421Z"
+}

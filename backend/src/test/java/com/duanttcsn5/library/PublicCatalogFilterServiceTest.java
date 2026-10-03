@@ -127,10 +127,9 @@ class PublicCatalogFilterServiceTest {
     @Test void optionsAreUniqueAndIncludeInactiveCategoriesWithPublicBooks() {
         Category inactive = category(9L, "Thể loại cũ");
         inactive.setActive(false);
-        when(books.findAllPublicWithAuthorAndCategory()).thenReturn(List.of(
-                book(1L, "A", inactive, 2008), book(2L, "B", inactive, 2008),
-                book(3L, "C", category(6L, "Văn học"), 1990),
-                book(4L, "D", inactive, null)));
+        when(books.findPublicFilterRows()).thenReturn(List.of(
+                new Object[]{9L, "Thể loại cũ", 2008}, new Object[]{9L, "Thể loại cũ", 2008},
+                new Object[]{6L, "Văn học", 1990}, new Object[]{9L, "Thể loại cũ", null}));
         var options = service.getPublicFilterOptions();
         assertEquals(List.of(9L, 6L), options.categories().stream().map(c -> c.id()).toList());
         assertEquals(List.of(2008, 1990), options.publicationYears());
@@ -138,7 +137,7 @@ class PublicCatalogFilterServiceTest {
     }
 
     @Test void emptyCatalogHasEmptyOptions() {
-        when(books.findAllPublicWithAuthorAndCategory()).thenReturn(List.of());
+        when(books.findPublicFilterRows()).thenReturn(List.of());
         var options = service.getPublicFilterOptions();
         assertTrue(options.categories().isEmpty());
         assertTrue(options.publicationYears().isEmpty());
