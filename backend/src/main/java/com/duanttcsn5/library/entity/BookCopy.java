@@ -54,6 +54,13 @@ public class BookCopy {
         this.status = "HELD";
     }
 
+    public void releaseReservationHold() {
+        if (!"HELD".equals(status)) {
+            throw new IllegalStateException("Chỉ bản sao Đang giữ mới được giải phóng về Sẵn sàng.");
+        }
+        this.status = "AVAILABLE";
+    }
+
     public void sendToRepair() { this.status = "REPAIR"; }
 
     public Long getId() { return id; }

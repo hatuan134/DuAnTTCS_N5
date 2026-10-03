@@ -14,6 +14,12 @@ import java.util.Optional;
 
 public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
 
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM loan_items
+                WHERE book_copy_id = :copyId AND returned_at IS NULL)
+            """, nativeQuery = true)
+    boolean hasUnreturnedLoan(@Param("copyId") Long copyId);
+
     // Wait for competing loan/repair updates on the selected row and recheck
     // AVAILABLE, rather than treating a temporarily locked copy as unavailable.
     @Query(value = """

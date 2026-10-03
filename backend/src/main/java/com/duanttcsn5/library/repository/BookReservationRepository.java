@@ -10,6 +10,23 @@ import java.util.Optional;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
 
+    // Read only the title id before acquiring locks; never preload a stale target entity.
+    @Query("SELECT r.book.id FROM BookReservation r WHERE r.id = :id")
+    Optional<Long> findBookIdForCancellation(@Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM BookReservation r WHERE r.id = :id")
+    Optional<BookReservation> findForCancellation(@Param("id") Long id);
+
+    @Query(value = """
+            SELECT r.* FROM book_reservations r
+            WHERE r.book_id = :bookId AND r.status = 'PENDING'
+            ORDER BY r.reserved_at ASC, r.id ASC
+            LIMIT 1
+            FOR UPDATE OF r
+            """, nativeQuery = true)
+    Optional<BookReservation> findNextPendingForCancellation(@Param("bookId") Long bookId);
+
     // One ordered snapshot of all statuses. PENDING entries receive positions
     // using the same (reservedAt, id) order as findPendingQueuePosition below.
     @Query("""

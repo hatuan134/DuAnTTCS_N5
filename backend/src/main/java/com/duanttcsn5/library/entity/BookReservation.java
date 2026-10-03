@@ -44,6 +44,27 @@ public class BookReservation {
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 
+    @Column(name = "cancelled_by")
+    private Long cancelledBy;
+
+    @Column(name = "cancelled_by_name", length = 255)
+    private String cancelledByName;
+
+    @Column(name = "cancelled_at")
+    private OffsetDateTime cancelledAt;
+
+    public Long getCancelledBy() { return cancelledBy; }
+    public String getCancelledByName() { return cancelledByName; }
+    public OffsetDateTime getCancelledAt() { return cancelledAt; }
+
+    public void cancelByStaff(User actor, OffsetDateTime time, String reason) {
+        this.status = "CANCELLED";
+        this.cancelledBy = actor.getId();
+        this.cancelledByName = actor.getFullName();
+        this.cancelledAt = time;
+        this.cancellationReason = reason;
+    }
+
     public BookReservation() {}
 
     public BookReservation(Book book, User reader, String status) {
