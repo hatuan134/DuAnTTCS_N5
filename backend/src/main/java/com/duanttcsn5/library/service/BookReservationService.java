@@ -2,11 +2,13 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
 import com.duanttcsn5.library.entity.Book;
+import com.duanttcsn5.library.entity.BookCopy;
 import com.duanttcsn5.library.entity.BookReservation;
 import com.duanttcsn5.library.entity.LibraryCard;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.BookRepository;
+import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.BookReservationRepository;
 import com.duanttcsn5.library.repository.LibraryCardRepository;
 import com.duanttcsn5.library.repository.UserRepository;
@@ -28,12 +30,18 @@ public class BookReservationService {
     private final UserRepository users;
     private final LibraryCardRepository cards;
 
+    private final BookCopyRepository copies;
+    private final LibraryConfigurationService configuration;
+
     public BookReservationService(BookRepository books, BookReservationRepository reservations,
-                                  UserRepository users, LibraryCardRepository cards) {
+                                  UserRepository users, LibraryCardRepository cards,
+                                  BookCopyRepository copies, LibraryConfigurationService configuration) {
         this.books = books;
         this.reservations = reservations;
         this.users = users;
         this.cards = cards;
+        this.copies = copies;
+        this.configuration = configuration;
     }
 
     @Transactional
@@ -69,11 +77,28 @@ public class BookReservationService {
 
         BookReservation reservation = new BookReservation(book, reader, "PENDING");
         reservation.setReservedAt(createdAt);
+        BookCopy selected = copies.findFirstAvailableForReservation(bookId).orElse(null);
+        BookReservationResponse.ReservedCopy copyInfo = null;
+        if (selected != null) {
+            // Calculate first: invalid calendar configuration must not consume a copy.
+            OffsetDateTime deadline = configuration.calculateReservationPickupDeadline(createdAt);
+            selected.holdForReservation();
+            copies.save(selected);
+            reservation.setBookCopy(selected);
+            reservation.setStatus("READY_FOR_PICKUP");
+            reservation.setPickupDeadline(deadline);
+            var shelf = selected.getShelf();
+            var warehouse = shelf.getWarehouse();
+            copyInfo = new BookReservationResponse.ReservedCopy(selected.getId(), selected.getBarcode(),
+                    warehouse.getCode(), warehouse.getName(), shelf.getCode(), shelf.getName());
+        }
         BookReservation saved = reservations.saveAndFlush(reservation);
-        long position = reservations.findPendingQueuePosition(saved.getId());
+        Long position = selected == null ? reservations.findPendingQueuePosition(saved.getId()) : null;
+        String message = selected == null
+                ? "Đặt giữ thành công. Chưa có bản Sẵn sàng. Vị trí hiện tại trong hàng đợi: " + position + "."
+                : "Đặt giữ thành công. Thư viện đã dành một bản sách cho bạn. Vui lòng đến nhận trước hạn hiển thị.";
         return new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
-                saved.getReservedAt(), position,
-                "Đặt giữ thành công. Vị trí hiện tại trong hàng đợi: " + position + ".");
+                saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
     }
 
     private void validateCard(LibraryCard card, LocalDate today) {

@@ -5,8 +5,17 @@ export interface BookReservation {
   bookId: number
   status: string
   reservedAt: string
-  queuePosition: number
+  queuePosition: number | null
   message: string
+  pickupDeadline: string | null
+  reservedCopy: {
+    copyId: number
+    barcode: string
+    warehouseCode: string
+    warehouseName: string
+    shelfCode: string
+    shelfName: string | null
+  } | null
 }
 
 export const reservationService = {

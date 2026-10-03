@@ -60,7 +60,8 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
         <Bookmark size={18} className="text-blue-600" /> Đặt giữ đầu sách
       </h2>
       <p className="mt-2 text-sm text-slate-600">
-        Yêu cầu được xếp hàng theo thời điểm đặt giữ. Thẻ thư viện cần còn hạn và không bị khóa.
+        Nếu còn bản Sẵn sàng, thư viện sẽ tự dành một bản cho bạn; nếu hết bản, yêu cầu được xếp hàng.
+        Thẻ thư viện cần còn hạn và không bị khóa.
       </p>
       {reason && <p role="alert" className="mt-3 text-sm text-amber-800">{reason}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -79,9 +80,19 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
       {reservation && (
         <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <p className="font-semibold">{reservation.message}</p>
-          <p className="mt-1">Mã đơn: #{reservation.id} · Trạng thái: Đang chờ</p>
+          <p className="mt-1">Mã đơn: #{reservation.id} · Trạng thái: {reservation.status === 'READY_FOR_PICKUP' ? 'Sẵn sàng đến nhận' : 'Đang chờ'}</p>
           <p className="mt-1">Thời điểm đặt giữ: {new Date(reservation.reservedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
-          <p className="mt-1">Vị trí tại thời điểm đặt giữ: <strong>{reservation.queuePosition}</strong></p>
+          {reservation.status === 'READY_FOR_PICKUP' && reservation.reservedCopy && reservation.pickupDeadline ? (
+            <dl className="mt-3 grid gap-3 rounded-lg border border-emerald-200 bg-white/70 p-3 sm:grid-cols-2">
+              <div><dt className="text-xs text-emerald-700">Mã nhận diện bản sách</dt><dd className="mt-1 font-semibold">{reservation.reservedCopy.barcode}</dd></div>
+              <div><dt className="text-xs text-emerald-700">Kho lấy sách</dt><dd className="mt-1 font-semibold">{reservation.reservedCopy.warehouseName} ({reservation.reservedCopy.warehouseCode})</dd></div>
+              <div><dt className="text-xs text-emerald-700">Kệ lấy sách</dt><dd className="mt-1 font-semibold">{reservation.reservedCopy.shelfName || 'Kệ'} ({reservation.reservedCopy.shelfCode})</dd></div>
+              <div><dt className="text-xs text-emerald-700">Hạn đến nhận (giờ Việt Nam)</dt><dd className="mt-1 font-semibold">{new Date(reservation.pickupDeadline).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</dd></div>
+              <p className="text-xs text-emerald-700 sm:col-span-2">Hạn nhận là giờ đóng cửa của ngày mở cửa thứ ba sau ngày đặt giữ, bỏ qua ngày thư viện đóng cửa.</p>
+            </dl>
+          ) : reservation.queuePosition !== null && (
+            <p className="mt-1">Vị trí tại thời điểm đặt giữ: <strong>{reservation.queuePosition}</strong></p>
+          )}
         </div>
       )}
     </section>

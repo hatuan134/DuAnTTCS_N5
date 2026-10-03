@@ -4,11 +4,13 @@ import com.duanttcsn5.library.entity.*;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.*;
 import com.duanttcsn5.library.service.BookReservationService;
+import com.duanttcsn5.library.service.LibraryConfigurationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -26,13 +28,15 @@ class BookReservationServiceTest {
     @Mock BookReservationRepository reservations;
     @Mock UserRepository users;
     @Mock LibraryCardRepository cards;
+    @Mock BookCopyRepository copies;
+    @Mock LibraryConfigurationService configuration;
     BookReservationService service;
     User reader;
     Book book;
     LibraryCard card;
 
     @BeforeEach void setup() {
-        service = new BookReservationService(books, reservations, users, cards);
+        service = new BookReservationService(books, reservations, users, cards, copies, configuration);
         reader = new User(); reader.setId(12L); reader.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("READER"); reader.setRole(role);
         book = new Book(); book.setId(7L);
@@ -148,6 +152,96 @@ class BookReservationServiceTest {
         assertThatThrownBy(() -> service.reserve(0L, 12L))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getCode()).isEqualTo("INVALID_BOOK_ID"));
         verifyNoInteractions(books, reservations, cards);
+    }
+
+    private BookCopy availableCopy(Long id) {
+        Warehouse warehouse = new Warehouse(); warehouse.setCode("KHO-A"); warehouse.setName("Kho A");
+        Shelf shelf = new Shelf(); shelf.setCode("A01"); shelf.setName("Kệ Văn học"); shelf.setWarehouse(warehouse);
+        BookCopy copy = new BookCopy();
+        ReflectionTestUtils.setField(copy, "id", id);
+        ReflectionTestUtils.setField(copy, "book", book);
+        ReflectionTestUtils.setField(copy, "barcode", "LIB-" + id);
+        ReflectionTestUtils.setField(copy, "shelf", shelf);
+        ReflectionTestUtils.setField(copy, "status", "AVAILABLE");
+        return copy;
+    }
+
+    private void saveReservationOnly() {
+        when(reservations.saveAndFlush(any())).thenAnswer(invocation -> {
+            BookReservation value = invocation.getArgument(0); value.setId(100L); return value;
+        });
+    }
+
+    @Test void availableCopyIsHeldAndPickupDetailsAreReturned() {
+        eligible(); saveReservationOnly();
+        BookCopy copy = availableCopy(101L);
+        OffsetDateTime deadline = OffsetDateTime.now(ZONE).plusDays(5);
+        when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.of(copy));
+        when(configuration.calculateReservationPickupDeadline(any())).thenReturn(deadline);
+        var response = service.reserve(7L, 12L);
+        assertThat(copy.getStatus()).isEqualTo("HELD");
+        assertThat(response.status()).isEqualTo("READY_FOR_PICKUP");
+        assertThat(response.queuePosition()).isNull();
+        assertThat(response.pickupDeadline()).isEqualTo(deadline);
+        assertThat(response.reservedCopy().copyId()).isEqualTo(101L);
+        assertThat(response.reservedCopy().barcode()).isEqualTo("LIB-101");
+        assertThat(response.reservedCopy().warehouseName()).isEqualTo("Kho A");
+        assertThat(response.reservedCopy().shelfCode()).isEqualTo("A01");
+        verify(reservations).saveAndFlush(argThat(value -> value.getBookCopy() == copy
+                && "READY_FOR_PICKUP".equals(value.getStatus()) && deadline.equals(value.getPickupDeadline())));
+        var order = inOrder(books, copies, configuration, reservations);
+        order.verify(books).findForReservation(7L);
+        order.verify(copies).findFirstAvailableForReservation(7L);
+        order.verify(configuration).calculateReservationPickupDeadline(any());
+        order.verify(copies).save(copy);
+        order.verify(reservations).saveAndFlush(any());
+        verify(reservations, never()).findPendingQueuePosition(any());
+    }
+
+    @Test void multipleAvailableCopiesStillAllocateOnlyOne() {
+        eligible(); saveReservationOnly();
+        BookCopy first = availableCopy(101L), second = availableCopy(102L);
+        when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.of(first));
+        when(configuration.calculateReservationPickupDeadline(any())).thenReturn(OffsetDateTime.now(ZONE).plusDays(5));
+        service.reserve(7L, 12L);
+        verify(copies, times(1)).findFirstAvailableForReservation(7L);
+        verify(copies, times(1)).save(first);
+        assertThat(first.getStatus()).isEqualTo("HELD");
+        assertThat(second.getStatus()).isEqualTo("AVAILABLE");
+    }
+
+    @Test void noCopyRemainsPendingWithNoPickupInformation() {
+        eligible(); saved();
+        when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.empty());
+        var response = service.reserve(7L, 12L);
+        assertThat(response.status()).isEqualTo("PENDING");
+        assertThat(response.queuePosition()).isEqualTo(3L);
+        assertThat(response.pickupDeadline()).isNull();
+        assertThat(response.reservedCopy()).isNull();
+        verify(copies, never()).save(any());
+        verifyNoInteractions(configuration);
+    }
+
+    @Test void calendarFailureDoesNotChangeCopyOrCreateReservation() {
+        eligible(); BookCopy copy = availableCopy(101L);
+        when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.of(copy));
+        when(configuration.calculateReservationPickupDeadline(any())).thenThrow(new ApiException(
+                org.springframework.http.HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE", "Lịch chưa đầy đủ."));
+        rejected("WEEKLY_SCHEDULE_INCOMPLETE");
+        assertThat(copy.getStatus()).isEqualTo("AVAILABLE");
+        verify(copies, never()).save(any());
+    }
+
+    @Test void secondRequestWaitsWhenOnlyCopyHasBeenAllocated() {
+        eligible(); saveReservationOnly();
+        BookCopy copy = availableCopy(101L);
+        when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.of(copy), Optional.empty());
+        when(configuration.calculateReservationPickupDeadline(any())).thenReturn(OffsetDateTime.now(ZONE).plusDays(5));
+        when(reservations.findPendingQueuePosition(100L)).thenReturn(1L);
+        assertThat(service.reserve(7L, 12L).status()).isEqualTo("READY_FOR_PICKUP");
+        assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
+        verify(copies, times(1)).save(copy);
+        verify(configuration, times(1)).calculateReservationPickupDeadline(any());
     }
 
     @Test void nonexistentBookRejects() {

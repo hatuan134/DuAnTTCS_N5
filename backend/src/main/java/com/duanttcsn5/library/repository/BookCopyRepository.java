@@ -14,6 +14,21 @@ import java.util.Optional;
 
 public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
 
+    // Wait for competing loan/repair updates on the selected row and recheck
+    // AVAILABLE, rather than treating a temporarily locked copy as unavailable.
+    @Query(value = """
+            SELECT c.* FROM book_copies c
+            WHERE c.book_id = :bookId AND c.status = 'AVAILABLE'
+              AND NOT EXISTS (
+                  SELECT 1 FROM loan_items li
+                  WHERE li.book_copy_id = c.id AND li.returned_at IS NULL
+              )
+            ORDER BY c.id ASC
+            LIMIT 1
+            FOR UPDATE OF c
+            """, nativeQuery = true)
+    Optional<BookCopy> findFirstAvailableForReservation(@Param("bookId") Long bookId);
+
     @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
     Optional<BookCopy> findByBarcode(String barcode);
 

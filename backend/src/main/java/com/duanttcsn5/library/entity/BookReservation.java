@@ -28,6 +28,10 @@ public class BookReservation {
     @JoinColumn(name = "reader_id", nullable = false)
     private User reader;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "book_copy_id")
+    private BookCopy bookCopy;
+
     @Column(nullable = false, length = 30)
     private String status = "PENDING";
 
@@ -71,6 +75,14 @@ public class BookReservation {
 
     public void setReader(User reader) {
         this.reader = reader;
+    }
+
+    public BookCopy getBookCopy() {
+        return bookCopy;
+    }
+
+    public void setBookCopy(BookCopy bookCopy) {
+        this.bookCopy = bookCopy;
     }
 
     public String getStatus() {
