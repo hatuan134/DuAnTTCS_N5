@@ -29,8 +29,18 @@ public record BookResponse(
         OffsetDateTime createdAt,
         long copyCount,
         boolean hasCopies,
-        long availableCount
+        long availableCount,
+        String coverImageUrl
 ) {
+    public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
+            String authorName, boolean authorActive, List<BookAuthorResponse> authors,
+            Long categoryId, String categoryName, boolean categoryActive, String publisher,
+            Integer publicationYear, Integer pageCount, String description, OffsetDateTime createdAt,
+            long copyCount, boolean hasCopies, long availableCount) {
+        this(id, isbn, title, subtitle, authorId, authorName, authorActive, authors,
+                categoryId, categoryName, categoryActive, publisher, publicationYear, pageCount,
+                description, createdAt, copyCount, hasCopies, availableCount, null);
+    }
     public BookResponse(Long id, String isbn, String title, String subtitle, Long authorId,
             String authorName, boolean authorActive, List<BookAuthorResponse> authors,
             Long categoryId, String categoryName, boolean categoryActive, String publisher,
@@ -118,7 +128,8 @@ public record BookResponse(
                 book.getCreatedAt(),
                 normalizedCopyCount,
                 normalizedCopyCount > 0,
-                Math.max(0L, availableCount)
+                Math.max(0L, availableCount),
+                book.getCoverImageUrl()
         );
     }
 

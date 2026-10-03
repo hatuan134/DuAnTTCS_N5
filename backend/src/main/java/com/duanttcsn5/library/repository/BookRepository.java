@@ -48,11 +48,6 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             LEFT JOIN FETCH b.author
             JOIN FETCH b.category
             WHERE b.id = :id
-              AND EXISTS (
-                  SELECT bc.id
-                  FROM BookCopy bc
-                  WHERE bc.book = b
-              )
             """)
     Optional<Book> findPublicByIdWithAuthorAndCategory(@Param("id") Long id);
 

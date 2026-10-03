@@ -245,6 +245,7 @@ public class BookCatalogService {
         book.setPublicationYear(request.publicationYear());
         book.setPageCount(request.pageCount());
         book.setDescription(normalizeOptional(request.description()));
+        book.setCoverImageUrl(normalizeOptional(request.coverImageUrl()));
 
         Book saved = bookRepository.save(book);
 
