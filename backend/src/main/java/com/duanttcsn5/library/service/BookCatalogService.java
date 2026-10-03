@@ -16,6 +16,7 @@ import com.duanttcsn5.library.repository.CategoryRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.text.Normalizer;
 import java.time.Year;
@@ -95,11 +96,8 @@ public class BookCatalogService {
                 .toList();
     }
 
-    /**
-     * S2-05.3: lọc và sắp xếp toàn bộ tập kết quả trước khi cắt trang.
-     * Giữ cách tìm không dấu và điều kiện công khai của S2-05.1/S2-05.2.
-     */
-    @Transactional(readOnly = true)
+    /** S2-05.5: SQL filters, ranks, counts and pages; hydrate only the selected page. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PublicCatalogPageResponse searchPublicBooks(String keyword, Long categoryId,
             Integer publicationYear, boolean availableOnly, int page, int size, String sort) {
         if (page < 0) {
@@ -115,66 +113,46 @@ public class BookCatalogService {
                     "Cách sắp xếp phải là mức phù hợp hoặc năm xuất bản.");
         }
 
+        validatePublicFilters(categoryId, publicationYear);
         String text = normalizeSearchText(keyword);
         String isbn = normalizeIsbnForSearch(keyword);
-        // ID duy nhất là tiêu chí cuối để các kết quả bằng điểm/năm không đổi chỗ giữa các trang.
-        Comparator<BookResponse> tieBreaker = Comparator
-                .comparing((BookResponse book) -> normalizeSearchText(book.title()))
-                .thenComparing(BookResponse::id);
-        Comparator<BookResponse> order = "publicationYear".equals(sort)
-                ? Comparator.comparing(BookResponse::publicationYear,
-                        Comparator.nullsLast(Comparator.<Integer>reverseOrder())).thenComparing(tieBreaker)
-                : Comparator.comparingInt((BookResponse book) -> relevanceScore(book, text, isbn))
-                        .reversed().thenComparing(tieBreaker);
-        List<BookResponse> results = getPublicBooks(keyword, categoryId, publicationYear, availableOnly)
-                .stream().sorted(order).toList();
-        int totalPages = (int) ((results.size() + (long) size - 1) / size);
-        // Nếu dữ liệu giảm khi đang ở trang cuối, trả trang cuối còn tồn tại.
+        long total = bookRepository.countPublicSearch(text, isbn, categoryId, publicationYear, availableOnly);
+        int totalPages = Math.toIntExact((total + size - 1) / size);
         int currentPage = totalPages == 0 ? 0 : Math.min(page, totalPages - 1);
-        int from = currentPage * size;
-        int to = (int) Math.min(from + (long) size, results.size());
-        return new PublicCatalogPageResponse(List.copyOf(results.subList(from, to)),
-                currentPage, size, results.size(), totalPages, currentPage == 0,
-                totalPages == 0 || currentPage == totalPages - 1, sort);
-    }
-
-    private int relevanceScore(BookResponse book, String text, String isbn) {
-        if (text.isBlank()) return 0;
-        int titleScore = fieldMatchScore(normalizeSearchText(book.title()), text, 100, 40);
-        // Mỗi tiêu chí tác giả chỉ tính một lần, dù trùng author_id cũ hoặc nhiều tác giả cùng khớp.
-        int authorScore = fieldMatchScore(normalizeSearchText(book.authorName()), text, 80, 30);
-        for (BookResponse.BookAuthorResponse author : book.authors()) {
-            authorScore = Math.max(authorScore,
-                    fieldMatchScore(normalizeSearchText(author.name()), text, 80, 30));
+        if (total == 0) {
+            return new PublicCatalogPageResponse(List.of(), 0, size, 0, 0, true, true, sort);
         }
-        int isbnScore = isbn.isBlank()
-                ? fieldMatchScore(normalizeSearchText(book.isbn()), text, 120, 20)
-                : fieldMatchScore(normalizeIsbnForSearch(book.isbn()), isbn, 120, 20);
-        return titleScore + authorScore + isbnScore;
-    }
-
-    private int fieldMatchScore(String value, String keyword, int exact, int partial) {
-        if (keyword.isBlank() || value.isBlank()) return 0;
-        if (value.equals(keyword)) return exact;
-        return value.contains(keyword) ? partial : 0;
+        List<Long> ids = bookRepository.findPublicSearchIds(text, isbn, categoryId, publicationYear,
+                availableOnly, sort, size, (long) currentPage * size);
+        Map<Long, Book> pageBooks = bookRepository.findPublicPageWithAuthorAndCategory(ids).stream()
+                .collect(Collectors.toMap(Book::getId, book -> book));
+        Map<Long, long[]> counts = new HashMap<>();
+        for (Object[] row : bookCopyRepository.countCopiesForPublicPage(ids)) {
+            counts.put(((Number) row[0]).longValue(),
+                    new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
+        }
+        // SQL determines the order; an IN fetch does not promise to preserve it.
+        List<BookResponse> content = ids.stream().map(id -> {
+            long[] count = counts.getOrDefault(id, new long[]{0, 0});
+            return BookResponse.fromEntity(pageBooks.get(id), count[0], count[1]);
+        }).toList();
+        return new PublicCatalogPageResponse(content, currentPage, size, total, totalPages,
+                currentPage == 0, currentPage == totalPages - 1, sort);
     }
 
     @Transactional(readOnly = true)
     public PublicCatalogFilterOptionsResponse getPublicFilterOptions() {
         // Chỉ lấy lựa chọn từ đầu sách công khai; không phụ thuộc từ khóa/bộ lọc đang chọn.
         // Giữ cả thể loại ngừng sử dụng nếu vẫn có sách công khai thuộc thể loại đó.
-        List<Book> publicBooks = bookRepository.findAllPublicWithAuthorAndCategory();
         Map<Long, PublicCatalogFilterOptionsResponse.CategoryOption> categories = new HashMap<>();
         Set<Integer> years = new HashSet<>();
-        for (Book book : publicBooks) {
-            Category category = book.getCategory();
-            if (category != null && category.getId() != null) {
-                categories.putIfAbsent(category.getId(),
-                        new PublicCatalogFilterOptionsResponse.CategoryOption(category.getId(), category.getName()));
-            }
-            if (book.getPublicationYear() != null && book.getPublicationYear() > 0
-                    && book.getPublicationYear() <= Year.now(LIBRARY_ZONE).getValue()) {
-                years.add(book.getPublicationYear());
+        for (Object[] row : bookRepository.findPublicFilterRows()) {
+            long categoryId = ((Number) row[0]).longValue();
+            categories.putIfAbsent(categoryId,
+                    new PublicCatalogFilterOptionsResponse.CategoryOption(categoryId, (String) row[1]));
+            if (row[2] instanceof Number number) {
+                int year = number.intValue();
+                if (year > 0 && year <= Year.now(LIBRARY_ZONE).getValue()) years.add(year);
             }
         }
         return new PublicCatalogFilterOptionsResponse(

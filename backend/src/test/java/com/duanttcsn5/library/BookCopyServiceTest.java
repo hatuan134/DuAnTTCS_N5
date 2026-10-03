@@ -71,7 +71,8 @@ class BookCopyServiceTest {
         when(shelves.findForCopyCreation(20L)).thenReturn(Optional.of(location()));
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L);
         when(copies.insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
-        when(copies.findByBarcode("TV-000001")).thenReturn(Optional.of(existing("TV-000001", true)));
+        BookCopy copy = existing("TV-000001", true);
+        when(copies.findByBarcode("TV-000001")).thenReturn(Optional.of(copy));
 
         var response = service.create(1L, auto(today()));
 
@@ -85,7 +86,8 @@ class BookCopyServiceTest {
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L, 2L);
         when(copies.insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(0);
         when(copies.insertIfBarcodeAbsent(1L, "TV-000002", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
-        when(copies.findByBarcode("TV-000002")).thenReturn(Optional.of(existing("TV-000002", true)));
+        BookCopy copy = existing("TV-000002", true);
+        when(copies.findByBarcode("TV-000002")).thenReturn(Optional.of(copy));
 
         var response = service.create(1L, auto(today()));
 
@@ -105,7 +107,8 @@ class BookCopyServiceTest {
     }
     @Test void duplicateAcrossDifferentBooksIncludesExistingIdentityAndLink() {
         when(books.existsById(2L)).thenReturn(true);
-        when(copies.findByBarcode("TV-001")).thenReturn(Optional.of(existing("TV-001", false)));
+        BookCopy copy = existing("TV-001", false);
+        when(copies.findByBarcode("TV-001")).thenReturn(Optional.of(copy));
         ApiException ex = assertThrows(ApiException.class, () -> service.create(2L, manual("TV-001", today())));
         assertEquals("BARCODE_EXISTS", ex.getCode()); assertEquals(409, ex.getStatus().value());
         assertEquals(100L, ex.getDetails().get("existingCopyId")); assertEquals(1L, ex.getDetails().get("bookId"));
@@ -115,7 +118,8 @@ class BookCopyServiceTest {
     }
     @Test void concurrentManualDuplicateStillReturnsExistingCopy() {
         when(books.existsById(1L)).thenReturn(true);
-        when(copies.findByBarcode("TV-001")).thenReturn(Optional.empty(), Optional.of(existing("TV-001", false)));
+        BookCopy copy = existing("TV-001", false);
+        when(copies.findByBarcode("TV-001")).thenReturn(Optional.empty(), Optional.of(copy));
         when(shelves.findForCopyCreation(20L)).thenReturn(Optional.of(location()));
         when(copies.insertIfBarcodeAbsent(any(), any(), any(), any(), any(), any())).thenReturn(0);
         assertEquals("BARCODE_EXISTS", assertThrows(ApiException.class,

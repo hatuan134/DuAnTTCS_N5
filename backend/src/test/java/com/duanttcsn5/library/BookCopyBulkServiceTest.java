@@ -281,7 +281,9 @@ class BookCopyBulkServiceTest {
     void detectsNewDuplicateEvenWhenSequenceCursorDoesNotChange() {
         prepareValidLocation();
         when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
-        when(copies.existsByBarcode("TV-000003")).thenReturn(true);
+        // Every inspected barcode has a defined result; only this newly occupied code is a duplicate.
+        when(copies.existsByBarcode(any())).thenAnswer(call ->
+                "TV-000003".equals(call.getArgument(0)));
         assertEquals("BULK_PREVIEW_STALE", assertThrows(ApiException.class,
                 () -> service.createBulk(1L, request("5", today()))).getCode());
         verify(copies, never()).nextAutoBarcodeNumber();

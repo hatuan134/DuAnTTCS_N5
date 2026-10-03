@@ -1,0 +1,7 @@
+{
+  "name": "s2-05-5-catalog-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": { "benchmark": "node catalog-benchmark.mjs" },
+  "dependencies": { "playwright": "1.62.1" }
+}
