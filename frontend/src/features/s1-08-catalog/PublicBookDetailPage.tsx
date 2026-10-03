@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
+import ReserveBookPanel from '../s2-07-reservations/ReserveBookPanel'
 import { catalogService } from './catalogService'
 import type { Book } from './catalogService'
 
@@ -260,6 +261,14 @@ export default function PublicBookDetailPage() {
                 </div>
               </div>
             </div>
+
+            <ReserveBookPanel key={book.id} bookId={book.id} onReserved={() => {
+              void catalogService.getPublicBookQueue(book.id).then((queue) => {
+                setBook((current) => current?.id === book.id ? { ...current, ...queue } : current)
+              }).catch(() => {
+                // The reservation succeeded; a later page reload can refresh the queue.
+              })
+            }} />
 
             {/* Bibliographic Details Table / Grid */}
             <div className="p-6 sm:p-8 bg-slate-50/50">
