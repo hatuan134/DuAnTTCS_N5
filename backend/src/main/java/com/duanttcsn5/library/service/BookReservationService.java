@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.BookReservationQueueResponse;
 import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.entity.Book;
 import com.duanttcsn5.library.entity.BookCopy;
@@ -22,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class BookReservationService {
@@ -101,6 +103,30 @@ public class BookReservationService {
                 : "Đặt giữ thành công. Thư viện đã dành một bản sách cho bạn. Vui lòng đến nhận trước hạn hiển thị.";
         return new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
                 saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
+    }
+
+    @Transactional(readOnly = true)
+    public BookReservationQueueResponse getQueueByBookId(Long bookId) {
+        if (bookId == null || bookId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ.");
+        }
+        Book book = books.findById(bookId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+
+        // Calculate every current position from a single ordered query. Avoid
+        // counting each row separately while concurrent reservations change.
+        List<BookReservation> ordered = reservations.findAllForQueueByBookId(bookId);
+        List<BookReservationQueueResponse.QueueEntry> items = new ArrayList<>(ordered.size());
+        long pendingPosition = 0;
+        for (BookReservation reservation : ordered) {
+            Long position = "PENDING".equals(reservation.getStatus()) ? ++pendingPosition : null;
+            BookCopy copy = reservation.getBookCopy();
+            items.add(new BookReservationQueueResponse.QueueEntry(
+                    reservation.getId(), reservation.getReader().getId(), reservation.getReader().getFullName(),
+                    reservation.getReservedAt(), reservation.getStatus(), position,
+                    copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode()));
+        }
+        return new BookReservationQueueResponse(book.getId(), book.getTitle(), List.copyOf(items));
     }
 
     @Transactional(readOnly = true)
