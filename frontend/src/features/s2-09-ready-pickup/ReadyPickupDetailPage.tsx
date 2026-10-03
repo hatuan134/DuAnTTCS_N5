@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
+import CancelReservationPanel, { CancellationNotice } from './CancelReservationPanel'
 import Card from '../../components/ui/Card'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatPickupDate, pickupRoles, pickupService } from './pickupService'
-import type { ReadyPickupReservation } from './pickupService'
+import type { ReadyPickupReservation, CancelReservationResult } from './pickupService'
 
 export default function ReadyPickupDetailPage() {
   const { reservationId } = useParams()
@@ -27,6 +28,8 @@ function ReadyPickupDetail({ id }: { id: number }) {
   const [item, setItem] = useState<ReadyPickupReservation | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -48,6 +51,15 @@ function ReadyPickupDetail({ id }: { id: number }) {
       </Link>
       <PageHeader title="Chi tiết đơn đặt giữ" description="Thông tin đơn đặt giữ đang chờ bạn đọc đến nhận sách." />
       {loading && <div role="status"><LoadingState /></div>}
+      {cancellation && <>
+        <CancellationNotice result={cancellation} />
+        <Link to={`/books/${cancellation.bookId}/reservations`} className="text-blue-700 hover:underline">
+          Xem hàng đợi đã cập nhật
+        </Link>
+      </>}
+      {cancelOpen && item && <CancelReservationPanel reservation={item}
+        onDismiss={() => { setCancelOpen(false); setItem(null); setError(''); setLoading(true); setReload((value) => value + 1) }}
+        onSuccess={(result) => { setCancellation(result); setCancelOpen(false); setItem(null); setError('') }} />}
       {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
         <p>{error}</p>
         <Button type="button" variant="secondary" className="mt-3"
@@ -65,6 +77,8 @@ function ReadyPickupDetail({ id }: { id: number }) {
             Đang chờ nhận
           </span>
         </div>
+        <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen}
+          aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>
         <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Tên đầu sách</dt>

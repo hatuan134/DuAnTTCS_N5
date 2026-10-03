@@ -1,6 +1,9 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.CancelBookReservationRequest;
+import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
+import jakarta.validation.Valid;
 import com.duanttcsn5.library.dto.book.BookReservationQueueResponse;
 import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -40,6 +44,15 @@ public class BookReservationController {
     public ResponseEntity<BookReservationQueueResponse> getQueueByBookId(
             @PathVariable Long bookId, @RequestParam(required = false) String status) {
         return ResponseEntity.ok(reservations.getQueueByBookId(bookId, status));
+    }
+
+    @PostMapping("/reservations/{reservationId}/cancel")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<CancelBookReservationResponse> cancelByStaff(
+            @PathVariable Long reservationId, @Valid @RequestBody CancelBookReservationRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(reservations.cancelByStaff(reservationId,
+                principal == null ? null : principal.id(), request.reason()));
     }
 
     @GetMapping("/reservations/ready-for-pickup")

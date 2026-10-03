@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
+import CancelReservationPanel, { CancellationNotice } from './CancelReservationPanel'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
@@ -8,13 +9,17 @@ import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatPickupDate, pickupRoles, pickupService } from './pickupService'
-import type { ReadyPickupReservation } from './pickupService'
+import type { ReadyPickupReservation, CancelReservationResult } from './pickupService'
 
 export default function ReadyPickupPage() {
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
   const [items, setItems] = useState<ReadyPickupReservation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancelTarget, setCancelTarget] = useState<ReadyPickupReservation | null>(null)
+  const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
+  const [revision, setRevision] = useState(0)
+  const panelOpenRef = useRef(false)
   const refreshRef = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -23,7 +28,7 @@ export default function ReadyPickupPage() {
     if (!allowed) return
 
     async function refresh() {
-      if (!active || pending) return
+      if (!active || pending || panelOpenRef.current) return
       pending = true
       setLoading(true)
       setError('')
@@ -57,7 +62,17 @@ export default function ReadyPickupPage() {
       document.removeEventListener('visibilitychange', refreshWhenVisible)
       refreshRef.current = () => {}
     }
-  }, [allowed])
+  }, [allowed, revision])
+
+  function closeCancellation(result?: CancelReservationResult) {
+    panelOpenRef.current = false
+    setCancelTarget(null)
+    if (result) setCancellation(result)
+    setItems([])
+    setError('')
+    setLoading(true)
+    setRevision((value) => value + 1)
+  }
 
   if (!allowed) return <p role="alert">Bạn không có quyền xem danh sách sách đang chờ nhận.</p>
 
@@ -66,13 +81,16 @@ export default function ReadyPickupPage() {
       <PageHeader
         title="Sách đang chờ nhận"
         description="Các đơn Đang chờ nhận, sắp xếp theo hạn nhận gần nhất trước."
-        action={<Button type="button" variant="secondary" loading={loading}
+        action={<Button type="button" variant="secondary" loading={loading} disabled={!!cancelTarget}
           onClick={() => refreshRef.current()}>Làm mới</Button>}
       />
       <p className="mb-4 text-sm text-slate-500">
         Đối chiếu mã vạch và tên bạn đọc để đưa đúng bản sách lên giá chờ nhận.
         {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 10 giây khi đang xem trang.
       </p>
+      {cancellation && <CancellationNotice result={cancellation} />}
+      {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
+        onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}
       {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
         {error} Nhấn “Làm mới” để thử lại.
       </div>}
@@ -116,6 +134,11 @@ export default function ReadyPickupPage() {
                     className="whitespace-nowrap font-semibold text-blue-600 hover:underline">
                     Chi tiết đơn #{item.id}
                   </Link>
+                  <Button type="button" variant="danger" size="sm" className="mt-3" disabled={!!cancelTarget}
+                    aria-label={`Huỷ đơn #${item.id}`}
+                    onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
+                    Huỷ đơn
+                  </Button>
                 </td>
               </tr>)}
             </tbody>

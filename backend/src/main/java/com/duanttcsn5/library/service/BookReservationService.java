@@ -1,6 +1,8 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
+import com.duanttcsn5.library.dto.book.ReservationCancellationAuditResponse;
 import com.duanttcsn5.library.dto.book.BookReservationQueueResponse;
 import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.entity.Book;
@@ -17,6 +19,7 @@ import com.duanttcsn5.library.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -141,9 +144,100 @@ public class BookReservationService {
             items.add(new BookReservationQueueResponse.QueueEntry(
                     reservation.getId(), reservation.getReader().getId(), reservation.getReader().getFullName(),
                     reservation.getReservedAt(), reservation.getStatus(), position,
-                    copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode()));
+                    copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode(),
+                    cancellationAudit(reservation)));
         }
         return new BookReservationQueueResponse(book.getId(), book.getTitle(), List.copyOf(items));
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public CancelBookReservationResponse cancelByStaff(Long reservationId, Long actorId, String reason) {
+        if (actorId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập để huỷ đơn.");
+        }
+        User actor = users.findById(actorId).orElseThrow(() ->
+                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (actor.getRole() == null || actor.getRole().getCode() == null || !Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN")
+                .contains(actor.getRole().getCode()) || !"ACTIVE".equals(actor.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "STAFF_ROLE_REQUIRED",
+                    "Chỉ nhân viên thư viện đang hoạt động mới được huỷ đơn thay bạn đọc.");
+        }
+        String normalized = reason == null ? "" : reason.strip();
+        if (normalized.isBlank() || normalized.codePoints().allMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c))
+                || normalized.length() > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CANCELLATION_REASON",
+                    "Lý do huỷ phải có từ 1 đến 500 ký tự, không chỉ gồm khoảng trắng.");
+        }
+        if (reservationId == null || reservationId < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_ID", "Mã đơn đặt giữ không hợp lệ.");
+        }
+        Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ."));
+        // Creation already locks this title. Use the same lock first, then the
+        // target reservation/copy/next waiter, so new arrivals cannot jump FIFO.
+        books.findForReservation(bookId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        BookReservation target = reservations.findForCancellation(reservationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ."));
+        if (!bookId.equals(target.getBook().getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_CHANGED", "Đơn đã thay đổi. Vui lòng tải lại.");
+        }
+        if (!"PENDING".equals(target.getStatus()) && !"READY_FOR_PICKUP".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
+                    "Chỉ được huỷ đơn Đang xếp hàng hoặc Đang chờ nhận. Đơn này đã đổi trạng thái.");
+        }
+        OffsetDateTime cancelledAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
+        BookCopy copy = null;
+        BookReservation next = null;
+        OffsetDateTime nextDeadline = null;
+        if (target.getBookCopy() != null) {
+            if (!"READY_FOR_PICKUP".equals(target.getStatus())) throw invalidHeldCopy();
+            copy = copies.findForStatusChange(target.getBookCopy().getId()).orElseThrow(this::invalidHeldCopy);
+            if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
+                    || copies.hasUnreturnedLoan(copy.getId())) throw invalidHeldCopy();
+            next = reservations.findNextPendingForCancellation(bookId).orElse(null);
+            if (next != null) {
+                // Validate the calendar before changing any reservation or copy.
+                nextDeadline = configuration.calculateReservationPickupDeadline(cancelledAt);
+                if (nextDeadline == null || !nextDeadline.isAfter(cancelledAt)
+                        || !nextDeadline.isAfter(next.getReservedAt())) {
+                    throw new ApiException(HttpStatus.CONFLICT, "INVALID_PICKUP_DEADLINE",
+                            "Không xác định được hạn nhận hợp lệ cho người tiếp theo. Đơn chưa được huỷ.");
+                }
+            }
+        }
+        target.cancelByStaff(actor, cancelledAt, normalized);
+        // Release the partial unique READY copy allocation BEFORE assigning it
+        // to the next order. Both flushes still roll back if any later step fails.
+        reservations.saveAndFlush(target);
+        String outcome = "NO_COPY";
+        if (copy != null && next != null) {
+            next.setStatus("READY_FOR_PICKUP");
+            next.setBookCopy(copy);
+            next.setPickupDeadline(nextDeadline);
+            reservations.saveAndFlush(next);
+            outcome = "TRANSFERRED"; // Physical copy remains HELD throughout.
+        } else if (copy != null) {
+            copy.releaseReservationHold();
+            copies.saveAndFlush(copy);
+            outcome = "AVAILABLE";
+        }
+        String message = "Đã huỷ đơn #" + target.getId() + " và ghi nhận lý do huỷ.";
+        return new CancelBookReservationResponse(target.getId(), bookId, target.getStatus(),
+                cancellationAudit(target), copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode(),
+                outcome, next == null ? null : next.getId(), next == null ? null : next.getReader().getFullName(),
+                nextDeadline, message);
+    }
+
+    private ApiException invalidHeldCopy() {
+        return new ApiException(HttpStatus.CONFLICT, "RESERVATION_COPY_CONFLICT",
+                "Bản sao đang giữ không còn phù hợp để giải phóng. Vui lòng tải lại và đối chiếu dữ liệu.");
+    }
+
+    private ReservationCancellationAuditResponse cancellationAudit(BookReservation reservation) {
+        if (reservation.getCancelledAt() == null) return null;
+        return new ReservationCancellationAuditResponse(reservation.getCancelledBy(), reservation.getCancelledByName(),
+                reservation.getCancelledAt(), reservation.getCancellationReason());
     }
 
     @Transactional(readOnly = true)

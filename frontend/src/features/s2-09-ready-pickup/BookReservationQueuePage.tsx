@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
+import CancelReservationPanel, { CancellationAudit, CancellationNotice } from './CancelReservationPanel'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
-import { formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
-import type { BookReservationQueue, ReservationStatus, ReservationStatusFilter } from './pickupService'
+import { canCancelReservation, formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
+import type { BookReservationQueue, ReservationStatus, ReservationStatusFilter, ReservationQueueEntry, CancelReservationResult } from './pickupService'
 
 const statusClasses: Record<ReservationStatus, string> = {
   PENDING: 'border-blue-200 bg-blue-50 text-blue-800',
@@ -37,6 +38,10 @@ function ReservationQueue({ bookId }: { bookId: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<ReservationStatusFilter>('')
+  const [cancelTarget, setCancelTarget] = useState<ReservationQueueEntry | null>(null)
+  const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
+  const [revision, setRevision] = useState(0)
+  const panelOpenRef = useRef(false)
   const refreshRef = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -44,7 +49,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
     let pending = false
 
     async function refresh() {
-      if (!active || pending) return
+      if (!active || pending || panelOpenRef.current) return
       pending = true
       setLoading(true)
       setError('')
@@ -84,7 +89,17 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       document.removeEventListener('visibilitychange', refreshWhenVisible)
       refreshRef.current = () => {}
     }
-  }, [bookId, status])
+  }, [bookId, status, revision])
+
+  function closeCancellation(result?: CancelReservationResult) {
+    panelOpenRef.current = false
+    setCancelTarget(null)
+    if (result) setCancellation(result)
+    setQueue(null)
+    setError('')
+    setLoading(true)
+    setRevision((value) => value + 1)
+  }
 
   function changeStatus(value: ReservationStatusFilter) {
     if (value === status) return
@@ -106,7 +121,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       <PageHeader
         title="Hàng đợi đặt giữ"
         description={queue?.bookTitle ?? `Đầu sách #${bookId}`}
-        action={<Button type="button" variant="secondary" loading={loading}
+        action={<Button type="button" variant="secondary" loading={loading} disabled={!!cancelTarget}
           onClick={() => refreshRef.current()}>Làm mới</Button>}
       />
       <p className="mb-4 text-sm text-slate-500">
@@ -119,7 +134,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
           <label htmlFor="reservation-status" className="mb-2 block text-sm font-medium text-slate-700">
             Trạng thái đơn đặt giữ
           </label>
-          <select id="reservation-status" value={status}
+          <select id="reservation-status" value={status} disabled={!!cancelTarget}
             onChange={(event) => changeStatus(event.target.value as ReservationStatusFilter)}
             className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
             <option value="">Tất cả trạng thái</option>
@@ -128,10 +143,13 @@ function ReservationQueue({ bookId }: { bookId: number }) {
             </option>)}
           </select>
         </div>
-        {status && <Button type="button" variant="secondary" onClick={() => changeStatus('')}>
+        {status && <Button type="button" variant="secondary" disabled={!!cancelTarget} onClick={() => changeStatus('')}>
           Bỏ bộ lọc
         </Button>}
       </div>
+      {cancellation && <CancellationNotice result={cancellation} />}
+      {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
+        onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}
       {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
         {error} Nhấn “Làm mới” để thử lại.
       </div>}
@@ -157,6 +175,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                 <th scope="col" className="px-5 py-3">Thời điểm đặt</th>
                 <th scope="col" className="px-5 py-3">Trạng thái</th>
                 <th scope="col" className="px-5 py-3">Mã vạch bản sao</th>
+                <th scope="col" className="px-5 py-3">Thao tác / Ghi nhận huỷ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -176,6 +195,17 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                 </td>
                 <td className="break-all px-5 py-4 font-mono font-semibold text-slate-900">
                   {item.barcode || 'Chưa cấp bản'}
+                </td>
+                <td className="min-w-64 max-w-sm px-5 py-4">
+                  {canCancelReservation(item.status) && <Button type="button" variant="danger" size="sm"
+                    disabled={!!cancelTarget} aria-label={`Huỷ đơn #${item.id}`}
+                    onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
+                    Huỷ đơn
+                  </Button>}
+                  {item.cancellation && <CancellationAudit audit={item.cancellation} />}
+                  {item.status === 'CANCELLED' && !item.cancellation && <span className="text-slate-500">
+                    Đơn cũ chưa có thông tin người và thời điểm huỷ.
+                  </span>}
                 </td>
               </tr>)}
             </tbody>

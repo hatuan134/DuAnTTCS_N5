@@ -18,6 +18,31 @@ export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | '
 export const reservationFilterStatuses = ['PENDING', 'READY_FOR_PICKUP', 'FULFILLED', 'CANCELLED'] as const
 export type ReservationStatusFilter = typeof reservationFilterStatuses[number] | ''
 
+export interface ReservationCancellationAudit {
+  actorId: number | null
+  actorName: string
+  cancelledAt: string
+  reason: string
+}
+
+export interface CancelReservationResult {
+  id: number
+  bookId: number
+  status: 'CANCELLED'
+  cancellation: ReservationCancellationAudit
+  copyId: number | null
+  barcode: string | null
+  copyOutcome: 'NO_COPY' | 'TRANSFERRED' | 'AVAILABLE'
+  nextReservationId: number | null
+  nextReaderName: string | null
+  pickupDeadline: string | null
+  message: string
+}
+
+export function canCancelReservation(status: ReservationStatus): boolean {
+  return status === 'PENDING' || status === 'READY_FOR_PICKUP'
+}
+
 export interface ReservationQueueEntry {
   id: number
   readerId: number
@@ -27,6 +52,7 @@ export interface ReservationQueueEntry {
   queuePosition: number | null
   copyId: number | null
   barcode: string | null
+  cancellation?: ReservationCancellationAudit | null
 }
 
 export interface BookReservationQueue {
@@ -61,6 +87,10 @@ export function formatPickupDate(value: string | null, includeSeconds = false): 
 }
 
 export const pickupService = {
+  cancel: async (id: number, reason: string): Promise<CancelReservationResult> => {
+    const response = await apiClient.post<CancelReservationResult>(`/reservations/${id}/cancel`, { reason: reason.trim() })
+    return response.data
+  },
   queue: async (bookId: number, status: ReservationStatusFilter = ''): Promise<BookReservationQueue> => {
     const response = await apiClient.get<BookReservationQueue>(`/books/${bookId}/reservations`, {
       params: status ? { status } : undefined,
