@@ -10,6 +10,18 @@ import java.util.Optional;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
 
+    // One ordered snapshot of all statuses. PENDING entries receive positions
+    // using the same (reservedAt, id) order as findPendingQueuePosition below.
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            JOIN FETCH r.reader
+            LEFT JOIN FETCH r.bookCopy
+            WHERE r.book.id = :bookId
+            ORDER BY r.reservedAt ASC, r.id ASC
+            """)
+    List<BookReservation> findAllForQueueByBookId(@Param("bookId") Long bookId);
+
     // Keep legacy READY rows with no allocated copy/deadline visible. Unknown
     // deadlines belong last; id makes ordering deterministic for equal deadlines.
     @Query("""

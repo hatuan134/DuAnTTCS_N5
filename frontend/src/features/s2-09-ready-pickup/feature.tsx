@@ -2,12 +2,14 @@ import { BookMarked } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
 import ReadyPickupPage from './ReadyPickupPage'
 import ReadyPickupDetailPage from './ReadyPickupDetailPage'
+import BookReservationQueuePage from './BookReservationQueuePage'
 import { pickupRoles } from './pickupService'
 
 const feature: FeatureModule = {
   id: 's2-09-ready-pickup',
   order: 140,
   appRoutes: [
+    { path: 'books/:bookId/reservations', element: <BookReservationQueuePage /> },
     { path: 'reservations/ready-for-pickup', element: <ReadyPickupPage /> },
     { path: 'reservations/ready-for-pickup/:reservationId', element: <ReadyPickupDetailPage /> },
   ],

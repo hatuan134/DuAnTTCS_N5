@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.BookReservationQueueResponse;
 import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
 import com.duanttcsn5.library.service.BookReservationService;
@@ -31,6 +32,12 @@ public class BookReservationController {
             @PathVariable Long bookId, @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reservations.reserve(bookId, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/books/{bookId}/reservations")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<BookReservationQueueResponse> getQueueByBookId(@PathVariable Long bookId) {
+        return ResponseEntity.ok(reservations.getQueueByBookId(bookId));
     }
 
     @GetMapping("/reservations/ready-for-pickup")
