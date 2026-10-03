@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { BookOpen, ChevronLeft, ChevronRight, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -23,6 +23,7 @@ function apiErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function PublicCatalogPage() {
+  const keywordInputRef = useRef<HTMLInputElement>(null)
   const [books, setBooks] = useState<Book[]>([])
   const [result, setResult] = useState<PublicCatalogPage | null>(null)
   const [keyword, setKeyword] = useState('')
@@ -117,22 +118,60 @@ export default function PublicCatalogPage() {
   }
 
   const removeFilter = (key: keyof PublicCatalogFilters) => {
+    if (loading) return
     const next = { ...submittedQuery, page: 0 }
     delete next[key]
-    setKeyword(next.keyword)
     setFilters({ categoryId: next.categoryId, publicationYear: next.publicationYear, availableOnly: next.availableOnly })
     setSubmittedQuery(next)
   }
 
   const clearFilters = () => {
+    if (loading) return
     setFilters({})
-    setKeyword(submittedQuery.keyword)
     setSubmittedQuery({ keyword: submittedQuery.keyword, page: 0, sort: submittedQuery.sort })
+  }
+
+  const editKeyword = () => {
+    keywordInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    keywordInputRef.current?.focus({ preventScroll: true })
   }
 
   const hasFilters = Boolean(submittedQuery.categoryId || submittedQuery.publicationYear || submittedQuery.availableOnly)
   const selectedCategory = options.categories.find((category) => category.id === submittedQuery.categoryId)
   const submittedKeyword = submittedQuery.keyword
+  const hasNoResults = !error && !loading && result?.totalElements === 0
+
+  // Dùng các bộ lọc đã áp dụng, không dùng lựa chọn chưa bấm Tra cứu trong form.
+  const filterActions = (
+    <div className="flex flex-wrap items-center justify-center gap-2 text-sm" aria-label="Bộ lọc đang áp dụng">
+      <span className="text-slate-500">Đang lọc:</span>
+      {submittedQuery.categoryId && (
+        <button type="button" disabled={loading} onClick={() => removeFilter('categoryId')}
+          aria-label="Xóa bộ lọc thể loại"
+          className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
+          {selectedCategory?.name ?? `Thể loại #${submittedQuery.categoryId}`} <X size={14} />
+        </button>
+      )}
+      {submittedQuery.publicationYear && (
+        <button type="button" disabled={loading} onClick={() => removeFilter('publicationYear')}
+          aria-label="Xóa bộ lọc năm xuất bản"
+          className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
+          Năm {submittedQuery.publicationYear} <X size={14} />
+        </button>
+      )}
+      {submittedQuery.availableOnly && (
+        <button type="button" disabled={loading} onClick={() => removeFilter('availableOnly')}
+          aria-label="Xóa bộ lọc còn bản rảnh"
+          className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
+          Còn bản rảnh <X size={14} />
+        </button>
+      )}
+      <button type="button" disabled={loading} onClick={clearFilters}
+        className="px-2 py-1.5 font-medium text-slate-600 underline hover:text-blue-600 disabled:opacity-50">
+        Xóa toàn bộ bộ lọc
+      </button>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -174,6 +213,7 @@ export default function PublicCatalogPage() {
                   className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
+                  ref={keywordInputRef}
                   type="search"
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
@@ -280,35 +320,8 @@ export default function PublicCatalogPage() {
             </div>
           </div>
 
-          {hasFilters && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm" aria-label="Bộ lọc đang áp dụng">
-              <span className="text-slate-500">Đang lọc:</span>
-              {submittedQuery.categoryId && (
-                <button type="button" disabled={loading} onClick={() => removeFilter('categoryId')}
-                  aria-label="Xóa bộ lọc thể loại"
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
-                  {selectedCategory?.name ?? `Thể loại #${submittedQuery.categoryId}`} <X size={14} />
-                </button>
-              )}
-              {submittedQuery.publicationYear && (
-                <button type="button" disabled={loading} onClick={() => removeFilter('publicationYear')}
-                  aria-label="Xóa bộ lọc năm xuất bản"
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
-                  Năm {submittedQuery.publicationYear} <X size={14} />
-                </button>
-              )}
-              {submittedQuery.availableOnly && (
-                <button type="button" disabled={loading} onClick={() => removeFilter('availableOnly')}
-                  aria-label="Xóa bộ lọc còn bản rảnh"
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
-                  Còn bản rảnh <X size={14} />
-                </button>
-              )}
-              <button type="button" disabled={loading} onClick={clearFilters}
-                className="px-2 py-1.5 font-medium text-slate-600 underline hover:text-blue-600 disabled:opacity-50">
-                Xóa toàn bộ bộ lọc
-              </button>
-            </div>
+          {hasFilters && !hasNoResults && (
+            <div className="mb-4">{filterActions}</div>
           )}
 
           {error && (
@@ -317,10 +330,44 @@ export default function PublicCatalogPage() {
             </div>
           )}
 
-          {!error && !loading && books.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-              <BookOpen size={38} className="mx-auto text-slate-300" />
-              <p className="mt-3 font-medium text-slate-700">Không tìm thấy đầu sách phù hợp.</p>
+          {hasNoResults && (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center sm:px-8">
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <BookOpen size={38} className="mx-auto text-slate-300" aria-hidden="true" />
+                <h3 className="mt-3 text-lg font-semibold text-slate-800">Không tìm thấy đầu sách phù hợp.</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {submittedKeyword
+                    ? `Chưa có đầu sách khớp với từ khóa “${submittedKeyword}”${hasFilters ? ' và các bộ lọc đang áp dụng' : ''}.`
+                    : 'Chưa có đầu sách phù hợp với điều kiện tra cứu hiện tại.'}
+                </p>
+              </div>
+
+              {hasFilters && (
+                <div className="mx-auto mt-6 max-w-2xl rounded-xl bg-slate-50 p-4">
+                  <p className="mb-3 text-sm leading-6 text-slate-600">
+                    Hãy bỏ bớt bộ lọc để mở rộng kết quả. Bấm vào từng bộ lọc bên dưới để xóa,
+                    hoặc xóa toàn bộ bộ lọc và tìm lại với cùng từ khóa.
+                  </p>
+                  {filterActions}
+                </div>
+              )}
+
+              <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-slate-600">
+                {submittedKeyword
+                  ? 'Thử từ khóa ngắn hơn, chỉ giữ một vài từ trong nhan đề hoặc tên tác giả. Bạn cũng có thể kiểm tra lại cách viết hoặc ISBN.'
+                  : 'Bạn có thể tìm bằng một vài từ trong nhan đề, tên tác giả hoặc ISBN. Nếu đang dùng từ khóa dài, hãy thử từ khóa ngắn hơn.'}
+              </p>
+              <button
+                type="button"
+                onClick={editKeyword}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:ring-4 focus:ring-blue-500/20"
+              >
+                <Search size={16} aria-hidden="true" />
+                Chỉnh sửa từ khóa
+              </button>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Từ khóa trong ô tìm kiếm được giữ nguyên. Sửa từ khóa rồi bấm Tra cứu để tìm lại.
+              </p>
             </div>
           )}
 
@@ -373,7 +420,7 @@ export default function PublicCatalogPage() {
               ))}
             </div>
           )}
-          {!error && !loading && result && (
+          {!error && !loading && result && result.totalElements > 0 && (
             <nav aria-label="Phân trang kết quả tra cứu" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-600" aria-live="polite">
                 Trang {result.totalPages === 0 ? 0 : result.page + 1} / {result.totalPages}
