@@ -58,6 +58,25 @@ export interface PublicCatalogFilters {
   availableOnly?: boolean
 }
 
+export type PublicCatalogSort = 'relevance' | 'publicationYear'
+
+export interface PublicCatalogPage {
+  content: Book[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+  sort: PublicCatalogSort
+}
+
+export interface PublicCatalogSearch extends PublicCatalogFilters {
+  keyword: string
+  page: number
+  sort: PublicCatalogSort
+}
+
 export interface PublicCatalogFilterOptions {
   categories: { id: number; name: string }[]
   publicationYears: number[]
@@ -176,6 +195,25 @@ export const catalogService = {
         categoryId: filters.categoryId,
         publicationYear: filters.publicationYear,
         availableOnly: filters.availableOnly || undefined,
+      },
+      signal,
+    })
+    return res.data
+  },
+
+  searchPublicBooks: async (
+    query: PublicCatalogSearch,
+    signal?: AbortSignal,
+  ): Promise<PublicCatalogPage> => {
+    const res = await apiClient.get<PublicCatalogPage>('/books/public/search', {
+      params: {
+        keyword: query.keyword.trim() || undefined,
+        categoryId: query.categoryId,
+        publicationYear: query.publicationYear,
+        availableOnly: query.availableOnly || undefined,
+        page: query.page,
+        size: 20,
+        sort: query.sort,
       },
       signal,
     })

@@ -3,6 +3,7 @@ package com.duanttcsn5.library.service;
 import com.duanttcsn5.library.dto.book.BookResponse;
 import com.duanttcsn5.library.dto.book.CatalogBookRequest;
 import com.duanttcsn5.library.dto.book.PublicCatalogFilterOptionsResponse;
+import com.duanttcsn5.library.dto.book.PublicCatalogPageResponse;
 import com.duanttcsn5.library.entity.Author;
 import com.duanttcsn5.library.entity.Book;
 import com.duanttcsn5.library.entity.Category;
@@ -92,6 +93,70 @@ public class BookCatalogService {
                 .filter(BookResponse::hasCopies)
                 .filter(book -> !availableOnly || book.availableCount() > 0)
                 .toList();
+    }
+
+    /**
+     * S2-05.3: lọc và sắp xếp toàn bộ tập kết quả trước khi cắt trang.
+     * Giữ cách tìm không dấu và điều kiện công khai của S2-05.1/S2-05.2.
+     */
+    @Transactional(readOnly = true)
+    public PublicCatalogPageResponse searchPublicBooks(String keyword, Long categoryId,
+            Integer publicationYear, boolean availableOnly, int page, int size, String sort) {
+        if (page < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE",
+                    "Số trang phải là số nguyên từ 0 trở lên.");
+        }
+        if (size < 1 || size > 20) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE_SIZE",
+                    "Mỗi trang phải có từ 1 đến tối đa 20 đầu sách.");
+        }
+        if (!"relevance".equals(sort) && !"publicationYear".equals(sort)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATALOG_SORT",
+                    "Cách sắp xếp phải là mức phù hợp hoặc năm xuất bản.");
+        }
+
+        String text = normalizeSearchText(keyword);
+        String isbn = normalizeIsbnForSearch(keyword);
+        // ID duy nhất là tiêu chí cuối để các kết quả bằng điểm/năm không đổi chỗ giữa các trang.
+        Comparator<BookResponse> tieBreaker = Comparator
+                .comparing((BookResponse book) -> normalizeSearchText(book.title()))
+                .thenComparing(BookResponse::id);
+        Comparator<BookResponse> order = "publicationYear".equals(sort)
+                ? Comparator.comparing(BookResponse::publicationYear,
+                        Comparator.nullsLast(Comparator.<Integer>reverseOrder())).thenComparing(tieBreaker)
+                : Comparator.comparingInt((BookResponse book) -> relevanceScore(book, text, isbn))
+                        .reversed().thenComparing(tieBreaker);
+        List<BookResponse> results = getPublicBooks(keyword, categoryId, publicationYear, availableOnly)
+                .stream().sorted(order).toList();
+        int totalPages = (int) ((results.size() + (long) size - 1) / size);
+        // Nếu dữ liệu giảm khi đang ở trang cuối, trả trang cuối còn tồn tại.
+        int currentPage = totalPages == 0 ? 0 : Math.min(page, totalPages - 1);
+        int from = currentPage * size;
+        int to = (int) Math.min(from + (long) size, results.size());
+        return new PublicCatalogPageResponse(List.copyOf(results.subList(from, to)),
+                currentPage, size, results.size(), totalPages, currentPage == 0,
+                totalPages == 0 || currentPage == totalPages - 1, sort);
+    }
+
+    private int relevanceScore(BookResponse book, String text, String isbn) {
+        if (text.isBlank()) return 0;
+        int titleScore = fieldMatchScore(normalizeSearchText(book.title()), text, 100, 40);
+        // Mỗi tiêu chí tác giả chỉ tính một lần, dù trùng author_id cũ hoặc nhiều tác giả cùng khớp.
+        int authorScore = fieldMatchScore(normalizeSearchText(book.authorName()), text, 80, 30);
+        for (BookResponse.BookAuthorResponse author : book.authors()) {
+            authorScore = Math.max(authorScore,
+                    fieldMatchScore(normalizeSearchText(author.name()), text, 80, 30));
+        }
+        int isbnScore = isbn.isBlank()
+                ? fieldMatchScore(normalizeSearchText(book.isbn()), text, 120, 20)
+                : fieldMatchScore(normalizeIsbnForSearch(book.isbn()), isbn, 120, 20);
+        return titleScore + authorScore + isbnScore;
+    }
+
+    private int fieldMatchScore(String value, String keyword, int exact, int partial) {
+        if (keyword.isBlank() || value.isBlank()) return 0;
+        if (value.equals(keyword)) return exact;
+        return value.contains(keyword) ? partial : 0;
     }
 
     @Transactional(readOnly = true)

@@ -1,10 +1,10 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { BookOpen, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { catalogService } from './catalogService'
-import type { Book, PublicCatalogFilterOptions, PublicCatalogFilters } from './catalogService'
+import type { Book, PublicCatalogFilterOptions, PublicCatalogFilters, PublicCatalogPage, PublicCatalogSearch, PublicCatalogSort } from './catalogService'
 
 function authorNames(book: Book) {
   if (book.authors?.length) {
@@ -13,7 +13,7 @@ function authorNames(book: Book) {
   return book.authorName || 'Không rõ'
 }
 
-type SearchQuery = PublicCatalogFilters & { keyword: string }
+const initialQuery: PublicCatalogSearch = { keyword: '', page: 0, sort: 'relevance' }
 
 function apiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
@@ -24,9 +24,10 @@ function apiErrorMessage(error: unknown, fallback: string) {
 
 export default function PublicCatalogPage() {
   const [books, setBooks] = useState<Book[]>([])
+  const [result, setResult] = useState<PublicCatalogPage | null>(null)
   const [keyword, setKeyword] = useState('')
   const [filters, setFilters] = useState<PublicCatalogFilters>({})
-  const [submittedQuery, setSubmittedQuery] = useState<SearchQuery>({ keyword: '' })
+  const [submittedQuery, setSubmittedQuery] = useState<PublicCatalogSearch>(initialQuery)
   const [options, setOptions] = useState<PublicCatalogFilterOptions>({ categories: [], publicationYears: [] })
   const [optionsLoading, setOptionsLoading] = useState(true)
   const [optionsError, setOptionsError] = useState('')
@@ -68,11 +69,15 @@ export default function PublicCatalogPage() {
       if (running || (background && document.hidden)) return
       running = true
       try {
-        const data = await catalogService.getPublicBooks(
-          submittedQuery.keyword, submittedQuery, controller.signal,
-        )
+        const data = await catalogService.searchPublicBooks(submittedQuery, controller.signal)
         if (active) {
-          setBooks(data)
+          // Backend có thể đưa về trang cuối nếu số kết quả giảm trong lúc làm mới.
+          if (data.page !== submittedQuery.page) {
+            setSubmittedQuery((current) => ({ ...current, page: data.page }))
+            return
+          }
+          setBooks(data.content)
+          setResult(data)
           setError('')
         }
       } catch (error) {
@@ -108,11 +113,11 @@ export default function PublicCatalogPage() {
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (loading) return
-    setSubmittedQuery({ ...filters, keyword: keyword.trim() })
+    setSubmittedQuery({ ...filters, keyword: keyword.trim(), page: 0, sort: submittedQuery.sort })
   }
 
   const removeFilter = (key: keyof PublicCatalogFilters) => {
-    const next = { ...submittedQuery }
+    const next = { ...submittedQuery, page: 0 }
     delete next[key]
     setKeyword(next.keyword)
     setFilters({ categoryId: next.categoryId, publicationYear: next.publicationYear, availableOnly: next.availableOnly })
@@ -122,7 +127,7 @@ export default function PublicCatalogPage() {
   const clearFilters = () => {
     setFilters({})
     setKeyword(submittedQuery.keyword)
-    setSubmittedQuery({ keyword: submittedQuery.keyword })
+    setSubmittedQuery({ keyword: submittedQuery.keyword, page: 0, sort: submittedQuery.sort })
   }
 
   const hasFilters = Boolean(submittedQuery.categoryId || submittedQuery.publicationYear || submittedQuery.availableOnly)
@@ -245,19 +250,34 @@ export default function PublicCatalogPage() {
               <p className="mt-1 text-sm text-slate-500">
                 {loading
                   ? 'Đang tải dữ liệu…'
-                  : `${books.length} đầu sách phù hợp${submittedKeyword ? ` với “${submittedKeyword}”` : ''}`}
+                  : `${result?.totalElements ?? 0} đầu sách phù hợp${submittedKeyword ? ` với “${submittedKeyword}”` : ''}`}
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setReloadKey((current) => current + 1)}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-              Làm mới
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <label htmlFor="catalog-sort" className="text-sm font-medium text-slate-700">Sắp xếp theo</label>
+              <select
+                id="catalog-sort"
+                value={submittedQuery.sort}
+                disabled={loading}
+                onChange={(event) => setSubmittedQuery({
+                  ...filters, keyword: keyword.trim(), page: 0, sort: event.target.value as PublicCatalogSort,
+                })}
+                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50"
+              >
+                <option value="relevance">Mức phù hợp</option>
+                <option value="publicationYear">Năm xuất bản (mới nhất trước)</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setReloadKey((current) => current + 1)}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                Làm mới
+              </button>
+            </div>
           </div>
 
           {hasFilters && (
@@ -352,6 +372,32 @@ export default function PublicCatalogPage() {
                 </article>
               ))}
             </div>
+          )}
+          {!error && !loading && result && (
+            <nav aria-label="Phân trang kết quả tra cứu" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-600" aria-live="polite">
+                Trang {result.totalPages === 0 ? 0 : result.page + 1} / {result.totalPages}
+                {result.totalElements > 0 && ` · Hiển thị ${result.page * result.size + 1}–${result.page * result.size + books.length} / ${result.totalElements} đầu sách`}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={result.first || result.totalPages === 0}
+                  onClick={() => setSubmittedQuery((current) => ({ ...current, page: result.page - 1 }))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} /> Trang trước
+                </button>
+                <button
+                  type="button"
+                  disabled={result.last || result.totalPages === 0}
+                  onClick={() => setSubmittedQuery((current) => ({ ...current, page: result.page + 1 }))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Trang sau <ChevronRight size={16} />
+                </button>
+              </div>
+            </nav>
           )}
         </section>
       </main>
