@@ -16,11 +16,16 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.Locale;
 
 /** Binary storage/validation is separate from catalog search and bibliographic editing. */
 @Service
 public class BookCoverService {
+    public static final int THUMBNAIL_WIDTH = 160;
+    public static final int THUMBNAIL_HEIGHT = 240;
     public static final int MAX_BYTES = 3 * 1024 * 1024;
     public static final String INVALID_MESSAGE =
             "Chỉ chấp nhận ảnh JPG hoặc PNG hợp lệ, dung lượng tối đa 3MB (3.145.728 byte).";
@@ -46,7 +51,9 @@ public class BookCoverService {
             throw new ApiException(HttpStatus.CONFLICT, "BOOK_COVER_ALREADY_EXISTS",
                     "Đầu sách đã có ảnh bìa. Chức năng thay thế ảnh cũ chưa được hỗ trợ.");
         }
-        covers.saveAndFlush(new BookCoverImage(bookId, contentType, bytes));
+        BookCoverImage cover = new BookCoverImage(bookId, contentType, bytes);
+        cover.setThumbnailData(createThumbnail(bytes));
+        covers.saveAndFlush(cover);
         book.setCoverImageUrl("/api/v1/books/public/" + bookId + "/cover");
         books.save(book);
     }
@@ -57,6 +64,56 @@ public class BookCoverService {
             throw missingCover();
         }
         return covers.findById(bookId).orElseThrow(this::missingCover);
+    }
+
+    /** Existing originals are retained; generate their thumbnail once, on first request. */
+    @Transactional
+    public BookCoverImage getThumbnail(Long bookId, boolean publicView) {
+        BookCoverImage cover = get(bookId, publicView);
+        if (cover.getThumbnailData() == null) {
+            // Serialize with uploads and other requests before backfilling a legacy cover.
+            books.findForCoverUpload(bookId).orElseThrow(this::missingBook);
+            cover.setThumbnailData(createThumbnail(cover.getImageData()));
+            covers.saveAndFlush(cover);
+        }
+        return new BookCoverImage(bookId, "image/png", cover.getThumbnailData());
+    }
+
+    private byte[] createThumbnail(byte[] bytes) {
+        try (var input = new MemoryCacheImageInputStream(new ByteArrayInputStream(bytes))) {
+            var readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) throw invalid();
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                var params = reader.getDefaultReadParam();
+                int sample = (int) Math.max(1L, (Math.max((long) width, height) + 1023L) / 1024L);
+                params.setSourceSubsampling(sample, sample, 0, 0);
+                BufferedImage source = reader.read(0, params);
+                if (source == null) throw invalid();
+                double scale = Math.min(1.0, Math.min((double) THUMBNAIL_WIDTH / width,
+                        (double) THUMBNAIL_HEIGHT / height));
+                BufferedImage thumbnail = new BufferedImage(Math.max(1, (int) Math.round(width * scale)),
+                        Math.max(1, (int) Math.round(height * scale)), BufferedImage.TYPE_INT_ARGB);
+                var graphics = thumbnail.createGraphics();
+                try {
+                    graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                    graphics.drawImage(source, 0, 0, thumbnail.getWidth(), thumbnail.getHeight(), null);
+                } finally {
+                    graphics.dispose();
+                }
+                var output = new ByteArrayOutputStream();
+                if (!ImageIO.write(thumbnail, "png", output)) throw invalid();
+                return output.toByteArray();
+            } finally {
+                reader.dispose();
+            }
+        } catch (IOException | IllegalArgumentException exception) {
+            throw invalid();
+        }
     }
 
     private byte[] readFile(MultipartFile file) {

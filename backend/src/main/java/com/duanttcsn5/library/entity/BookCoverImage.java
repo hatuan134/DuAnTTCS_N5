@@ -19,6 +19,12 @@ public class BookCoverImage {
     @Column(name = "image_data", nullable = false, columnDefinition = "bytea")
     private byte[] imageData;
 
+    @Column(name = "thumbnail_data", columnDefinition = "bytea")
+    private byte[] thumbnailData;
+
+    public byte[] getThumbnailData() { return thumbnailData; }
+    public void setThumbnailData(byte[] thumbnailData) { this.thumbnailData = thumbnailData; }
+
     protected BookCoverImage() {}
 
     public BookCoverImage(Long bookId, String contentType, byte[] imageData) {

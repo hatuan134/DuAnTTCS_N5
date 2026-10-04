@@ -92,4 +92,15 @@ class BookCoverControllerTest {
                 .andExpect(jsonPath("code").value("INVALID_BOOK_COVER"))
                 .andExpect(jsonPath("message").value(BookCoverService.INVALID_MESSAGE));
     }
+
+    @Test void anonymousCanReadPublicThumbnail() throws Exception {
+        when(service.getThumbnail(7L, true)).thenReturn(new BookCoverImage(7L, "image/png", new byte[]{3, 4}));
+        mvc.perform(get("/api/v1/books/public/7/cover/thumbnail"))
+                .andExpect(status().isOk()).andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(new byte[]{3, 4}))
+                .andExpect(header().string("Content-Length", "2"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        verify(service).getThumbnail(7L, true);
+        verify(service, never()).get(anyLong(), anyBoolean());
+    }
 }
