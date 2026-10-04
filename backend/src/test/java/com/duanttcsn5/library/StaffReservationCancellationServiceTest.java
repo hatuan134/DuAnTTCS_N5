@@ -164,15 +164,40 @@ class StaffReservationCancellationServiceTest {
     }
 
     @Test
+    void loanLinkedReadyReservationCannotBeCancelledByStaffEither() {
+        BookCopy copy = readyCopy();
+        when(reservations.hasLoanLinkedToReservation(21L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.cancelByStaff(21L, 12L, "Bạn đọc yêu cầu huỷ"))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.getStatus().value()).isEqualTo(409);
+                    assertThat(e.getCode()).isEqualTo("RESERVATION_ALREADY_BORROWED");
+                    assertThat(e.getMessage()).contains("sách đã được nhận");
+                });
+
+        assertThat(target.getStatus()).isEqualTo("READY_FOR_PICKUP");
+        assertThat(copy.getStatus()).isEqualTo("HELD");
+        verify(reservations, never()).findNextPendingForCancellation(anyLong());
+        verify(reservations, never()).saveAndFlush(any());
+        verify(copies, never()).saveAndFlush(any());
+        verify(copies, never()).hasUnreturnedLoan(anyLong());
+        verifyNoInteractions(calendar);
+    }
+
+    @Test
     void terminalStatesAndRepeatedCancellationDoNotOverwriteAudit() {
         var first = service.cancelByStaff(21L, 12L, "Lý do ban đầu");
         clearInvocations(reservations);
-        for (String state : new String[]{"CANCELLED", "FULFILLED", "EXPIRED"}) {
+        for (String state : new String[]{"CANCELLED", "EXPIRED"}) {
             target.setStatus(state);
             expectError(() -> service.cancelByStaff(21L, 12L, "Lý do khác"), 409, "RESERVATION_NOT_CANCELLABLE");
             assertThat(target.getCancellationReason()).isEqualTo(first.cancellation().reason());
             assertThat(target.getCancelledAt()).isEqualTo(first.cancellation().cancelledAt());
         }
+        target.setStatus("FULFILLED");
+        expectError(() -> service.cancelByStaff(21L, 12L, "Lý do khác"), 409, "RESERVATION_ALREADY_BORROWED");
+        assertThat(target.getCancellationReason()).isEqualTo(first.cancellation().reason());
+        assertThat(target.getCancelledAt()).isEqualTo(first.cancellation().cancelledAt());
         verify(reservations, never()).saveAndFlush(any()); verifyNoInteractions(copies);
     }
 

@@ -83,6 +83,22 @@ class ReaderReservationCancellationControllerTest {
         verify(service, never()).cancelMine(100L, 999L);
     }
 
+    @Test void directCancelRequestForBorrowedReservationReturnsSpecificConflictReason() throws Exception {
+        token("READER");
+        doThrow(new com.duanttcsn5.library.exception.ApiException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "RESERVATION_ALREADY_BORROWED",
+                "Không thể huỷ đơn vì sách đã được nhận và đơn đã chuyển thành phiếu mượn."))
+                .when(service).cancelMine(100L, 12L);
+
+        mvc.perform(post("/api/v1/reservations/mine/100/cancel")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESERVATION_ALREADY_BORROWED"))
+                .andExpect(jsonPath("$.message").value(
+                        "Không thể huỷ đơn vì sách đã được nhận và đơn đã chuyển thành phiếu mượn."));
+    }
+
     @Test void propagatesOwnershipAndStaleStateErrors() throws Exception {
         token("READER");
         for (var code : new org.springframework.http.HttpStatus[]{
