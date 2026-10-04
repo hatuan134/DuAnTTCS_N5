@@ -63,6 +63,7 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
         Nếu còn bản Sẵn sàng, thư viện sẽ tự dành một bản cho bạn; nếu hết bản, yêu cầu được xếp hàng.
         Thẻ thư viện cần còn hạn và không bị khóa. Bạn được có tối đa 3 đơn đang chờ hoặc chờ đến nhận;
         mỗi đầu sách chỉ được có một đơn trong các trạng thái này.
+        Bạn không thể đặt giữ đầu sách đang mượn chưa trả; hãy trả hết các bản của đầu sách đó trước khi đặt giữ.
       </p>
       {reason && <p role="alert" className="mt-3 text-sm text-amber-800">{reason}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">

@@ -151,6 +151,7 @@ class BookReservationServiceTest {
         var order = inOrder(reservations, books, copies);
         order.verify(reservations).lockReaderForCreation(12L);
         order.verify(books).findForReservation(7L);
+        order.verify(reservations).hasUnreturnedLoanForReaderAndBook(12L, 7L);
         order.verify(reservations).existsActiveForReaderAndBook(12L, 7L);
         order.verify(reservations).countActiveForReader(12L);
         order.verify(copies).findFirstAvailableForReservation(7L);
@@ -192,6 +193,31 @@ class BookReservationServiceTest {
         eligible(); saved();
         when(reservations.existsActiveForReaderAndBook(12L, 7L)).thenReturn(true, false);
         rejected("RESERVATION_ALREADY_ACTIVE");
+        assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
+        verify(reservations, times(1)).saveAndFlush(any());
+    }
+
+    @Test void unreturnedCopyOfTitleRejectsBeforeLimitsQueueOrCopySelection() {
+        eligible();
+        when(reservations.hasUnreturnedLoanForReaderAndBook(12L, 7L)).thenReturn(true);
+        assertThatThrownBy(() -> service.reserve(7L, 12L))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.getStatus().value()).isEqualTo(409);
+                    assertThat(error.getCode()).isEqualTo("BOOK_ALREADY_BORROWED");
+                    assertThat(error.getMessage()).contains("Dế Mèn phiêu lưu ký", "chưa trả");
+                });
+        verifyNoInteractions(copies, configuration);
+        verify(reservations, never()).saveAndFlush(any());
+        verify(reservations, never()).findPendingQueuePosition(any());
+        verify(reservations, never()).existsActiveForReaderAndBook(any(), any());
+        verify(reservations, never()).countActiveForReader(any());
+    }
+
+    @Test void retryAfterAllBorrowedCopiesAreReturnedCanReserve() {
+        eligible(); saved();
+        when(reservations.hasUnreturnedLoanForReaderAndBook(12L, 7L)).thenReturn(true, false);
+        rejected("BOOK_ALREADY_BORROWED");
+        verifyNoInteractions(copies, configuration);
         assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
         verify(reservations, times(1)).saveAndFlush(any());
     }

@@ -118,6 +118,7 @@ public class BookReservationService {
 
         OffsetDateTime createdAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
         validateCard(card, createdAt.toLocalDate());
+        validateNotCurrentlyBorrowed(readerId, book);
         validateReservationLimits(readerId, book);
 
         BookReservation reservation = new BookReservation(book, reader, "PENDING");
@@ -144,6 +145,16 @@ public class BookReservationService {
                 : "Đặt giữ thành công. Thư viện đã dành một bản sách cho bạn. Vui lòng đến nhận trước hạn hiển thị.";
         return new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
                 saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
+    }
+
+    private void validateNotCurrentlyBorrowed(Long readerId, Book book) {
+        // Check every loan item of this title, not just the copy we might allocate.
+        // Run before queue insertion, copy selection, or pickup deadline calculation.
+        if (reservations.hasUnreturnedLoanForReaderAndBook(readerId, book.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "BOOK_ALREADY_BORROWED",
+                    "Bạn đang mượn đầu sách “" + book.getTitle() + "” và chưa trả. "
+                            + "Vui lòng trả hết các bản đang mượn của đầu sách này trước khi đặt giữ.");
+        }
     }
 
     private void validateReservationLimits(Long readerId, Book book) {
