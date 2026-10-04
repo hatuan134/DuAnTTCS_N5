@@ -33,6 +33,11 @@ export default function MyReservationsPage() {
   const [items, setItems] = useState<MyBookReservation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [confirming, setConfirming] = useState<MyBookReservation | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [success, setSuccess] = useState('')
+  const cancellingRef = useRef(false)
   const refreshRef = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -41,7 +46,7 @@ export default function MyReservationsPage() {
     if (!allowed) return
 
     async function refresh() {
-      if (!active || pending) return
+      if (!active || pending || cancellingRef.current) return
       pending = true
       setLoading(true)
       setError('')
@@ -74,6 +79,28 @@ export default function MyReservationsPage() {
     }
   }, [allowed])
 
+  async function cancelConfirmed() {
+    if (!confirming || cancellingRef.current || loading) return
+    cancellingRef.current = true
+    setCancelling(true)
+    setActionError('')
+    setSuccess('')
+    try {
+      await reservationService.cancelMine(confirming.id)
+      setItems((current) => current.map((item) => item.id === confirming.id
+        ? { ...item, status: 'CANCELLED', queuePosition: null, pickupDeadline: null } : item))
+      setSuccess(`Đã huỷ đơn #${confirming.id}. Đơn không còn giữ vị trí trong hàng đợi.`)
+    } catch (e) {
+      setActionError(getApiErrorMessage(e, 'Không xác nhận được kết quả huỷ. Hãy kiểm tra danh sách trước khi thử lại.'))
+    } finally {
+      cancellingRef.current = false
+      setCancelling(false)
+      setConfirming(null)
+      // Re-fetch positions for all of this reader's orders, also after a stale-status conflict.
+      refreshRef.current()
+    }
+  }
+
   if (!allowed) return <p role="alert">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
 
   const activeCount = items.filter((item) => ['PENDING', 'READY_FOR_PICKUP'].includes(item.status)).length
@@ -82,12 +109,27 @@ export default function MyReservationsPage() {
     <div>
       <PageHeader title="Đơn đặt giữ của tôi"
         description="Đơn chờ nhận hiển thị trước, tiếp đến đơn đang xếp hàng và lịch sử đặt giữ."
-        action={<Button type="button" variant="secondary" loading={loading}
+        action={<Button type="button" variant="secondary" loading={loading} disabled={cancelling}
           onClick={() => refreshRef.current()}>Làm mới</Button>} />
       <p className="mb-4 text-sm text-slate-500">
         Ngày giờ theo Việt Nam (UTC+7). Vị trí được tính trong hàng đợi của từng đầu sách.
         {' '}Nhấn Làm mới hoặc quay lại cửa sổ để cập nhật.
       </p>
+      {success && <div role="status" className="mb-4 rounded-lg bg-green-50 p-4 text-green-800">{success}</div>}
+      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">{actionError}</div>}
+      {confirming && <Card className="mb-4 border border-red-200 p-5">
+        <h2 className="font-semibold text-slate-900">Xác nhận huỷ đặt giữ</h2>
+        <p className="my-3 text-sm text-slate-700">
+          Bạn muốn huỷ đơn #{confirming.id} — {confirming.bookTitle}?
+          {' '}Đơn sẽ mất vị trí trong hàng đợi. Nếu đặt lại, bạn sẽ xếp hàng lại từ đầu.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="secondary" disabled={cancelling}
+            onClick={() => setConfirming(null)}>Giữ lại đơn</Button>
+          <Button type="button" variant="danger" loading={cancelling} disabled={loading}
+            onClick={() => void cancelConfirmed()}>Xác nhận huỷ</Button>
+        </div>
+      </Card>}
       {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
         {error} Nhấn “Làm mới” để thử lại.
       </div>}
@@ -106,7 +148,7 @@ export default function MyReservationsPage() {
             <caption className="sr-only">Danh sách đơn đặt giữ của bạn, ưu tiên đơn đang hiệu lực</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                {['Đầu sách', 'Thời điểm đặt', 'Trạng thái', 'Vị trí hàng đợi', 'Hạn cuối đến nhận'].map((label) =>
+                {['Đầu sách', 'Thời điểm đặt', 'Trạng thái', 'Vị trí hàng đợi', 'Hạn cuối đến nhận', 'Thao tác'].map((label) =>
                   <th key={label} scope="col" className="px-5 py-3">{label}</th>)}
               </tr>
             </thead>
@@ -135,6 +177,13 @@ export default function MyReservationsPage() {
                     {item.status === 'READY_FOR_PICKUP' && item.pickupDeadline
                       ? <time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
                       : '—'}
+                  </td>
+                  <td className="px-5 py-4">
+                    {item.status === 'PENDING' ? <Button type="button" variant="danger" size="sm"
+                      disabled={cancelling || confirming !== null}
+                      onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
+                      Huỷ đặt giữ
+                    </Button> : '—'}
                   </td>
                 </tr>
               })}

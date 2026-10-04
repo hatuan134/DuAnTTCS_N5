@@ -29,6 +29,9 @@ export interface MyBookReservation {
 }
 
 export const reservationService = {
+  cancelMine: async (reservationId: number): Promise<void> => {
+    await apiClient.post(`/reservations/mine/${reservationId}/cancel`)
+  },
   listMine: async (): Promise<MyBookReservation[]> => {
     const response = await apiClient.get<MyBookReservation[]>('/reservations/mine')
     return response.data
