@@ -39,7 +39,7 @@ class BookReservationServiceTest {
         service = new BookReservationService(books, reservations, users, cards, copies, configuration);
         reader = new User(); reader.setId(12L); reader.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("READER"); reader.setRole(role);
-        book = new Book(); book.setId(7L);
+        book = new Book(); book.setId(7L); book.setTitle("Dế Mèn phiêu lưu ký");
         card = new LibraryCard(); card.setUser(reader); card.setStatus("ACTIVE");
         card.setExpiresAt(LocalDate.now(ZONE).plusDays(30));
     }
@@ -62,7 +62,8 @@ class BookReservationServiceTest {
     private void rejected(String code) {
         assertThatThrownBy(() -> service.reserve(7L, 12L))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getCode()).isEqualTo(code));
-        verifyNoInteractions(reservations);
+        verify(reservations, never()).saveAndFlush(any());
+        verify(reservations, never()).findPendingQueuePosition(any());
     }
 
     @Test void guestCannotReserve() {
@@ -141,10 +142,58 @@ class BookReservationServiceTest {
         assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
     }
 
-    @Test void repeatedReservationsRemainAllowedInThisSlice() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(longs = {0, 1, 2})
+    void zeroOneOrTwoActiveReservationsAllowAnother(long count) {
         eligible(); saved();
-        service.reserve(7L, 12L); service.reserve(7L, 12L);
-        verify(reservations, times(2)).saveAndFlush(any());
+        when(reservations.countActiveForReader(12L)).thenReturn(count);
+        assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
+        var order = inOrder(reservations, books, copies);
+        order.verify(reservations).lockReaderForCreation(12L);
+        order.verify(books).findForReservation(7L);
+        order.verify(reservations).existsActiveForReaderAndBook(12L, 7L);
+        order.verify(reservations).countActiveForReader(12L);
+        order.verify(copies).findFirstAvailableForReservation(7L);
+        order.verify(reservations).saveAndFlush(any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(longs = {3, 4})
+    void atOrAboveThreeRejectsWithoutQueueOrCopyChanges(long count) {
+        eligible();
+        when(reservations.countActiveForReader(12L)).thenReturn(count);
+        assertThatThrownBy(() -> service.reserve(7L, 12L))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.getStatus().value()).isEqualTo(409);
+                    assertThat(error.getCode()).isEqualTo("RESERVATION_LIMIT_REACHED");
+                    assertThat(error.getMessage()).contains("tối đa 3");
+                });
+        verifyNoInteractions(copies, configuration);
+        verify(reservations, never()).saveAndFlush(any());
+        verify(reservations, never()).findPendingQueuePosition(any());
+    }
+
+    @Test void duplicateTitleReasonWinsWithoutCheckingLimitOrConsumingCopy() {
+        eligible();
+        when(reservations.existsActiveForReaderAndBook(12L, 7L)).thenReturn(true);
+        assertThatThrownBy(() -> service.reserve(7L, 12L))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.getStatus().value()).isEqualTo(409);
+                    assertThat(error.getCode()).isEqualTo("RESERVATION_ALREADY_ACTIVE");
+                    assertThat(error.getMessage()).contains("Dế Mèn phiêu lưu ký");
+                });
+        verify(reservations, never()).countActiveForReader(any());
+        verify(reservations, never()).saveAndFlush(any());
+        verify(reservations, never()).findPendingQueuePosition(any());
+        verifyNoInteractions(copies, configuration);
+    }
+
+    @Test void retryAfterOldReservationBecomesInactiveCanCreate() {
+        eligible(); saved();
+        when(reservations.existsActiveForReaderAndBook(12L, 7L)).thenReturn(true, false);
+        rejected("RESERVATION_ALREADY_ACTIVE");
+        assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
+        verify(reservations, times(1)).saveAndFlush(any());
     }
 
     @Test void invalidBookIdRejects() {
@@ -238,8 +287,13 @@ class BookReservationServiceTest {
         when(copies.findFirstAvailableForReservation(7L)).thenReturn(Optional.of(copy), Optional.empty());
         when(configuration.calculateReservationPickupDeadline(any())).thenReturn(OffsetDateTime.now(ZONE).plusDays(5));
         when(reservations.findPendingQueuePosition(100L)).thenReturn(1L);
+        User other = new User(); other.setId(13L); other.setStatus("ACTIVE"); other.setRole(reader.getRole());
+        LibraryCard otherCard = new LibraryCard(); otherCard.setUser(other); otherCard.setStatus("ACTIVE");
+        otherCard.setExpiresAt(LocalDate.now(ZONE).plusDays(30));
+        when(users.findById(13L)).thenReturn(Optional.of(other));
+        when(cards.findByUserIdWithDetails(13L)).thenReturn(Optional.of(otherCard));
         assertThat(service.reserve(7L, 12L).status()).isEqualTo("READY_FOR_PICKUP");
-        assertThat(service.reserve(7L, 12L).status()).isEqualTo("PENDING");
+        assertThat(service.reserve(7L, 13L).status()).isEqualTo("PENDING");
         verify(copies, times(1)).save(copy);
         verify(configuration, times(1)).calculateReservationPickupDeadline(any());
     }

@@ -10,6 +10,30 @@ import java.util.Optional;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
 
+    // Positive identity user ids use negative advisory keys. This does not overlap
+    // the positive barcode-sequence key. Released automatically at transaction end.
+    // Serialize a reader across titles, without locking user/role rows or changing
+    // the existing title -> reservation -> copy cancellation lock order.
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(-CAST(:readerId AS bigint))", nativeQuery = true)
+    Integer lockReaderForCreation(@Param("readerId") Long readerId);
+
+    // Active policy: only waiting and allocated-awaiting-pickup reservations.
+    // A passed pickup deadline alone does not change the persisted status.
+    @Query(value = """
+            SELECT COUNT(*) FROM book_reservations
+            WHERE reader_id = :readerId AND status IN ('PENDING', 'READY_FOR_PICKUP')
+            """, nativeQuery = true)
+    long countActiveForReader(@Param("readerId") Long readerId);
+
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM book_reservations
+                WHERE reader_id = :readerId AND book_id = :bookId
+                  AND status IN ('PENDING', 'READY_FOR_PICKUP')
+            )
+            """, nativeQuery = true)
+    boolean existsActiveForReaderAndBook(@Param("readerId") Long readerId, @Param("bookId") Long bookId);
+
     // Own rows only; queue counts share the service's REPEATABLE_READ snapshot.
     @Query("""
             SELECT r FROM BookReservation r
