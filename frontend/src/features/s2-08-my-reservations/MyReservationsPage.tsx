@@ -89,7 +89,9 @@ export default function MyReservationsPage() {
       await reservationService.cancelMine(confirming.id)
       setItems((current) => current.map((item) => item.id === confirming.id
         ? { ...item, status: 'CANCELLED', queuePosition: null, pickupDeadline: null } : item))
-      setSuccess(`Đã huỷ đơn #${confirming.id}. Đơn không còn giữ vị trí trong hàng đợi.`)
+      setSuccess(confirming.status === 'READY_FOR_PICKUP'
+        ? `Đã huỷ đơn #${confirming.id}. Bản sao đang giữ đã được giải phóng và hệ thống đã xử lý người kế tiếp trong hàng đợi.`
+        : `Đã huỷ đơn #${confirming.id}. Đơn không còn giữ vị trí trong hàng đợi.`)
     } catch (e) {
       setActionError(getApiErrorMessage(e, 'Không xác nhận được kết quả huỷ. Hãy kiểm tra danh sách trước khi thử lại.'))
     } finally {
@@ -121,7 +123,9 @@ export default function MyReservationsPage() {
         <h2 className="font-semibold text-slate-900">Xác nhận huỷ đặt giữ</h2>
         <p className="my-3 text-sm text-slate-700">
           Bạn muốn huỷ đơn #{confirming.id} — {confirming.bookTitle}?
-          {' '}Đơn sẽ mất vị trí trong hàng đợi. Nếu đặt lại, bạn sẽ xếp hàng lại từ đầu.
+          {confirming.status === 'READY_FOR_PICKUP'
+            ? ' Bản sao đang giữ sẽ được chuyển cho người tiếp theo nếu còn hàng đợi; nếu không, sách sẽ trở về trạng thái Sẵn sàng.'
+            : ' Đơn sẽ mất vị trí trong hàng đợi. Nếu đặt lại, bạn sẽ xếp hàng lại từ đầu.'}
         </p>
         <div className="flex flex-wrap gap-3">
           <Button type="button" variant="secondary" disabled={cancelling}
@@ -179,7 +183,7 @@ export default function MyReservationsPage() {
                       : '—'}
                   </td>
                   <td className="px-5 py-4">
-                    {item.status === 'PENDING' ? <Button type="button" variant="danger" size="sm"
+                    {['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <Button type="button" variant="danger" size="sm"
                       disabled={cancelling || confirming !== null}
                       onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
                       Huỷ đặt giữ

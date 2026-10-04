@@ -197,7 +197,8 @@ public class BookReservationService {
         }
         Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ."));
-        // Same lock order as reserve/cancelByStaff; re-read status under the row lock.
+        // Keep the same lock order as reserve/cancelByStaff so reservation creation,
+        // staff cancellation and reader cancellation cannot reorder the FIFO queue.
         books.findForReservation(bookId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
         BookReservation target = reservations.findForCancellation(reservationId).orElseThrow(() ->
@@ -206,15 +207,55 @@ public class BookReservationService {
         if (!readerId.equals(target.getReader().getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ.");
         }
-        if (!bookId.equals(target.getBook().getId()) || !"PENDING".equals(target.getStatus())
-                || target.getBookCopy() != null) {
+        if (!bookId.equals(target.getBook().getId())
+                || (!"PENDING".equals(target.getStatus()) && !"READY_FOR_PICKUP".equals(target.getStatus()))) {
             throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
-                    "Chỉ được tự huỷ đơn đang xếp hàng chưa được cấp bản sao. Vui lòng tải lại danh sách.");
+                    "Chỉ được tự huỷ đơn đang xếp hàng hoặc đang chờ nhận. Vui lòng tải lại danh sách.");
         }
-        // Keep history; existing queue queries count only PENDING rows, so all
-        // following positions move up automatically. No copy/card/loan mutation.
+        if ("PENDING".equals(target.getStatus()) && target.getBookCopy() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
+                    "Đơn đang xếp hàng có dữ liệu cấp bản sao không hợp lệ. Vui lòng tải lại danh sách.");
+        }
+
+        OffsetDateTime releasedAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
+        BookCopy copy = null;
+        BookReservation next = null;
+        OffsetDateTime nextDeadline = null;
+        if (target.getBookCopy() != null) {
+            if (!"READY_FOR_PICKUP".equals(target.getStatus())) throw invalidHeldCopy();
+            copy = copies.findForStatusChange(target.getBookCopy().getId()).orElseThrow(this::invalidHeldCopy);
+            if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
+                    || copies.hasUnreturnedLoan(copy.getId())) throw invalidHeldCopy();
+            next = reservations.findNextPendingForCancellation(bookId).orElse(null);
+            if (next != null) {
+                // Calculate before mutating anything. Invalid calendar configuration
+                // must leave the current hold and queue untouched.
+                nextDeadline = configuration.calculateReservationPickupDeadline(releasedAt);
+                if (nextDeadline == null || !nextDeadline.isAfter(releasedAt)
+                        || !nextDeadline.isAfter(next.getReservedAt())) {
+                    throw new ApiException(HttpStatus.CONFLICT, "INVALID_PICKUP_DEADLINE",
+                            "Không xác định được hạn nhận hợp lệ cho người tiếp theo. Đơn chưa được huỷ.");
+                }
+            }
+        }
+
+        // Remove the old active READY allocation before assigning the same physical
+        // copy to the next waiter. The partial unique index therefore stays valid.
         target.setStatus("CANCELLED");
         reservations.saveAndFlush(target);
+        if (copy != null && next != null) {
+            next.setStatus("READY_FOR_PICKUP");
+            next.setBookCopy(copy);
+            next.setPickupDeadline(nextDeadline);
+            reservations.saveAndFlush(next);
+            // The physical copy remains HELD because ownership of the hold changed.
+        } else if (copy != null) {
+            copy.releaseReservationHold();
+            copies.saveAndFlush(copy);
+        }
+        // Queue positions and available-copy counts are derived from current
+        // PENDING reservations and AVAILABLE book_copies, so no denormalized counter
+        // needs to be updated here.
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
