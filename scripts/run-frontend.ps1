@@ -3,6 +3,8 @@ $Root = Split-Path $PSScriptRoot -Parent
 $Frontend = Join-Path $Root 'frontend'
 Set-Location $Frontend
 
+& (Join-Path $PSScriptRoot 'Ensure-ToolPaths.ps1')
+
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     if (Test-Path 'C:\Program Files\nodejs\node.exe') {
         $env:PATH = "C:\Program Files\nodejs;$env:PATH"

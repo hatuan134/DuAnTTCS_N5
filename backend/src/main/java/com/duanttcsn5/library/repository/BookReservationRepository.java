@@ -10,6 +10,19 @@ import java.util.Optional;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
 
+    // Own rows only; queue counts share the service's REPEATABLE_READ snapshot.
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            LEFT JOIN FETCH r.bookCopy
+            WHERE r.reader.id = :readerId
+            ORDER BY CASE r.status WHEN 'READY_FOR_PICKUP' THEN 0
+                                  WHEN 'PENDING' THEN 1 ELSE 2 END,
+                     CASE WHEN r.status = 'READY_FOR_PICKUP' THEN r.pickupDeadline ELSE NULL END ASC NULLS LAST,
+                     r.reservedAt DESC, r.id DESC
+            """)
+    List<BookReservation> findAllForReader(@Param("readerId") Long readerId);
+
     // Read only the title id before acquiring locks; never preload a stale target entity.
     @Query("SELECT r.book.id FROM BookReservation r WHERE r.id = :id")
     Optional<Long> findBookIdForCancellation(@Param("id") Long id);
