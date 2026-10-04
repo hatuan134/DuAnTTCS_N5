@@ -34,6 +34,22 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             """, nativeQuery = true)
     boolean existsActiveForReaderAndBook(@Param("readerId") Long readerId, @Param("bookId") Long bookId);
 
+    // The minimal lending schema has no loan-header completion status.
+    // Any unreturned item for this reader/title is authoritative, including overdue
+    // loans and loans opened before a reservation. Do not infer ownership from copy status.
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM loans l
+                JOIN loan_items li ON li.loan_id = l.id
+                JOIN book_copies bc ON bc.id = li.book_copy_id
+                WHERE l.borrower_user_id = :readerId
+                  AND bc.book_id = :bookId
+                  AND li.returned_at IS NULL
+            )
+            """, nativeQuery = true)
+    boolean hasUnreturnedLoanForReaderAndBook(@Param("readerId") Long readerId, @Param("bookId") Long bookId);
+
     // Own rows only; queue counts share the service's REPEATABLE_READ snapshot.
     @Query("""
             SELECT r FROM BookReservation r

@@ -155,6 +155,19 @@ class BookReservationControllerTest {
         }
     }
 
+    @Test void borrowedTitleConflictUsesExistingVietnameseErrorResponse() throws Exception {
+        token("READER");
+        String message = "Bạn đang mượn đầu sách “Dế Mèn phiêu lưu ký” và chưa trả. "
+                + "Vui lòng trả hết các bản đang mượn của đầu sách này trước khi đặt giữ.";
+        doThrow(new ApiException(HttpStatus.CONFLICT, "BOOK_ALREADY_BORROWED", message))
+                .when(service).reserve(7L, 12L);
+        mvc.perform(post("/api/v1/books/7/reservations").header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"readerId\":999}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOK_ALREADY_BORROWED"))
+                .andExpect(jsonPath("$.message").value(message));
+        verify(service).reserve(7L, 12L);
+    }
+
     @Test void invalidPathUsesExistingValidation() throws Exception {
         token("READER");
         mvc.perform(post("/api/v1/books/abc/reservations").header("Authorization", "Bearer test-token"))
