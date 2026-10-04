@@ -34,6 +34,7 @@ import java.util.Set;
 public class BookReservationService {
     private static final Set<String> QUEUE_FILTER_STATUSES = Set.of(
             "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED");
+    private static final int MAX_ACTIVE_RESERVATIONS = 3;
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String RESERVATION_ALREADY_BORROWED_MESSAGE =
             "Không thể huỷ đơn vì sách đã được nhận và đơn đã chuyển thành phiếu mượn.";
@@ -84,7 +85,7 @@ public class BookReservationService {
         }).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookReservationResponse reserve(Long bookId, Long readerId) {
         if (readerId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
@@ -104,6 +105,9 @@ public class BookReservationService {
         if (bookId == null || bookId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ.");
         }
+        // Acquire the reader lock first. READ_COMMITTED gives each subsequent
+        // query a fresh snapshot after a concurrent creation has committed.
+        reservations.lockReaderForCreation(readerId);
         // Hold this lock until commit. Concurrent requests for this book each see
         // the preceding committed reservation before calculating their position.
         Book book = books.findForReservation(bookId).orElseThrow(() ->
@@ -114,6 +118,7 @@ public class BookReservationService {
 
         OffsetDateTime createdAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
         validateCard(card, createdAt.toLocalDate());
+        validateReservationLimits(readerId, book);
 
         BookReservation reservation = new BookReservation(book, reader, "PENDING");
         reservation.setReservedAt(createdAt);
@@ -139,6 +144,21 @@ public class BookReservationService {
                 : "Đặt giữ thành công. Thư viện đã dành một bản sách cho bạn. Vui lòng đến nhận trước hạn hiển thị.";
         return new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
                 saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
+    }
+
+    private void validateReservationLimits(Long readerId, Book book) {
+        // Prefer the title-specific reason even when this reader is at the limit.
+        // Both checks run before looking up/holding a copy or inserting a queue row.
+        if (reservations.existsActiveForReaderAndBook(readerId, book.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_ALREADY_ACTIVE",
+                    "Bạn đã có đơn đặt giữ đang hiệu lực cho đầu sách “" + book.getTitle()
+                            + "”. Không thể đặt giữ trùng đầu sách này.");
+        }
+        if (reservations.countActiveForReader(readerId) >= MAX_ACTIVE_RESERVATIONS) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_LIMIT_REACHED",
+                    "Bạn đã đạt giới hạn tối đa 3 đơn đặt giữ đang hiệu lực (đang chờ hoặc chờ đến nhận). "
+                            + "Vui lòng huỷ hoặc hoàn tất một đơn trước khi đặt giữ thêm.");
+        }
     }
 
     @Transactional(readOnly = true)

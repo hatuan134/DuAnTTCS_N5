@@ -141,6 +141,20 @@ class BookReservationControllerTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PICKUP_DEADLINE_NOT_FOUND"));
     }
 
+    @Test void reservationPolicyConflictsReturnSpecificCodeAndVietnameseReason() throws Exception {
+        token("READER");
+        String[][] errors = {
+                {"RESERVATION_LIMIT_REACHED", "Bạn đã đạt giới hạn tối đa 3 đơn đặt giữ đang hiệu lực."},
+                {"RESERVATION_ALREADY_ACTIVE", "Bạn đã có đơn đặt giữ đang hiệu lực cho đầu sách “Dế Mèn phiêu lưu ký”."}
+        };
+        for (String[] error : errors) {
+            doThrow(new ApiException(HttpStatus.CONFLICT, error[0], error[1])).when(service).reserve(7L, 12L);
+            mvc.perform(post("/api/v1/books/7/reservations").header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value(error[0]))
+                    .andExpect(jsonPath("$.message").value(error[1]));
+        }
+    }
+
     @Test void invalidPathUsesExistingValidation() throws Exception {
         token("READER");
         mvc.perform(post("/api/v1/books/abc/reservations").header("Authorization", "Bearer test-token"))

@@ -61,7 +61,8 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
       </h2>
       <p className="mt-2 text-sm text-slate-600">
         Nếu còn bản Sẵn sàng, thư viện sẽ tự dành một bản cho bạn; nếu hết bản, yêu cầu được xếp hàng.
-        Thẻ thư viện cần còn hạn và không bị khóa.
+        Thẻ thư viện cần còn hạn và không bị khóa. Bạn được có tối đa 3 đơn đang chờ hoặc chờ đến nhận;
+        mỗi đầu sách chỉ được có một đơn trong các trạng thái này.
       </p>
       {reason && <p role="alert" className="mt-3 text-sm text-amber-800">{reason}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -69,6 +70,11 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
           <Bookmark size={17} /> {submitting ? 'Đang đặt giữ…' : 'Đặt giữ'}
         </button>
+        {roleAllowed && (
+          <Link to="/my-reservations" className="text-sm font-semibold text-blue-700 hover:underline">
+            Xem đơn đặt giữ của tôi
+          </Link>
+        )}
         {!signedIn && (
           <Link to="/login" state={{ from: `/catalog/books/${bookId}` }}
             className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline">
