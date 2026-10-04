@@ -132,4 +132,65 @@ class BookCoverServiceTest {
     @Test void missingCoverIs404() {
         assertEquals(HttpStatus.NOT_FOUND, assertThrows(ApiException.class, () -> service.get(7L, false)).getStatus());
     }
+
+    @Test void thumbnailIsBoundedAndOriginalIsUnchanged() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(800, 1200, BufferedImage.TYPE_INT_RGB), "jpg", out);
+        byte[] original = out.toByteArray();
+        service.upload(7L, file("cover.jpg", original));
+        var capture = org.mockito.ArgumentCaptor.forClass(BookCoverImage.class);
+        verify(covers).saveAndFlush(capture.capture());
+        var stored = capture.getValue();
+        assertArrayEquals(original, stored.getImageData());
+        var thumbnail = ImageIO.read(new java.io.ByteArrayInputStream(stored.getThumbnailData()));
+        assertEquals(160, thumbnail.getWidth());
+        assertEquals(240, thumbnail.getHeight());
+    }
+    @Test void landscapeThumbnailKeepsRatioAndTransparency() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(800, 400, BufferedImage.TYPE_INT_ARGB), "png", out);
+        service.upload(7L, file("cover.png", out.toByteArray()));
+        var capture = org.mockito.ArgumentCaptor.forClass(BookCoverImage.class);
+        verify(covers).saveAndFlush(capture.capture());
+        var thumbnail = ImageIO.read(new java.io.ByteArrayInputStream(capture.getValue().getThumbnailData()));
+        assertEquals(160, thumbnail.getWidth());
+        assertEquals(80, thumbnail.getHeight());
+        assertEquals(0, thumbnail.getRGB(0, 0) >>> 24);
+    }
+    @Test void smallImageIsNotUpscaled() throws Exception {
+        service.upload(7L, file("small.png", image("png")));
+        var capture = org.mockito.ArgumentCaptor.forClass(BookCoverImage.class);
+        verify(covers).saveAndFlush(capture.capture());
+        var thumbnail = ImageIO.read(new java.io.ByteArrayInputStream(capture.getValue().getThumbnailData()));
+        assertEquals(8, thumbnail.getWidth());
+        assertEquals(8, thumbnail.getHeight());
+    }
+    @Test void existingCoverGetsThumbnailOnceWithoutReplacingOriginal() throws Exception {
+        byte[] original = image("png");
+        var cover = new BookCoverImage(7L, "image/png", original);
+        when(covers.findById(7L)).thenReturn(Optional.of(cover));
+        var first = service.getThumbnail(7L, false);
+        var second = service.getThumbnail(7L, false);
+        assertEquals("image/png", first.getContentType());
+        assertArrayEquals(first.getImageData(), second.getImageData());
+        assertArrayEquals(original, cover.getImageData());
+        verify(covers, times(1)).saveAndFlush(cover);
+        verify(books, never()).save(any());
+    }
+    @Test void thumbnailsUseTheirOwnBookId() {
+        var first = new BookCoverImage(7L, "image/jpeg", new byte[]{10});
+        first.setThumbnailData(new byte[]{1, 2});
+        var second = new BookCoverImage(8L, "image/png", new byte[]{20});
+        second.setThumbnailData(new byte[]{3, 4});
+        when(copies.countByBookId(anyLong())).thenReturn(1L);
+        when(covers.findById(7L)).thenReturn(Optional.of(first));
+        when(covers.findById(8L)).thenReturn(Optional.of(second));
+        assertArrayEquals(new byte[]{1, 2}, service.getThumbnail(7L, true).getImageData());
+        assertArrayEquals(new byte[]{3, 4}, service.getThumbnail(8L, true).getImageData());
+        verify(covers, never()).saveAndFlush(any());
+    }
+    @Test void publicThumbnailRequiresPublishedBook() {
+        assertThrows(ApiException.class, () -> service.getThumbnail(7L, true));
+        verifyNoInteractions(covers);
+    }
 }

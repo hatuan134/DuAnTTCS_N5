@@ -1,3 +1,4 @@
+import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { BookOpen, ChevronLeft, ChevronRight, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
@@ -378,6 +379,9 @@ export default function PublicCatalogPage() {
                   key={book.id}
                   className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
+                  <Link to={`/catalog/books/${book.id}`} aria-label={`Xem chi tiết ${book.title}`}>
+                    <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} thumbnail />
+                  </Link>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="text-lg font-semibold text-slate-900">{book.title}</h3>

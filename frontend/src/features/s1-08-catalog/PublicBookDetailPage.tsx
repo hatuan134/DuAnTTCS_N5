@@ -1,4 +1,4 @@
-import { publicCoverUrl } from '../s2-10-book-cover/bookCoverService'
+import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Clock,
   FileText,
-  ImageOff,
   Info,
   Layers,
   Library,
@@ -56,7 +55,6 @@ export default function PublicBookDetailPage() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     const id = Number(bookId)
@@ -71,7 +69,6 @@ export default function PublicBookDetailPage() {
     const loadBook = async () => {
       setLoading(true)
       setError('')
-      setImageError(false)
       try {
         const data = await catalogService.getPublicBookById(id)
         if (active) {
@@ -158,32 +155,9 @@ export default function PublicBookDetailPage() {
               <div className="flex flex-col md:flex-row gap-8 items-start">
                 {/* Book Cover Image / Fallback Placeholder */}
                 <div className="w-full md:w-56 shrink-0 flex flex-col items-center">
-                  {book.coverImageUrl && !imageError ? (
-                    <div className="relative aspect-[3/4] w-48 sm:w-56 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-md">
-                      <img
-                        src={publicCoverUrl(book.coverImageUrl)}
-                        alt={`Bìa sách ${book.title}`}
-                        onError={() => setImageError(true)}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    /* Fallback when book has no cover image or image failed to load */
-                    <div
-                      aria-label="Hình thay thế bìa sách"
-                      className="flex aspect-[3/4] w-48 sm:w-56 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-gradient-to-b from-slate-100 to-slate-200/70 p-4 text-center text-slate-400 shadow-inner"
-                    >
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-slate-500 mb-3 shadow-sm">
-                        <ImageOff size={28} />
-                      </div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Chưa có ảnh bìa
-                      </p>
-                      <p className="mt-1.5 line-clamp-2 text-xs text-slate-400 italic">
-                        {book.title}
-                      </p>
-                    </div>
-                  )}
+                  <div className="relative aspect-[2/3] w-48 sm:w-56 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-md">
+                    <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} />
+                  </div>
                 </div>
 
                 {/* Main Information */}

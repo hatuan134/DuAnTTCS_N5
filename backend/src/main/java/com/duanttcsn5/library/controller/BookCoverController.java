@@ -36,8 +36,16 @@ public class BookCoverController {
     @GetMapping("/public/{id}/cover")
     public ResponseEntity<byte[]> getPublic(@PathVariable Long id) { return image(id, true); }
 
+    @GetMapping("/public/{id}/cover/thumbnail")
+    public ResponseEntity<byte[]> getPublicThumbnail(@PathVariable Long id) {
+        return response(service.getThumbnail(id, true));
+    }
+
     private ResponseEntity<byte[]> image(Long id, boolean publicView) {
-        var cover = service.get(id, publicView);
+        return response(service.get(id, publicView));
+    }
+
+    private ResponseEntity<byte[]> response(com.duanttcsn5.library.entity.BookCoverImage cover) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(cover.getContentType()))
                 .contentLength(cover.getImageData().length)
