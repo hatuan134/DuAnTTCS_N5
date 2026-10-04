@@ -177,7 +177,7 @@ export default function BookDetailPage() {
               <p className="mt-1 text-sm font-medium text-slate-500">{book.subtitle}</p>
             )}
             {book.coverImageUrl && <BookCoverImage bookId={book.id} url={book.coverImageUrl} title={book.title} />}
-            {!book.coverImageUrl && <Link to={`/books/${book.id}/cover/edit`}
+            {allowed && <Link to={`/books/${book.id}/cover/edit`}
               className="mt-4 inline-block rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-slate-50">
               Chỉnh sửa ảnh bìa
             </Link>}
