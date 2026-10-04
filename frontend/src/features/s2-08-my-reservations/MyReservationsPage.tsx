@@ -183,11 +183,13 @@ export default function MyReservationsPage() {
                       : '—'}
                   </td>
                   <td className="px-5 py-4">
-                    {['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <Button type="button" variant="danger" size="sm"
-                      disabled={cancelling || confirming !== null}
-                      onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
-                      Huỷ đặt giữ
-                    </Button> : '—'}
+                    {item.status === 'FULFILLED'
+                      ? <span className="text-xs font-medium text-slate-500">Không thể huỷ: sách đã được nhận.</span>
+                      : ['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <Button type="button" variant="danger" size="sm"
+                        disabled={cancelling || confirming !== null}
+                        onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
+                        Huỷ đặt giữ
+                      </Button> : '—'}
                   </td>
                 </tr>
               })}

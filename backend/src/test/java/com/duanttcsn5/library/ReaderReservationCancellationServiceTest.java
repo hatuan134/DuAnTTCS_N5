@@ -139,8 +139,45 @@ class ReaderReservationCancellationServiceTest {
         verify(reservations, never()).saveAndFlush(any());
     }
 
+    @Test void fulfilledReservationIsRejectedWithSpecificReasonAndNoMutation() {
+        target.setStatus("FULFILLED");
+
+        assertThatThrownBy(() -> service.cancelMine(100L, 12L)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(e.getCode()).isEqualTo("RESERVATION_ALREADY_BORROWED");
+            assertThat(e.getMessage()).isEqualTo(
+                    "Không thể huỷ đơn vì sách đã được nhận và đơn đã chuyển thành phiếu mượn.");
+        });
+
+        assertThat(target.getStatus()).isEqualTo("FULFILLED");
+        verify(reservations, never()).saveAndFlush(any());
+        verifyNoInteractions(copies, cards, configuration);
+    }
+
+    @Test void loanLinkedReadyReservationIsRejectedBeforeCopyOrQueueMutation() {
+        BookCopy copy = heldCopy(101L, "LIB-101");
+        target.setStatus("READY_FOR_PICKUP");
+        target.setBookCopy(copy);
+        target.setPickupDeadline(OffsetDateTime.now().plusDays(2));
+        when(copies.findForStatusChange(101L)).thenReturn(Optional.of(copy));
+        when(reservations.hasLoanLinkedToReservation(100L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.cancelMine(100L, 12L)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(e.getCode()).isEqualTo("RESERVATION_ALREADY_BORROWED");
+        });
+
+        assertThat(target.getStatus()).isEqualTo("READY_FOR_PICKUP");
+        assertThat(copy.getStatus()).isEqualTo("HELD");
+        verify(reservations, never()).findNextPendingForCancellation(anyLong());
+        verify(reservations, never()).saveAndFlush(any());
+        verify(copies, never()).saveAndFlush(any());
+        verify(copies, never()).hasUnreturnedLoan(anyLong());
+        verifyNoInteractions(cards, configuration);
+    }
+
     @Test void rechecksCurrentStateAndRejectsTerminalOrInconsistentPendingOrder() {
-        for (String state : new String[]{"CANCELLED", "FULFILLED", "EXPIRED"}) {
+        for (String state : new String[]{"CANCELLED", "EXPIRED"}) {
             target.setStatus(state);
             assertThatThrownBy(() -> service.cancelMine(100L, 12L)).isInstanceOfSatisfying(ApiException.class,
                     e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT));

@@ -35,6 +35,8 @@ public class BookReservationService {
     private static final Set<String> QUEUE_FILTER_STATUSES = Set.of(
             "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED");
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final String RESERVATION_ALREADY_BORROWED_MESSAGE =
+            "Không thể huỷ đơn vì sách đã được nhận và đơn đã chuyển thành phiếu mượn.";
 
     private final BookRepository books;
     private final BookReservationRepository reservations;
@@ -207,8 +209,12 @@ public class BookReservationService {
         if (!readerId.equals(target.getReader().getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ.");
         }
-        if (!bookId.equals(target.getBook().getId())
-                || (!"PENDING".equals(target.getStatus()) && !"READY_FOR_PICKUP".equals(target.getStatus()))) {
+        if (!bookId.equals(target.getBook().getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_CHANGED",
+                    "Đơn đã thay đổi. Vui lòng tải lại danh sách.");
+        }
+        rejectFulfilledReservation(target);
+        if (!"PENDING".equals(target.getStatus()) && !"READY_FOR_PICKUP".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
                     "Chỉ được tự huỷ đơn đang xếp hàng hoặc đang chờ nhận. Vui lòng tải lại danh sách.");
         }
@@ -224,6 +230,7 @@ public class BookReservationService {
         if (target.getBookCopy() != null) {
             if (!"READY_FOR_PICKUP".equals(target.getStatus())) throw invalidHeldCopy();
             copy = copies.findForStatusChange(target.getBookCopy().getId()).orElseThrow(this::invalidHeldCopy);
+            rejectLoanLinkedReservation(target);
             if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
                     || copies.hasUnreturnedLoan(copy.getId())) throw invalidHeldCopy();
             next = reservations.findNextPendingForCancellation(bookId).orElse(null);
@@ -290,6 +297,7 @@ public class BookReservationService {
         if (!bookId.equals(target.getBook().getId())) {
             throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_CHANGED", "Đơn đã thay đổi. Vui lòng tải lại.");
         }
+        rejectFulfilledReservation(target);
         if (!"PENDING".equals(target.getStatus()) && !"READY_FOR_PICKUP".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
                     "Chỉ được huỷ đơn Đang xếp hàng hoặc Đang chờ nhận. Đơn này đã đổi trạng thái.");
@@ -301,6 +309,7 @@ public class BookReservationService {
         if (target.getBookCopy() != null) {
             if (!"READY_FOR_PICKUP".equals(target.getStatus())) throw invalidHeldCopy();
             copy = copies.findForStatusChange(target.getBookCopy().getId()).orElseThrow(this::invalidHeldCopy);
+            rejectLoanLinkedReservation(target);
             if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
                     || copies.hasUnreturnedLoan(copy.getId())) throw invalidHeldCopy();
             next = reservations.findNextPendingForCancellation(bookId).orElse(null);
@@ -335,6 +344,23 @@ public class BookReservationService {
                 cancellationAudit(target), copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode(),
                 outcome, next == null ? null : next.getId(), next == null ? null : next.getReader().getFullName(),
                 nextDeadline, message);
+    }
+
+    private void rejectFulfilledReservation(BookReservation reservation) {
+        if ("FULFILLED".equals(reservation.getStatus())) {
+            throw reservationAlreadyBorrowed();
+        }
+    }
+
+    private void rejectLoanLinkedReservation(BookReservation reservation) {
+        if (reservations.hasLoanLinkedToReservation(reservation.getId())) {
+            throw reservationAlreadyBorrowed();
+        }
+    }
+
+    private ApiException reservationAlreadyBorrowed() {
+        return new ApiException(HttpStatus.CONFLICT, "RESERVATION_ALREADY_BORROWED",
+                RESERVATION_ALREADY_BORROWED_MESSAGE);
     }
 
     private ApiException invalidHeldCopy() {

@@ -32,6 +32,21 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
     Optional<BookReservation> findForCancellation(@Param("id") Long id);
 
     @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM book_reservations r
+                JOIN loan_items li
+                  ON li.book_copy_id = r.book_copy_id
+                 AND li.borrowed_at >= r.reserved_at
+                JOIN loans l
+                  ON l.id = li.loan_id
+                 AND l.borrower_user_id = r.reader_id
+                WHERE r.id = :reservationId
+            )
+            """, nativeQuery = true)
+    boolean hasLoanLinkedToReservation(@Param("reservationId") Long reservationId);
+
+    @Query(value = """
             SELECT r.* FROM book_reservations r
             WHERE r.book_id = :bookId AND r.status = 'PENDING'
             ORDER BY r.reserved_at ASC, r.id ASC
