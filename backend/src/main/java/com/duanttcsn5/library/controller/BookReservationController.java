@@ -39,6 +39,14 @@ public class BookReservationController {
         return ResponseEntity.ok(reservations.getMyReservations(principal == null ? null : principal.id()));
     }
 
+    @PostMapping("/reservations/mine/{reservationId}/cancel")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<Void> cancelMine(
+            @PathVariable Long reservationId, @AuthenticationPrincipal UserPrincipal principal) {
+        reservations.cancelMine(reservationId, principal == null ? null : principal.id());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/books/{bookId}/reservations")
     @PreAuthorize("hasRole('READER')")
     public ResponseEntity<BookReservationResponse> reserve(

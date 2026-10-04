@@ -179,6 +179,45 @@ public class BookReservationService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void cancelMine(Long reservationId, Long readerId) {
+        if (readerId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập để huỷ đơn.");
+        }
+        User reader = users.findById(readerId).orElseThrow(() ->
+                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "READER_ROLE_REQUIRED",
+                    "Chỉ Bạn đọc mới được tự huỷ đơn đặt giữ.");
+        }
+        if (!"ACTIVE".equals(reader.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE", "Tài khoản Bạn đọc không hoạt động.");
+        }
+        if (reservationId == null || reservationId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_ID", "Mã đơn đặt giữ không hợp lệ.");
+        }
+        Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ."));
+        // Same lock order as reserve/cancelByStaff; re-read status under the row lock.
+        books.findForReservation(bookId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        BookReservation target = reservations.findForCancellation(reservationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ."));
+        // Hide another reader's order, including its current status.
+        if (!readerId.equals(target.getReader().getId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "Không tìm thấy đơn đặt giữ.");
+        }
+        if (!bookId.equals(target.getBook().getId()) || !"PENDING".equals(target.getStatus())
+                || target.getBookCopy() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_NOT_CANCELLABLE",
+                    "Chỉ được tự huỷ đơn đang xếp hàng chưa được cấp bản sao. Vui lòng tải lại danh sách.");
+        }
+        // Keep history; existing queue queries count only PENDING rows, so all
+        // following positions move up automatically. No copy/card/loan mutation.
+        target.setStatus("CANCELLED");
+        reservations.saveAndFlush(target);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CancelBookReservationResponse cancelByStaff(Long reservationId, Long actorId, String reason) {
         if (actorId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập để huỷ đơn.");
