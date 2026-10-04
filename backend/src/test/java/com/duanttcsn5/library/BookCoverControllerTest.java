@@ -103,4 +103,16 @@ class BookCoverControllerTest {
         verify(service).getThumbnail(7L, true);
         verify(service, never()).get(anyLong(), anyBoolean());
     }
+
+    @Test void versionedOriginalAndThumbnailAreNotCached() throws Exception {
+        when(service.get(7L, true)).thenReturn(new BookCoverImage(7L, "image/jpeg", new byte[]{8, 9}));
+        when(service.getThumbnail(7L, true)).thenReturn(new BookCoverImage(7L, "image/png", new byte[]{5, 6}));
+        mvc.perform(get("/api/v1/books/public/7/cover").param("v", "new-version"))
+                .andExpect(status().isOk()).andExpect(content().contentType("image/jpeg"))
+                .andExpect(content().bytes(new byte[]{8, 9}))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/v1/books/public/7/cover/thumbnail").param("v", "new-version"))
+                .andExpect(status().isOk()).andExpect(content().bytes(new byte[]{5, 6}))
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
 }

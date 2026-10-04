@@ -62,7 +62,7 @@ class BookCoverServiceTest {
         verify(covers).saveAndFlush(argThat(c -> c.getBookId().equals(7L)
                 && Arrays.equals(bytes, c.getImageData())
                 && c.getContentType().equals(format.equals("png") ? "image/png" : "image/jpeg")));
-        assertEquals("/api/v1/books/public/7/cover", book.getCoverImageUrl());
+        assertTrue(book.getCoverImageUrl().matches("/api/v1/books/public/7/cover[?]v=[0-9a-f-]{36}"));
         verify(books).save(book);
     }
 
@@ -92,19 +92,53 @@ class BookCoverServiceTest {
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
         verifyNoInteractions(covers);
     }
-    @Test void validUploadCannotReplaceOldImage() throws Exception {
-        book.setCoverImageUrl("old.png");
-        byte[] bytes = image("png");
-        var ex = assertThrows(ApiException.class, () -> service.upload(7L, file("cover.png", bytes)));
-        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertEquals("old.png", book.getCoverImageUrl());
-        verify(covers, never()).saveAndFlush(any());
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"jpg,jpg", "jpg,png", "png,jpg"})
+    void validReplacementStoresNewOriginalAndThumbnail(String oldFormat, String newFormat) throws Exception {
+        var oldImage = new BookCoverImage(7L, oldFormat.equals("png") ? "image/png" : "image/jpeg", image(oldFormat));
+        oldImage.setThumbnailData(new byte[]{99});
+        book.setCoverImageUrl("/api/v1/books/public/7/cover?v=old");
+        byte[] replacement = image(newFormat);
+        service.upload(7L, file("new." + newFormat, replacement));
+        var capture = org.mockito.ArgumentCaptor.forClass(BookCoverImage.class);
+        verify(covers).saveAndFlush(capture.capture());
+        var saved = capture.getValue();
+        assertEquals(7L, saved.getBookId());
+        assertArrayEquals(replacement, saved.getImageData());
+        assertEquals(newFormat.equals("png") ? "image/png" : "image/jpeg", saved.getContentType());
+        assertNotNull(ImageIO.read(new java.io.ByteArrayInputStream(saved.getThumbnailData())));
+        assertFalse(Arrays.equals(new byte[]{99}, saved.getThumbnailData()));
+        assertNotEquals("/api/v1/books/public/7/cover?v=old", book.getCoverImageUrl());
+        var order = inOrder(books, covers);
+        order.verify(books).findForCoverUpload(7L);
+        order.verify(covers).saveAndFlush(any());
+        order.verify(books).save(book);
     }
-    @Test void storedImageAlsoPreventsReplacementWhenUrlMissing() throws Exception {
-        when(covers.existsById(7L)).thenReturn(true);
+    @Test void existingBinaryCanBeReplacedEvenWhenUrlMissing() throws Exception {
         byte[] bytes = image("png");
-        assertThrows(ApiException.class, () -> service.upload(7L, file("cover.png", bytes)));
-        verify(covers, never()).saveAndFlush(any());
+        service.upload(7L, file("cover.png", bytes));
+        verify(covers).saveAndFlush(argThat(c -> Arrays.equals(bytes, c.getImageData())));
+        assertTrue(book.getCoverImageUrl().contains("?v="));
+    }
+    @Test void eachSuccessfulReplacementChangesUrlVersion() throws Exception {
+        byte[] bytes = image("jpg");
+        service.upload(7L, file("cover.jpg", bytes));
+        String firstUrl = book.getCoverImageUrl();
+        service.upload(7L, file("cover.jpg", bytes));
+        assertNotEquals(firstUrl, book.getCoverImageUrl());
+    }
+    @Test void failedReplacementStoragePreservesOldUrlAndBytes() throws Exception {
+        byte[] oldBytes = image("jpg");
+        var old = new BookCoverImage(7L, "image/jpeg", oldBytes);
+        old.setThumbnailData(new byte[]{99});
+        book.setCoverImageUrl("/api/v1/books/public/7/cover?v=old");
+        when(covers.saveAndFlush(any())).thenThrow(new IllegalStateException("storage unavailable"));
+        byte[] newBytes = image("png");
+        assertThrows(IllegalStateException.class, () -> service.upload(7L, file("new.png", newBytes)));
+        assertArrayEquals(oldBytes, old.getImageData());
+        assertArrayEquals(new byte[]{99}, old.getThumbnailData());
+        assertEquals("/api/v1/books/public/7/cover?v=old", book.getCoverImageUrl());
+        verify(books, never()).save(any());
     }
     @Test void failedStorageDoesNotSetBookUrl() throws Exception {
         when(covers.saveAndFlush(any())).thenThrow(new IllegalStateException("storage unavailable"));
@@ -183,6 +217,7 @@ class BookCoverServiceTest {
         var second = new BookCoverImage(8L, "image/png", new byte[]{20});
         second.setThumbnailData(new byte[]{3, 4});
         when(copies.countByBookId(anyLong())).thenReturn(1L);
+        when(books.findForCoverUpload(8L)).thenReturn(Optional.of(new Book()));
         when(covers.findById(7L)).thenReturn(Optional.of(first));
         when(covers.findById(8L)).thenReturn(Optional.of(second));
         assertArrayEquals(new byte[]{1, 2}, service.getThumbnail(7L, true).getImageData());
@@ -192,5 +227,15 @@ class BookCoverServiceTest {
     @Test void publicThumbnailRequiresPublishedBook() {
         assertThrows(ApiException.class, () -> service.getThumbnail(7L, true));
         verifyNoInteractions(covers);
+    }
+
+    @Test void legacyThumbnailReadsCoverOnlyAfterParentLock() throws Exception {
+        var cover = new BookCoverImage(7L, "image/png", image("png"));
+        when(covers.findById(7L)).thenReturn(Optional.of(cover));
+        service.getThumbnail(7L, false);
+        var order = inOrder(books, covers);
+        order.verify(books).findForCoverUpload(7L);
+        order.verify(covers).findById(7L);
+        order.verify(covers).saveAndFlush(cover);
     }
 }

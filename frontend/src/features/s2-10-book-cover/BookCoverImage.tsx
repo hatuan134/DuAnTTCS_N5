@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '../../core/api/apiClient'
-import { publicCoverUrl } from './bookCoverService'
+import { managedCoverPath, publicCoverUrl } from './bookCoverService'
 
 export default function BookCoverImage({ bookId, url, title }: {
   bookId: number; url: string; title: string
@@ -12,9 +12,10 @@ export default function BookCoverImage({ bookId, url, title }: {
     let objectUrl = ''
     setSrc('')
     setError(false)
-    if (url === `/api/v1/books/public/${bookId}/cover`) {
+    const managed = managedCoverPath(bookId, url)
+    if (managed) {
       // Staff must also see covers of books that have no copies and are not public yet.
-      void apiClient.get<Blob>(`/books/${bookId}/cover`, { responseType: 'blob' }).then(({ data }) => {
+      void apiClient.get<Blob>(managed.replace('/api/v1/books/public/', '/books/'), { responseType: 'blob' }).then(({ data }) => {
         if (!active) return
         objectUrl = URL.createObjectURL(data)
         setSrc(objectUrl)

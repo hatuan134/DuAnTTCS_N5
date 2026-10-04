@@ -65,31 +65,54 @@ export default function PublicBookDetailPage() {
     }
 
     let active = true
+    let running = false
+    let queued = false
+    setLoading(true)
+    setError('')
 
-    const loadBook = async () => {
-      setLoading(true)
-      setError('')
+    const loadBook = async (background = false) => {
+      if (background && document.hidden) return
+      if (running) { queued = true; return }
+      running = true
       try {
         const data = await catalogService.getPublicBookById(id)
         if (active) {
-          setBook(data)
+          if (background) {
+            // Refresh only the image here; keep the existing reservation/detail flow intact.
+            setBook((current) => current?.id === id && current.coverImageUrl !== data.coverImageUrl
+              ? { ...current, coverImageUrl: data.coverImageUrl } : current)
+          } else {
+            setBook(data)
+          }
         }
       } catch {
-        if (active) {
+        if (active && !background) {
           setBook(null)
           setError('Không tìm thấy đầu sách trên trang tra cứu công khai.')
         }
       } finally {
-        if (active) {
-          setLoading(false)
-        }
+        running = false
+        if (active && !background) setLoading(false)
+        if (active && queued) { queued = false; void loadBook(true) }
       }
     }
 
     void loadBook()
+    const refresh = () => void loadBook(true)
+    const channel = 'BroadcastChannel' in window ? new BroadcastChannel('catalog-availability') : null
+    if (channel) channel.onmessage = refresh
+    const timer = window.setInterval(refresh, 3000)
+    window.addEventListener('focus', refresh)
+    window.addEventListener('catalog-cover-updated', refresh)
+    document.addEventListener('visibilitychange', refresh)
 
     return () => {
       active = false
+      window.clearInterval(timer)
+      channel?.close()
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('catalog-cover-updated', refresh)
+      document.removeEventListener('visibilitychange', refresh)
     }
   }, [bookId])
 

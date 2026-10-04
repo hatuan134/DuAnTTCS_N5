@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Locale;
+import java.util.UUID;
 
 /** Binary storage/validation is separate from catalog search and bibliographic editing. */
 @Service
@@ -45,16 +46,14 @@ public class BookCoverService {
         if (bookId == null || bookId < 1) throw missingBook();
         byte[] bytes = readFile(file);
         String contentType = detectImage(bytes, file.getOriginalFilename());
-        // Lock the parent even before its first cover exists: two uploads cannot overwrite each other.
+        // Finish validation and thumbnail generation before touching the existing image.
+        byte[] thumbnail = createThumbnail(bytes);
+        // Serialize uploads and legacy thumbnail generation for this book.
         Book book = books.findForCoverUpload(bookId).orElseThrow(this::missingBook);
-        if ((book.getCoverImageUrl() != null && !book.getCoverImageUrl().isBlank()) || covers.existsById(bookId)) {
-            throw new ApiException(HttpStatus.CONFLICT, "BOOK_COVER_ALREADY_EXISTS",
-                    "Đầu sách đã có ảnh bìa. Chức năng thay thế ảnh cũ chưa được hỗ trợ.");
-        }
         BookCoverImage cover = new BookCoverImage(bookId, contentType, bytes);
-        cover.setThumbnailData(createThumbnail(bytes));
+        cover.setThumbnailData(thumbnail);
         covers.saveAndFlush(cover);
-        book.setCoverImageUrl("/api/v1/books/public/" + bookId + "/cover");
+        book.setCoverImageUrl("/api/v1/books/public/" + bookId + "/cover?v=" + UUID.randomUUID());
         books.save(book);
     }
 
@@ -69,10 +68,14 @@ public class BookCoverService {
     /** Existing originals are retained; generate their thumbnail once, on first request. */
     @Transactional
     public BookCoverImage getThumbnail(Long bookId, boolean publicView) {
-        BookCoverImage cover = get(bookId, publicView);
+        if (bookId == null || bookId < 1 || (publicView && copies.countByBookId(bookId) == 0)) {
+            throw missingCover();
+        }
+        // Read the cover only AFTER the lock: a legacy backfill must never restore stale bytes
+        // over a replacement that committed while this request was waiting for the lock.
+        books.findForCoverUpload(bookId).orElseThrow(this::missingBook);
+        BookCoverImage cover = covers.findById(bookId).orElseThrow(this::missingCover);
         if (cover.getThumbnailData() == null) {
-            // Serialize with uploads and other requests before backfilling a legacy cover.
-            books.findForCoverUpload(bookId).orElseThrow(this::missingBook);
             cover.setThumbnailData(createThumbnail(cover.getImageData()));
             covers.saveAndFlush(cover);
         }

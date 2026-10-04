@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { publicCoverUrl } from './bookCoverService'
+import { publicBookImageUrl } from './bookCoverService'
 
 const DEFAULT_COVER = `${import.meta.env.BASE_URL}images/default-book-cover.svg`
 
@@ -7,9 +7,8 @@ export default function PublicBookCover({ bookId, url, title, thumbnail = false 
   bookId: number; url?: string | null; title: string; thumbnail?: boolean
 }) {
   const original = url?.trim() ?? ''
-  const managed = original === `/api/v1/books/public/${bookId}/cover`
   const source = original
-    ? publicCoverUrl(thumbnail && managed ? `${original}/thumbnail` : original)
+    ? publicBookImageUrl(bookId, original, thumbnail)
     : DEFAULT_COVER
   // Track the failed source instead of a single flag: navigating to another book resets the fallback.
   const [failedSource, setFailedSource] = useState('')
