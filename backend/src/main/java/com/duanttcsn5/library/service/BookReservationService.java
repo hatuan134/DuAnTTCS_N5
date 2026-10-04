@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.MyBookReservationResponse;
 import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
 import com.duanttcsn5.library.dto.book.ReservationCancellationAuditResponse;
 import com.duanttcsn5.library.dto.book.BookReservationQueueResponse;
@@ -52,6 +53,33 @@ public class BookReservationService {
         this.cards = cards;
         this.copies = copies;
         this.configuration = configuration;
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public List<MyBookReservationResponse> getMyReservations(Long readerId) {
+        if (readerId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
+                    "Vui lòng đăng nhập để xem đơn đặt giữ của bạn.");
+        }
+        User reader = users.findById(readerId).orElseThrow(() ->
+                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "READER_ROLE_REQUIRED",
+                    "Chỉ tài khoản Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.");
+        }
+        if (!"ACTIVE".equals(reader.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE", "Tài khoản Bạn đọc không hoạt động.");
+        }
+        // Viewing history does not require an active library card.
+        return reservations.findAllForReader(readerId).stream().map(reservation -> {
+            Long position = "PENDING".equals(reservation.getStatus())
+                    ? reservations.findPendingQueuePosition(reservation.getId()) : null;
+            OffsetDateTime deadline = "READY_FOR_PICKUP".equals(reservation.getStatus())
+                    && reservation.getBookCopy() != null ? reservation.getPickupDeadline() : null;
+            return new MyBookReservationResponse(reservation.getId(), reservation.getBook().getId(),
+                    reservation.getBook().getTitle(), reservation.getStatus(), reservation.getReservedAt(),
+                    position, deadline);
+        }).toList();
     }
 
     @Transactional

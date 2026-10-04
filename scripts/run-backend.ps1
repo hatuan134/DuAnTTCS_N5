@@ -7,6 +7,7 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $utf8
 $Root = Split-Path $PSScriptRoot -Parent
 
+& (Join-Path $PSScriptRoot 'Ensure-ToolPaths.ps1')
 & (Join-Path $PSScriptRoot 'start-db.ps1')
 & (Join-Path $PSScriptRoot 'Import-Env.ps1')
 

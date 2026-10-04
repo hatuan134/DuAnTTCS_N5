@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.MyBookReservationResponse;
 import com.duanttcsn5.library.dto.book.CancelBookReservationRequest;
 import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
 import jakarta.validation.Valid;
@@ -29,6 +30,13 @@ public class BookReservationController {
 
     public BookReservationController(BookReservationService reservations) {
         this.reservations = reservations;
+    }
+
+    @GetMapping("/reservations/mine")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<List<MyBookReservationResponse>> getMine(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(reservations.getMyReservations(principal == null ? null : principal.id()));
     }
 
     @PostMapping("/books/{bookId}/reservations")

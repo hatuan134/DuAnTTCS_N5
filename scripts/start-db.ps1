@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 
+& (Join-Path $PSScriptRoot 'Ensure-ToolPaths.ps1')
 & (Join-Path $PSScriptRoot 'Ensure-Env.ps1')
 & (Join-Path $PSScriptRoot 'Import-Env.ps1')
 

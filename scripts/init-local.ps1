@@ -2,6 +2,8 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 
+& (Join-Path $PSScriptRoot 'Ensure-ToolPaths.ps1')
+
 Write-Host 'LIBRA - one-time local initialization' -ForegroundColor Cyan
 
 $missing = New-Object System.Collections.Generic.List[string]

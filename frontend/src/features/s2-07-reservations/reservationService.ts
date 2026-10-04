@@ -18,7 +18,21 @@ export interface BookReservation {
   } | null
 }
 
+export interface MyBookReservation {
+  id: number
+  bookId: number
+  bookTitle: string
+  status: string
+  reservedAt: string
+  queuePosition: number | null
+  pickupDeadline: string | null
+}
+
 export const reservationService = {
+  listMine: async (): Promise<MyBookReservation[]> => {
+    const response = await apiClient.get<MyBookReservation[]>('/reservations/mine')
+    return response.data
+  },
   reserve: async (bookId: number): Promise<BookReservation> => {
     const response = await apiClient.post<BookReservation>(`/books/${bookId}/reservations`)
     return response.data
