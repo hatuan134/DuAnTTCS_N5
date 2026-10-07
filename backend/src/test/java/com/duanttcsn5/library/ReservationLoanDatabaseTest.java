@@ -244,4 +244,49 @@ class ReservationLoanDatabaseTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loans WHERE reservation_id = ?", Long.class, converted.reservation()))
                 .isEqualTo(1L);
     }
+
+    @Test @Transactional
+    void detailAfterConversionAndReopeningMatchesTheSixSavedFieldsAndCreator() {
+        Fixture f = fixture();
+        var created = service.createFromReservation(f.reservation(), f.staff(), f.card());
+        jdbc.update("UPDATE card_types SET loan_days = 1 WHERE id = ?", f.cardType());
+        Long viewer = user("LIBRARIAN", UUID.randomUUID().toString());
+        var detail = service.loanDetail(created.id(), viewer);
+        assertThat(detail.loanNumber()).isEqualTo(created.loanNumber());
+        assertThat(detail.createdById()).isEqualTo(f.staff()).isNotEqualTo(viewer);
+        assertThat(detail.createdByName()).isEqualTo(jdbc.queryForObject("SELECT full_name FROM users WHERE id = ?", String.class, f.staff()));
+        assertThat(detail.borrowedAt().toInstant()).isEqualTo(created.borrowedAt().toInstant());
+        assertThat(detail.items()).hasSize(1);
+        var item = detail.items().get(0);
+        assertThat(item.barcode()).isEqualTo(jdbc.queryForObject("SELECT barcode FROM book_copies WHERE id = ?", String.class, f.copy()));
+        assertThat(item.bookTitle()).isEqualTo(jdbc.queryForObject("SELECT title FROM books WHERE id = ?", String.class, f.book()));
+        assertThat(item.borrowedAt().toInstant()).isEqualTo(created.borrowedAt().toInstant());
+        assertThat(item.dueAt().toInstant()).isEqualTo(created.dates().dueAt().toInstant());
+        var reopened = service.loanDetail(created.id(), viewer);
+        assertThat(reopened).isEqualTo(detail);
+        assertThat(service.listLoans(viewer)).anyMatch(row -> row.id().equals(created.id())
+                && row.loanNumber().equals(detail.loanNumber()) && row.createdById().equals(f.staff()) && row.itemCount() == 1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loans WHERE reservation_id = ?", Long.class, f.reservation())).isEqualTo(1L);
+    }
+    @Test @Transactional
+    void legacyLoanReadsMultipleActualCopiesAndHandlesNullDeadlineWithoutRecalculating() {
+        Fixture first = fixture(), second = fixture();
+        jdbc.update("UPDATE book_copies SET status = 'AVAILABLE' WHERE id IN (?, ?)", first.copy(), second.copy());
+        Long loan = jdbc.queryForObject("""
+                INSERT INTO loans(loan_number, borrower_user_id, created_by) VALUES (?, ?, ?) RETURNING id
+                """, Long.class, "LEGACY-READ-" + UUID.randomUUID(), first.reader(), first.staff());
+        OffsetDateTime borrowed = OffsetDateTime.now().minusDays(2).withNano(0), due = borrowed.plusDays(14);
+        jdbc.update("INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date) VALUES (?, ?, ?, ?)", loan, first.copy(), borrowed, due);
+        jdbc.update("INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at) VALUES (?, ?, ?)", loan, second.copy(), borrowed);
+        var detail = service.loanDetail(loan, first.staff());
+        assertThat(detail.reservationId()).isNull();
+        assertThat(detail.items()).hasSize(2);
+        assertThat(detail.items().get(0).copyId()).isEqualTo(first.copy());
+        assertThat(detail.items().get(0).bookTitle()).isEqualTo(jdbc.queryForObject("SELECT title FROM books WHERE id = ?", String.class, first.book()));
+        assertThat(detail.items().get(0).dueAt().toInstant()).isEqualTo(due.toInstant());
+        assertThat(detail.items().get(1).copyId()).isEqualTo(second.copy());
+        assertThat(detail.items().get(1).bookTitle()).isEqualTo(jdbc.queryForObject("SELECT title FROM books WHERE id = ?", String.class, second.book()));
+        assertThat(detail.items().get(1).dueAt()).isNull();
+        assertThat(service.listLoans(first.staff())).anyMatch(row -> row.id().equals(loan) && row.itemCount() == 2);
+    }
 }

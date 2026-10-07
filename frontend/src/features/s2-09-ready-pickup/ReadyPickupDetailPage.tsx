@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import CreateReservationLoanPanel from './CreateReservationLoanPanel'
 import CancelReservationPanel, { CancellationNotice } from './CancelReservationPanel'
@@ -27,6 +27,7 @@ export default function ReadyPickupDetailPage() {
 
 // A new id mounts a fresh detail view, so the previous order never flashes on screen.
 function ReadyPickupDetail({ id }: { id: number }) {
+  const navigate = useNavigate()
   const [item, setItem] = useState<ReadyPickupReservation | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -113,8 +114,12 @@ function ReadyPickupDetail({ id }: { id: number }) {
         <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
           onBusyChange={setCreatingLoan}
           onExpired={(context) => setItem((current) => current ? { ...current, ...context, status: 'EXPIRED' } : current)}
-          onSuccess={(result) => setItem((current) => current ? { ...current, status: 'FULFILLED', converted: true, copyStatus: 'BORROWED', loanNumber: result.loanNumber } : current)}
+          onSuccess={(result) => {
+            setItem((current) => current ? { ...current, status: 'FULFILLED', converted: true, copyStatus: 'BORROWED', loanNumber: result.loanNumber } : current)
+            navigate(`/loans/${result.id}`, { state: { loanCreated: true } })
+          }}
           onAlreadyConverted={(context) => setItem((current) => current ? { ...current, ...context, converted: true } : current)} />
+        {item.converted && <Link to="/loans" className="mt-4 inline-block text-sm font-medium text-blue-700 hover:underline">Mở danh sách phiếu mượn</Link>}
         {(item.converted || item.expired || item.status === 'EXPIRED') && <p className="mt-4 text-sm text-slate-700">
           {item.converted ? 'Đơn đã được loại khỏi danh sách Chờ nhận.' : 'Đơn hết hạn không còn trong danh sách Chờ nhận.'}{' '}
           <Link to={`/books/${item.bookId}/reservations`} className="font-medium text-blue-700 hover:underline">

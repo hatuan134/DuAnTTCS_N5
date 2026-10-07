@@ -3,6 +3,8 @@ package com.duanttcsn5.library;
 import com.duanttcsn5.library.config.SecurityConfig;
 import com.duanttcsn5.library.controller.LoanController;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
+import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.entity.Role;
@@ -217,5 +219,57 @@ class ReservationLoanControllerTest {
         }
         verify(service, times(3)).checkPickup(21L, 12L);
         verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test void staffReadApisExposeSavedLoanDetailsAndOriginalCreatorOnly() throws Exception {
+        var borrowed = OffsetDateTime.parse("2026-10-07T17:00:00+07:00");
+        var due = borrowed.plusDays(14);
+        var item = new LoanDetailResponse.Item(91L, 31L, "LIB-031", 7L, "Mắt biếc", borrowed, due);
+        when(service.loanDetail(81L, 12L)).thenReturn(new LoanDetailResponse(81L, "PM-SAVED", 21L,
+                99L, "Nguyễn Văn An", 3L, "Thủ thư lập phiếu", borrowed, List.of(item)));
+        when(service.listLoans(12L)).thenReturn(List.of(new LoanSummaryResponse(81L, "PM-SAVED", 99L,
+                "Nguyễn Văn An", 3L, "Thủ thư lập phiếu", borrowed, 1)));
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+            token(role);
+            mvc.perform(get("/api/v1/loans/81").header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.loanNumber").value("PM-SAVED"))
+                    .andExpect(jsonPath("$.createdById").value(3))
+                    .andExpect(jsonPath("$.createdByName").value("Thủ thư lập phiếu"))
+                    .andExpect(jsonPath("$.borrowedAt").exists())
+                    .andExpect(jsonPath("$.items[0].barcode").value("LIB-031"))
+                    .andExpect(jsonPath("$.items[0].bookTitle").value("Mắt biếc"))
+                    .andExpect(jsonPath("$.items[0].dueAt").exists())
+                    .andExpect(jsonPath("$.passwordHash").doesNotExist()).andExpect(jsonPath("$.email").doesNotExist());
+            mvc.perform(get("/api/v1/loans").header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(81))
+                    .andExpect(jsonPath("$[0].itemCount").value(1));
+        }
+        verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
+    }
+    @Test void loanListAndDetailRequireValidJwtAndStaffRole() throws Exception {
+        for (String url : new String[]{"/api/v1/loans", "/api/v1/loans/81"}) {
+            mvc.perform(get(url)).andExpect(status().isUnauthorized());
+        }
+        when(context.getBean(JwtService.class).decode("bad-token")).thenThrow(new JwtException("invalid"));
+        mvc.perform(get("/api/v1/loans/81").header("Authorization", "Bearer bad-token"))
+                .andExpect(status().isUnauthorized());
+        token("READER");
+        for (String url : new String[]{"/api/v1/loans", "/api/v1/loans/81"}) {
+            mvc.perform(get(url).header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(service);
+    }
+    @Test void invalidAndMissingLoanIdsUseExistingErrorResponse() throws Exception {
+        token("LIBRARIAN");
+        mvc.perform(get("/api/v1/loans/abc").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+        when(service.loanDetail(0L, 12L)).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_LOAN_ID", "Mã phiếu mượn không hợp lệ."));
+        mvc.perform(get("/api/v1/loans/0").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_LOAN_ID"));
+        when(service.loanDetail(999L, 12L)).thenThrow(new ApiException(HttpStatus.NOT_FOUND,
+                "LOAN_NOT_FOUND", "Không tìm thấy phiếu mượn."));
+        mvc.perform(get("/api/v1/loans/999").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("LOAN_NOT_FOUND"));
     }
 }

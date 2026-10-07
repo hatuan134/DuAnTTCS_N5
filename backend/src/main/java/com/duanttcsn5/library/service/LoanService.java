@@ -1,5 +1,7 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
@@ -27,6 +29,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 /** Lending is a new domain; reservation creation/cancellation stays in its existing service. */
@@ -257,5 +260,24 @@ public class LoanService {
     private ApiException invalidCopy() {
         return new ApiException(HttpStatus.CONFLICT, "RESERVATION_COPY_CONFLICT",
                 "Đơn không có bản sao đang giữ hợp lệ. Vui lòng tải lại và đối chiếu dữ liệu.");
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoanSummaryResponse> listLoans(Long actorId) {
+        requireStaff(actorId);
+        return loans.findAllForStaff();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public LoanDetailResponse loanDetail(Long loanId, Long actorId) {
+        requireStaff(actorId);
+        if (loanId == null || loanId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_LOAN_ID", "Mã phiếu mượn không hợp lệ.");
+        var header = loans.findHeaderForStaff(loanId).orElseThrow(() -> new ApiException(
+                HttpStatus.NOT_FOUND, "LOAN_NOT_FOUND", "Không tìm thấy phiếu mượn."));
+        // Header and items share one DB snapshot; use the saved item timestamps, never current card policy.
+        return new LoanDetailResponse(header.id(), header.loanNumber(), header.reservationId(),
+                header.readerId(), header.readerName(), header.createdById(), header.createdByName(),
+                header.borrowedAt(), loans.findItemsForStaff(loanId));
     }
 }
