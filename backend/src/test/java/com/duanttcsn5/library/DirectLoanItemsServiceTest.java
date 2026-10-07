@@ -43,6 +43,7 @@ class DirectLoanItemsServiceTest {
             when(book.getTitle()).thenReturn("Lập trình Java");
             BookCopy copy = mock(BookCopy.class); when(copy.getId()).thenReturn(id);
             when(copy.getBarcode()).thenReturn("BC-" + id); when(copy.getBook()).thenReturn(book);
+            when(copy.getStatus()).thenReturn("AVAILABLE");
             when(copies.findByBarcode("BC-" + id)).thenReturn(Optional.of(copy));
         }
     }
@@ -104,6 +105,44 @@ class DirectLoanItemsServiceTest {
         rejects(request("BC-1", " "), "INVALID_BARCODE");
         verifyNoInteractions(copies, loans);
     }
+    @Test void unavailableCopiesReportTheirCurrentStatusWithoutWriting() {
+        String[][] statuses = {{"BORROWED", "Đang mượn"}, {"REPAIR", "Đang sửa chữa"},
+                {"HELD", "Đang giữ cho đặt trước"}, {"REMOVED", "Đã loại khỏi kho"},
+                {"LOST", "Mất"}, {"DAMAGED", "Hư hỏng"}, {"UNKNOWN", "UNKNOWN"},
+                {null, "Chưa xác định"}, {" ", "Chưa xác định"}};
+        var copy = copies.findByBarcode("BC-2").orElseThrow();
+        for (String[] status : statuses) {
+            when(copy.getStatus()).thenReturn(status[0]);
+            assertThatThrownBy(() -> service.previewDirectLoanItem(request("BC-2", "BC-1"), 3L))
+                    .isInstanceOfSatisfying(ApiException.class, e -> {
+                        assertThat(e.getStatus().value()).isEqualTo(409);
+                        assertThat(e.getCode()).isEqualTo("LOAN_DRAFT_COPY_NOT_AVAILABLE");
+                        assertThat(e.getMessage()).contains("Trạng thái hiện tại: " + status[1]);
+                    });
+        }
+        verifyNoInteractions(reservations);
+        verify(loans, times(statuses.length)).countUnreturnedBooksForReader(12L);
+        verifyNoMoreInteractions(loans);
+        verify(copies, never()).save(any());
+    }
+
+    @Test void failedMiddleBarcodeDoesNotAffectLaterChecksOrValidDraft() {
+        var selected = new java.util.ArrayList<String>();
+        selected.add(service.previewDirectLoanItem(request("BC-1"), 3L).barcode());
+        rejects(request("UNKNOWN", selected.toArray(String[]::new)), "LOAN_DRAFT_COPY_NOT_FOUND");
+        var bad = copies.findByBarcode("BC-2").orElseThrow();
+        when(bad.getStatus()).thenReturn("REPAIR");
+        rejects(request("BC-2", selected.toArray(String[]::new)), "LOAN_DRAFT_COPY_NOT_AVAILABLE");
+        selected.add(service.previewDirectLoanItem(request("BC-3", selected.toArray(String[]::new)), 3L).barcode());
+        assertThat(selected).containsExactly("BC-1", "BC-3");
+        // Replacing/deleting the failed line needs no database cleanup.
+        when(bad.getStatus()).thenReturn("AVAILABLE");
+        assertThat(service.previewDirectLoanItem(request("BC-2", selected.toArray(String[]::new)), 3L).barcode())
+                .isEqualTo("BC-2");
+        verifyNoInteractions(reservations);
+        verify(copies, never()).save(any());
+    }
+
     @Test void rejectsReaderRoleAndInactiveStaffBeforeLookup() {
         when(users.findById(3L)).thenReturn(Optional.of(user(3L, "READER")));
         rejects(request("BC-1"), "STAFF_ROLE_REQUIRED");

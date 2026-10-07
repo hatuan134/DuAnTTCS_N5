@@ -115,6 +115,26 @@ class DirectLoanItemsControllerTest {
         }
         verifyNoInteractions(service);
     }
+    @Test void missingAndUnavailableBarcodesUseExistingErrorContract() throws Exception {
+        token("LIBRARIAN");
+        when(service.previewDirectLoanItem(any(), eq(12L))).thenThrow(new ApiException(HttpStatus.NOT_FOUND,
+                "LOAN_DRAFT_COPY_NOT_FOUND", "Không tìm thấy sách theo mã vạch đã nhập."));
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("LOAN_DRAFT_COPY_NOT_FOUND"));
+        for (String label : new String[]{"Đang mượn", "Đang sửa chữa"}) {
+            String message = "Bản sao không ở trạng thái Sẵn sàng. Trạng thái hiện tại: " + label + ".";
+            when(service.previewDirectLoanItem(any(), eq(12L))).thenThrow(new ApiException(HttpStatus.CONFLICT,
+                    "LOAN_DRAFT_COPY_NOT_AVAILABLE", message));
+            mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                    .header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("LOAN_DRAFT_COPY_NOT_AVAILABLE"))
+                    .andExpect(jsonPath("$.message").value(message));
+        }
+    }
+
     @Test void quotaErrorUsesExistingVietnameseErrorContract() throws Exception {
         token("LIBRARIAN");
         when(service.previewDirectLoanItem(any(), eq(12L))).thenThrow(new ApiException(HttpStatus.CONFLICT,

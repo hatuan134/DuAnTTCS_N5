@@ -72,6 +72,11 @@ function fixture({ reader = result, preview = async (_card, code) => copy(code) 
     submit() { find(tree, (n) => n.type === 'form').props.onSubmit({ preventDefault() {} }); render() },
     async runTimer() { for (const [id, t] of Array.from(timers)) { timers.delete(id); t.callback() } await settle(); render() },
     remove(code) { find(tree, (n) => n.props?.['aria-label'] === `Xóa sách có mã vạch ${code}`).props.onClick(); render() },
+    edit(code) { find(tree, (n) => n.props?.['aria-label'] === `Sửa mã vạch ${code}`).props.onClick(); render() },
+    cancelEdit() { find(tree, (n) => n.props?.children === 'Hủy sửa').props.onClick(); render() },
+    confirm() { find(tree, (n) => n.props?.children === 'Xác nhận danh sách').props.onClick(); render() },
+    confirmDisabled: () => Boolean(find(tree, (n) => n.props?.children === 'Xác nhận danh sách').props.disabled),
+    rowHtml(code) { render(); return renderToStaticMarkup(find(tree, (n) => n.type === 'tr' && find(n.props?.children, (child) => child.type === 'td' && child.props?.children === code))) },
     hasBarcode: () => Boolean(find(tree, (n) => n.props?.id === 'direct-loan-barcode')),
     addDisabled: () => Boolean(find(tree, (n) => n.props?.type === 'submit').props.disabled),
     delays: () => Array.from(timers.values(), (t) => t.delay),
@@ -131,7 +136,7 @@ test('parallel repeated Enter produces only one request and one row', async () =
   assert.match(f.html(), /Đang tìm sách/); resolve(copy('BC-1')); await settle()
   assert.match(f.html(), /Dự kiến mượn: 1 \/ 3 sách/); assert.equal((f.html().match(/<tr/g) ?? []).length, 2)
 })
-test('failure keeps existing rows and barcode so it can be retried', async () => {
+test('failure stays on its own row and can be retried through edit', async () => {
   let fail = true
   const f = fixture({ preview: async (_card, code) => {
     if (code === 'BC-2' && fail) throw new Error('Không thể thêm sách: lượt mượn sẽ vượt giới hạn.')
@@ -139,7 +144,8 @@ test('failure keeps existing rows and barcode so it can be retried', async () =>
   } })
   f.change('BC-1'); f.submit(); await settle(); f.change('BC-2'); f.submit(); await settle()
   assert.match(f.html(), /Không thể thêm sách/); assert.match(f.html(), /Sách BC-1/)
-  assert.match(f.html(), /value="BC-2"/); fail = false; f.submit(); await settle()
+  assert.match(f.rowHtml('BC-2'), /Không thể thêm sách/); assert.match(f.html(), /value=""/);
+  fail = false; f.edit('BC-2'); assert.match(f.html(), /value="BC-2"/); f.submit(); await settle()
   assert.match(f.html(), /Dự kiến mượn: 2 \/ 3 sách/)
 })
 test('ineligible reader and invalid barcode never call API', async () => {
@@ -160,4 +166,79 @@ test('server refreshed quota is used for following additions', async () => {
   const f = fixture({ preview: async (_card, code) => ({ ...copy(code), remainingBooks: 1 }) })
   f.change('BC-1'); f.submit(); await settle(); assert.match(f.html(), /Dự kiến mượn: 1 \/ 1 sách/)
   assert.ok(f.addDisabled()); f.change('BC-2'); f.submit(); await settle(); assert.equal(f.calls.length, 1)
+})
+
+test('unknown and unavailable rows keep their errors while later valid barcodes are accepted', async () => {
+  const f = fixture({ preview: async (_card, code) => {
+    if (code === 'UNKNOWN') throw new Error('Không tìm thấy sách theo mã vạch đã nhập.')
+    if (code === 'BORROWED') throw new Error('Bản sao không ở trạng thái Sẵn sàng. Trạng thái hiện tại: Đang mượn.')
+    if (code === 'REPAIR') throw new Error('Bản sao không ở trạng thái Sẵn sàng. Trạng thái hiện tại: Đang sửa chữa.')
+    return copy(code)
+  } })
+  for (const code of ['BC-1', 'UNKNOWN', 'BORROWED', 'REPAIR', 'BC-2', 'BC-3']) {
+    f.change(code); f.submit(); await settle(); f.html()
+  }
+  assert.equal((f.html().match(/<tr/g) ?? []).length, 7)
+  assert.match(f.rowHtml('UNKNOWN'), /Không tìm thấy sách/)
+  assert.match(f.rowHtml('BORROWED'), /Trạng thái hiện tại: Đang mượn/)
+  assert.match(f.rowHtml('REPAIR'), /Trạng thái hiện tại: Đang sửa chữa/)
+  for (const code of ['BC-1', 'BC-2', 'BC-3']) {
+    assert.match(f.rowHtml(code), /Hợp lệ · Sẵn sàng/)
+    assert.doesNotMatch(f.rowHtml(code), /role="alert"/)
+  }
+  assert.match(f.html(), /Dự kiến mượn: 3 \/ 3 sách/)
+  assert.deepEqual(f.calls.map((x) => Array.from(x[2])), [[], ['BC-1'], ['BC-1'], ['BC-1'], ['BC-1'], ['BC-1', 'BC-2']])
+  assert.ok(f.confirmDisabled()); f.confirm()
+  assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
+  for (const code of ['UNKNOWN', 'BORROWED', 'REPAIR']) f.remove(code)
+  assert.equal(f.confirmDisabled(), false); f.confirm()
+  assert.match(f.html(), /Đã xác nhận danh sách 3 sách hợp lệ/)
+  assert.equal(f.calls.length, 6)
+})
+
+test('editing a failed middle row replaces it in place and preserves valid rows on both sides', async () => {
+  const f = fixture({ preview: async (_card, code) => {
+    if (code === 'UNKNOWN') throw new Error('Mã vạch không tồn tại')
+    return copy(code)
+  } })
+  for (const code of ['BC-1', 'UNKNOWN', 'BC-3']) { f.change(code); f.submit(); await settle(); f.html() }
+  f.edit('UNKNOWN'); f.change('BC-2'); f.submit(); await settle()
+  const page = f.html()
+  assert.equal((page.match(/<tr/g) ?? []).length, 4)
+  const html = page.split('<tbody')[1].split('</tbody>')[0]
+  assert.ok(html.indexOf('Sách BC-1') < html.indexOf('Sách BC-2'))
+  assert.ok(html.indexOf('Sách BC-2') < html.indexOf('Sách BC-3'))
+  assert.doesNotMatch(html, /Mã vạch không tồn tại/)
+  assert.deepEqual(Array.from(f.calls.at(-1)[2]), ['BC-1', 'BC-3'])
+  assert.equal(f.confirmDisabled(), false)
+})
+
+test('failed recheck, duplicate edit and cancel leave original errors and valid rows intact', async () => {
+  const f = fixture({ preview: async (_card, code) => {
+    if (code.startsWith('BAD')) throw new Error('Không tìm thấy sách')
+    return copy(code)
+  } })
+  for (const code of ['BC-1', 'BAD']) { f.change(code); f.submit(); await settle(); f.html() }
+  f.edit('BAD'); f.change('BC-1'); f.submit(); await settle()
+  assert.match(f.html(), /Mã vạch này đã có/); assert.equal(f.calls.length, 2)
+  assert.match(f.rowHtml('BAD'), /Không tìm thấy sách/)
+  f.change('BAD-2'); f.submit(); await settle(); f.html()
+  assert.match(f.rowHtml('BAD-2'), /Không tìm thấy sách/); assert.match(f.rowHtml('BC-1'), /Hợp lệ/)
+  f.edit('BAD-2'); f.cancelEdit(); assert.ok(f.confirmDisabled())
+  assert.match(f.rowHtml('BAD-2'), /Không tìm thấy sách/)
+  f.change('BC-2'); f.submit(); await settle(); assert.match(f.rowHtml('BC-2'), /Hợp lệ/)
+  f.remove('BAD-2'); assert.equal(f.confirmDisabled(), false)
+})
+
+test('confirmation stays disabled for empty, ineligible, checking or unsubmitted drafts', async () => {
+  const empty = fixture(); assert.ok(empty.confirmDisabled())
+  const inactive = fixture({ reader: { ...result, eligible: false } }); assert.ok(inactive.confirmDisabled())
+  let resolve
+  const f = fixture({ preview: () => new Promise((done) => { resolve = done }) })
+  f.change('BC-1'); f.submit(); assert.ok(f.confirmDisabled())
+  assert.match(f.rowHtml('BC-1'), /Đang kiểm tra/)
+  resolve(copy('BC-1')); await settle(); f.html(); assert.equal(f.confirmDisabled(), false)
+  f.change('BC-2'); assert.ok(f.confirmDisabled()); f.confirm()
+  assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
+  f.change(''); assert.equal(f.confirmDisabled(), false)
 })
