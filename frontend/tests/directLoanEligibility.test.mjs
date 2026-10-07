@@ -45,6 +45,7 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
     },
   }
   const imports = {
+    './DirectLoanItemsPanel': { __esModule: true, default: () => null },
     react: hooks,
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (e) => e.message },
@@ -65,6 +66,7 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
   render()
   return {
     calls,
+    panel: () => find(tree, (n) => Boolean(n.props?.reader)),
     html: () => renderToStaticMarkup(render()),
     change(value) { find(tree, (n) => n.props?.id === 'direct-loan-card').props.onChange({ target: { value } }); render() },
     submit() { find(tree, (n) => n.type === 'form').props.onSubmit({ preventDefault() {} }); render() },
@@ -87,7 +89,7 @@ test('initial page explains empty state without requests', () => {
   const f = fixture(); assert.match(f.html(), /Chưa có bạn đọc được chọn/); assert.deepEqual(f.calls, [])
 })
 
-test('typing debounces and renders required facts without barcode controls', async () => {
+test('typing debounces and renders required eligibility facts', async () => {
   const f = fixture(); f.change(' TV-0012 ')
   assert.deepEqual(f.delays(), [350]); assert.match(f.html(), /Đang kiểm tra/); await f.runTimer()
   for (const text of ['Nguyễn Văn An', 'Thẻ sinh viên', 'Sách đang mượn chưa trả', 'Sách còn được mượn thêm', 'Đủ điều kiện mượn']) assert.ok(f.html().includes(text), text)
@@ -163,4 +165,13 @@ test('feature registers direct loan route and staff sidebar roles', () => {
   }).default
   assert.equal(f.appRoutes[0].path, 'loans/direct'); assert.equal(f.navItems[0].label, 'Cho mượn tại quầy')
   assert.deepEqual(Array.from(f.navItems[0].roles), ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'])
+})
+
+test('barcode draft mounts only for an identified reader and disappears on card change', async () => {
+  const f = fixture(); assert.equal(f.panel(), null)
+  f.change('TV-0012'); await f.runTimer(); assert.equal(f.panel().props.reader.cardNumber, 'TV-0012')
+  const oldKey = f.panel().key
+  f.submit(); assert.equal(f.panel(), null); await f.runTimer()
+  assert.notEqual(f.panel().key, oldKey)
+  f.change('OTHER'); assert.equal(f.panel(), null)
 })

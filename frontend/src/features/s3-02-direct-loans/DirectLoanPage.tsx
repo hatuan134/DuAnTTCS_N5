@@ -9,6 +9,7 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { loanRoles } from '../s3-01-loans/loanService'
 import { directLoanService } from './directLoanService'
 import type { ReaderLoanEligibility } from './directLoanService'
+import DirectLoanItemsPanel from './DirectLoanItemsPanel'
 
 export default function DirectLoanPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
@@ -102,6 +103,7 @@ export default function DirectLoanPage() {
         <p className="break-words">{result.message}</p>
       </div>
     </Card>}
-    <p className="text-sm leading-6 text-slate-500">Màn hình hiện hỗ trợ kiểm tra điều kiện bạn đọc. Nhập mã vạch sách và xác nhận phiếu mượn sẽ được bổ sung ở các lát tiếp theo.</p>
+    {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result} />}
+    <p className="text-sm leading-6 text-slate-500">Danh sách sách đang nhập chưa được lưu. Khi đổi hoặc kiểm tra lại thẻ, danh sách sẽ bắt đầu lại.</p>
   </div>
 }

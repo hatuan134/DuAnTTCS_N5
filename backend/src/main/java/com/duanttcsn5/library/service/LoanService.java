@@ -1,6 +1,9 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
+import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
+import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
+import java.util.HashSet;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
@@ -261,6 +264,50 @@ public class LoanService {
     private ApiException invalidCopy() {
         return new ApiException(HttpStatus.CONFLICT, "RESERVATION_COPY_CONFLICT",
                 "Đơn không có bản sao đang giữ hợp lệ. Vui lòng tải lại và đối chiếu dữ liệu.");
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public DirectLoanItemResponse previewDirectLoanItem(AddDirectLoanItemRequest request, Long actorId) {
+        requireStaff(actorId);
+        if (request == null || request.selectedBarcodes() == null || request.selectedBarcodes().size() > 10) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_DRAFT",
+                    "Danh sách mã vạch không hợp lệ, tối đa 10 sách.");
+        }
+        String barcode = normalizeDraftBarcode(request.barcode());
+        Set<String> selected = new HashSet<>();
+        for (String value : request.selectedBarcodes()) {
+            if (!selected.add(normalizeDraftBarcode(value))) throw duplicateDraftBarcode();
+        }
+        if (selected.contains(barcode)) throw duplicateDraftBarcode();
+
+        // Reuse S3-02.1 and re-read quota for every addition. No draft is persisted.
+        var reader = readerEligibility(request.cardNumber(), actorId);
+        if (!reader.eligible()) throw new ApiException(HttpStatus.CONFLICT,
+                reader.reasonCode(), reader.message());
+        if ((long) selected.size() + 1 > reader.remainingBooks()) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_LIMIT_EXCEEDED",
+                    "Không thể thêm sách: lượt mượn sẽ vượt giới hạn. Bạn đọc chỉ còn được mượn thêm "
+                            + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.");
+        }
+        var copy = copies.findByBarcode(barcode).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LOAN_DRAFT_COPY_NOT_FOUND",
+                        "Không tìm thấy sách theo mã vạch đã nhập. Vui lòng kiểm tra lại."));
+        if (copy.getBook() == null) throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_BOOK_MISSING",
+                "Bản sao chưa có thông tin đầu sách. Vui lòng kiểm tra lại.");
+        return new DirectLoanItemResponse(copy.getId(), copy.getBook().getId(), copy.getBarcode(),
+                copy.getBook().getTitle(), reader.remainingBooks());
+    }
+
+    private String normalizeDraftBarcode(String value) {
+        String barcode = value == null ? "" : value.strip();
+        if (barcode.isEmpty() || barcode.length() > 100) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_BARCODE", "Vui lòng nhập mã vạch từ 1 đến 100 ký tự.");
+        return barcode;
+    }
+
+    private ApiException duplicateDraftBarcode() {
+        return new ApiException(HttpStatus.CONFLICT, "DUPLICATE_LOAN_DRAFT_BARCODE",
+                "Mã vạch này đã có trong lượt mượn. Mỗi bản sao chỉ được thêm một lần.");
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
