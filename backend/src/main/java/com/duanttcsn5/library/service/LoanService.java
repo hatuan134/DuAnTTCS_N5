@@ -292,6 +292,20 @@ public class LoanService {
         var copy = copies.findByBarcode(barcode).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "LOAN_DRAFT_COPY_NOT_FOUND",
                         "Không tìm thấy sách theo mã vạch đã nhập. Vui lòng kiểm tra lại."));
+        if (!"AVAILABLE".equals(copy.getStatus())) {
+            String status = copy.getStatus();
+            String label = status == null || status.isBlank() ? "Chưa xác định" : switch (status) {
+                case "BORROWED" -> "Đang mượn";
+                case "HELD" -> "Đang giữ cho đặt trước";
+                case "REPAIR" -> "Đang sửa chữa";
+                case "REMOVED" -> "Đã loại khỏi kho";
+                case "LOST" -> "Mất";
+                case "DAMAGED" -> "Hư hỏng";
+                default -> status;
+            };
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_COPY_NOT_AVAILABLE",
+                    "Bản sao không ở trạng thái Sẵn sàng. Trạng thái hiện tại: " + label + ".");
+        }
         if (copy.getBook() == null) throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_BOOK_MISSING",
                 "Bản sao chưa có thông tin đầu sách. Vui lòng kiểm tra lại.");
         return new DirectLoanItemResponse(copy.getId(), copy.getBook().getId(), copy.getBarcode(),
