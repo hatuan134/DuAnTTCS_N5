@@ -158,9 +158,9 @@ class BookReservationQueueControllerTest {
     }
 
     @Test
-    void fourFiltersAndClearingFilterAreForwardedWithStaffPermissions() throws Exception {
+    void fiveFiltersAndClearingFilterAreForwardedWithStaffPermissions() throws Exception {
         token("LIBRARIAN");
-        for (String filter : new String[]{"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", ""}) {
+        for (String filter : new String[]{"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", "EXPIRED", ""}) {
             when(service.getQueueByBookId(7L, filter)).thenReturn(
                     new BookReservationQueueResponse(7L, "Mắt biếc", List.of()));
             mvc.perform(get(URL).queryParam("status", filter).header("Authorization", "Bearer test-token"))

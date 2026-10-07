@@ -162,8 +162,8 @@ class BookReservationQueueServiceTest {
                 row(25, "EXPIRED", "Hà", time, null),
                 row(26, "CANCELLED", "Lan", time, null));
         when(repository.findAllForQueueByBookId(7L)).thenReturn(rows);
-        String[] statuses = {"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED"};
-        List<List<Long>> ids = List.of(List.of(21L, 24L), List.of(22L), List.of(23L), List.of(20L, 26L));
+        String[] statuses = {"PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", "EXPIRED"};
+        List<List<Long>> ids = List.of(List.of(21L, 24L), List.of(22L), List.of(23L), List.of(20L, 26L), List.of(25L));
         for (int i = 0; i < statuses.length; i++) {
             String filter = statuses[i];
             var items = service.getQueueByBookId(7L, filter).items();
@@ -208,7 +208,7 @@ class BookReservationQueueServiceTest {
 
     @Test
     void invalidFilterRejectsBeforeDatabaseAccess() {
-        for (String filter : new String[]{"UNKNOWN", "pending", "EXPIRED", "PENDING,CANCELLED"}) {
+        for (String filter : new String[]{"UNKNOWN", "pending", "expired", "PENDING,CANCELLED"}) {
             assertThatThrownBy(() -> service.getQueueByBookId(7L, filter))
                     .isInstanceOfSatisfying(ApiException.class, e -> {
                         assertThat(e.getStatus().value()).isEqualTo(400);

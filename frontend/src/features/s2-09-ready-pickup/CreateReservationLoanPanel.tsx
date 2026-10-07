@@ -1,22 +1,23 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
-import { formatLoanDate, formatPickupDate, pickupService } from './pickupService'
-import type { LoanDatePreview, ReadyPickupReservation, ReservationLoanResult } from './pickupService'
+import { formatLoanDate, formatPickupDate, isPickupExpired, pickupExpiredMessage, pickupService } from './pickupService'
+import type { LoanDatePreview, ReadyPickupReservation, ReservationLoanResult, ReservationLoanContext } from './pickupService'
 
 interface Props {
   reservation: ReadyPickupReservation
   disabled: boolean
   onBusyChange: (busy: boolean) => void
   onSuccess: (result: ReservationLoanResult) => void
-  onAlreadyConverted: () => void
+  onAlreadyConverted: (context?: ReservationLoanContext) => void
+  onExpired?: (context: ReservationLoanContext) => void
 }
 
 export default function CreateReservationLoanPanel({
-  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted,
+  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted, onExpired,
 }: Props) {
   const [cardNumber, setCardNumber] = useState('')
   const [error, setError] = useState('')
@@ -25,18 +26,47 @@ export default function CreateReservationLoanPanel({
   const pendingRef = useRef(false)
   const [preview, setPreview] = useState<LoanDatePreview | null>(reservation.dates ?? null)
   const [dateError, setDateError] = useState(reservation.dateError ?? '')
+  const [currentContext, setCurrentContext] = useState<ReservationLoanContext | null>(null)
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const expiryAnchor = useRef(performance.now())
+  const expiryCheckAttempted = useRef(false)
+  const effective = currentContext ? { ...reservation, ...currentContext } : reservation
+  const expired = isPickupExpired(effective, elapsedMs)
+
+  function acceptContext(context: ReservationLoanContext) {
+    expiryAnchor.current = performance.now()
+    setElapsedMs(0)
+    setCurrentContext(context)
+    if (!context.expired) expiryCheckAttempted.current = false
+    setPreview(context.dates ?? null)
+    setDateError(context.dateError ?? '')
+    if (context.converted) onAlreadyConverted(context)
+    if (context.expired) onExpired?.(context)
+  }
+
+  useEffect(() => {
+    if (!effective.checkedAt || effective.expired || effective.converted || result) return
+    const timer = window.setInterval(() => setElapsedMs(performance.now() - expiryAnchor.current), 1000)
+    return () => window.clearInterval(timer)
+  }, [effective.checkedAt, effective.expired, effective.converted, result])
+
+  useEffect(() => {
+    // If the view stays open past the deadline, persist expiry/release through the explicit check.
+    if (expired && !effective.expired && !disabled && !submitting && !result && !expiryCheckAttempted.current) {
+      expiryCheckAttempted.current = true
+      void refreshPreview()
+    }
+  }, [expired, effective.expired, disabled, submitting, result])
 
   async function refreshPreview() {
-    if (pendingRef.current || disabled || reservation.converted || result) return
+    if (pendingRef.current || disabled || effective.converted || result) return
     pendingRef.current = true
     setSubmitting(true)
     onBusyChange(true)
     setError('')
     try {
       const context = await pickupService.loanContext(reservation.id)
-      setPreview(context.dates)
-      setDateError(context.dateError ?? '')
-      if (context.converted) onAlreadyConverted()
+      acceptContext(context)
     } catch (e: unknown) {
       setPreview(null)
       setError(getApiErrorMessage(e, 'Không tải được hạn trả. Vui lòng thử lại.'))
@@ -49,7 +79,12 @@ export default function CreateReservationLoanPanel({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (pendingRef.current || disabled || reservation.converted || result) return
+    if (pendingRef.current || disabled || effective.converted || result) return
+    if (isPickupExpired(effective, performance.now() - expiryAnchor.current)) {
+      setElapsedMs(performance.now() - expiryAnchor.current)
+      setError(pickupExpiredMessage)
+      return
+    }
     const confirmed = cardNumber.trim()
     if (!confirmed || confirmed.length > 100) {
       setError('Vui lòng nhập mã thẻ hợp lệ, tối đa 100 ký tự.')
@@ -72,9 +107,7 @@ export default function CreateReservationLoanPanel({
       // A lost response/repeated request must not offer another conversion.
       try {
         const current = await pickupService.loanContext(reservation.id)
-        setPreview(current.dates ?? null)
-        setDateError(current.dateError ?? '')
-        if (current.converted) onAlreadyConverted()
+        acceptContext(current)
       } catch {
         // Preserve the original error. The server still guards subsequent retries.
       }
@@ -108,9 +141,21 @@ export default function CreateReservationLoanPanel({
         <div><dt>Ngày mượn</dt><dd>{formatLoanDate(result.dates.borrowDate)}</dd></div>
         <div><dt>Hạn trả đã lưu (giờ Việt Nam)</dt><dd className="font-semibold">{formatPickupDate(result.dates.dueAt)}</dd></div>
       </dl>
-    </div> : reservation.converted ? <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
-      Đơn này đã chuyển thành phiếu mượn{reservation.loanNumber ? <strong className="break-all"> {reservation.loanNumber}</strong> : ''}. Không thể lập thêm phiếu.
-    </p> : <form className="mt-4 max-w-lg space-y-4" onSubmit={(event) => { void submit(event) }} noValidate>
+    </div> : effective.converted ? <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+      Đơn này đã chuyển thành phiếu mượn{effective.loanNumber ? <strong className="break-all"> {effective.loanNumber}</strong> : ''}. Không thể lập thêm phiếu.
+    </p> : expired ? <div className="mt-4 space-y-3">
+      <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        {effective.pickupMessage || pickupExpiredMessage}
+      </p>
+      {effective.copyStatus === 'AVAILABLE' && <p className="text-sm text-slate-600">
+        Bản sao đã được giải phóng về Sẵn sàng. Bạn đọc cần tạo đơn đặt giữ mới.
+      </p>}
+      <div className="flex flex-wrap gap-3">
+        <Button type="button" disabled>Xác nhận và lập phiếu mượn</Button>
+        {error && !effective.expired && <Button type="button" variant="secondary" disabled={disabled || submitting}
+          onClick={() => { void refreshPreview() }}>Kiểm tra lại trạng thái</Button>}
+      </div>
+    </div> : <form className="mt-4 max-w-lg space-y-4" onSubmit={(event) => { void submit(event) }} noValidate>
       <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
         <h5 className="font-semibold text-slate-900">Ngày mượn và hạn trả dự kiến</h5>
         {preview && <dl className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -134,7 +179,7 @@ export default function CreateReservationLoanPanel({
         value={cardNumber} disabled={disabled || submitting}
         onChange={(event) => { setCardNumber(event.target.value); setError('') }} />
       <Button type="submit" loading={submitting}
-        disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError}>
+        disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage}>
         Xác nhận và lập phiếu mượn
       </Button>
     </form>}

@@ -8,7 +8,7 @@ export interface ReadyPickupReservation {
   barcode: string | null
   readerId: number
   readerName: string
-  status: 'READY_FOR_PICKUP'
+  status: 'READY_FOR_PICKUP' | 'FULFILLED' | 'EXPIRED'
   reservedAt: string
   pickupDeadline: string | null
   cardNumber?: string | null
@@ -16,6 +16,10 @@ export interface ReadyPickupReservation {
   loanNumber?: string | null
   dates?: LoanDatePreview | null
   dateError?: string | null
+  expired?: boolean
+  checkedAt?: string | null
+  pickupMessage?: string | null
+  copyStatus?: string | null
 }
 
 export interface LoanDatePreview {
@@ -35,6 +39,13 @@ export interface ReservationLoanContext {
   loanNumber: string | null
   dates: LoanDatePreview | null
   dateError: string | null
+  status: ReadyPickupReservation['status']
+  expired: boolean
+  pickupDeadline: string | null
+  checkedAt: string
+  pickupMessage: string | null
+  copyStatus: string | null
+  reservation: ReadyPickupReservation
 }
 
 export interface ReservationLoanResult {
@@ -55,7 +66,7 @@ export interface ReservationLoanResult {
 
 export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED'
 
-export const reservationFilterStatuses = ['PENDING', 'READY_FOR_PICKUP', 'FULFILLED', 'CANCELLED'] as const
+export const reservationFilterStatuses = ['PENDING', 'READY_FOR_PICKUP', 'FULFILLED', 'CANCELLED', 'EXPIRED'] as const
 export type ReservationStatusFilter = typeof reservationFilterStatuses[number] | ''
 
 export interface ReservationCancellationAudit {
@@ -131,6 +142,18 @@ export function formatPickupDate(value: string | null, includeSeconds = false): 
   }).format(date)
 }
 
+export const pickupExpiredMessage = 'Đơn đặt giữ đã quá hạn nhận. Không thể lập phiếu mượn. Vui lòng yêu cầu bạn đọc đặt giữ lại.'
+
+// Use the server's checked time plus elapsed time; the computer's wall clock is not authoritative.
+export function isPickupExpired(reservation: Pick<ReadyPickupReservation, 'status' | 'expired' | 'pickupDeadline' | 'checkedAt'>, elapsedMs = 0): boolean {
+  if (reservation.status === 'FULFILLED') return false
+  if (reservation.expired || reservation.status === 'EXPIRED') return true
+  if (!reservation.pickupDeadline || !reservation.checkedAt) return false
+  const deadline = Date.parse(reservation.pickupDeadline)
+  const checked = Date.parse(reservation.checkedAt)
+  return Number.isFinite(deadline) && Number.isFinite(checked) && checked + Math.max(0, elapsedMs) > deadline
+}
+
 export const pickupService = {
   createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview): Promise<ReservationLoanResult> => {
     const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, {
@@ -140,7 +163,7 @@ export const pickupService = {
     return response.data
   },
   loanContext: async (id: number): Promise<ReservationLoanContext> => {
-    const response = await apiClient.get<ReservationLoanContext>(`/reservations/${id}/loan-context`)
+    const response = await apiClient.post<ReservationLoanContext>(`/reservations/${id}/pickup-check`)
     return response.data
   },
   cancel: async (id: number, reason: string): Promise<CancelReservationResult> => {
@@ -158,10 +181,10 @@ export const pickupService = {
     return response.data
   },
   detail: async (id: number): Promise<ReadyPickupReservation> => {
-    const [response, context] = await Promise.all([
-      apiClient.get<ReadyPickupReservation>(`/reservations/ready-for-pickup/${id}`),
-      pickupService.loanContext(id),
-    ])
-    return { ...response.data, ...context }
+    const context = await pickupService.loanContext(id)
+    if (!context.reservation || context.reservation.id !== id) {
+      throw new Error('Không tải được thông tin đơn đặt giữ. Vui lòng thử lại.')
+    }
+    return { ...context.reservation, ...context }
   },
 }

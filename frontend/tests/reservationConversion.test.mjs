@@ -39,7 +39,7 @@ function find(element, predicate) {
   return null
 }
 
-async function detailFixture({ error, role = 'LIBRARIAN' } = {}) {
+async function detailFixture({ error, role = 'LIBRARIAN', overrides = {} } = {}) {
   const states = []
   const effects = []
   let cursor = 0
@@ -74,7 +74,7 @@ async function detailFixture({ error, role = 'LIBRARIAN' } = {}) {
     './CreateReservationLoanPanel': { __esModule: true, default: LoanPanel },
     './CancelReservationPanel': { __esModule: true, default: () => null, CancellationNotice: () => null },
     './pickupService': { ...serviceModule, pickupService: {
-      async detail() { if (error) throw error; return { ...row } },
+      async detail() { if (error) throw error; return { ...row, ...overrides } },
     } },
   }).default
   function render() {
@@ -143,4 +143,27 @@ test('existing history labels and cancellation rules recognize fulfilled reserva
   assert.equal(serviceModule.reservationStatusLabel('FULFILLED'), 'Đã chuyển thành phiếu mượn')
   assert.equal(serviceModule.canCancelReservation('FULFILLED'), false)
   assert.ok(serviceModule.reservationFilterStatuses.includes('FULFILLED'))
+})
+
+
+test('persisted expiry updates status, available copy and history immediately', async () => {
+  const f = await detailFixture()
+  f.loan().props.onExpired({ status: 'EXPIRED', expired: true, copyStatus: 'AVAILABLE' })
+  const html = renderToStaticMarkup(f.render())
+  assert.match(html, /Hết hạn nhận/)
+  assert.match(html, /Sẵn sàng/)
+  assert.doesNotMatch(html, /Huỷ đơn/)
+  assert.match(html, /href="\/books\/7\/reservations"/)
+  assert.match(html, /Đơn hết hạn không còn trong danh sách Chờ nhận/)
+})
+
+test('reloading an expired order shows its summary and keeps cancellation hidden', async () => {
+  const f = await detailFixture({ overrides: { status: 'EXPIRED', expired: true, copyStatus: 'AVAILABLE' } })
+  const html = renderToStaticMarkup(f.render())
+  assert.match(html, /Hết hạn nhận/)
+  assert.match(html, /LIB-031/)
+  assert.doesNotMatch(html, /Huỷ đơn/)
+  assert.equal(f.loan().props.reservation.expired, true)
+  assert.ok(serviceModule.reservationFilterStatuses.includes('EXPIRED'))
+  assert.equal(serviceModule.canCancelReservation('EXPIRED'), false)
 })

@@ -34,7 +34,7 @@ import java.util.Set;
 @Service
 public class BookReservationService {
     private static final Set<String> QUEUE_FILTER_STATUSES = Set.of(
-            "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED");
+            "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", "EXPIRED");
     private static final int MAX_ACTIVE_RESERVATIONS = 3;
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String RESERVATION_ALREADY_BORROWED_MESSAGE =
@@ -276,7 +276,7 @@ public class BookReservationService {
         if (filter != null && !QUEUE_FILTER_STATUSES.contains(filter)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_STATUS",
                     "Trạng thái lọc không hợp lệ. Chọn Đang xếp hàng, Đang chờ nhận, "
-                            + "Đã chuyển thành phiếu mượn hoặc Đã huỷ.");
+                            + "Đã chuyển thành phiếu mượn, Đã huỷ hoặc Hết hạn nhận.");
         }
         Book book = books.findById(bookId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));

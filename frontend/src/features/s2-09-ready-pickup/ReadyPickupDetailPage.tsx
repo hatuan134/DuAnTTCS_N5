@@ -76,10 +76,10 @@ function ReadyPickupDetail({ id }: { id: number }) {
       {!loading && !error && item && item.id === id && <Card className="p-6">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
-          <StatusBadge status={item.converted ? 'FULFILLED' : item.status}
-            label={reservationStatusLabel(item.converted ? 'FULFILLED' : item.status)} />
+          <StatusBadge status={item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status}
+            label={reservationStatusLabel(item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status)} />
         </div>
-        {!item.converted && <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan}
+        {!item.converted && !item.expired && item.status !== 'EXPIRED' && <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan}
           aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>}
         <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
           <div>
@@ -96,7 +96,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">Bạn đọc được giữ sách</dt>
+            <dt className="text-slate-500">Bạn đọc của đơn đặt giữ</dt>
             <dd className="mt-1 font-medium text-slate-900">{item.readerName}</dd>
           </div>
           <div>
@@ -107,13 +107,16 @@ function ReadyPickupDetail({ id }: { id: number }) {
             <dt className="text-slate-500">Thời điểm đặt giữ (giờ Việt Nam)</dt>
             <dd className="mt-1 font-medium text-slate-900">{formatPickupDate(item.reservedAt)}</dd>
           </div>
+          {item.copyStatus && <div><dt className="text-slate-500">Trạng thái bản sao</dt>
+            <dd className="mt-1"><StatusBadge status={item.copyStatus} /></dd></div>}
         </dl>
         <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
           onBusyChange={setCreatingLoan}
-          onSuccess={(result) => setItem((current) => current ? { ...current, converted: true, loanNumber: result.loanNumber } : current)}
-          onAlreadyConverted={() => setItem((current) => current ? { ...current, converted: true } : current)} />
-        {item.converted && <p className="mt-4 text-sm text-slate-700">
-          Đơn đã được loại khỏi danh sách Chờ nhận.{' '}
+          onExpired={(context) => setItem((current) => current ? { ...current, ...context, status: 'EXPIRED' } : current)}
+          onSuccess={(result) => setItem((current) => current ? { ...current, status: 'FULFILLED', converted: true, copyStatus: 'BORROWED', loanNumber: result.loanNumber } : current)}
+          onAlreadyConverted={(context) => setItem((current) => current ? { ...current, ...context, converted: true } : current)} />
+        {(item.converted || item.expired || item.status === 'EXPIRED') && <p className="mt-4 text-sm text-slate-700">
+          {item.converted ? 'Đơn đã được loại khỏi danh sách Chờ nhận.' : 'Đơn hết hạn không còn trong danh sách Chờ nhận.'}{' '}
           <Link to={`/books/${item.bookId}/reservations`} className="font-medium text-blue-700 hover:underline">
             Xem lịch sử đặt giữ của đầu sách
           </Link>

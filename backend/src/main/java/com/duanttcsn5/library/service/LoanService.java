@@ -3,6 +3,10 @@ package com.duanttcsn5.library.service;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
+import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
+import com.duanttcsn5.library.entity.BookCopy;
+import com.duanttcsn5.library.exception.ReservationPickupExpiredException;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.duanttcsn5.library.entity.BookReservation;
 import com.duanttcsn5.library.entity.LibraryCard;
 import com.duanttcsn5.library.exception.ApiException;
@@ -18,6 +22,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -34,10 +39,21 @@ public class LoanService {
     private final UserRepository users;
     private final LoanRepository loans;
     private final LibraryConfigurationService configuration;
+    private final Clock clock;
+    private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final String MISSING_DEADLINE =
+            "Đơn chưa có hạn nhận hợp lệ. Vui lòng đối chiếu dữ liệu trước khi lập phiếu mượn.";
 
+    @Autowired
     public LoanService(BookRepository books, BookReservationRepository reservations,
                        BookCopyRepository copies, LibraryCardRepository cards,
                        UserRepository users, LoanRepository loans, LibraryConfigurationService configuration) {
+        this(books, reservations, copies, cards, users, loans, configuration, Clock.system(LIBRARY_ZONE));
+    }
+
+    public LoanService(BookRepository books, BookReservationRepository reservations,
+                       BookCopyRepository copies, LibraryCardRepository cards,
+                       UserRepository users, LoanRepository loans, LibraryConfigurationService configuration, Clock clock) {
         this.books = books;
         this.reservations = reservations;
         this.copies = copies;
@@ -45,6 +61,7 @@ public class LoanService {
         this.users = users;
         this.loans = loans;
         this.configuration = configuration;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -53,38 +70,91 @@ public class LoanService {
         BookReservation reservation = reservations.findForLoanContext(reservationId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "READY_RESERVATION_NOT_FOUND",
                         "Không tìm thấy đơn đặt giữ đang chờ nhận. Đơn có thể đã đổi trạng thái."));
+        return context(reservation, now());
+    }
+
+    /** Explicit write check used when staff opens/refreshes the confirmation view. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public ReservationLoanContextResponse checkPickup(Long reservationId, Long actorId) {
+        requireStaff(actorId);
+        validateId(reservationId);
+        Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(this::notFound);
+        books.findForReservation(bookId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        BookReservation reservation = reservations.findForCancellation(reservationId).orElseThrow(this::notFound);
+        if (!bookId.equals(reservation.getBook().getId())) throw new ApiException(HttpStatus.CONFLICT,
+                "RESERVATION_CHANGED", "Đơn đã thay đổi. Vui lòng tải lại.");
+        if (!Set.of("READY_FOR_PICKUP", "FULFILLED", "EXPIRED").contains(reservation.getStatus())) throw notFound();
+        if ("READY_FOR_PICKUP".equals(reservation.getStatus()) && !converted(reservation)
+                && reservation.getPickupDeadline() != null) {
+            // Sample time after waiting for all relevant locks, not when the request arrived.
+            BookCopy copy = reservation.getBookCopy() == null ? null : lockedHeldCopy(reservation);
+            OffsetDateTime checkedAt = now();
+            if (checkedAt.isAfter(reservation.getPickupDeadline())) expire(reservation, copy);
+            return context(reservation, checkedAt);
+        }
+        return context(reservation, now());
+    }
+
+    private ReservationLoanContextResponse context(BookReservation reservation, OffsetDateTime checkedAt) {
         LibraryCard card = cards.findByUserIdWithDetails(reservation.getReader().getId()).orElse(null);
         String cardNumber = card == null ? null : card.getCardNumber();
-        String loanNumber = loans.findNumberByReservation(reservationId).orElse(null);
-        boolean converted = "FULFILLED".equals(reservation.getStatus())
-                || loanNumber != null || reservations.hasLoanLinkedToReservation(reservationId);
-        if (converted) return new ReservationLoanContextResponse(cardNumber, true, loanNumber, null, null);
-        try {
-            return new ReservationLoanContextResponse(cardNumber, false, null, calculateDates(card, now()), null);
-        } catch (ApiException error) {
-            // Keep the detail/cancellation view usable when configuration is missing.
-            return new ReservationLoanContextResponse(cardNumber, false, null, null, error.getMessage());
+        String loanNumber = loans.findNumberByReservation(reservation.getId()).orElse(null);
+        boolean converted = "FULFILLED".equals(reservation.getStatus()) || loanNumber != null
+                || reservations.hasLoanLinkedToReservation(reservation.getId());
+        boolean expired = !converted && ("EXPIRED".equals(reservation.getStatus())
+                || ("READY_FOR_PICKUP".equals(reservation.getStatus()) && reservation.getPickupDeadline() != null
+                    && checkedAt.isAfter(reservation.getPickupDeadline())));
+        String message = expired ? ReservationPickupExpiredException.MESSAGE
+                : (!converted && reservation.getPickupDeadline() == null ? MISSING_DEADLINE : null);
+        LoanDatePreviewResponse dates = null;
+        String dateError = message;
+        if (!converted && !expired && message == null) {
+            try { dates = calculateDates(card, checkedAt); }
+            catch (ApiException error) { dateError = error.getMessage(); }
+        }
+        BookCopy copy = reservation.getBookCopy();
+        var summary = new ReadyForPickupReservationResponse(reservation.getId(), reservation.getBook().getId(),
+                reservation.getBook().getTitle(), copy == null ? null : copy.getId(), copy == null ? null : copy.getBarcode(),
+                reservation.getReader().getId(), reservation.getReader().getFullName(), reservation.getStatus(),
+                reservation.getReservedAt(), reservation.getPickupDeadline());
+        return new ReservationLoanContextResponse(cardNumber, converted, loanNumber, dates, dateError,
+                reservation.getStatus(), expired, reservation.getPickupDeadline(), checkedAt, message,
+                copy == null ? null : copy.getStatus(), summary);
+    }
+
+    private boolean converted(BookReservation reservation) {
+        return "FULFILLED".equals(reservation.getStatus())
+                || loans.findNumberByReservation(reservation.getId()).isPresent()
+                || reservations.hasLoanLinkedToReservation(reservation.getId());
+    }
+
+    private BookCopy lockedHeldCopy(BookReservation reservation) {
+        BookCopy copy = copies.findForStatusChange(reservation.getBookCopy().getId()).orElseThrow(this::invalidCopy);
+        if (!reservation.getBook().getId().equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
+                || copies.hasUnreturnedLoan(copy.getId())) throw invalidCopy();
+        return copy;
+    }
+
+    private void expire(BookReservation reservation, BookCopy copy) {
+        // Policy chosen for S3-01.4: release to AVAILABLE; do not allocate the next waiter.
+        reservation.setStatus("EXPIRED");
+        reservations.saveAndFlush(reservation);
+        if (copy != null) {
+            copy.releaseReservationHold();
+            copies.saveAndFlush(copy);
         }
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber) {
         return createFromReservation(reservationId, actorId, cardNumber, null, null, null);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
             LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
-        if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
-                "Vui lòng đăng nhập để lập phiếu mượn.");
-        var actor = users.findById(actorId).orElseThrow(() ->
-                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
-        if (actor.getRole() == null || actor.getRole().getCode() == null
-                || !Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN").contains(actor.getRole().getCode())
-                || !"ACTIVE".equals(actor.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "STAFF_ROLE_REQUIRED",
-                    "Chỉ nhân viên thư viện đang hoạt động mới được lập phiếu mượn.");
-        }
+        requireStaff(actorId);
         validateId(reservationId);
         String confirmed = cardNumber == null ? "" : cardNumber.strip();
         if (confirmed.isBlank() || confirmed.length() > 100
@@ -106,9 +176,12 @@ public class LoanService {
             throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_ALREADY_CONVERTED",
                     "Đơn đặt giữ này đã chuyển thành phiếu mượn. Không thể lập thêm phiếu.");
         }
+        if ("EXPIRED".equals(reservation.getStatus())) throw new ReservationPickupExpiredException(reservationId);
         if (!"READY_FOR_PICKUP".equals(reservation.getStatus())) throw new ApiException(HttpStatus.CONFLICT,
                 "RESERVATION_NOT_READY", "Chỉ được lập phiếu từ đơn đặt giữ đang Chờ nhận.");
 
+        if (reservation.getPickupDeadline() == null) throw new ApiException(HttpStatus.CONFLICT,
+                "RESERVATION_PICKUP_DEADLINE_MISSING", MISSING_DEADLINE);
         Long readerId = reservation.getReader().getId();
         var card = cards.findByUserIdWithDetails(readerId).orElseThrow(() ->
                 new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_REQUIRED",
@@ -116,11 +189,14 @@ public class LoanService {
         if (!confirmed.equals(card.getCardNumber())) throw new ApiException(HttpStatus.BAD_REQUEST,
                 "RESERVATION_CARD_MISMATCH", "Mã thẻ không đúng với bạn đọc sở hữu đơn đặt giữ.");
         if (reservation.getBookCopy() == null) throw invalidCopy();
-        var copy = copies.findForStatusChange(reservation.getBookCopy().getId()).orElseThrow(this::invalidCopy);
-        if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
-                || copies.hasUnreturnedLoan(copy.getId())) throw invalidCopy();
+        var copy = lockedHeldCopy(reservation);
 
         OffsetDateTime borrowedAt = now();
+        if (borrowedAt.isAfter(reservation.getPickupDeadline())) {
+            expire(reservation, copy);
+            // Commit only the intended EXPIRED/AVAILABLE transition, then return HTTP 409.
+            throw new ReservationPickupExpiredException(reservationId);
+        }
         LoanDatePreviewResponse dates = calculateDates(card, borrowedAt);
         if ((expectedBorrowDate != null && !expectedBorrowDate.equals(dates.borrowDate()))
                 || (expectedDueAt != null && !expectedDueAt.isEqual(dates.dueAt()))
@@ -141,8 +217,21 @@ public class LoanService {
                 borrowedAt, "Đã lập phiếu mượn thành công từ đơn đặt giữ.", dates);
     }
 
+    private void requireStaff(Long actorId) {
+        if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
+                "Vui lòng đăng nhập để lập phiếu mượn.");
+        var actor = users.findById(actorId).orElseThrow(() ->
+                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (actor.getRole() == null || actor.getRole().getCode() == null
+                || !Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN").contains(actor.getRole().getCode())
+                || !"ACTIVE".equals(actor.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "STAFF_ROLE_REQUIRED",
+                    "Chỉ nhân viên thư viện đang hoạt động mới được lập phiếu mượn.");
+        }
+    }
+
     private OffsetDateTime now() {
-        return OffsetDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).truncatedTo(ChronoUnit.MICROS);
+        return OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
     }
 
     private LoanDatePreviewResponse calculateDates(LibraryCard card, OffsetDateTime borrowedAt) {

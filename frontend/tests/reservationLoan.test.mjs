@@ -9,13 +9,15 @@ import { renderToStaticMarkup } from 'react-dom/server'
 const require = createRequire(import.meta.url)
 const root = new URL('../src/features/s2-09-ready-pickup/', import.meta.url)
 const react = require('react')
+let clockMs = 0
+let timerCallbacks = []
 
 function load(file, imports) {
   const source = readFileSync(new URL(file, root), 'utf8')
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = { exports: {}, require: (name) => imports[name] ?? require(name) }
+  const context = { exports: {}, performance: { now: () => clockMs }, window: { setInterval: (callback) => { timerCallbacks.push(callback); return timerCallbacks.length }, clearInterval() {} }, require: (name) => imports[name] ?? require(name) }
   vm.runInNewContext(compiled, context)
   return context.exports
 }
@@ -23,7 +25,12 @@ function load(file, imports) {
 function serviceFixture() {
   const requests = []
   const apiClient = {
-    async post(url, body) { requests.push({ url, body }); return { data: { id: 81, barcode: 'LIB-031' } } },
+    async post(url, body) {
+      requests.push({ url, body })
+      return { data: url.endsWith('pickup-check')
+        ? { cardNumber: 'TV-0012', converted: true, loanNumber: 'PM-OLD', reservation: { id: 21, readerId: 12, barcode: 'LIB-031' } }
+        : { id: 81, barcode: 'LIB-031' } }
+    },
     async get(url) {
       requests.push({ url })
       return { data: url.endsWith('loan-context')
@@ -51,7 +58,7 @@ test('detail combines existing book/copy data with persisted card and conversion
   assert.equal(row.converted, true)
   assert.equal(row.loanNumber, 'PM-OLD')
   assert.deepEqual(f.requests.map((r) => r.url).sort(), [
-    '/reservations/21/loan-context', '/reservations/ready-for-pickup/21',
+    '/reservations/21/pickup-check',
   ].sort())
 })
 
@@ -67,10 +74,19 @@ const reservation = {
 }
 
 function panelFixture({ card = '', api, overrides = {} } = {}) {
+  clockMs = 0
+  timerCallbacks = []
+  const effects = []
   const states = []
   let cursor = 0
   const hooks = {
     ...react,
+    useEffect(callback, dependencies) {
+      const index = cursor++
+      const previous = states[index]
+      if (!previous || dependencies.some((value, i) => value !== previous[i])) effects.push(callback)
+      states[index] = dependencies
+    },
     useState(initial) {
       const index = cursor++
       if (!(index in states)) states[index] = index === 0 ? card : initial
@@ -86,6 +102,7 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
   const busy = []
   const successes = []
   let alreadyConverted = 0
+  const expiries = []
   const service = api ?? {
     async createLoan(id, number) { calls.push([id, number]); return { id: 81, loanNumber: 'PM-NEW', readerName: 'Nguyễn Văn An', cardNumber: number, bookTitle: 'Mắt biếc', barcode: 'LIB-031', borrowedAt: '2026-10-07T10:00:00Z', message: 'Đã lập phiếu mượn thành công.', dates: loanDates } },
     async loanContext() { return { converted: false, dates: loanDates, dateError: null } },
@@ -96,16 +113,17 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
     '../../components/ui/StatusBadge': load('../../components/ui/StatusBadge.tsx', {}),
     '../../components/ui/Input': { __esModule: true, default: (props) => react.createElement('label', {}, props.label, react.createElement('input', { id: props.id, required: props.required, value: props.value, onChange: props.onChange, disabled: props.disabled })) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (error) => error.message },
-    './pickupService': { pickupService: service, formatPickupDate: (v) => v, formatLoanDate: (v) => v },
+    './pickupService': { ...serviceFixture(), pickupService: service, formatPickupDate: (v) => v, formatLoanDate: (v) => v },
   }).default
   function render() {
     cursor = 0
     return panel({ reservation: { ...reservation, ...overrides }, disabled: false,
       onBusyChange: (value) => busy.push(value), onSuccess: (value) => successes.push(value),
       onAlreadyConverted: () => { alreadyConverted++ },
+      onExpired: (context) => expiries.push(context),
     })
   }
-  return { render, states, calls, busy, successes, get alreadyConverted() { return alreadyConverted } }
+  return { render, states, calls, busy, successes, expiries, runEffects: () => { for (const effect of effects.splice(0)) effect() }, get alreadyConverted() { return alreadyConverted } }
 }
 
 function find(element, type) {
@@ -241,4 +259,108 @@ test('changed preview refreshes dates and requires another confirmation before c
 test('date-only formatting keeps the server Vietnam date without timezone parsing', () => {
   const f = serviceFixture()
   assert.equal(f.formatLoanDate('2026-10-07'), '07/10/2026')
+})
+
+const pickupBoundary = {
+  status: 'READY_FOR_PICKUP', pickupDeadline: '2026-10-07T17:00:00+07:00', checkedAt: '2026-10-07T16:59:59+07:00',
+}
+
+test('server time plus elapsed duration distinguishes before, exactly at and after the deadline', () => {
+  const { isPickupExpired } = serviceFixture()
+  assert.equal(isPickupExpired(pickupBoundary, 999), false)
+  assert.equal(isPickupExpired(pickupBoundary, 1000), false)
+  assert.equal(isPickupExpired(pickupBoundary, 1001), true)
+  assert.equal(isPickupExpired({ ...pickupBoundary, checkedAt: '2026-10-07T10:00:00Z' }), false)
+  assert.equal(isPickupExpired({ ...pickupBoundary, checkedAt: '2026-10-07T10:00:00.001Z' }), true)
+})
+
+test('explicit expired status blocks action and fulfilled status takes precedence over an old deadline', () => {
+  const { isPickupExpired } = serviceFixture()
+  assert.equal(isPickupExpired({ ...pickupBoundary, status: 'EXPIRED' }), true)
+  assert.equal(isPickupExpired({ ...pickupBoundary, expired: true }), true)
+  assert.equal(isPickupExpired({ ...pickupBoundary, status: 'FULFILLED' }, 99999), false)
+  assert.equal(isPickupExpired({ ...pickupBoundary, pickupDeadline: null }), false)
+})
+
+test('opening an expired order disables confirmation and asks the reader to reserve again', () => {
+  const f = panelFixture({ overrides: { ...pickupBoundary, status: 'EXPIRED', expired: true, copyStatus: 'AVAILABLE' } })
+  const tree = f.render()
+  assert.equal(find(tree, 'form'), null)
+  const html = renderToStaticMarkup(tree)
+  assert.match(html, /quá hạn nhận/)
+  assert.match(html, /đặt giữ lại/)
+  assert.match(html, /Sẵn sàng/)
+  assert.match(html, /disabled=""[^>]*>Xác nhận và lập phiếu mượn/)
+  assert.equal(f.calls.length, 0)
+})
+
+test('clicking an old form after deadline sends no loan request', async () => {
+  const f = panelFixture({ card: 'TV-0012', overrides: pickupBoundary })
+  const form = find(f.render(), 'form')
+  clockMs = 1001
+  form.props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(f.calls.length, 0)
+  assert.equal(find(f.render(), 'form'), null)
+  assert.match(renderToStaticMarkup(f.render()), /quá hạn nhận/)
+})
+
+test('a backend expiry conflict refreshes persisted state and locks further conversion', async () => {
+  let calls = 0
+  const f = panelFixture({ card: 'TV-0012', overrides: pickupBoundary, api: {
+    async createLoan() { calls++; throw new Error('Đơn đặt giữ đã quá hạn nhận.') },
+    async loanContext() { return { status: 'EXPIRED', expired: true, copyStatus: 'AVAILABLE', pickupMessage: 'Vui lòng đặt giữ lại.' } },
+  } })
+  find(f.render(), 'form').props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(calls, 1)
+  assert.equal(f.expiries.length, 1)
+  assert.equal(f.expiries[0].copyStatus, 'AVAILABLE')
+  assert.equal(find(f.render(), 'form'), null)
+  assert.equal(f.successes.length, 0)
+})
+
+test('lost conversion response renders recovered loan number in the panel itself', async () => {
+  const f = panelFixture({ card: 'TV-0012', api: {
+    async createLoan() { throw new Error('Mất kết nối') },
+    async loanContext() { return { converted: true, status: 'FULFILLED', loanNumber: 'PM-SAVED' } },
+  } })
+  find(f.render(), 'form').props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(find(f.render(), 'form'), null)
+  assert.match(renderToStaticMarkup(f.render()), /PM-SAVED/)
+})
+
+
+test('an open confirmation view persists expiry when server time plus elapsed time passes the deadline', async () => {
+  let checks = 0
+  const f = panelFixture({ overrides: pickupBoundary, api: {
+    async createLoan() { throw new Error('Must not create a loan') },
+    async loanContext() { checks++; return { ...pickupBoundary, expired: true, status: 'EXPIRED', copyStatus: 'AVAILABLE' } },
+  } })
+  f.render(); f.runEffects()
+  assert.equal(checks, 0)
+  clockMs = 1001
+  timerCallbacks[0]()
+  f.render(); f.runEffects()
+  await settle()
+  assert.equal(checks, 1)
+  assert.equal(f.expiries.length, 1)
+  assert.equal(find(f.render(), 'form'), null)
+})
+
+test('a failed automatic expiry check keeps confirmation locked and waits for manual retry', async () => {
+  let checks = 0
+  const f = panelFixture({ overrides: pickupBoundary, api: {
+    async createLoan() { throw new Error('Must not create a loan') },
+    async loanContext() { checks++; throw new Error('Mất kết nối') },
+  } })
+  f.render(); f.runEffects()
+  clockMs = 1001; timerCallbacks[0]()
+  f.render(); f.runEffects(); await settle()
+  f.render(); f.runEffects(); await settle()
+  f.render(); f.runEffects(); await settle()
+  assert.equal(checks, 1)
+  assert.equal(find(f.render(), 'form'), null)
+  assert.match(renderToStaticMarkup(f.render()), /Kiểm tra lại trạng thái/)
 })
