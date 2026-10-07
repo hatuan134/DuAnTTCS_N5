@@ -12,6 +12,10 @@ public interface LibraryCardRepository extends JpaRepository<LibraryCard, Long> 
 
     boolean existsByCardNumber(String cardNumber);
 
+    @Query("select lc from LibraryCard lc join fetch lc.user u join fetch u.role "
+            + "join fetch lc.cardType ct where lc.cardNumber = :cardNumber")
+    Optional<LibraryCard> findByCardNumberWithDetails(@Param("cardNumber") String cardNumber);
+
     boolean existsByUser_Id(Long userId);
 
     @Query("select lc from LibraryCard lc join fetch lc.user u join fetch lc.cardType ct order by lc.createdAt desc")

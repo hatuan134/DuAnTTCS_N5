@@ -16,6 +16,17 @@ public class LoanRepository {
 
     public LoanRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    /** Count outstanding copies, including overdue ones, across all of this reader's loans. */
+    public long countUnreturnedBooksForReader(Long readerId) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(li.id)
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NULL
+                """, Long.class, readerId);
+        return count == null ? 0 : count;
+    }
+
     public Optional<String> findNumberByReservation(Long reservationId) {
         return jdbc.query("SELECT loan_number FROM loans WHERE reservation_id = ?",
                 (rs, index) -> rs.getString("loan_number"), reservationId).stream().findFirst();

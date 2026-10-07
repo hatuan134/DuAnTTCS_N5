@@ -1,5 +1,7 @@
 package com.duanttcsn5.library.controller;
 
+import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import java.util.List;
@@ -51,6 +53,13 @@ public class LoanController {
     @GetMapping("/loans")
     public ResponseEntity<List<LoanSummaryResponse>> listLoans(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.listLoans(principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/reader-eligibility")
+    public ResponseEntity<ReaderLoanEligibilityResponse> readerEligibility(
+            @RequestParam(defaultValue = "") String cardNumber,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.readerEligibility(cardNumber, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/{loanId}")
