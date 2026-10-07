@@ -3,6 +3,13 @@ package com.duanttcsn5.library.service;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
 import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
+import com.duanttcsn5.library.dto.loan.CreateDirectLoanRequest;
+import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.HashSet;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
@@ -23,6 +30,7 @@ import com.duanttcsn5.library.repository.LibraryCardRepository;
 import com.duanttcsn5.library.repository.LoanRepository;
 import com.duanttcsn5.library.repository.UserRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -172,6 +180,9 @@ public class LoanService {
         }
 
         // Same title -> reservation -> copy lock order as reservation cancellation.
+        // Direct confirmations must see committed concurrent reservation loans when checking quota.
+        // Acquire the shared reader lock BEFORE any title lock to avoid reversing lock order.
+        loans.findReservationReaderId(reservationId).ifPresent(reservations::lockReaderForCreation);
         Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(this::notFound);
         books.findForReservation(bookId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
@@ -317,6 +328,120 @@ public class LoanService {
                 "Bản sao chưa có thông tin đầu sách. Vui lòng kiểm tra lại.");
         return new DirectLoanItemResponse(copy.getId(), copy.getBook().getId(), copy.getBarcode(),
                 copy.getBook().getTitle(), reader.remainingBooks());
+    }
+
+    /** Header, every item and the existing BORROWED trigger share one transaction. */
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
+    public DirectLoanResponse createDirectLoan(CreateDirectLoanRequest request, Long actorId) {
+        requireStaff(actorId);
+        if (request == null || request.requestId() == null || request.barcodes() == null
+                || request.barcodes().isEmpty() || request.barcodes().size() > 10) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_DRAFT",
+                    "Lượt mượn phải có mã xác nhận và từ 1 đến 10 sách.");
+        }
+        String cardNumber = request.cardNumber() == null ? "" : request.cardNumber().strip();
+        if (cardNumber.isEmpty() || cardNumber.length() > 100) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_CARD_NUMBER", "Vui lòng nhập mã thẻ từ 1 đến 100 ký tự.");
+        List<String> barcodes = new ArrayList<>();
+        Set<String> unique = new HashSet<>();
+        for (String value : request.barcodes()) {
+            String barcode = normalizeDraftBarcode(value);
+            if (!unique.add(barcode)) throw duplicateDraftBarcode();
+            barcodes.add(barcode);
+        }
+        String fingerprint = directFingerprint(cardNumber, barcodes);
+        loans.lockDirectRequest(request.requestId());
+        var previous = loans.findDirectRequest(request.requestId());
+        if (previous.isPresent()) {
+            var saved = previous.get();
+            if (!actorId.equals(saved.actorId()) || !fingerprint.equals(saved.fingerprint())) {
+                throw new ApiException(HttpStatus.CONFLICT, "DIRECT_LOAN_REQUEST_REUSED",
+                        "Mã xác nhận đã được dùng cho lượt khác. Vui lòng bắt đầu lượt mượn mới.");
+            }
+            return directResult(saved.loanId(), cardNumber, actorId);
+        }
+        Long readerId = loans.findReaderIdByCardNumber(cardNumber).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND",
+                        "Không tìm thấy bạn đọc với mã thẻ này. Vui lòng kiểm tra lại mã thẻ."));
+        reservations.lockReaderForCreation(readerId);
+        Long lockedReader = loans.lockDirectLoanCard(cardNumber).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_CHANGED",
+                        "Thông tin thẻ đã thay đổi. Vui lòng kiểm tra lại thẻ."));
+        if (!readerId.equals(lockedReader)) throw new ApiException(HttpStatus.CONFLICT,
+                "LIBRARY_CARD_CHANGED", "Thông tin bạn đọc của thẻ đã thay đổi. Vui lòng kiểm tra lại.");
+
+        List<LoanRepository.CopyIdentity> identities = new ArrayList<>();
+        for (String barcode : barcodes) identities.add(loans.findCopyIdentity(barcode).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LOAN_DRAFT_COPY_NOT_FOUND",
+                        "Không tìm thấy bản sao có mã vạch " + barcode + ". Lượt mượn chưa được ghi.")));
+        // Match reservation allocation/cancellation: sorted titles, then sorted copies.
+        // Holding titles also prevents a new hold appearing between our check and insert.
+        for (Long bookId : identities.stream().map(LoanRepository.CopyIdentity::bookId).distinct().sorted().toList()) {
+            books.findForReservation(bookId).orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                    "LOAN_DRAFT_BOOK_MISSING", "Đầu sách đã thay đổi. Vui lòng kiểm tra lại lượt mượn."));
+        }
+        List<BookCopy> lockedCopies = new ArrayList<>();
+        for (var identity : identities.stream().sorted(java.util.Comparator.comparing(
+                LoanRepository.CopyIdentity::copyId)).toList()) {
+            var copy = copies.findForStatusChange(identity.copyId()).orElseThrow(() -> new ApiException(
+                    HttpStatus.CONFLICT, "LOAN_DRAFT_COPY_NOT_FOUND", "Bản sao đã bị xóa. Lượt mượn chưa được ghi."));
+            if (copy.getBook() == null || !identity.bookId().equals(copy.getBook().getId())
+                    || !unique.contains(copy.getBarcode())) throw new ApiException(HttpStatus.CONFLICT,
+                    "LOAN_DRAFT_COPY_CHANGED", "Thông tin bản sao đã thay đổi. Vui lòng kiểm tra lại.");
+            lockedCopies.add(copy);
+        }
+
+        // Sample eligibility/time only after all lock waits; do not trust browser previews.
+        var reader = readerEligibility(cardNumber, actorId);
+        if (!reader.eligible()) throw new ApiException(HttpStatus.CONFLICT, reader.reasonCode(), reader.message());
+        if (barcodes.size() > reader.remainingBooks()) throw new ApiException(HttpStatus.CONFLICT,
+                "LOAN_DRAFT_LIMIT_EXCEEDED", "Không thể ghi lượt mượn: bạn đọc chỉ còn được mượn thêm "
+                        + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.");
+        OffsetDateTime borrowedAt = now();
+        for (BookCopy copy : lockedCopies) {
+            var hold = reservations.findEffectiveHoldForCopy(copy.getId(), borrowedAt);
+            if (hold.isPresent() && !converted(hold.get())) throw directLoanHoldConflict(hold.get(), readerId);
+            if (!"AVAILABLE".equals(copy.getStatus()) || copies.hasUnreturnedLoan(copy.getId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_COPY_NOT_AVAILABLE",
+                        "Bản sao " + copy.getBarcode() + " không còn Sẵn sàng. Lượt mượn chưa được ghi.");
+            }
+        }
+        LibraryCard card = cards.findByCardNumberWithDetails(cardNumber).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_CHANGED", "Vui lòng kiểm tra lại thẻ."));
+        var dates = calculateDates(card, borrowedAt);
+        try {
+            Long loanId = loans.insertDirect(readerId, actorId,
+                    "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT), borrowedAt,
+                    request.requestId(), fingerprint);
+            // Keep the scanned order in the loan while acquiring locks in a deterministic order.
+            for (var identity : identities) loans.insertItem(loanId, identity.copyId(), borrowedAt, dates.dueAt());
+            return directResult(loanId, cardNumber, actorId);
+        } catch (DataAccessException error) {
+            // Throw through the transactional proxy; never swallow or commit a partial write.
+            var failed = new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "DIRECT_LOAN_SAVE_FAILED",
+                    "Không thể ghi trọn vẹn lượt mượn. Toàn bộ thay đổi của lượt đã được hủy. Vui lòng thử lại.");
+            failed.initCause(error);
+            throw failed;
+        }
+    }
+
+    private DirectLoanResponse directResult(Long loanId, String cardNumber, Long actorId) {
+        return new DirectLoanResponse(loanDetail(loanId, actorId), readerEligibility(cardNumber, actorId),
+                "Đã ghi toàn bộ lượt mượn thành công. Tất cả sách trong lượt đã chuyển sang Đang mượn.");
+    }
+
+    private String directFingerprint(String cardNumber, List<String> barcodes) {
+        StringBuilder value = new StringBuilder().append(cardNumber.length()).append(':').append(cardNumber);
+        // Length prefixes make even unusual barcode characters unambiguous.
+        for (String barcode : barcodes.stream().sorted().toList()) {
+            value.append(barcode.length()).append(':').append(barcode);
+        }
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
     }
 
     private ApiException directLoanHoldConflict(BookReservation reservation, Long readerId) {

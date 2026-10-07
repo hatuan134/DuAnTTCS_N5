@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { webcrypto } from 'node:crypto'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { createRequire } from 'node:module'
@@ -12,7 +13,7 @@ function load(file, imports = {}, extra = {}) {
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = { exports: {}, require: (name) => imports[name] ?? require(name), ...extra }
+  const context = { exports: {}, crypto: webcrypto, require: (name) => imports[name] ?? require(name), ...extra }
   vm.runInNewContext(code, context)
   return context.exports
 }
@@ -27,8 +28,15 @@ function find(node, predicate) {
   if (predicate(node)) return node
   return find(node.props?.children, predicate)
 }
-function fixture({ reader = result, preview = async (_card, code) => copy(code), errorMessage = (e) => e.message } = {}) {
-  const states = [], effects = [], timers = new Map(), calls = []
+const confirmed = (barcodes) => ({
+  loan: { id: 80, loanNumber: 'PM-TEST', createdByName: 'Thủ thư', items: barcodes.map((barcode, i) => ({
+    id: i + 1, barcode, bookTitle: `Sách ${barcode}`, borrowedAt: '2026-10-08T09:00:00+07:00', dueAt: '2026-10-22T23:59:59+07:00',
+  })) }, reader: { ...result, borrowedBooks: 2 + barcodes.length, remainingBooks: 3 - barcodes.length },
+  message: 'Đã ghi toàn bộ lượt mượn thành công.',
+})
+function fixture({ reader = result, preview = async (_card, code) => copy(code),
+  confirm = async (_card, codes) => confirmed(codes), errorMessage = (e) => e.message } = {}) {
+  const states = [], effects = [], timers = new Map(), calls = [], confirmations = [], locks = [], created = []
   let cursor = 0, timerId = 0, tree
   const hooks = {
     ...react,
@@ -51,8 +59,8 @@ function fixture({ reader = result, preview = async (_card, code) => copy(code),
     react: hooks,
 
     '../s1-02-user-management/accountService': { getApiErrorMessage: errorMessage },
-    '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
-    './directLoanService': { directLoanService: { previewItem(card, code, rows) { calls.push([card, code, rows]); return preview(card, code, rows) } } },
+    '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'], formatLoanTimestamp: (date) => date?.slice(0, 10) },
+    './directLoanService': { directLoanService: { previewItem(card, code, rows) { calls.push([card, code, rows]); return preview(card, code, rows) }, confirm(card, codes, id) { confirmations.push([card, codes, id]); return confirm(card, codes, id) } } },
   }
   for (const name of ['Button', 'Card', 'Input', 'PageHeader']) imports[`../../components/ui/${name}`] = load(`../../components/ui/${name}.tsx`)
   const Page = load('DirectLoanItemsPanel.tsx', imports, { window: {
@@ -60,14 +68,14 @@ function fixture({ reader = result, preview = async (_card, code) => copy(code),
     clearTimeout(id) { timers.delete(id) },
   } }).default
   function render() {
-    cursor = 0; tree = Page({ reader })
+    cursor = 0; tree = Page({ reader, onCreated: (data) => created.push(data), onLockChange: (value) => locks.push(value) })
     for (const effect of effects.splice(0)) effect()
-    cursor = 0; tree = Page({ reader })
+    cursor = 0; tree = Page({ reader, onCreated: (data) => created.push(data), onLockChange: (value) => locks.push(value) })
     return tree
   }
   render()
   return {
-    calls,
+    calls, confirmations, locks, created,
     html: () => renderToStaticMarkup(render()),
     change(value) { find(tree, (n) => n.props?.id === 'direct-loan-barcode').props.onChange({ target: { value } }); render() },
     submit() { find(tree, (n) => n.type === 'form').props.onSubmit({ preventDefault() {} }); render() },
@@ -75,8 +83,8 @@ function fixture({ reader = result, preview = async (_card, code) => copy(code),
     remove(code) { find(tree, (n) => n.props?.['aria-label'] === `Xóa sách có mã vạch ${code}`).props.onClick(); render() },
     edit(code) { find(tree, (n) => n.props?.['aria-label'] === `Sửa mã vạch ${code}`).props.onClick(); render() },
     cancelEdit() { find(tree, (n) => n.props?.children === 'Hủy sửa').props.onClick(); render() },
-    confirm() { find(tree, (n) => n.props?.children === 'Xác nhận danh sách').props.onClick(); render() },
-    confirmDisabled: () => Boolean(find(tree, (n) => n.props?.children === 'Xác nhận danh sách').props.disabled),
+    confirm() { find(tree, (n) => n.props?.children === 'Xác nhận lượt mượn').props.onClick(); render() },
+    confirmDisabled: () => Boolean(find(tree, (n) => n.props?.children === 'Xác nhận lượt mượn').props.disabled),
     rowHtml(code) { render(); return renderToStaticMarkup(find(tree, (n) => n.type === 'tr' && find(n.props?.children, (child) => child.type === 'td' && child.props?.children === code))) },
     hasBarcode: () => Boolean(find(tree, (n) => n.props?.id === 'direct-loan-barcode')),
     addDisabled: () => Boolean(find(tree, (n) => n.props?.type === 'submit').props.disabled),
@@ -193,7 +201,7 @@ test('unknown and unavailable rows keep their errors while later valid barcodes 
   assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
   for (const code of ['UNKNOWN', 'BORROWED', 'REPAIR']) f.remove(code)
   assert.equal(f.confirmDisabled(), false); f.confirm()
-  assert.match(f.html(), /Đã xác nhận danh sách 3 sách hợp lệ/)
+  await settle(); assert.match(f.html(), /Đã ghi toàn bộ 3 sách/)
   assert.equal(f.calls.length, 6)
 })
 
@@ -274,7 +282,7 @@ test('S3-02.4 hold error names the correct owner and order only on its barcode r
   assert.deepEqual(Array.from(f.calls.at(-1)[2]), ['BC-1'])
   assert.ok(f.confirmDisabled()); f.confirm(); assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
   f.remove('HELD-42'); assert.equal(f.confirmDisabled(), false); f.confirm()
-  assert.match(f.html(), /Đã xác nhận danh sách 2 sách hợp lệ/)
+  await settle(); assert.match(f.html(), /Đã ghi toàn bộ 2 sách/)
 })
 
 test('S3-02.4 own hold explains the reservation flow and keeps the row rejected', async () => {
@@ -311,4 +319,95 @@ test('S3-02.4 rechecking a released hold replaces only the rejected row', async 
   assert.match(f.rowHtml('BC-1'), /Hợp lệ/); assert.match(f.rowHtml('BC-3'), /Hợp lệ/)
   assert.match(f.html(), /Dự kiến mượn: 3 \/ 3 sách/)
   assert.equal(f.confirmDisabled(), false)
+})
+
+test('S3-02.5 one confirmation sends all valid barcodes and shows one completed loan', async () => {
+  const f = fixture()
+  for (const code of ['BC-1', 'BC-2']) { f.change(code); f.submit(); await settle(); f.html() }
+  f.confirm(); await settle()
+  assert.equal(f.confirmations.length, 1)
+  assert.equal(f.confirmations[0][0], 'TV-0012')
+  assert.deepEqual(Array.from(f.confirmations[0][1]), ['BC-1', 'BC-2'])
+  assert.match(f.confirmations[0][2], /^[0-9a-f-]{36}$/)
+  assert.match(f.html(), /Đã ghi toàn bộ 2 sách/)
+  assert.match(f.html(), /PM-TEST/); assert.match(f.html(), /Thủ thư/)
+  assert.match(f.html(), /2026-10-22/)
+  assert.equal((f.html().match(/Đang mượn/g) ?? []).length, 2)
+  assert.doesNotMatch(f.html(), /Xác nhận lượt mượn/)
+  assert.equal(f.created.length, 1); assert.equal(f.created[0].reader.remainingBooks, 1)
+  assert.deepEqual(f.locks, [true, false])
+})
+
+test('S3-02.5 immediate repeated clicks send only one POST and freeze barcode actions', async () => {
+  let resolve
+  const f = fixture({ confirm: () => new Promise((done) => { resolve = done }) })
+  f.change('BC-1'); f.submit(); await settle(); f.html()
+  f.confirm(); f.confirm(); f.remove('BC-1')
+  assert.equal(f.confirmations.length, 1)
+  assert.ok(f.confirmDisabled()); assert.ok(f.addDisabled())
+  assert.match(f.html(), /Đang kiểm tra lại thẻ/)
+  assert.match(f.html(), /Sách BC-1/)
+  resolve(confirmed(['BC-1'])); await settle(); assert.match(f.html(), /Đã ghi toàn bộ 1 sách/)
+})
+
+test('S3-02.5 a lost response preserves immutable draft and UUID on retry', async () => {
+  let attempts = 0
+  const f = fixture({ confirm: async (_card, codes) => {
+    if (++attempts === 1) throw new Error('network timeout')
+    return confirmed(codes)
+  } })
+  f.change('BC-1'); f.submit(); await settle(); f.html(); f.confirm(); await settle()
+  assert.match(f.html(), /Chưa xác định được kết quả/)
+  assert.equal(f.created.length, 0); assert.equal(f.locks.at(-1), true)
+  f.remove('BC-1'); assert.match(f.html(), /Sách BC-1/)
+  f.confirm(); await settle()
+  assert.equal(f.confirmations.length, 2)
+  assert.equal(f.confirmations[0][2], f.confirmations[1][2])
+  assert.deepEqual(Array.from(f.confirmations[1][1]), ['BC-1'])
+  assert.match(f.html(), /Đã ghi toàn bộ 1 sách/)
+  assert.equal(f.locks.at(-1), false)
+})
+
+test('S3-02.5 business rejection keeps draft, explains failure and permits corrected submission', async () => {
+  let fail = true
+  const f = fixture({ confirm: async (_card, codes) => {
+    if (fail) throw { response: { status: 409 }, message: 'Bản sao BC-2 không còn Sẵn sàng.' }
+    return confirmed(codes)
+  } })
+  for (const code of ['BC-1', 'BC-2']) { f.change(code); f.submit(); await settle(); f.html() }
+  f.confirm(); await settle()
+  assert.match(f.html(), /Không thể ghi trọn vẹn lượt mượn.*BC-2/)
+  assert.equal(f.created.length, 0); assert.equal(f.locks.at(-1), false)
+  const previousKey = f.confirmations[0][2]
+  f.remove('BC-2'); fail = false; f.confirm(); await settle()
+  assert.notEqual(f.confirmations[1][2], previousKey)
+  assert.deepEqual(Array.from(f.confirmations[1][1]), ['BC-1'])
+  assert.match(f.html(), /Đã ghi toàn bộ 1 sách/)
+})
+
+test('S3-02.5 invalid drafts do not call confirmation API', async () => {
+  const f = fixture({ preview: async () => { throw new Error('Không tìm thấy sách') } })
+  f.confirm(); f.change('UNKNOWN'); f.submit(); await settle(); f.html(); f.confirm()
+  assert.deepEqual(f.confirmations, [])
+})
+
+test('S3-02.5 a confirmed rollback reports failure and unlocks the unchanged draft', async () => {
+  const f = fixture({ confirm: async () => { throw { response: { status: 500, data: { code: 'DIRECT_LOAN_SAVE_FAILED' } },
+    message: 'Toàn bộ thay đổi của lượt đã được hủy.' } } })
+  f.change('BC-1'); f.submit(); await settle(); f.html(); f.confirm(); await settle()
+  assert.match(f.html(), /Không thể ghi trọn vẹn lượt mượn.*đã được hủy/)
+  assert.equal(f.locks.at(-1), false); assert.equal(f.created.length, 0)
+  assert.match(f.html(), /Sách BC-1/); assert.equal(f.confirmDisabled(), false)
+})
+
+test('S3-02.5 confirmation API uses the shared authenticated client and normalizes payload', async () => {
+  const calls = []
+  const { directLoanService } = load('directLoanService.ts', { '../../core/api/apiClient': { apiClient: {
+    async post(url, body) { calls.push([url, body]); return { data: confirmed(body.barcodes) } },
+  } } })
+  const id = webcrypto.randomUUID()
+  const response = await directLoanService.confirm(' TV-0012 ', [' BC-1 ', 'BC-2'], id)
+  assert.equal(response.loan.items.length, 2)
+  assert.equal(calls[0][0], '/loans/direct')
+  assert.equal(JSON.stringify(calls[0][1]), JSON.stringify({ requestId: id, cardNumber: 'TV-0012', barcodes: ['BC-1', 'BC-2'] }))
 })

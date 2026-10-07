@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.List;
+import java.util.UUID;
 
 /** Reuses the JDBC lending schema, as BookCopyLifecycleRepository already does. */
 @Repository
@@ -15,6 +16,58 @@ public class LoanRepository {
     private final JdbcTemplate jdbc;
 
     public LoanRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    public record DirectRequest(Long loanId, Long actorId, String fingerprint) {}
+    public record CopyIdentity(Long copyId, Long bookId) {}
+
+    /** Different namespace from the existing bigint reader/barcode locks. */
+    public void lockDirectRequest(UUID requestId) {
+        jdbc.query("SELECT pg_advisory_xact_lock(30205, hashtext(?))",
+                rs -> { }, requestId.toString());
+    }
+
+    public Optional<DirectRequest> findDirectRequest(UUID requestId) {
+        return jdbc.query("SELECT id, created_by, direct_request_fingerprint FROM loans WHERE direct_request_id = ?",
+                (rs, index) -> new DirectRequest(rs.getLong("id"), rs.getLong("created_by"),
+                        rs.getString("direct_request_fingerprint")), requestId).stream().findFirst();
+    }
+
+    public Optional<Long> findReaderIdByCardNumber(String cardNumber) {
+        return jdbc.query("SELECT user_id FROM library_cards WHERE card_number = ?",
+                (rs, index) -> rs.getLong("user_id"), cardNumber).stream().findFirst();
+    }
+
+    public Optional<Long> findReservationReaderId(Long reservationId) {
+        return jdbc.query("SELECT reader_id FROM book_reservations WHERE id = ?",
+                (rs, index) -> rs.getLong("reader_id"), reservationId).stream().findFirst();
+    }
+
+    /** Hold card/account/policy steady while validating and writing; no JPA snapshot is preloaded. */
+    public Optional<Long> lockDirectLoanCard(String cardNumber) {
+        return jdbc.query("""
+                SELECT lc.user_id FROM library_cards lc
+                JOIN users u ON u.id = lc.user_id
+                JOIN card_types ct ON ct.id = lc.card_type_id
+                WHERE lc.card_number = ?
+                FOR SHARE OF lc, u, ct
+                """, (rs, index) -> rs.getLong("user_id"), cardNumber).stream().findFirst();
+    }
+
+    /** Scalar lookup avoids caching copy status before waiting for title/copy locks. */
+    public Optional<CopyIdentity> findCopyIdentity(String barcode) {
+        return jdbc.query("SELECT id, book_id FROM book_copies WHERE barcode = ?",
+                (rs, index) -> new CopyIdentity(rs.getLong("id"), rs.getLong("book_id")), barcode)
+                .stream().findFirst();
+    }
+
+    public Long insertDirect(Long readerId, Long actorId, String loanNumber, OffsetDateTime borrowedAt,
+                             UUID requestId, String fingerprint) {
+        return jdbc.queryForObject("""
+                INSERT INTO loans(loan_number, borrower_user_id, created_by, borrowed_at,
+                                  direct_request_id, direct_request_fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+                """, Long.class, loanNumber, readerId, actorId, borrowedAt, requestId, fingerprint);
+    }
 
     /** Count outstanding copies, including overdue ones, across all of this reader's loans. */
     public long countUnreturnedBooksForReader(Long readerId) {
