@@ -73,6 +73,7 @@ class ReservationLoanServiceTest {
                 e -> assertThat(e.getCode()).isEqualTo(code));
         verify(loans, never()).insert(any(), any(), any(), any(), any());
         verify(loans, never()).insertItem(any(), any(), any(), any());
+        verify(reservations, never()).saveAndFlush(any());
     }
 
     @Test
@@ -91,8 +92,9 @@ class ReservationLoanServiceTest {
         ordered.verify(loans).insertItem(81L, 31L, result.borrowedAt(), result.dates().dueAt());
         assertThat(result.dates().borrowDate()).isEqualTo(result.borrowedAt().toLocalDate());
         assertThat(result.dates().dueDate()).isEqualTo(result.dates().borrowDate().plusDays(14));
-        assertThat(reservation.getStatus()).isEqualTo("READY_FOR_PICKUP");
-        verify(reservations, never()).save(any()); verify(copies, never()).save(any());
+        ordered.verify(reservations).saveAndFlush(reservation);
+        assertThat(reservation.getStatus()).isEqualTo("FULFILLED");
+        verify(copies, never()).save(any());
     }
 
     @Test void wrongCardCannotCreateAnyLoan() {
@@ -150,7 +152,7 @@ class ReservationLoanServiceTest {
         rejected("RESERVATION_NOT_FOUND", () -> service.createFromReservation(999L, 3L, "TV-0012"));
     }
     @Test void contextShowsCardAndPersistedConversionAfterReload() {
-        when(reservations.findReadyForPickupById(21L)).thenReturn(Optional.of(reservation));
+        when(reservations.findForLoanContext(21L)).thenReturn(Optional.of(reservation));
         when(loans.findNumberByReservation(21L)).thenReturn(Optional.of("PM-OLD"));
         var context = service.pickupContext(21L);
         assertThat(context.cardNumber()).isEqualTo("TV-0012");
@@ -167,7 +169,7 @@ class ReservationLoanServiceTest {
         rejected("WEEKLY_SCHEDULE_INCOMPLETE", () -> service.createFromReservation(21L, 3L, "TV-0012"));
     }
     @Test void stalePreviewIsRejectedBeforeSavingAndCanBeConfirmedAfterRefresh() {
-        when(reservations.findReadyForPickupById(21L)).thenReturn(Optional.of(reservation));
+        when(reservations.findForLoanContext(21L)).thenReturn(Optional.of(reservation));
         var preview = service.pickupContext(21L).dates();
         rejected("LOAN_DATES_CHANGED", () -> service.createFromReservation(21L, 3L, "TV-0012",
                 preview.borrowDate().minusDays(1), preview.dueAt(), preview.loanDays()));
@@ -180,7 +182,7 @@ class ReservationLoanServiceTest {
         assertThat(result.dates().dueAt()).isEqualTo(preview.dueAt());
     }
     @Test void contextShowsPreviewAndConfigurationErrorsWithoutBreakingTheDetailPage() {
-        when(reservations.findReadyForPickupById(21L)).thenReturn(Optional.of(reservation));
+        when(reservations.findForLoanContext(21L)).thenReturn(Optional.of(reservation));
         var preview = service.pickupContext(21L);
         assertThat(preview.dates().loanDays()).isEqualTo(14);
         assertThat(preview.dateError()).isNull();
@@ -189,5 +191,45 @@ class ReservationLoanServiceTest {
         assertThat(invalid.cardNumber()).isEqualTo("TV-0012");
         assertThat(invalid.dates()).isNull();
         assertThat(invalid.dateError()).contains("số ngày mượn");
+    }
+
+    @Test void failedHeaderDoesNotChangeReservationOrInsertItem() {
+        when(loans.insert(any(), any(), any(), any(), any())).thenThrow(new IllegalStateException("header failed"));
+        assertThatThrownBy(() -> service.createFromReservation(21L, 3L, "TV-0012"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(reservation.getStatus()).isEqualTo("READY_FOR_PICKUP");
+        verify(loans, never()).insertItem(any(), any(), any(), any());
+        verify(reservations, never()).saveAndFlush(any());
+    }
+
+    @Test void failedItemDoesNotStartReservationTransition() {
+        doThrow(new IllegalStateException("item failed")).when(loans).insertItem(any(), any(), any(), any());
+        assertThatThrownBy(() -> service.createFromReservation(21L, 3L, "TV-0012"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(reservation.getStatus()).isEqualTo("READY_FOR_PICKUP");
+        verify(reservations, never()).saveAndFlush(any());
+    }
+
+    @Test void failedReservationFlushPropagatesSoTheOwningTransactionCanRollBack() {
+        when(reservations.saveAndFlush(reservation)).thenThrow(new IllegalStateException("status failed"));
+        assertThatThrownBy(() -> service.createFromReservation(21L, 3L, "TV-0012"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("status failed");
+        var ordered = inOrder(loans, reservations);
+        ordered.verify(loans).insert(eq(21L), eq(12L), eq(3L), anyString(), any());
+        ordered.verify(loans).insertItem(eq(81L), eq(31L), any(), any());
+        ordered.verify(reservations).saveAndFlush(reservation);
+        // Actual rollback is checked with PostgreSQL, not inferred from Mockito.
+    }
+
+    @Test void fulfilledContextWorksAfterLostResponseWithoutRecalculatingPolicy() {
+        reservation.setStatus("FULFILLED");
+        card.setCardType(null);
+        when(reservations.findForLoanContext(21L)).thenReturn(Optional.of(reservation));
+        when(loans.findNumberByReservation(21L)).thenReturn(Optional.of("PM-SAVED"));
+        var context = service.pickupContext(21L);
+        assertThat(context.converted()).isTrue();
+        assertThat(context.loanNumber()).isEqualTo("PM-SAVED");
+        assertThat(context.dates()).isNull();
+        verifyNoInteractions(configuration);
     }
 }

@@ -128,6 +128,17 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             """)
     Optional<BookReservation> findReadyForPickupById(@Param("reservationId") Long reservationId);
 
+    // A conversion can commit even when the client loses the POST response.
+    // Keep its context readable without adding converted orders to the pickup list/detail.
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            JOIN FETCH r.reader
+            LEFT JOIN FETCH r.bookCopy
+            WHERE r.id = :reservationId AND r.status IN ('READY_FOR_PICKUP', 'FULFILLED')
+            """)
+    Optional<BookReservation> findForLoanContext(@Param("reservationId") Long reservationId);
+
     // Compare against the persisted timestamp so PostgreSQL microsecond precision
     // cannot move the newly created row out of its own queue position.
     @Query(value = """
