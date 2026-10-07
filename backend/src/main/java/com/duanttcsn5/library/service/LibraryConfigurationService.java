@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.dto.libraryconfig.BulkClosedDatesRequest;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateRequest;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateResponse;
@@ -456,48 +457,72 @@ public class LibraryConfigurationService {
 
     @Transactional(readOnly = true)
     public DueDateAdjustmentResponse adjustDueDate(LocalDate originalDate) {
-        List<LibraryWeeklySchedule> schedule = weeklyScheduleRepository.findAllByOrderByDayOfWeekAsc();
-        if (schedule.size() != 7) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "WEEKLY_SCHEDULE_INCOMPLETE",
-                    "Lịch làm việc theo tuần chưa được cấu hình đủ 7 ngày.");
+        return moveToOpenDate(originalDate, loadWeeklySchedule(), loadClosedDates());
+    }
+
+    /** S3-01.2: count calendar days, then move only the final date to an open day. */
+    @Transactional(readOnly = true, noRollbackFor = ApiException.class)
+    public LoanDatePreviewResponse calculateLoanDates(OffsetDateTime borrowedAt, int loanDays, String cardTypeName) {
+        // Preview catches expected configuration errors to show them in the detail view.
+        // This read-only calculation must not mark that outer transaction rollback-only.
+        if (borrowedAt == null || loanDays < 1 || loanDays > 60) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_POLICY_NOT_CONFIGURED",
+                    "Loại thẻ chưa có số ngày mượn hợp lệ từ 1 đến 60. Vui lòng cấu hình chính sách mượn.");
         }
-
-        Map<Integer, Boolean> openByDay = new HashMap<>();
-        for (LibraryWeeklySchedule item : schedule) {
-            openByDay.put(item.getDayOfWeek(), item.isOpen());
+        Map<Integer, LibraryWeeklySchedule> schedule = loadWeeklySchedule();
+        for (LibraryWeeklySchedule day : schedule.values()) {
+            if (day.isOpen() && (day.getOpenTime() == null || day.getCloseTime() == null
+                    || !day.getCloseTime().isAfter(day.getOpenTime()))) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INVALID",
+                        "Ngày mở cửa chưa có giờ mở và đóng cửa hợp lệ. Vui lòng kiểm tra lịch thư viện.");
+            }
         }
+        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate borrowDate = borrowedAt.atZoneSameInstant(zone).toLocalDate();
+        LocalDate originalDueDate = borrowDate.plusDays(loanDays);
+        DueDateAdjustmentResponse adjusted = moveToOpenDate(originalDueDate, schedule, loadClosedDates());
+        OffsetDateTime dueAt = adjusted.adjustedDate()
+                .atTime(schedule.get(adjusted.adjustedDate().getDayOfWeek().getValue()).getCloseTime())
+                .atZone(zone).toOffsetDateTime();
+        return new LoanDatePreviewResponse(borrowDate, cardTypeName, loanDays, originalDueDate,
+                adjusted.adjustedDate(), dueAt, adjusted.adjusted(), adjusted.skippedClosedDates());
+    }
 
-        Set<LocalDate> explicitlyClosed = closedDateRepository.findAllByOrderByClosedDateAsc().stream()
-                .map(LibraryClosedDate::getClosedDate)
-                .collect(java.util.stream.Collectors.toSet());
+    private Map<Integer, LibraryWeeklySchedule> loadWeeklySchedule() {
+        Map<Integer, LibraryWeeklySchedule> byDay = new HashMap<>();
+        for (LibraryWeeklySchedule day : weeklyScheduleRepository.findAllByOrderByDayOfWeekAsc()) {
+            int number = day.getDayOfWeek();
+            if (number < 1 || number > 7 || byDay.put(number, day) != null) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE",
+                        "Lịch làm việc theo tuần chưa được cấu hình đúng 7 ngày.");
+            }
+        }
+        if (byDay.size() != 7) throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE",
+                "Lịch làm việc theo tuần chưa được cấu hình đủ 7 ngày.");
+        if (byDay.values().stream().noneMatch(LibraryWeeklySchedule::isOpen)) {
+            throw new ApiException(HttpStatus.CONFLICT, "NEXT_OPEN_DATE_NOT_FOUND",
+                    "Thư viện chưa có ngày mở cửa. Không thể tính hạn trả; vui lòng cấu hình lịch thư viện.");
+        }
+        return byDay;
+    }
 
+    private Set<LocalDate> loadClosedDates() {
+        return closedDateRepository.findAllByOrderByClosedDateAsc().stream()
+                .map(LibraryClosedDate::getClosedDate).collect(java.util.stream.Collectors.toSet());
+    }
+
+    private DueDateAdjustmentResponse moveToOpenDate(LocalDate originalDate,
+            Map<Integer, LibraryWeeklySchedule> schedule, Set<LocalDate> explicitlyClosed) {
         LocalDate candidate = originalDate;
         List<LocalDate> skipped = new ArrayList<>();
-
-        for (int i = 0; i < 1000; i++) {
-            int dayOfWeek = candidate.getDayOfWeek().getValue();
-            boolean weeklyOpen = openByDay.getOrDefault(dayOfWeek, false);
-            boolean specialClosed = explicitlyClosed.contains(candidate);
-
-            // Quy tắc ưu tiên: ngày nghỉ cụ thể luôn thắng lịch tuần.
-            if (weeklyOpen && !specialClosed) {
-                return new DueDateAdjustmentResponse(
-                        originalDate,
-                        candidate,
-                        !candidate.equals(originalDate),
-                        List.copyOf(skipped));
-            }
-
+        // At least one weekday is open and the special closure set is finite.
+        // Continue through every closed date instead of imposing an arbitrary day limit.
+        while (!schedule.get(candidate.getDayOfWeek().getValue()).isOpen() || explicitlyClosed.contains(candidate)) {
             skipped.add(candidate);
             candidate = candidate.plusDays(1);
         }
-
-        throw new ApiException(
-                HttpStatus.CONFLICT,
-                "NEXT_OPEN_DATE_NOT_FOUND",
-                "Không tìm thấy ngày mở cửa kế tiếp trong phạm vi kiểm tra.");
+        return new DueDateAdjustmentResponse(originalDate, candidate,
+                !candidate.equals(originalDate), List.copyOf(skipped));
     }
 
     /**

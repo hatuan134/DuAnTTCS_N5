@@ -57,7 +57,7 @@ class ReservationLoanDatabaseTest {
     }
 
     @Test @Transactional
-    void persistsExactReaderHeldCopyAndSourceWithNoDueDateAndPreventsSecondConversion() {
+    void persistsExactReaderHeldCopySourceAndDueDateAndPreventsSecondConversion() {
         Fixture f = fixture();
         var result = service.createFromReservation(f.reservation(), f.staff(), f.card());
         assertThat(jdbc.queryForObject("SELECT borrower_user_id FROM loans WHERE id = ?", Long.class, result.id()))
@@ -66,8 +66,10 @@ class ReservationLoanDatabaseTest {
                 .isEqualTo(f.reservation());
         assertThat(jdbc.queryForObject("SELECT book_copy_id FROM loan_items WHERE loan_id = ?", Long.class, result.id()))
                 .isEqualTo(f.copy());
-        assertThat(jdbc.queryForObject("SELECT due_date FROM loan_items WHERE loan_id = ?", OffsetDateTime.class, result.id()))
-                .isNull();
+        assertThat(jdbc.queryForObject("SELECT due_date FROM loan_items WHERE loan_id = ?", OffsetDateTime.class, result.id()).toInstant())
+                .isEqualTo(result.dates().dueAt().toInstant());
+        assertThat(jdbc.queryForObject("SELECT borrowed_at FROM loans WHERE id = ?", OffsetDateTime.class, result.id()).toInstant())
+                .isEqualTo(result.borrowedAt().toInstant());
         assertThat(jdbc.queryForObject("SELECT status FROM book_copies WHERE id = ?", String.class, f.copy()))
                 .isEqualTo("BORROWED");
         assertThat(jdbc.queryForObject("SELECT status FROM book_reservations WHERE id = ?", String.class, f.reservation()))

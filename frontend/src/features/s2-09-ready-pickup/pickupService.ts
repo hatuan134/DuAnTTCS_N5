@@ -14,12 +14,27 @@ export interface ReadyPickupReservation {
   cardNumber?: string | null
   converted?: boolean
   loanNumber?: string | null
+  dates?: LoanDatePreview | null
+  dateError?: string | null
+}
+
+export interface LoanDatePreview {
+  borrowDate: string
+  cardTypeName: string
+  loanDays: number
+  originalDueDate: string
+  dueDate: string
+  dueAt: string
+  adjusted: boolean
+  skippedClosedDates: string[]
 }
 
 export interface ReservationLoanContext {
   cardNumber: string | null
   converted: boolean
   loanNumber: string | null
+  dates: LoanDatePreview | null
+  dateError: string | null
 }
 
 export interface ReservationLoanResult {
@@ -35,6 +50,7 @@ export interface ReservationLoanResult {
   barcode: string
   borrowedAt: string
   message: string
+  dates: LoanDatePreview
 }
 
 export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED'
@@ -98,6 +114,11 @@ export function reservationStatusLabel(status: ReservationStatus): string {
 
 export const pickupRoles = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']
 
+export function formatLoanDate(value: string): string {
+  const parts = value.split('-')
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value
+}
+
 export function formatPickupDate(value: string | null, includeSeconds = false): string {
   if (!value) return 'Chưa có hạn nhận'
   const date = new Date(value)
@@ -111,8 +132,11 @@ export function formatPickupDate(value: string | null, includeSeconds = false): 
 }
 
 export const pickupService = {
-  createLoan: async (id: number, cardNumber: string): Promise<ReservationLoanResult> => {
-    const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, { cardNumber: cardNumber.trim() })
+  createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview): Promise<ReservationLoanResult> => {
+    const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, {
+      cardNumber: cardNumber.trim(),
+      ...(dates ? { expectedBorrowDate: dates.borrowDate, expectedDueAt: dates.dueAt, expectedLoanDays: dates.loanDays } : {}),
+    })
     return response.data
   },
   loanContext: async (id: number): Promise<ReservationLoanContext> => {

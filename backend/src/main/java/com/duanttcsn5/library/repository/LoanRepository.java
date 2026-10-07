@@ -27,10 +27,13 @@ public class LoanRepository {
     }
 
     public void insertItem(Long loanId, Long copyId, OffsetDateTime borrowedAt) {
-        // due_date intentionally remains NULL in S3-01.1.
+        insertItem(loanId, copyId, borrowedAt, null);
+    }
+
+    public void insertItem(Long loanId, Long copyId, OffsetDateTime borrowedAt, OffsetDateTime dueAt) {
         jdbc.update("""
-                INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at)
-                VALUES (?, ?, ?)
-                """, loanId, copyId, borrowedAt);
+                INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date)
+                VALUES (?, ?, ?, ?)
+                """, loanId, copyId, borrowedAt, dueAt);
     }
 }

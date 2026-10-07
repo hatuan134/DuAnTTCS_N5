@@ -35,6 +35,7 @@ public class LoanController {
             @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
-                reservationId, principal == null ? null : principal.id(), request.cardNumber()));
+                reservationId, principal == null ? null : principal.id(), request.cardNumber(),
+                request.expectedBorrowDate(), request.expectedDueAt(), request.expectedLoanDays()));
     }
 }

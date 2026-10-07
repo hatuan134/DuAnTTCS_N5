@@ -4,6 +4,10 @@ import com.duanttcsn5.library.entity.*;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.*;
 import com.duanttcsn5.library.service.LoanService;
+import com.duanttcsn5.library.service.LibraryConfigurationService;
+import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
+import java.time.ZoneId;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,6 +26,7 @@ class ReservationLoanServiceTest {
     private UserRepository users;
     private LoanRepository loans;
     private LoanService service;
+    private LibraryConfigurationService configuration;
     private BookReservation reservation;
     private BookCopy copy;
     private LibraryCard card;
@@ -32,7 +37,8 @@ class ReservationLoanServiceTest {
         books = mock(BookRepository.class); reservations = mock(BookReservationRepository.class);
         copies = mock(BookCopyRepository.class); cards = mock(LibraryCardRepository.class);
         users = mock(UserRepository.class); loans = mock(LoanRepository.class);
-        service = new LoanService(books, reservations, copies, cards, users, loans);
+        configuration = mock(LibraryConfigurationService.class);
+        service = new LoanService(books, reservations, copies, cards, users, loans, configuration);
         actor = new User(); actor.setId(3L); actor.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("LIBRARIAN"); actor.setRole(role);
         when(users.findById(3L)).thenReturn(Optional.of(actor));
@@ -46,6 +52,14 @@ class ReservationLoanServiceTest {
         reservation.setReservedAt(OffsetDateTime.now().minusDays(10));
         reservation.setPickupDeadline(OffsetDateTime.now().minusDays(7));
         card = new LibraryCard(); card.setCardNumber("TV-0012"); card.setUser(reader);
+        CardType type = new CardType(); type.setName("Thẻ sinh viên"); type.setLoanDays(14); card.setCardType(type);
+        when(configuration.calculateLoanDates(any(), eq(14), eq("Thẻ sinh viên"))).thenAnswer(call -> {
+            OffsetDateTime borrowedAt = call.getArgument(0);
+            var day = borrowedAt.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate();
+            var due = day.plusDays(14);
+            return new LoanDatePreviewResponse(day, "Thẻ sinh viên", 14, due, due,
+                    due.atTime(17, 0).atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(), false, List.of());
+        });
         when(reservations.findBookIdForCancellation(21L)).thenReturn(Optional.of(7L));
         when(books.findForReservation(7L)).thenReturn(Optional.of(book));
         when(reservations.findForCancellation(21L)).thenReturn(Optional.of(reservation));
@@ -58,11 +72,11 @@ class ReservationLoanServiceTest {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getCode()).isEqualTo(code));
         verify(loans, never()).insert(any(), any(), any(), any(), any());
-        verify(loans, never()).insertItem(any(), any(), any());
+        verify(loans, never()).insertItem(any(), any(), any(), any());
     }
 
     @Test
-    void validCardCreatesExactReaderAndHeldCopyWithoutCalculatingDueDateOrRejectingPastDeadline() {
+    void validCardCreatesExactReaderHeldCopyAndCalculatedDatesWithoutRejectingPastPickupDeadline() {
         var result = service.createFromReservation(21L, 3L, "  TV-0012  ");
         assertThat(result.id()).isEqualTo(81L); assertThat(result.reservationId()).isEqualTo(21L);
         assertThat(result.readerId()).isEqualTo(12L); assertThat(result.readerName()).isEqualTo("Nguyễn Văn An");
@@ -74,7 +88,9 @@ class ReservationLoanServiceTest {
         ordered.verify(reservations).findForCancellation(21L);
         ordered.verify(copies).findForStatusChange(31L);
         ordered.verify(loans).insert(21L, 12L, 3L, result.loanNumber(), result.borrowedAt());
-        ordered.verify(loans).insertItem(81L, 31L, result.borrowedAt());
+        ordered.verify(loans).insertItem(81L, 31L, result.borrowedAt(), result.dates().dueAt());
+        assertThat(result.dates().borrowDate()).isEqualTo(result.borrowedAt().toLocalDate());
+        assertThat(result.dates().dueDate()).isEqualTo(result.dates().borrowDate().plusDays(14));
         assertThat(reservation.getStatus()).isEqualTo("READY_FOR_PICKUP");
         verify(reservations, never()).save(any()); verify(copies, never()).save(any());
     }
@@ -139,5 +155,39 @@ class ReservationLoanServiceTest {
         var context = service.pickupContext(21L);
         assertThat(context.cardNumber()).isEqualTo("TV-0012");
         assertThat(context.converted()).isTrue(); assertThat(context.loanNumber()).isEqualTo("PM-OLD");
+    }
+
+    @Test void missingLoanDaysBlocksCreationBeforeAnyWrite() {
+        card.getCardType().setLoanDays(0);
+        rejected("LOAN_POLICY_NOT_CONFIGURED", () -> service.createFromReservation(21L, 3L, "TV-0012"));
+    }
+    @Test void incompleteCalendarBlocksCreationBeforeAnyWrite() {
+        when(configuration.calculateLoanDates(any(), anyInt(), anyString())).thenThrow(new ApiException(
+                org.springframework.http.HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INCOMPLETE", "Chưa cấu hình lịch."));
+        rejected("WEEKLY_SCHEDULE_INCOMPLETE", () -> service.createFromReservation(21L, 3L, "TV-0012"));
+    }
+    @Test void stalePreviewIsRejectedBeforeSavingAndCanBeConfirmedAfterRefresh() {
+        when(reservations.findReadyForPickupById(21L)).thenReturn(Optional.of(reservation));
+        var preview = service.pickupContext(21L).dates();
+        rejected("LOAN_DATES_CHANGED", () -> service.createFromReservation(21L, 3L, "TV-0012",
+                preview.borrowDate().minusDays(1), preview.dueAt(), preview.loanDays()));
+        rejected("LOAN_DATES_CHANGED", () -> service.createFromReservation(21L, 3L, "TV-0012",
+                preview.borrowDate(), preview.dueAt().minusDays(1), preview.loanDays()));
+        rejected("LOAN_DATES_CHANGED", () -> service.createFromReservation(21L, 3L, "TV-0012",
+                preview.borrowDate(), preview.dueAt(), 7));
+        var result = service.createFromReservation(21L, 3L, "TV-0012",
+                preview.borrowDate(), preview.dueAt(), preview.loanDays());
+        assertThat(result.dates().dueAt()).isEqualTo(preview.dueAt());
+    }
+    @Test void contextShowsPreviewAndConfigurationErrorsWithoutBreakingTheDetailPage() {
+        when(reservations.findReadyForPickupById(21L)).thenReturn(Optional.of(reservation));
+        var preview = service.pickupContext(21L);
+        assertThat(preview.dates().loanDays()).isEqualTo(14);
+        assertThat(preview.dateError()).isNull();
+        card.setCardType(null);
+        var invalid = service.pickupContext(21L);
+        assertThat(invalid.cardNumber()).isEqualTo("TV-0012");
+        assertThat(invalid.dates()).isNull();
+        assertThat(invalid.dateError()).contains("số ngày mượn");
     }
 }

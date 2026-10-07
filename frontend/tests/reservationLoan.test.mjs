@@ -55,9 +55,15 @@ test('detail combines existing book/copy data with persisted card and conversion
   ].sort())
 })
 
+const loanDates = {
+  borrowDate: '2026-10-07', cardTypeName: 'Thẻ sinh viên', loanDays: 14,
+  originalDueDate: '2026-10-21', dueDate: '2026-10-22', dueAt: '2026-10-22T17:00:00+07:00',
+  adjusted: true, skippedClosedDates: ['2026-10-21'],
+}
+
 const reservation = {
   id: 21, bookId: 7, bookTitle: 'Mắt biếc', readerId: 12, readerName: 'Nguyễn Văn An',
-  copyId: 31, barcode: 'LIB-031', cardNumber: 'TV-0012', converted: false,
+  copyId: 31, barcode: 'LIB-031', cardNumber: 'TV-0012', converted: false, dates: loanDates, dateError: null,
 }
 
 function panelFixture({ card = '', api, overrides = {} } = {}) {
@@ -81,15 +87,15 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
   const successes = []
   let alreadyConverted = 0
   const service = api ?? {
-    async createLoan(id, number) { calls.push([id, number]); return { id: 81, loanNumber: 'PM-NEW', readerName: 'Nguyễn Văn An', cardNumber: number, bookTitle: 'Mắt biếc', barcode: 'LIB-031', borrowedAt: '2026-10-07T10:00:00Z', message: 'Đã lập phiếu mượn thành công.' } },
-    async loanContext() { return { converted: false } },
+    async createLoan(id, number) { calls.push([id, number]); return { id: 81, loanNumber: 'PM-NEW', readerName: 'Nguyễn Văn An', cardNumber: number, bookTitle: 'Mắt biếc', barcode: 'LIB-031', borrowedAt: '2026-10-07T10:00:00Z', message: 'Đã lập phiếu mượn thành công.', dates: loanDates } },
+    async loanContext() { return { converted: false, dates: loanDates, dateError: null } },
   }
   const panel = load('CreateReservationLoanPanel.tsx', {
     react: hooks,
     '../../components/ui/Button': { __esModule: true, default: (props) => react.createElement('button', { disabled: props.disabled || props.loading }, props.children) },
     '../../components/ui/Input': { __esModule: true, default: (props) => react.createElement('label', {}, props.label, react.createElement('input', { id: props.id, required: props.required, value: props.value, onChange: props.onChange, disabled: props.disabled })) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (error) => error.message },
-    './pickupService': { pickupService: service, formatPickupDate: (v) => v },
+    './pickupService': { pickupService: service, formatPickupDate: (v) => v, formatLoanDate: (v) => v },
   }).default
   function render() {
     cursor = 0
@@ -139,7 +145,7 @@ test('two immediate submissions issue one request while saving', async () => {
   let calls = 0
   const promise = new Promise((done) => { resolve = done })
   const f = panelFixture({ card: 'TV-0012', api: {
-    createLoan() { calls++; return promise }, loanContext() { return { converted: false } },
+    createLoan() { calls++; return promise }, loanContext() { return { converted: false, dates: loanDates, dateError: null } },
   } })
   const form = find(f.render(), 'form')
   form.props.onSubmit({ preventDefault() {} })
@@ -152,7 +158,7 @@ test('two immediate submissions issue one request while saving', async () => {
 test('API mismatch remains visible and allows correcting the card', async () => {
   const f = panelFixture({ card: 'WRONG', api: {
     async createLoan() { throw new Error('Mã thẻ không đúng với bạn đọc sở hữu đơn đặt giữ.') },
-    async loanContext() { return { converted: false } },
+    async loanContext() { return { converted: false, dates: loanDates, dateError: null } },
   } })
   find(f.render(), 'form').props.onSubmit({ preventDefault() {} })
   await settle()
@@ -177,4 +183,61 @@ test('reloaded converted order shows its loan number and offers no conversion fo
   const tree = f.render()
   assert.equal(find(tree, 'form'), null)
   assert.match(renderToStaticMarkup(tree), /PM-OLD/)
+})
+
+
+test('client sends preview expectations without sending an editable due date for persistence', async () => {
+  const f = serviceFixture()
+  await f.pickupService.createLoan(21, 'TV-0012', loanDates)
+  assert.equal(f.requests[0].body.expectedBorrowDate, '2026-10-07')
+  assert.equal(f.requests[0].body.expectedDueAt, '2026-10-22T17:00:00+07:00')
+  assert.equal(f.requests[0].body.expectedLoanDays, 14)
+  assert.equal('due_date' in f.requests[0].body, false)
+  assert.equal('readerId' in f.requests[0].body, false)
+})
+
+test('preview shows calendar-day policy and adjusted due date before confirming', () => {
+  const f = panelFixture()
+  const html = renderToStaticMarkup(f.render())
+  for (const text of ['Thẻ sinh viên', '14 ngày', '2026-10-07', '2026-10-21', '2026-10-22T17:00:00+07:00', 'ngày mở cửa kế tiếp']) {
+    assert.ok(html.includes(text), text)
+  }
+})
+
+test('missing configuration locks confirmation and displays the server error', async () => {
+  const f = panelFixture({ card: 'TV-0012', overrides: { dates: null, dateError: 'Lịch làm việc chưa được cấu hình đủ 7 ngày.' } })
+  const tree = f.render()
+  assert.match(renderToStaticMarkup(tree), /chưa được cấu hình đủ 7 ngày/)
+  find(tree, 'form').props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(f.calls.length, 0)
+})
+
+test('changed preview refreshes dates and requires another confirmation before creating', async () => {
+  let calls = 0
+  const seen = []
+  const revised = { ...loanDates, dueDate: '2026-10-26', dueAt: '2026-10-26T17:00:00+07:00' }
+  const f = panelFixture({ card: 'TV-0012', api: {
+    async createLoan(id, card, dates) {
+      calls++; seen.push(dates.dueAt)
+      if (calls === 1) throw new Error('Ngày mượn hoặc hạn trả đã thay đổi. Vui lòng xác nhận lại.')
+      return { loanNumber: 'PM-NEW', dates: revised }
+    },
+    async loanContext() { return { converted: false, dates: revised, dateError: null } },
+  } })
+  find(f.render(), 'form').props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(calls, 1)
+  assert.equal(f.successes.length, 0)
+  assert.match(renderToStaticMarkup(f.render()), /2026-10-26T17:00:00\+07:00/)
+  find(f.render(), 'form').props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.equal(calls, 2)
+  assert.deepEqual(seen, [loanDates.dueAt, revised.dueAt])
+  assert.equal(f.successes.length, 1)
+})
+
+test('date-only formatting keeps the server Vietnam date without timezone parsing', () => {
+  const f = serviceFixture()
+  assert.equal(f.formatLoanDate('2026-10-07'), '07/10/2026')
 })
