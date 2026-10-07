@@ -6,25 +6,21 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { canCancelReservation, formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
-import type { BookReservationQueue, ReservationStatus, ReservationStatusFilter, ReservationQueueEntry, CancelReservationResult } from './pickupService'
-
-const statusClasses: Record<ReservationStatus, string> = {
-  PENDING: 'border-blue-200 bg-blue-50 text-blue-800',
-  READY_FOR_PICKUP: 'border-amber-200 bg-amber-50 text-amber-800',
-  FULFILLED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  CANCELLED: 'border-slate-200 bg-slate-100 text-slate-600',
-  EXPIRED: 'border-red-200 bg-red-50 text-red-800',
-}
+import type { BookReservationQueue, ReservationStatusFilter, ReservationQueueEntry, CancelReservationResult } from './pickupService'
 
 export default function BookReservationQueuePage() {
   const { bookId } = useParams()
   const id = Number(bookId)
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
 
-  if (!allowed) return <p role="alert">Bạn không có quyền xem hàng đợi đặt giữ đầu sách.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem hàng đợi đặt giữ đầu sách.</p>
   if (!Number.isSafeInteger(id) || id < 1) return <div>
     <Link to="/cataloging" className="text-blue-600 hover:underline">← Sách đã biên mục</Link>
     <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">Mã đầu sách không hợp lệ.</p>
@@ -79,7 +75,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
     }
     refreshRef.current = () => { void refresh() }
     void refresh()
-    const timer = window.setInterval(refreshWhenVisible, 10000)
+    const timer = window.setInterval(refreshWhenVisible, 5000)
     window.addEventListener('focus', refreshWhenVisible)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
@@ -112,6 +108,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
 
   const items = queue?.items ?? []
   const pendingCount = items.filter((item) => item.status === 'PENDING').length
+  const queuePagination = useTablePagination(items, `${bookId}|${status}`)
 
   return (
     <div>
@@ -127,7 +124,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       <p className="mb-4 text-sm text-slate-500">
         Các đơn của đầu sách theo thời điểm đặt từ sớm đến muộn trong từng trạng thái. Vị trí chỉ tính các đơn Đang xếp hàng;
         {' '}đơn đã cấp bản hoặc kết thúc không còn vị trí trong hàng đợi.
-        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 10 giây khi đang xem trang.
+        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 5 giây khi đang xem trang.
       </p>
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <div className="w-full sm:w-80">
@@ -165,10 +162,11 @@ function ReservationQueue({ bookId }: { bookId: number }) {
           <strong>{items.length}</strong> đơn hiển thị; <strong>{pendingCount}</strong> đơn đang xếp hàng trong kết quả.
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
             <caption className="sr-only">Các đơn đặt giữ của {queue.bookTitle}, {status ? reservationStatusLabel(status) : 'tất cả trạng thái'}, từ sớm đến muộn</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th scope="col" className="px-5 py-3">STT</th>
                 <th scope="col" className="px-5 py-3">Đơn</th>
                 <th scope="col" className="px-5 py-3">Vị trí hàng đợi</th>
                 <th scope="col" className="px-5 py-3">Bạn đọc</th>
@@ -179,7 +177,10 @@ function ReservationQueue({ bookId }: { bookId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {items.map((item) => <tr key={item.id} className="align-top hover:bg-slate-50">
+              {queuePagination.pageItems.map((item, index) => <tr key={item.id} className="hover:bg-slate-50">
+                <td className="px-5 py-4 font-semibold text-slate-500">
+                  {queuePagination.startIndex + index + 1}
+                </td>
                 <td className="px-5 py-4 font-medium text-slate-700">#{item.id}</td>
                 <td className="px-5 py-4 font-semibold text-blue-700">
                   {item.queuePosition == null ? <span className="text-slate-500">—</span> : `#${item.queuePosition}`}
@@ -189,19 +190,19 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                   <time dateTime={item.reservedAt}>{formatPickupDate(item.reservedAt, true)}</time>
                 </td>
                 <td className="px-5 py-4">
-                  <span className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses[item.status] ?? statusClasses.CANCELLED}`}>
-                    {reservationStatusLabel(item.status)}
-                  </span>
+                  <StatusBadge status={item.status} label={reservationStatusLabel(item.status)} />
                 </td>
                 <td className="break-all px-5 py-4 font-mono font-semibold text-slate-900">
                   {item.barcode || 'Chưa cấp bản'}
                 </td>
                 <td className="min-w-64 max-w-sm px-5 py-4">
-                  {canCancelReservation(item.status) && <Button type="button" variant="danger" size="sm"
-                    disabled={!!cancelTarget} aria-label={`Huỷ đơn #${item.id}`}
+                  {canCancelReservation(item.status) && <TableActionButton
+                    tone="danger"
+                    disabled={!!cancelTarget}
+                    aria-label={`Hủy đơn #${item.id}`}
                     onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
-                    Huỷ đơn
-                  </Button>}
+                    Hủy đơn
+                  </TableActionButton>}
                   {item.cancellation && <CancellationAudit audit={item.cancellation} />}
                   {item.status === 'CANCELLED' && !item.cancellation && <span className="text-slate-500">
                     Đơn cũ chưa có thông tin người và thời điểm huỷ.
@@ -211,6 +212,13 @@ function ReservationQueue({ bookId }: { bookId: number }) {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={queuePagination.page}
+          totalItems={queuePagination.totalItems}
+          totalPages={queuePagination.totalPages}
+          pageSize={queuePagination.pageSize}
+          onPageChange={queuePagination.goToPage}
+        />
       </Card>}
     </div>
   )

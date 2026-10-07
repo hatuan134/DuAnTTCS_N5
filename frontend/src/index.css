@@ -2,18 +2,37 @@
 
 :root {
   font-family:
-    Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-
-  color: #0f172a;
-  background: #f8fafc;
-
+  color: #172033;
+  background: #f4f7fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --libra-primary: #2563eb;
+  --libra-primary-strong: #1d4ed8;
+  --libra-primary-soft: #eff6ff;
+  --libra-success: #047857;
+  --libra-warning: #b45309;
+  --libra-danger: #dc2626;
+  --libra-info: #0369a1;
+  --libra-text: #172033;
+  --libra-muted: #64748b;
+  --libra-border: #dfe7f1;
+  --libra-surface: #ffffff;
+  --libra-canvas: #f4f7fb;
+  --libra-radius: 0.875rem;
+  --libra-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.045);
+  --libra-shadow-lg: 0 18px 48px rgb(15 23 42 / 0.16);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  background: var(--libra-canvas);
+  scroll-behavior: smooth;
 }
 
 html,
@@ -26,6 +45,8 @@ body,
 
 body {
   min-height: 100vh;
+  background: var(--libra-canvas);
+  color: var(--libra-text);
 }
 
 button,
@@ -35,27 +56,99 @@ textarea {
   font: inherit;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(59 130 246 / 0.25);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #172033;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #cbd5e1;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: padding-box;
+}
+
+/* Shared application shell */
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(219 234 254 / 0.42), transparent 28rem),
+    var(--libra-canvas);
+}
+
+.app-main {
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.app-content {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.app-content > div,
+.app-content > section {
+  min-width: 0;
+}
+
+/* Common legacy utility classes retained for existing screens */
 .primary-button,
 .secondary-button {
   display: inline-flex;
+  min-height: 2.625rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  font-weight: 650;
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
 .primary-button {
   border: 1px solid transparent;
-  background: #2563eb;
+  background: var(--libra-primary);
   color: white;
+  box-shadow: 0 1px 2px rgb(37 99 235 / 0.18);
 }
 
-.primary-button:hover {
-  background: #1d4ed8;
+.primary-button:hover:not(:disabled) {
+  background: var(--libra-primary-strong);
+  box-shadow: 0 5px 16px rgb(37 99 235 / 0.16);
 }
 
 .secondary-button {
@@ -64,65 +157,207 @@ textarea {
   color: #334155;
 }
 
-.secondary-button:hover {
+.secondary-button:hover:not(:disabled) {
+  border-color: #94a3b8;
   background: #f8fafc;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .icon-button {
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.375rem;
+  height: 2.375rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
+  border: 1px solid #dbe3ed;
+  border-radius: 0.75rem;
+  background: #fff;
   color: #475569;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
-.icon-button:hover {
+.icon-button:hover:not(:disabled) {
+  border-color: #bfdbfe;
   background: #eff6ff;
   color: #2563eb;
 }
 
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .field-label {
   display: block;
-  margin-bottom: 0.375rem;
+  margin-bottom: 0.45rem;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 650;
   color: #334155;
 }
 
 .field-input,
 .time-input {
   border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background: white;
+  color: #0f172a;
   font-size: 0.875rem;
   outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 
 .field-input {
   width: 100%;
-  padding: 0.625rem 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.8rem;
 }
 
 .time-input {
+  min-height: 2.625rem;
   padding: 0.5rem 0.75rem;
 }
 
 .field-input:focus,
 .time-input:focus {
   border-color: #3b82f6;
-  box-shadow: 0 0 0 2px #dbeafe;
+  box-shadow: 0 0 0 4px #dbeafe;
 }
 
+.field-input:disabled,
+.field-input[readonly],
 .time-input:disabled {
   background: #f1f5f9;
-  color: #94a3b8;
+  color: #64748b;
+  cursor: not-allowed;
 }
 
-/* S2-04.4 - Khi in nhãn, chỉ vùng nhãn của đúng lô vừa tạo được đưa ra máy in. */
+/* Normalize management forms without touching their data/event logic. */
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.app-content select,
+.app-content textarea {
+  border-color: #cbd5e1;
+  color: #172033;
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover:not(:disabled),
+.app-content select:hover:not(:disabled),
+.app-content textarea:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.app-content select:focus,
+.app-content textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgb(219 234 254 / 0.9);
+}
+
+.app-content input:disabled,
+.app-content select:disabled,
+.app-content textarea:disabled,
+.app-content input[readonly] {
+  background-color: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.app-content textarea {
+  line-height: 1.55;
+}
+
+/* Give legacy panels the same surface treatment as the shared Card component. */
+.app-content div[class*="border-slate-200"][class*="bg-white"],
+.app-content section[class*="border-slate-200"][class*="bg-white"],
+.app-content article[class*="border-slate-200"][class*="bg-white"] {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.025), 0 8px 24px rgb(15 23 42 / 0.025);
+}
+
+.app-content [role="alert"],
+.app-content [role="status"] {
+  line-height: 1.5;
+}
+
+.app-content [role="alert"][class*="bg-red"] {
+  border: 1px solid #fecaca;
+}
+
+.app-content [role="status"][class*="bg-green"],
+.app-content [role="status"][class*="bg-emerald"] {
+  border: 1px solid #a7f3d0;
+}
+
+/* Tables: one consistent reading rhythm across all management screens. */
+.app-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.app-content thead th {
+  background: #f8fafc;
+  color: #526177;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.app-content tbody td {
+  color: #334155;
+  vertical-align: middle;
+}
+
+.app-content tbody tr {
+  transition: background-color 130ms ease;
+}
+
+.app-content tbody tr:hover {
+  background: #f8fbff;
+}
+
+.app-content table button,
+.app-content table a {
+  text-underline-offset: 3px;
+}
+
+.app-content .overflow-x-auto {
+  scrollbar-gutter: stable;
+}
+
+/* Modals from legacy pages share a calm, readable frame. */
+.app-content [class*="fixed"][class*="inset-0"][class*="z-50"] {
+  background-color: rgb(15 23 42 / 0.54);
+}
+
+.app-content [class*="fixed"][class*="inset-0"][class*="z-50"] > [class*="bg-white"] {
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--libra-shadow-lg);
+}
+
+/* Improve wrapping and hit targets on dense action areas. */
+.app-content button,
+.app-content a {
+  text-underline-offset: 3px;
+}
+
+.app-content button:disabled {
+  cursor: not-allowed;
+}
+
+/* Public/auth surfaces */
+.public-page input,
+.public-page select,
+.auth-page input {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+/* Print behavior required by S2-04.4. */
 @media print {
   @page {
     margin: 8mm;
@@ -163,5 +398,278 @@ textarea {
     border-radius: 0 !important;
     padding: 4mm !important;
     box-shadow: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .app-content {
+    padding: 0.875rem;
+  }
+
+  .app-content [class*="px-6"] {
+    scroll-margin-inline: 0.875rem;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 2.75rem;
+  }
+}
+
+/* S3-00.2: shared table alignment and row rhythm. */
+.data-table th,
+.data-table td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.data-table thead th {
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  min-height: 3.5rem;
+}
+
+.data-table .table-actions {
+  min-width: max-content;
+  justify-content: center;
+}
+
+/* Text-heavy columns read better left-aligned while numeric/status columns stay centered. */
+.data-table .table-cell-left {
+  text-align: left;
+}
+
+.data-table .table-cell-left > .flex,
+.data-table .table-cell-left > div > .flex {
+  justify-content: flex-start;
+}
+
+/* Keep action buttons on one visual row. Horizontal scrolling is preferable to stacked actions. */
+.data-table .table-action-cell {
+  white-space: nowrap;
+}
+
+/* S3-00.2 UI refinement: keep dense management tables readable at 100% desktop zoom. */
+.fit-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table-fit {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.data-table-fit thead th {
+  white-space: normal;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.data-table-fit td {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.data-table-fit .table-actions {
+  min-width: 0;
+  gap: 0.375rem;
+}
+
+.data-table-fit .table-actions button,
+.data-table-fit .table-actions a {
+  min-height: 2rem;
+  padding-inline: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.data-table-fit .table-actions svg {
+  display: block;
+}
+
+/* Borrow policy: reserve enough space for status + three actions at 100% zoom. */
+.borrow-policy-table th:nth-child(1),
+.borrow-policy-table td:nth-child(1) { width: 3.5%; }
+.borrow-policy-table th:nth-child(2),
+.borrow-policy-table td:nth-child(2) { width: 14%; }
+.borrow-policy-table th:nth-child(3),
+.borrow-policy-table td:nth-child(3) { width: 8%; }
+.borrow-policy-table th:nth-child(4),
+.borrow-policy-table td:nth-child(4) { width: 8%; }
+.borrow-policy-table th:nth-child(5),
+.borrow-policy-table td:nth-child(5) { width: 7%; }
+.borrow-policy-table th:nth-child(6),
+.borrow-policy-table td:nth-child(6) { width: 9%; }
+.borrow-policy-table th:nth-child(7),
+.borrow-policy-table td:nth-child(7) { width: 7.5%; }
+.borrow-policy-table th:nth-child(8),
+.borrow-policy-table td:nth-child(8) { width: 7%; }
+.borrow-policy-table th:nth-child(9),
+.borrow-policy-table td:nth-child(9) { width: 10%; }
+.borrow-policy-table th:nth-child(10),
+.borrow-policy-table td:nth-child(10) { width: 26%; }
+
+.borrow-policy-table th:nth-child(9),
+.borrow-policy-table td:nth-child(9) {
+  padding-right: 0.75rem;
+}
+
+.borrow-policy-table th:nth-child(10),
+.borrow-policy-table td:nth-child(10) {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.borrow-policy-table td:nth-child(2) > .flex {
+  align-items: center;
+}
+
+/* Catalog tables: proportional columns prevent the action area from falling off-screen. */
+.catalog-authors-table th:nth-child(1),
+.catalog-authors-table td:nth-child(1) { width: 5%; }
+.catalog-authors-table th:nth-child(2),
+.catalog-authors-table td:nth-child(2) { width: 40%; }
+.catalog-authors-table th:nth-child(3),
+.catalog-authors-table td:nth-child(3) { width: 12%; }
+.catalog-authors-table th:nth-child(4),
+.catalog-authors-table td:nth-child(4) { width: 13%; }
+.catalog-authors-table th:nth-child(5),
+.catalog-authors-table td:nth-child(5) { width: 30%; }
+
+.catalog-categories-table th:nth-child(1),
+.catalog-categories-table td:nth-child(1) { width: 5%; }
+.catalog-categories-table th:nth-child(2),
+.catalog-categories-table td:nth-child(2) { width: 27%; }
+.catalog-categories-table th:nth-child(3),
+.catalog-categories-table td:nth-child(3) { width: 20%; }
+.catalog-categories-table th:nth-child(4),
+.catalog-categories-table td:nth-child(4) { width: 7%; }
+.catalog-categories-table th:nth-child(5),
+.catalog-categories-table td:nth-child(5) { width: 8%; }
+.catalog-categories-table th:nth-child(6),
+.catalog-categories-table td:nth-child(6) { width: 10%; }
+.catalog-categories-table th:nth-child(7),
+.catalog-categories-table td:nth-child(7) { width: 23%; }
+
+.catalog-books-table th:nth-child(1),
+.catalog-books-table td:nth-child(1) { width: 5%; }
+.catalog-books-table th:nth-child(2),
+.catalog-books-table td:nth-child(2) { width: 27%; }
+.catalog-books-table th:nth-child(3),
+.catalog-books-table td:nth-child(3) { width: 17%; }
+.catalog-books-table th:nth-child(4),
+.catalog-books-table td:nth-child(4) { width: 14%; }
+.catalog-books-table th:nth-child(5),
+.catalog-books-table td:nth-child(5) { width: 12%; }
+.catalog-books-table th:nth-child(6),
+.catalog-books-table td:nth-child(6) { width: 8%; }
+.catalog-books-table th:nth-child(7),
+.catalog-books-table td:nth-child(7) { width: 17%; }
+
+/* Library calendar: the two panels and the first two columns use identical geometry. */
+.calendar-pair-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.calendar-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.calendar-panel-header {
+  min-height: 88px;
+}
+
+/* Keep both desktop calendar headers exactly level even when one description wraps. */
+@media (min-width: 1280px) {
+  .calendar-panel-header {
+    height: 104px;
+    min-height: 104px;
+  }
+}
+
+.calendar-aligned-table {
+  table-layout: fixed;
+}
+
+.calendar-col-stt { width: 8%; }
+.calendar-col-day { width: 20%; }
+.calendar-col-weekly-status { width: 22%; }
+.calendar-col-weekly-time { width: 25%; }
+.calendar-col-closed-weekday { width: 12%; }
+.calendar-col-closed-reason { width: 24%; }
+.calendar-col-closed-actions { width: 36%; }
+
+.calendar-aligned-table th:first-child,
+.calendar-aligned-table td:first-child {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.calendar-aligned-table th:nth-child(2),
+.calendar-aligned-table td:nth-child(2) {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.calendar-pagination {
+  margin-top: auto;
+}
+
+.closed-date-table .table-action-cell {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+}
+
+.closed-date-table .table-actions {
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.closed-date-table .table-actions button {
+  padding-inline: 0.5rem;
+}
+
+@media (min-width: 1280px) {
+  .closed-date-table-wrap {
+    overflow-x: hidden;
+  }
+}
+
+@media (min-width: 1280px) {
+  .calendar-pair-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .fit-table-wrap {
+    overflow-x: visible;
+  }
+}
+
+@media (max-width: 1279px) {
+  .data-table-fit {
+    min-width: 900px !important;
+  }
+
+  .borrow-policy-table {
+    min-width: 1180px !important;
+  }
+
+  .catalog-categories-table,
+  .catalog-books-table {
+    min-width: 1080px !important;
   }
 }

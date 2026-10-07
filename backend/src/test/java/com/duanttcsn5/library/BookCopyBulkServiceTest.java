@@ -173,7 +173,7 @@ class BookCopyBulkServiceTest {
         when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
         when(copies.enableBulkBookCopyCreation()).thenReturn("true");
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L);
-        when(copies.insertBulkGeneratedCopy(1L, "TV-000001", 20L, today())).thenReturn(0);
+        when(copies.insertBulkGeneratedCopy(1L, "TV-KHO-A-A01-000001", 20L, today())).thenReturn(0);
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> service.createBulk(1L, request("10", today())));
@@ -184,16 +184,16 @@ class BookCopyBulkServiceTest {
 
     @Test
     void previewsOneTenAndChangedQuantityWithoutConsumingSequence() {
-        when(books.existsById(1L)).thenReturn(true);
+        prepareValidLocation();
         when(copies.peekAutoBarcodeNumber()).thenReturn(21L, 21L, 35L);
-        var one = service.previewBulk(1L, BigDecimal.ONE);
-        assertEquals("TV-000021", one.startBarcode());
-        assertEquals("TV-000021", one.endBarcode());
+        var one = service.previewBulk(1L, BigDecimal.ONE, 10L, 20L);
+        assertEquals("TV-KHO-A-A01-000021", one.startBarcode());
+        assertEquals("TV-KHO-A-A01-000021", one.endBarcode());
         assertEquals(1, one.quantity());
-        var ten = service.previewBulk(1L, BigDecimal.TEN);
-        assertEquals("TV-000030", ten.endBarcode());
+        var ten = service.previewBulk(1L, BigDecimal.TEN, 10L, 20L);
+        assertEquals("TV-KHO-A-A01-000030", ten.endBarcode());
         assertEquals(10, ten.quantity());
-        assertEquals("TV-000039", service.previewBulk(1L, BigDecimal.valueOf(5)).endBarcode());
+        assertEquals("TV-KHO-A-A01-000039", service.previewBulk(1L, BigDecimal.valueOf(5), 10L, 20L).endBarcode());
         verify(copies, never()).nextAutoBarcodeNumber();
         verify(copies, never()).enableBulkBookCopyCreation();
     }
@@ -219,14 +219,14 @@ class BookCopyBulkServiceTest {
 
     @Test
     void previewRejectsInvalidQuantityAndExhaustedRange() {
-        when(books.existsById(1L)).thenReturn(true);
+        prepareValidLocation();
         for (String value : new String[]{"0", "51", "1.5"}) {
             assertEquals("INVALID_BULK_QUANTITY", assertThrows(ApiException.class,
-                    () -> service.previewBulk(1L, new BigDecimal(value))).getCode());
+                    () -> service.previewBulk(1L, new BigDecimal(value), 10L, 20L)).getCode());
         }
         when(copies.peekAutoBarcodeNumber()).thenReturn(999995L);
         assertEquals("BARCODE_SEQUENCE_EXHAUSTED", assertThrows(ApiException.class,
-                () -> service.previewBulk(1L, BigDecimal.TEN)).getCode());
+                () -> service.previewBulk(1L, BigDecimal.TEN, 10L, 20L)).getCode());
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -239,7 +239,7 @@ class BookCopyBulkServiceTest {
             for (String value : occupiedNumbers.split(",")) occupied.add(barcode(Long.parseLong(value)));
         }
         when(copies.existsByBarcode(any())).thenAnswer(call -> occupied.contains(call.getArgument(0)));
-        var preview = service.previewBulk(1L, BigDecimal.valueOf(5));
+        var preview = service.previewBulk(1L, BigDecimal.valueOf(5), 10L, 20L);
         var expectedSkipped = occupied.stream().sorted().toList();
         assertEquals(expectedSkipped, preview.skippedBarcodes());
         var expectedCreated = new java.util.ArrayList<String>();
@@ -283,7 +283,7 @@ class BookCopyBulkServiceTest {
         when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
         // Every inspected barcode has a defined result; only this newly occupied code is a duplicate.
         when(copies.existsByBarcode(any())).thenAnswer(call ->
-                "TV-000003".equals(call.getArgument(0)));
+                "TV-KHO-A-A01-000003".equals(call.getArgument(0)));
         assertEquals("BULK_PREVIEW_STALE", assertThrows(ApiException.class,
                 () -> service.createBulk(1L, request("5", today()))).getCode());
         verify(copies, never()).nextAutoBarcodeNumber();
@@ -295,7 +295,7 @@ class BookCopyBulkServiceTest {
         prepareValidLocation();
         when(copies.peekAutoBarcodeNumber()).thenReturn(1L);
         var request = new BulkCreateBookCopiesRequest(BigDecimal.ONE, 10L, 20L, today(), true,
-                1L, java.util.List.of("TV-000001"));
+                1L, java.util.List.of("TV-KHO-A-A01-000001"));
         assertEquals("BULK_PREVIEW_STALE", assertThrows(ApiException.class,
                 () -> service.createBulk(1L, request)).getCode());
         verify(copies, never()).nextAutoBarcodeNumber();
@@ -314,9 +314,9 @@ class BookCopyBulkServiceTest {
     void duplicatesExhaustTheRemainingRangeBeforeAnyWrite() {
         prepareValidLocation();
         when(copies.peekAutoBarcodeNumber()).thenReturn(999998L);
-        when(copies.existsByBarcode("TV-999998")).thenReturn(true);
+        when(copies.existsByBarcode("TV-KHO-A-A01-999998")).thenReturn(true);
         var request = new BulkCreateBookCopiesRequest(BigDecimal.valueOf(2), 10L, 20L, today(), true,
-                999998L, java.util.List.of("TV-999998"));
+                999998L, java.util.List.of("TV-KHO-A-A01-999998"));
         assertEquals("BARCODE_SEQUENCE_EXHAUSTED", assertThrows(ApiException.class,
                 () -> service.createBulk(1L, request)).getCode());
         verify(copies, never()).nextAutoBarcodeNumber();
@@ -325,17 +325,17 @@ class BookCopyBulkServiceTest {
 
     @Test
     void allowsLastAvailableBarcodeAfterSkippingDuplicate() {
-        when(books.existsById(1L)).thenReturn(true);
+        prepareValidLocation();
         when(copies.peekAutoBarcodeNumber()).thenReturn(999998L);
-        when(copies.existsByBarcode("TV-999998")).thenReturn(true);
-        var preview = service.previewBulk(1L, BigDecimal.ONE);
-        assertEquals("TV-999999", preview.startBarcode());
-        assertEquals("TV-999999", preview.endBarcode());
-        assertEquals(java.util.List.of("TV-999998"), preview.skippedBarcodes());
+        when(copies.existsByBarcode("TV-KHO-A-A01-999998")).thenReturn(true);
+        var preview = service.previewBulk(1L, BigDecimal.ONE, 10L, 20L);
+        assertEquals("TV-KHO-A-A01-999999", preview.startBarcode());
+        assertEquals("TV-KHO-A-A01-999999", preview.endBarcode());
+        assertEquals(java.util.List.of("TV-KHO-A-A01-999998"), preview.skippedBarcodes());
     }
 
     private String barcode(long value) {
-        return String.format(java.util.Locale.ROOT, "TV-%06d", value);
+        return String.format(java.util.Locale.ROOT, "TV-KHO-A-A01-%06d", value);
     }
 
     private void assertSuccessfulBatch(int quantity) {
@@ -351,7 +351,7 @@ class BookCopyBulkServiceTest {
         assertEquals(quantity, response.createdCount());
         assertEquals(quantity, response.createdCopies().size());
         for (int i = 1; i <= quantity; i++) {
-            String barcode = String.format(java.util.Locale.ROOT, "TV-%06d", i);
+            String barcode = String.format(java.util.Locale.ROOT, "TV-KHO-A-A01-%06d", i);
             verify(copies).insertBulkGeneratedCopy(1L, barcode, 20L, today());
             assertEquals(barcode, response.createdCopies().get(i - 1).barcode());
         }

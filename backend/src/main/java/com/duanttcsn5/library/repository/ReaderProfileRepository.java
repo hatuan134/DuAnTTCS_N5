@@ -16,6 +16,9 @@ public interface ReaderProfileRepository extends JpaRepository<ReaderProfile, Lo
 
     boolean existsByMemberCodeIgnoreCase(String memberCode);
 
+    @Query(value = "SELECT nextval('reader_member_code_seq')", nativeQuery = true)
+    Long nextMemberCodeNumber();
+
     Optional<ReaderProfile> findByMemberCodeIgnoreCase(String memberCode);
 
     long countByRegistrationStatus(String registrationStatus);

@@ -22,7 +22,7 @@ export default function PublicBookCover({ bookId, url, title, thumbnail = false 
     decoding="async"
     onError={fallback ? undefined : () => setFailedSource(source)}
     className={thumbnail
-      ? 'mx-auto mb-4 h-60 w-40 rounded-lg border border-slate-200 bg-slate-50 object-contain'
+      ? 'mx-auto mb-3 h-40 w-28 rounded-lg border border-slate-200 bg-slate-50 object-contain'
       : 'h-full w-full object-contain'}
   />
 }

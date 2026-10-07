@@ -57,12 +57,16 @@ public class BookReservation {
     public String getCancelledByName() { return cancelledByName; }
     public OffsetDateTime getCancelledAt() { return cancelledAt; }
 
-    public void cancelByStaff(User actor, OffsetDateTime time, String reason) {
+    public void cancel(User actor, OffsetDateTime time, String reason) {
         this.status = "CANCELLED";
         this.cancelledBy = actor.getId();
         this.cancelledByName = actor.getFullName();
         this.cancelledAt = time;
         this.cancellationReason = reason;
+    }
+
+    public void cancelByStaff(User actor, OffsetDateTime time, String reason) {
+        cancel(actor, time, reason);
     }
 
     public BookReservation() {}

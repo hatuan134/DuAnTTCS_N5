@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../../components/ui/Button'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { bookCopyService, copyError } from './bookCopyService'
 import type { BookCopy, CopyStatusHistory } from './bookCopyService'
 
@@ -39,8 +40,8 @@ export default function RepairBookCopyPanel({ copy, onSaved }: { copy: BookCopy;
   return <section className="mt-6 border-t border-slate-200 pt-6">
     <h3 className="text-lg font-semibold">Chuyển sang Đang sửa chữa</h3>
     <p className="mt-2 text-sm text-slate-600">Chỉ chuyển bản Sẵn sàng và không thuộc phiếu mượn chưa trả. Lý do bắt buộc; lịch sử không được sửa hoặc xóa.</p>
-    {success && <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-emerald-800">{success}</p>}
-    {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
+    {success && <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} className="mt-3" />}
+    {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} className="mt-3" />}
     {['AVAILABLE', 'BORROWED'].includes(copy.status) ? <form onSubmit={submit} className="mt-4 space-y-3">
       <label htmlFor="repair-reason" className="block text-sm font-medium">Lý do sửa chữa <span className="text-red-600">*</span></label>
       <textarea id="repair-reason" required maxLength={2000} rows={3} value={reason} disabled={busy}

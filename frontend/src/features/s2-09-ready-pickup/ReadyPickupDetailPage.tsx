@@ -5,6 +5,7 @@ import CancelReservationPanel, { CancellationNotice } from './CancelReservationP
 import Card from '../../components/ui/Card'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatPickupDate, pickupRoles, pickupService } from './pickupService'
@@ -15,7 +16,7 @@ export default function ReadyPickupDetailPage() {
   const id = Number(reservationId)
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
 
-  if (!allowed) return <p role="alert">Bạn không có quyền xem đơn đặt giữ đang chờ nhận.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem đơn đặt giữ đang chờ nhận.</p>
   if (!Number.isSafeInteger(id) || id < 1) return <div>
     <Link to="/reservations/ready-for-pickup" className="text-blue-600 hover:underline">← Sách đang chờ nhận</Link>
     <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">Mã đơn đặt giữ không hợp lệ.</p>
@@ -73,9 +74,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
       {!loading && !error && item && item.id === id && <Card className="p-6">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-            Đang chờ nhận
-          </span>
+          <StatusBadge status="READY_FOR_PICKUP" label="Đang chờ nhận" />
         </div>
         <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen}
           aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>

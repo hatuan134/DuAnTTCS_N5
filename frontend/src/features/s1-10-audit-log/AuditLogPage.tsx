@@ -16,6 +16,9 @@ import {
 
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import TableActionButton from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import {
   auditLogService,
@@ -178,6 +181,8 @@ function AuditLogContent() {
       // Dữ liệu ở bảng đã đủ để hiển thị nếu request chi tiết lỗi.
     }
   }
+
+  const logPagination = useTablePagination(logs, logs.map((item) => item.id).join(','))
 
   return (
     <div className="space-y-6">
@@ -349,9 +354,10 @@ function AuditLogContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px]">
+            <table className="data-table w-full min-w-[1240px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
+                  <TableHead>STT</TableHead>
                   <TableHead>Thời điểm</TableHead>
                   <TableHead>Người thực hiện</TableHead>
                   <TableHead>Hành động</TableHead>
@@ -361,11 +367,14 @@ function AuditLogContent() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((item) => {
+                {logPagination.pageItems.map((item, index) => {
                   const style = getActionStyle(item.actionGroup)
                   const Icon = style.icon
                   return (
                     <tr key={item.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                      <td className="px-5 py-4 font-semibold text-slate-500">
+                        {logPagination.startIndex + index + 1}
+                      </td>
                       <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
                         {formatDateTime(item.timestamp)}
                       </td>
@@ -386,21 +395,28 @@ function AuditLogContent() {
                       <td className="min-w-[180px] px-5 py-4">
                         <IpAddress value={item.ipAddress} />
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          type="button"
+                      <td className="px-5 py-4">
+                        <TableActionButton
+                          icon={<Eye size={16} />}
+                          tone="primary"
                           title="Xem chi tiết"
                           onClick={() => void openDetail(item)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
                         >
-                          <Eye size={16} />
-                        </button>
+                          Xem chi tiết
+                        </TableActionButton>
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
+            <TablePagination
+              page={logPagination.page}
+              totalItems={logPagination.totalItems}
+              totalPages={logPagination.totalPages}
+              pageSize={logPagination.pageSize}
+              onPageChange={logPagination.goToPage}
+            />
           </div>
         )}
       </Card>
@@ -505,7 +521,7 @@ function StatCard({ label, value, valueClass }: { label: string; value: number; 
 
 function TableHead({ children }: { children: string }) {
   return (
-    <th className="whitespace-nowrap px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+    <th className="whitespace-nowrap px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
       {children}
     </th>
   )

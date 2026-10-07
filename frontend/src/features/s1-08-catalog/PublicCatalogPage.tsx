@@ -1,9 +1,10 @@
 import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { BookOpen, ChevronLeft, ChevronRight, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
+import PublicSiteFooter from './PublicSiteFooter'
 import { catalogService } from './catalogService'
 import type { Book, PublicCatalogFilterOptions, PublicCatalogFilters, PublicCatalogPage, PublicCatalogSearch, PublicCatalogSort } from './catalogService'
 
@@ -25,6 +26,7 @@ function apiErrorMessage(error: unknown, fallback: string) {
 
 export default function PublicCatalogPage() {
   const keywordInputRef = useRef<HTMLInputElement>(null)
+  const loadedPageRef = useRef(0)
   const [books, setBooks] = useState<Book[]>([])
   const [result, setResult] = useState<PublicCatalogPage | null>(null)
   const [keyword, setKeyword] = useState('')
@@ -34,6 +36,7 @@ export default function PublicCatalogPage() {
   const [optionsLoading, setOptionsLoading] = useState(true)
   const [optionsError, setOptionsError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -65,30 +68,48 @@ export default function PublicCatalogPage() {
     let active = true
     let running = false
     setLoading(true)
+    setLoadingMore(false)
     setError('')
+    loadedPageRef.current = 0
 
     const loadBooks = async (background = false) => {
       if (running || (background && document.hidden)) return
       running = true
       try {
-        const data = await catalogService.searchPublicBooks(submittedQuery, controller.signal)
-        if (active) {
-          // Backend có thể đưa về trang cuối nếu số kết quả giảm trong lúc làm mới.
-          if (data.page !== submittedQuery.page) {
-            setSubmittedQuery((current) => ({ ...current, page: data.page }))
-            return
+        if (!background) {
+          const data = await catalogService.searchPublicBooks({ ...submittedQuery, page: 0 }, controller.signal)
+          if (active) {
+            loadedPageRef.current = 0
+            setBooks(data.content)
+            setResult(data)
+            setError('')
           }
-          setBooks(data.content)
-          setResult(data)
+          return
+        }
+
+        const pages: PublicCatalogPage[] = []
+        const maxRequestedPage = loadedPageRef.current
+        for (let page = 0; page <= maxRequestedPage; page += 1) {
+          const data = await catalogService.searchPublicBooks({ ...submittedQuery, page }, controller.signal)
+          pages.push(data)
+          if (data.last || data.page < page) break
+        }
+        if (active && pages.length > 0) {
+          const unique = new Map<number, Book>()
+          pages.flatMap((page) => page.content).forEach((book) => unique.set(book.id, book))
+          const latest = pages[pages.length - 1]
+          loadedPageRef.current = latest.page
+          setBooks(Array.from(unique.values()))
+          setResult(latest)
           setError('')
         }
       } catch (error) {
-        if (active) {
+        if (active && !background) {
           setError(apiErrorMessage(error, 'Không thể tải dữ liệu tra cứu đầu sách. Vui lòng thử lại.'))
         }
       } finally {
         running = false
-        if (active) setLoading(false)
+        if (active && !background) setLoading(false)
       }
     }
 
@@ -98,7 +119,7 @@ export default function PublicCatalogPage() {
       ? new BroadcastChannel('catalog-availability')
       : null
     if (channel) channel.onmessage = refresh
-    const timer = window.setInterval(refresh, 3000)
+    const timer = window.setInterval(refresh, 10000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)
 
@@ -111,6 +132,27 @@ export default function PublicCatalogPage() {
       document.removeEventListener('visibilitychange', refresh)
     }
   }, [submittedQuery, reloadKey])
+
+  const loadMore = async () => {
+    if (!result || result.last || loadingMore || loading) return
+    const nextPage = result.page + 1
+    setLoadingMore(true)
+    setError('')
+    try {
+      const data = await catalogService.searchPublicBooks({ ...submittedQuery, page: nextPage })
+      setBooks((current) => {
+        const unique = new Map(current.map((book) => [book.id, book]))
+        data.content.forEach((book) => unique.set(book.id, book))
+        return Array.from(unique.values())
+      })
+      loadedPageRef.current = data.page
+      setResult(data)
+    } catch (error) {
+      setError(apiErrorMessage(error, 'Không thể hiển thị thêm đầu sách. Vui lòng thử lại.'))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -162,9 +204,9 @@ export default function PublicCatalogPage() {
       )}
       {submittedQuery.availableOnly && (
         <button type="button" disabled={loading} onClick={() => removeFilter('availableOnly')}
-          aria-label="Xóa bộ lọc còn bản rảnh"
+          aria-label="Xóa bộ lọc còn bản sẵn sàng"
           className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
-          Còn bản rảnh <X size={14} />
+          Còn bản sẵn sàng <X size={14} />
         </button>
       )}
       <button type="button" disabled={loading} onClick={clearFilters}
@@ -175,7 +217,7 @@ export default function PublicCatalogPage() {
   )
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="public-page min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
@@ -276,7 +318,7 @@ export default function PublicCatalogPage() {
                   onChange={(event) => setFilters((current) => ({ ...current, availableOnly: event.target.checked }))}
                   className="h-4 w-4 accent-blue-600"
                 />
-                Chỉ hiện sách còn bản rảnh
+                Chỉ hiện sách còn bản sẵn sàng
               </label>
             </fieldset>
             <p className="mt-3 text-xs text-slate-400">Chọn bộ lọc rồi bấm Tra cứu để áp dụng cùng từ khóa.</p>
@@ -373,85 +415,78 @@ export default function PublicCatalogPage() {
           )}
 
           {!error && !loading && books.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {books.map((book) => (
                 <article
                   key={book.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <Link to={`/catalog/books/${book.id}`} aria-label={`Xem chi tiết ${book.title}`}>
                     <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} thumbnail />
                   </Link>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="text-lg font-semibold text-slate-900">{book.title}</h3>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      {book.availableCount ?? 0} bản rảnh
-                    </span>
-                  </div>
 
-                  <dl className="mt-5 space-y-3 text-sm">
-                    <div>
-                      <dt className="text-slate-500">Tác giả</dt>
-                      <dd className="mt-0.5 font-medium text-slate-800">{authorNames(book)}</dd>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <dt className="text-slate-500">Thể loại</dt>
-                        <dd className="mt-0.5 font-medium text-slate-800">{book.categoryName}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500">Năm xuất bản</dt>
-                        <dd className="mt-0.5 font-medium text-slate-800">{book.publicationYear ?? '—'}</dd>
-                      </div>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">ISBN</dt>
-                      <dd className="mt-0.5 font-medium text-slate-800">{book.isbn || '—'}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <Link
-                      to={`/catalog/books/${book.id}`}
-                      className="inline-flex items-center text-sm font-semibold text-blue-600 transition hover:text-blue-700"
-                    >
-                      Xem chi tiết đầu sách
+                  <div className="flex flex-1 flex-col">
+                    <Link to={`/catalog/books/${book.id}`} className="group">
+                      <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-slate-900 group-hover:text-blue-700">
+                        {book.title}
+                      </h3>
                     </Link>
+                    <p className="mt-1 line-clamp-1 text-xs text-slate-500" title={authorNames(book)}>
+                      {authorNames(book)}
+                    </p>
+
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600" title={book.categoryName}>
+                        {book.categoryName}
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${
+                        (book.availableCount ?? 0) > 0
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {book.availableCount ?? 0} sẵn sàng
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="text-[11px] text-slate-500">{book.publicationYear ?? 'Chưa rõ năm'}</span>
+                      <Link
+                        to={`/catalog/books/${book.id}`}
+                        className="text-xs font-semibold text-blue-600 transition hover:text-blue-700"
+                      >
+                        Xem chi tiết
+                      </Link>
+                    </div>
                   </div>
                 </article>
               ))}
             </div>
           )}
+
           {!error && !loading && result && result.totalElements > 0 && (
-            <nav aria-label="Phân trang kết quả tra cứu" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-center">
               <p className="text-sm text-slate-600" aria-live="polite">
-                Trang {result.totalPages === 0 ? 0 : result.page + 1} / {result.totalPages}
-                {result.totalElements > 0 && ` · Hiển thị ${result.page * result.size + 1}–${result.page * result.size + books.length} / ${result.totalElements} đầu sách`}
+                Đang hiển thị <strong>{books.length}</strong> / {result.totalElements} đầu sách phù hợp.
               </p>
-              <div className="flex gap-2">
+              {!result.last && (
                 <button
                   type="button"
-                  disabled={result.first || result.totalPages === 0}
-                  onClick={() => setSubmittedQuery((current) => ({ ...current, page: result.page - 1 }))}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <ChevronLeft size={16} /> Trang trước
+                  <ChevronDown size={17} className={loadingMore ? 'animate-bounce' : ''} />
+                  {loadingMore ? 'Đang tải thêm…' : 'Hiển thị thêm'}
                 </button>
-                <button
-                  type="button"
-                  disabled={result.last || result.totalPages === 0}
-                  onClick={() => setSubmittedQuery((current) => ({ ...current, page: result.page + 1 }))}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
-            </nav>
+              )}
+              {result.last && books.length > 0 && (
+                <p className="text-xs text-slate-500">Bạn đã xem toàn bộ kết quả tra cứu.</p>
+              )}
+            </div>
           )}
         </section>
       </main>
+      <PublicSiteFooter />
     </div>
   )
 }

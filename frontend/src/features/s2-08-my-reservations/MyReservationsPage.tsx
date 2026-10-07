@@ -3,19 +3,24 @@ import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { reservationService } from '../s2-07-reservations/reservationService'
 import type { MyBookReservation } from '../s2-07-reservations/reservationService'
 
-const statuses: Record<string, { label: string; style: string }> = {
-  PENDING: { label: 'Đang xếp hàng', style: 'bg-amber-50 text-amber-800' },
-  READY_FOR_PICKUP: { label: 'Đang chờ nhận', style: 'bg-green-50 text-green-700' },
-  FULFILLED: { label: 'Đã chuyển thành phiếu mượn', style: 'bg-blue-50 text-blue-700' },
-  CANCELLED: { label: 'Đã huỷ', style: 'bg-slate-100 text-slate-600' },
-  EXPIRED: { label: 'Hết hạn', style: 'bg-red-50 text-red-700' },
+const statusLabels: Record<string, string> = {
+  PENDING: 'Đang xếp hàng',
+  READY_FOR_PICKUP: 'Đang chờ nhận',
+  FULFILLED: 'Đã chuyển thành phiếu mượn',
+  CANCELLED: 'Đã huỷ',
+  EXPIRED: 'Hết hạn',
 }
 
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
@@ -103,7 +108,9 @@ export default function MyReservationsPage() {
     }
   }
 
-  if (!allowed) return <p role="alert">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
+  const reservationPagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
 
   const activeCount = items.filter((item) => ['PENDING', 'READY_FOR_PICKUP'].includes(item.status)).length
 
@@ -117,8 +124,8 @@ export default function MyReservationsPage() {
         Ngày giờ theo Việt Nam (UTC+7). Vị trí được tính trong hàng đợi của từng đầu sách.
         {' '}Nhấn Làm mới hoặc quay lại cửa sổ để cập nhật.
       </p>
-      {success && <div role="status" className="mb-4 rounded-lg bg-green-50 p-4 text-green-800">{success}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">{actionError}</div>}
+      {success && <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} className="mb-4" />}
+      {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} className="mb-4" />}
       {confirming && <Card className="mb-4 border border-red-200 p-5">
         <h2 className="font-semibold text-slate-900">Xác nhận huỷ đặt giữ</h2>
         <p className="my-3 text-sm text-slate-700">
@@ -148,18 +155,21 @@ export default function MyReservationsPage() {
           Có <strong>{activeCount}</strong> đơn đang hiệu lực / {items.length} đơn đặt giữ.
         </p>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
             <caption className="sr-only">Danh sách đơn đặt giữ của bạn, ưu tiên đơn đang hiệu lực</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                {['Đầu sách', 'Thời điểm đặt', 'Trạng thái', 'Vị trí hàng đợi', 'Hạn cuối đến nhận', 'Thao tác'].map((label) =>
+                {['STT', 'Đầu sách', 'Thời điểm đặt', 'Trạng thái', 'Vị trí hàng đợi', 'Hạn cuối đến nhận', 'Thao tác'].map((label) =>
                   <th key={label} scope="col" className="px-5 py-3">{label}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {items.map((item) => {
-                const status = statuses[item.status] ?? { label: item.status, style: 'bg-slate-100 text-slate-600' }
-                return <tr key={item.id} className="align-top hover:bg-slate-50">
+              {reservationPagination.pageItems.map((item, index) => {
+                const statusLabel = statusLabels[item.status] ?? item.status
+                return <tr key={item.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-4 font-semibold text-slate-500">
+                    {reservationPagination.startIndex + index + 1}
+                  </td>
                   <td className="px-5 py-4">
                     <Link to={`/catalog/books/${item.bookId}`} className="font-semibold text-blue-700 hover:underline">
                       {item.bookTitle}
@@ -170,9 +180,7 @@ export default function MyReservationsPage() {
                     <time dateTime={item.reservedAt}>{formatDate(item.reservedAt)}</time>
                   </td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${status.style}`}>
-                      {status.label}
-                    </span>
+                    <StatusBadge status={item.status} label={statusLabel} />
                   </td>
                   <td className="px-5 py-4 font-semibold text-slate-900">
                     {item.status === 'PENDING' ? (item.queuePosition ?? 'Chưa xác định') : '—'}
@@ -185,17 +193,25 @@ export default function MyReservationsPage() {
                   <td className="px-5 py-4">
                     {item.status === 'FULFILLED'
                       ? <span className="text-xs font-medium text-slate-500">Không thể huỷ: sách đã được nhận.</span>
-                      : ['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <Button type="button" variant="danger" size="sm"
+                      : ['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <TableActionButton
+                        tone="danger"
                         disabled={cancelling || confirming !== null}
                         onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
-                        Huỷ đặt giữ
-                      </Button> : '—'}
+                        Hủy đặt giữ
+                      </TableActionButton> : '—'}
                   </td>
                 </tr>
               })}
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={reservationPagination.page}
+          totalItems={reservationPagination.totalItems}
+          totalPages={reservationPagination.totalPages}
+          pageSize={reservationPagination.pageSize}
+          onPageChange={reservationPagination.goToPage}
+        />
       </Card>}
     </div>
   )

@@ -9,12 +9,16 @@ import {
   Phone,
   RefreshCw,
   Search,
-  UserCheck,
   UserPlus,
   Users,
   XCircle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import Button from '../../components/ui/Button'
+import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { readerService } from './readerService'
 import type { ReaderProfileResponse } from './readerService'
 
@@ -64,45 +68,34 @@ export default function ReadersPage() {
     (r) => r.registrationStatus === 'REJECTED',
   ).length
 
+  const readerPagination = useTablePagination(
+    filteredReaders,
+    `${searchTerm}|${statusFilter}`,
+  )
+
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-              S1-03
-            </span>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Quản lý bạn đọc & Tiếp nhận hồ sơ
-            </h1>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Kiểm tra trùng lặp email, mã định danh và quản lý tiếp nhận hồ sơ đăng ký bạn đọc.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchReaders}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Làm mới
-          </button>
-
-          <Link
-            to="/register"
-            target="_blank"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-          >
-            <UserPlus size={16} />
-            Mở cổng đăng ký
-            <ExternalLink size={14} className="opacity-70" />
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Quản lý bạn đọc & tiếp nhận hồ sơ"
+        description="Kiểm tra trùng lặp email, mã định danh và quản lý tiếp nhận hồ sơ đăng ký bạn đọc."
+        action={(
+          <>
+            <Button type="button" variant="secondary" onClick={fetchReaders} loading={loading}>
+              <RefreshCw size={16} />
+              Làm mới
+            </Button>
+            <Link
+              to="/register"
+              target="_blank"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-blue-600 bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:border-blue-700 hover:bg-blue-700"
+            >
+              <UserPlus size={16} />
+              Mở cổng đăng ký
+              <ExternalLink size={14} className="opacity-70" />
+            </Link>
+          </>
+        )}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -164,7 +157,7 @@ export default function ReadersPage() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm kiếm theo họ tên, email, mã sinh viên / cán bộ..."
+            placeholder="Tìm kiếm theo họ tên, email, mã bạn đọc..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
         </div>
@@ -215,10 +208,12 @@ export default function ReadersPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <>
+            <div className="overflow-x-auto">
+            <table className="data-table w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="py-3.5 px-4">STT</th>
                   <th className="py-3.5 px-4">Mã định danh</th>
                   <th className="py-3.5 px-4">Họ và tên</th>
                   <th className="py-3.5 px-4">Loại thẻ</th>
@@ -230,8 +225,11 @@ export default function ReadersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredReaders.map((reader) => (
+                {readerPagination.pageItems.map((reader, index) => (
                   <tr key={reader.userId} className="hover:bg-slate-50/50 transition">
+                    <td className="py-3.5 px-4 font-semibold text-slate-500">
+                      {readerPagination.startIndex + index + 1}
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                       {reader.memberCode}
                     </td>
@@ -263,45 +261,33 @@ export default function ReadersPage() {
                       {new Date(reader.submittedAt).toLocaleDateString('vi-VN')}
                     </td>
                     <td className="py-3.5 px-4">
-                      {reader.registrationStatus === 'PENDING' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                          <Clock size={12} />
-                          Chờ duyệt
-                        </span>
-                      ) : reader.registrationStatus === 'APPROVED' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                          <UserCheck size={12} />
-                          Đã duyệt
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                          <XCircle size={12} />
-                          Bị từ chối
-                        </span>
-                      )}
+                      <StatusBadge
+                        status={reader.registrationStatus}
+                        label={reader.registrationStatus === 'PENDING'
+                          ? 'Chờ duyệt'
+                          : reader.registrationStatus === 'APPROVED'
+                            ? 'Đã duyệt'
+                            : reader.registrationStatus === 'REJECTED'
+                              ? 'Bị từ chối'
+                              : reader.registrationStatus}
+                      />
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <span
-                        className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${
-                          reader.userStatus === 'ACTIVE'
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'bg-red-50 text-red-700'
-                        }`}
-                      >
-                        {reader.userStatus === 'ACTIVE'
-                          ? 'Đang hoạt động'
-                          : reader.userStatus === 'LOCKED'
-                            ? 'Đã khóa'
-                            : reader.userStatus === 'DISABLED'
-                              ? 'Ngừng hoạt động'
-                              : reader.userStatus}
-                      </span>
+                      <StatusBadge status={reader.userStatus} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            <TablePagination
+              page={readerPagination.page}
+              totalItems={readerPagination.totalItems}
+              totalPages={readerPagination.totalPages}
+              pageSize={readerPagination.pageSize}
+              onPageChange={readerPagination.goToPage}
+            />
+          </>
         )}
       </div>
     </div>

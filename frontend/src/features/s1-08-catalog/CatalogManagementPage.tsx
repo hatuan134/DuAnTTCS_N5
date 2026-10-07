@@ -12,8 +12,6 @@ import {
   AlertCircle,
   AlertTriangle,
   BookOpen,
-  CheckCircle2,
-  CornerDownRight,
   Pencil,
   Plus,
   Power,
@@ -27,7 +25,14 @@ import {
 
 import { Link, useNavigate } from 'react-router-dom'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton, { TableActions, tableActionClassName } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
+import BookCoverEditorDialog from '../s2-10-book-cover/BookCoverEditorDialog'
+import InlineCatalogCreateRow from './InlineCatalogCreateRow'
 import {
   catalogService,
   type Author,
@@ -58,7 +63,6 @@ interface BookFormState {
   subtitle: string
   authorIds: number[]
   categoryId: string
-  isbn: string
   publisher: string
   publicationYear: string
   pageCount: string
@@ -87,7 +91,6 @@ const emptyBookForm: BookFormState = {
   subtitle: '',
   authorIds: [],
   categoryId: '',
-  isbn: '',
   publisher: '',
   publicationYear: '',
   pageCount: '',
@@ -104,6 +107,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [coverBook, setCoverBook] = useState<Book | null>(null)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -125,7 +129,11 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
   const [bookFormError, setBookFormError] = useState('')
-  const [isbnError, setIsbnError] = useState('')
+  const [inlineAuthorName, setInlineAuthorName] = useState('')
+  const [inlineAuthorSubmitting, setInlineAuthorSubmitting] = useState(false)
+  const [inlineCategoryName, setInlineCategoryName] = useState('')
+  const [inlineCategorySubmitting, setInlineCategorySubmitting] = useState(false)
+  const [inlinePublisherName, setInlinePublisherName] = useState('')
   const [bookSubmitting, setBookSubmitting] = useState(false)
   const [duplicateTitleWarning, setDuplicateTitleWarning] = useState<DuplicateTitleWarningState | null>(null)
 
@@ -174,9 +182,6 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
   const showNotification = (msg: string) => {
     setSuccessMessage(msg)
-    setTimeout(() => {
-      setSuccessMessage(null)
-    }, 4000)
   }
 
   // --- Author Actions ---
@@ -394,14 +399,15 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const openCreateBookModal = () => {
     setBookForm(emptyBookForm)
     setBookFormError('')
-    setIsbnError('')
+    setInlineAuthorName('')
+    setInlineCategoryName('')
+    setInlinePublisherName('')
     setDuplicateTitleWarning(null)
     setIsBookModalOpen(true)
   }
 
   const buildCatalogPayload = (confirmDuplicateTitle: boolean): CatalogBookForm | null => {
     setBookFormError('')
-    setIsbnError('')
 
     const currentYear = new Date().getFullYear()
     const publicationYear = Number(bookForm.publicationYear)
@@ -419,14 +425,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       setBookFormError('Vui lòng chọn thể loại cho đầu sách.')
       return null
     }
-    if (!bookForm.publisher) {
-      setBookFormError('Vui lòng chọn nhà xuất bản từ danh mục hiện có.')
-      return null
-    }
-
-    const normalizedIsbn = bookForm.isbn.trim()
-    if (normalizedIsbn && !/^(?:[0-9]{10}|[0-9]{13})$/.test(normalizedIsbn)) {
-      setIsbnError('ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.')
+    if (!bookForm.publisher.trim()) {
+      setBookFormError('Vui lòng chọn hoặc nhập nhà xuất bản.')
       return null
     }
 
@@ -444,8 +444,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       subtitle: bookForm.subtitle.trim() || undefined,
       authorIds: bookForm.authorIds,
       categoryId: Number(bookForm.categoryId),
-      isbn: normalizedIsbn || undefined,
-      publisher: bookForm.publisher,
+      publisher: bookForm.publisher.trim(),
       publicationYear,
       pageCount,
       description: bookForm.description.trim() || undefined,
@@ -471,7 +470,6 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi tạo hồ sơ đầu sách.'
       const code = err.response?.data?.code
       const details = err.response?.data?.details
-      const field = details?.field
 
       if (code === 'TITLE_ALREADY_EXISTS') {
         const duplicateBooks = Array.isArray(details?.duplicates) ? details.duplicates as Book[] : []
@@ -482,15 +480,75 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         })
       } else {
         setDuplicateTitleWarning(null)
-        if (field === 'isbn' || code === 'INVALID_ISBN_FORMAT' || code === 'ISBN_ALREADY_EXISTS') {
-          setIsbnError(msg)
-        } else {
-          setBookFormError(msg)
-        }
+        setBookFormError(msg)
       }
     } finally {
       setBookSubmitting(false)
     }
+  }
+
+  const handleInlineAuthorCreate = async () => {
+    const name = inlineAuthorName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên tác giả mới.')
+      return
+    }
+    if (inlineAuthorSubmitting || bookSubmitting) return
+
+    setInlineAuthorSubmitting(true)
+    setBookFormError('')
+    try {
+      const created = await catalogService.createAuthor({ name, note: '' })
+      setAuthors((current) => [created, ...current])
+      setBookForm((current) => ({
+        ...current,
+        authorIds: current.authorIds.includes(created.id)
+          ? current.authorIds
+          : [...current.authorIds, created.id],
+      }))
+      setInlineAuthorName('')
+    } catch (err: any) {
+      setBookFormError(err.response?.data?.message || 'Không thể thêm tác giả mới.')
+    } finally {
+      setInlineAuthorSubmitting(false)
+    }
+  }
+
+  const handleInlineCategoryCreate = async () => {
+    const name = inlineCategoryName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên thể loại mới.')
+      return
+    }
+    if (inlineCategorySubmitting || bookSubmitting) return
+
+    setInlineCategorySubmitting(true)
+    setBookFormError('')
+    try {
+      const created = await catalogService.createCategory({ name, description: '', parentId: null })
+      setCategories((current) => [created, ...current])
+      setBookForm((current) => ({ ...current, categoryId: String(created.id) }))
+      setInlineCategoryName('')
+    } catch (err: any) {
+      setBookFormError(err.response?.data?.message || 'Không thể thêm thể loại mới.')
+    } finally {
+      setInlineCategorySubmitting(false)
+    }
+  }
+
+  const handleInlinePublisherCreate = () => {
+    const name = inlinePublisherName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên nhà xuất bản mới.')
+      return
+    }
+    if (bookSubmitting) return
+
+    const existing = publisherOptions.find((publisher) => publisher.toLocaleLowerCase('vi-VN') === name.toLocaleLowerCase('vi-VN'))
+    const selected = existing ?? name
+    setBookForm((current) => ({ ...current, publisher: selected }))
+    setInlinePublisherName('')
+    setBookFormError('')
   }
 
   const handleBookSubmit = async (e: FormEvent) => {
@@ -608,26 +666,19 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
       {/* Notifications */}
       {successMessage && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
+        <FeedbackAlert
+          message={successMessage}
+          tone="success"
+          onDismiss={() => setSuccessMessage(null)}
+        />
       )}
 
       {apiError && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={18} className="text-red-600 shrink-0" />
-            <span>{apiError}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setApiError(null)}
-            className="text-red-500 hover:text-red-700"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <FeedbackAlert
+          message={apiError}
+          tone="error"
+          onDismiss={() => setApiError(null)}
+        />
       )}
 
       {/* Tabs navigation */}
@@ -847,40 +898,10 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
           <BooksTable
             items={filteredBooks}
             onOpenCatalogModal={openCreateBookModal}
+            onEditCover={setCoverBook}
           />
         )}
       </Card>
-
-      {/* Rules Notice Box */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-5">
-        <div className="flex items-start gap-3">
-          <BookOpen size={20} className="mt-0.5 shrink-0 text-blue-600" />
-          <div className="space-y-1.5">
-            <h4 className="text-sm font-semibold text-blue-900">
-              Quy tắc nghiệp vụ S1-08 (Khai báo danh mục & Biên mục sách)
-            </h4>
-            <ul className="list-disc pl-5 text-sm leading-relaxed text-blue-800 space-y-1">
-              <li>
-                <strong>Không trùng tên:</strong> Tên tác giả là duy nhất trong danh mục tác giả;
-                Tên thể loại là duy nhất trong cùng danh mục cha / cùng cấp.
-              </li>
-              <li>
-                <strong>Xếp lồng tối đa 2 cấp:</strong> Thể loại chỉ được tối đa 2 cấp (ví dụ:
-                "Văn học trong nước" nằm dưới "Văn học"). Không cho phép tạo thể loại cấp 3.
-              </li>
-              <li>
-                <strong>Bảo vệ dữ liệu sách:</strong> Không cho xoá tác giả hoặc thể loại đang gắn
-                với ít nhất một đầu sách; chỉ cho phép <em>ngừng sử dụng</em>.
-              </li>
-              <li>
-                <strong>Quy tắc biên mục:</strong> Danh mục đã ngừng sử dụng không xuất hiện trong ô
-                chọn khi biên mục mới, nhưng vẫn hiển thị đầy đủ và rõ ràng trên các sách cũ đã biên
-                mục.
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       {/* MODAL: Thêm / Sửa Tác giả */}
       {isAuthorModalOpen && (
@@ -1075,7 +1096,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">Tạo hồ sơ đầu sách</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  ISBN có thể để trống; nếu nhập phải gồm đúng 10 hoặc 13 chữ số và không được trùng.
+                  Có thể thêm tác giả và nhập nhà xuất bản mới ngay tại đây; mã bản vật lý sẽ do hệ thống sinh theo kho/kệ.
                 </p>
               </div>
               <button
@@ -1159,6 +1180,19 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     ))}
                   </select>
 
+                  <InlineCatalogCreateRow
+                    value={inlineAuthorName}
+                    onChange={(value) => {
+                      setInlineAuthorName(value)
+                      setBookFormError('')
+                    }}
+                    onCreate={() => void handleInlineAuthorCreate()}
+                    placeholder="Chưa có tác giả? Nhập tên mới"
+                    buttonLabel="Thêm tác giả mới"
+                    busy={inlineAuthorSubmitting}
+                    disabled={bookSubmitting}
+                  />
+
                   {bookForm.authorIds.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {bookForm.authorIds.map((authorId) => {
@@ -1217,40 +1251,18 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    ISBN
-                  </label>
-                  <input
-                    type="text"
-                    value={bookForm.isbn}
-                    onChange={(e) => {
-                      setBookForm({ ...bookForm, isbn: e.target.value })
-                      setIsbnError('')
+                  <InlineCatalogCreateRow
+                    value={inlineCategoryName}
+                    onChange={(value) => {
+                      setInlineCategoryName(value)
                       setBookFormError('')
                     }}
-                    placeholder="Nhập ISBN 10 hoặc 13 chữ số nếu có"
-                    maxLength={50}
-                    inputMode="numeric"
-                    aria-invalid={Boolean(isbnError)}
-                    aria-describedby={isbnError ? 'book-isbn-error' : 'book-isbn-help'}
-                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none ${
-                      isbnError
-                        ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-slate-300 focus:border-blue-500'
-                    }`}
+                    onCreate={() => void handleInlineCategoryCreate()}
+                    placeholder="Chưa có thể loại? Nhập tên mới"
+                    buttonLabel="Thêm thể loại mới"
+                    busy={inlineCategorySubmitting}
+                    disabled={bookSubmitting}
                   />
-                  {isbnError ? (
-                    <p id="book-isbn-error" className="mt-1 text-xs font-medium text-red-600">
-                      {isbnError}
-                    </p>
-                  ) : (
-                    <p id="book-isbn-help" className="mt-1 text-[11px] text-slate-400">
-                      Có thể để trống. Nếu nhập, chỉ chấp nhận đúng 10 hoặc 13 chữ số.
-                    </p>
-                  )}
                 </div>
 
                 <div>
@@ -1267,15 +1279,27 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
                     <option value="">-- Chọn nhà xuất bản --</option>
+                    {bookForm.publisher && !publisherOptions.some((publisher) => publisher === bookForm.publisher) && (
+                      <option value={bookForm.publisher}>{bookForm.publisher} — mới</option>
+                    )}
                     {publisherOptions.map((publisher) => (
                       <option key={publisher} value={publisher}>{publisher}</option>
                     ))}
                   </select>
-                  {publisherOptions.length === 0 && (
-                    <p className="mt-1 text-[11px] text-amber-600">
-                      Chưa có nhà xuất bản nào trong dữ liệu đầu sách hiện tại.
-                    </p>
-                  )}
+                  <InlineCatalogCreateRow
+                    value={inlinePublisherName}
+                    onChange={(value) => {
+                      setInlinePublisherName(value)
+                      setBookFormError('')
+                    }}
+                    onCreate={handleInlinePublisherCreate}
+                    placeholder="Chưa có nhà xuất bản? Nhập tên mới"
+                    buttonLabel="Thêm nhà xuất bản mới"
+                    disabled={bookSubmitting}
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Nhà xuất bản mới sẽ được ghi vào cơ sở dữ liệu khi bạn lưu đầu sách.
+                  </p>
                 </div>
 
                 <div>
@@ -1343,14 +1367,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setIsBookModalOpen(false)}
-                  disabled={bookSubmitting}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Huỷ
                 </button>
                 <button
                   type="submit"
-                  disabled={bookSubmitting || publisherOptions.length === 0}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
                   className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {bookSubmitting ? 'Đang lưu...' : 'Lưu đầu sách'}
@@ -1397,8 +1421,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                           <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
                             <span><strong>Tác giả:</strong> {authorNames || 'Không rõ'}</span>
                             <span><strong>ISBN:</strong> {book.isbn || 'Chưa có ISBN'}</span>
-                            <span><strong>NXB:</strong> {book.publisher || '—'}</span>
-                            <span><strong>Năm XB:</strong> {book.publicationYear || '—'}</span>
+                            <span><strong>Nhà xuất bản:</strong> {book.publisher || '—'}</span>
+                            <span><strong>Năm xuất bản:</strong> {book.publicationYear || '—'}</span>
                           </div>
                         </div>
                         <Link
@@ -1440,6 +1464,18 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {coverBook && (
+        <BookCoverEditorDialog
+          book={coverBook}
+          onClose={() => setCoverBook(null)}
+          onSaved={(message) => {
+            setCoverBook(null)
+            showNotification(message)
+            void loadData()
+          }}
+        />
       )}
 
       {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
@@ -1519,6 +1555,8 @@ interface AuthorsTableProps {
 }
 
 function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1529,34 +1567,33 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-authors-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Tác giả</th>
-            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-6 py-3.5 text-center">Trạng thái</th>
-            <th className="px-6 py-3.5 text-right">Thao tác</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Tác giả</th>
+            <th className="px-3 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-3 py-3.5 text-center">Trạng thái</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((author) => (
+          {pagination.pageItems.map((author, index) => (
             <tr key={author.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                    <UserRound size={18} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{author.name}</div>
-                    <div className="text-xs text-slate-500 max-w-md truncate">
-                      {author.note || 'Chưa có ghi chú'}
-                    </div>
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="font-semibold text-slate-900">{author.name}</div>
+                  <div className="text-xs text-slate-500 max-w-md truncate">
+                    {author.note || 'Chưa có ghi chú'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-3 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     author.bookCount > 0
@@ -1568,7 +1605,7 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-3 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                     author.active
@@ -1580,48 +1617,35 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(author)}
-                    title="Chỉnh sửa tác giả"
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
-                  >
-                    <Pencil size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onToggle(author)}
-                    title={author.active ? 'Ngừng sử dụng tác giả' : 'Kích hoạt lại tác giả'}
-                    className={`rounded-lg p-1.5 transition ${
-                      author.active
-                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
-                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                    }`}
-                  >
-                    <Power size={16} />
-                  </button>
-
-                  <button
-                    type="button"
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(author)}>
+                    Chỉnh sửa
+                  </TableActionButton>
+                  <TableActionButton icon={<Power size={16} />} tone={author.active ? 'warning' : 'success'} onClick={() => onToggle(author)}>
+                    {author.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
+                  </TableActionButton>
+                  <TableActionButton
+                    icon={<Trash2 size={16} />}
+                    tone="danger"
                     onClick={() => onDelete(author)}
-                    title={
-                      author.bookCount > 0
-                        ? 'Không thể xoá vì đang gắn với đầu sách'
-                        : 'Xoá tác giả'
-                    }
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                    title={author.bookCount > 0 ? 'Không thể xóa vì đang gắn với đầu sách' : 'Xóa tác giả'}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                    Xóa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }
@@ -1637,6 +1661,8 @@ interface CategoriesTableProps {
 }
 
 function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1647,45 +1673,35 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-categories-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Thể loại</th>
-            <th className="px-6 py-3.5">Thuộc thể loại cha</th>
-            <th className="px-6 py-3.5 text-center">Cấp</th>
-            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-6 py-3.5 text-center">Trạng thái</th>
-            <th className="px-6 py-3.5 text-right">Thao tác</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Thể loại</th>
+            <th className="table-cell-left px-3 py-3.5">Thuộc thể loại cha</th>
+            <th className="px-2 py-3.5 text-center">Cấp</th>
+            <th className="px-2 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-2 py-3.5 text-center">Trạng thái</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((cat) => (
+          {pagination.pageItems.map((cat, index) => (
             <tr key={cat.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-2.5">
-                  {cat.level === 2 && (
-                    <CornerDownRight size={16} className="text-slate-400 shrink-0 ml-3" />
-                  )}
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                      cat.level === 1
-                        ? 'bg-violet-100 text-violet-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    <Tags size={16} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{cat.name}</div>
-                    <div className="text-xs text-slate-500 max-w-sm truncate">
-                      {cat.description || 'Chưa có mô tả'}
-                    </div>
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="font-semibold text-slate-900">{cat.name}</div>
+                  <div className="text-xs text-slate-500 max-w-sm truncate">
+                    {cat.description || 'Chưa có mô tả'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-sm text-slate-600">
+              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
                 {cat.parentName ? (
                   <span className="font-medium text-violet-900">{cat.parentName}</span>
                 ) : (
@@ -1693,7 +1709,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 )}
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${
                     cat.level === 1
@@ -1705,7 +1721,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     cat.bookCount > 0
@@ -1717,7 +1733,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                     cat.active
@@ -1729,48 +1745,35 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(cat)}
-                    title="Chỉnh sửa thể loại"
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
-                  >
-                    <Pencil size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onToggle(cat)}
-                    title={cat.active ? 'Ngừng sử dụng thể loại' : 'Kích hoạt lại thể loại'}
-                    className={`rounded-lg p-1.5 transition ${
-                      cat.active
-                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
-                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                    }`}
-                  >
-                    <Power size={16} />
-                  </button>
-
-                  <button
-                    type="button"
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
+                    Chỉnh sửa
+                  </TableActionButton>
+                  <TableActionButton icon={<Power size={16} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
+                    {cat.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
+                  </TableActionButton>
+                  <TableActionButton
+                    icon={<Trash2 size={16} />}
+                    tone="danger"
                     onClick={() => onDelete(cat)}
-                    title={
-                      cat.bookCount > 0
-                        ? 'Không thể xoá vì đang gắn với đầu sách'
-                        : 'Xoá thể loại'
-                    }
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                    title={cat.bookCount > 0 ? 'Không thể xóa vì đang gắn với đầu sách' : 'Xóa thể loại'}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                    Xóa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }
@@ -1781,9 +1784,12 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
 interface BooksTableProps {
   items: Book[]
   onOpenCatalogModal: () => void
+  onEditCover: (book: Book) => void
 }
 
-function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
+function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1802,52 +1808,45 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-books-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Tiêu đề sách / ISBN</th>
-            <th className="px-6 py-3.5">Tác giả</th>
-            <th className="px-6 py-3.5">Thể loại</th>
-            <th className="px-6 py-3.5">Nhà xuất bản</th>
-            <th className="px-6 py-3.5 text-center">Năm XB</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Tiêu đề sách / ISBN</th>
+            <th className="table-cell-left px-3 py-3.5">Tác giả</th>
+            <th className="table-cell-left px-3 py-3.5">Thể loại</th>
+            <th className="table-cell-left px-3 py-3.5">Nhà xuất bản</th>
+            <th className="px-2 py-3.5 text-center">Năm xuất bản</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((book) => (
+          {pagination.pageItems.map((book, index) => (
             <tr key={book.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <BookOpen size={18} />
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+                    {!book.hasCopies && (
+                      <StatusBadge status="NO_COPY" />
+                    )}
                   </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
-                      {!book.hasCopies && (
-                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                          Chưa có bản sao
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {book.hasCopies
-                        ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
-                        : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
-                    </div>
-                    <div className="mt-2">
-                      <Link to={`/books/${book.id}/cover/edit`} className="text-xs font-semibold text-blue-600 hover:underline">
-                        Chỉnh sửa ảnh bìa
-                      </Link>
-                    </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {book.hasCopies
+                      ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
+                      : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4">
+              <td className="table-cell-left px-3 py-4">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(book.authors?.length
                     ? book.authors
@@ -1871,7 +1870,7 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                 </div>
               </td>
 
-              <td className="px-6 py-4">
+              <td className="table-cell-left px-3 py-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-slate-800">{book.categoryName}</span>
                   {!book.categoryActive && (
@@ -1885,17 +1884,39 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-sm text-slate-600">
+              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
                 {book.publisher || '—'}
               </td>
 
-              <td className="px-6 py-4 text-center text-sm font-medium text-slate-700">
+              <td className="px-2 py-4 text-center text-sm font-medium text-slate-700">
                 {book.publicationYear || '—'}
+              </td>
+
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <Link
+                    to={`/books/${book.id}`}
+                    title="Xem chi tiết đầu sách"
+                    className={tableActionClassName('primary')}
+                  >
+                    Xem chi tiết
+                  </Link>
+                  <TableActionButton tone="neutral" title="Chỉnh sửa ảnh bìa đầu sách" onClick={() => onEditCover(book)}>
+                    Chỉnh sửa ảnh bìa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }

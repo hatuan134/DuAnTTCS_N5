@@ -11,6 +11,7 @@ import {
   Link,
   useSearchParams,
 } from 'react-router-dom'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { passwordResetService } from './passwordResetService'
 
 export default function ForgotPasswordPage() {
@@ -63,7 +64,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+    <div className="auth-page flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
@@ -109,9 +110,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               {error && (
-                <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                  {error}
-                </div>
+                <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
               )}
 
               <button

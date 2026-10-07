@@ -3,6 +3,8 @@ import { ArrowLeft, CheckCircle2, Printer, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import type { BulkCreatedBookCopy, BulkCreateBookCopiesResult } from './bookCopyService'
 
 const CODE128_PATTERNS = [
@@ -99,6 +101,7 @@ export default function BulkCreateBookCopiesResult({
 }) {
   const [printMode, setPrintMode] = useState(false)
   const createdCopies = result.createdCopies ?? []
+  const copyPagination = useTablePagination(createdCopies)
 
   useEffect(() => {
     if (!printMode) return undefined
@@ -129,7 +132,7 @@ export default function BulkCreateBookCopiesResult({
 
         <section className="bulk-label-print-area" aria-label="Nhãn mã vạch của lô vừa tạo">
           <div className="bulk-label-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {createdCopies.map((copy) => (
+            {copyPagination.pageItems.map((copy) => (
               <BarcodeLabel key={copy.barcode} copy={copy} bookTitle={bookTitle} />
             ))}
           </div>
@@ -189,9 +192,10 @@ export default function BulkCreateBookCopiesResult({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="px-5 py-3">STT</th>
                 <th className="px-5 py-3">Mã vạch</th>
                 <th className="px-5 py-3">Đầu sách</th>
                 <th className="px-5 py-3">Kho</th>
@@ -200,8 +204,11 @@ export default function BulkCreateBookCopiesResult({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {createdCopies.map((copy) => (
-                <tr key={copy.barcode} className="align-top">
+              {copyPagination.pageItems.map((copy, index) => (
+                <tr key={copy.barcode}>
+                  <td className="px-5 py-4 font-semibold text-slate-500">
+                    {copyPagination.startIndex + index + 1}
+                  </td>
                   <td className="whitespace-nowrap px-5 py-4 font-mono font-semibold text-blue-700">{copy.barcode}</td>
                   <td className="px-5 py-4 text-slate-800">
                     <div className="font-medium">{bookTitle}</div>
@@ -215,6 +222,13 @@ export default function BulkCreateBookCopiesResult({
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={copyPagination.page}
+          totalItems={copyPagination.totalItems}
+          totalPages={copyPagination.totalPages}
+          pageSize={copyPagination.pageSize}
+          onPageChange={copyPagination.goToPage}
+        />
       </Card>
 
       <Card className="mt-6 p-5">

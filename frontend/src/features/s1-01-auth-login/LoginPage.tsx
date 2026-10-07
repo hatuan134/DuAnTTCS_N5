@@ -21,6 +21,7 @@ import {
   useNavigate,
 } from 'react-router-dom'
 
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import {
   login,
 } from '../../core/auth/authService'
@@ -97,7 +98,7 @@ export default function LoginPage() {
   const [error, setError] =
     useState('')
 
-  const [failedLoginAttempts, setFailedLoginAttempts] =
+  const [, setFailedLoginAttempts] =
     useState<number | null>(null)
 
   const [maxFailedAttempts, setMaxFailedAttempts] =
@@ -219,10 +220,26 @@ export default function LoginPage() {
           })
         }
 
-        setError(
-          responseData?.message ??
-            'Không thể kết nối tới hệ thống. Vui lòng thử lại.',
-        )
+        const fallbackMessage = 'Không thể kết nối tới hệ thống. Vui lòng thử lại.'
+        const responseMessage = responseData?.message ?? fallbackMessage
+        const remainingAttempts = details?.remainingAttempts
+
+        if (
+          responseData?.code === 'INVALID_CREDENTIALS' &&
+          typeof remainingAttempts === 'number'
+        ) {
+          setError(
+            `${responseMessage} Bạn còn ${remainingAttempts} lượt đăng nhập trước khi tài khoản bị khóa tạm.`,
+          )
+        } else if (
+          responseData?.code === 'ACCOUNT_TEMPORARILY_LOCKED' &&
+          details?.lockedUntil
+        ) {
+          const retryAt = new Date(details.lockedUntil).toLocaleString('vi-VN')
+          setError(`${responseMessage} Có thể thử lại sau ${retryAt}.`)
+        } else {
+          setError(responseMessage)
+        }
       } else {
         setError(
           'Không thể kết nối tới hệ thống. Vui lòng thử lại.',
@@ -234,7 +251,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="auth-page min-h-screen bg-slate-50">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
 
         {/* =========================
@@ -454,27 +471,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {failedLoginAttempts !== null && (
-                <div className={`rounded-xl border px-4 py-3 text-sm ${
-                  isTemporarilyLocked
-                    ? 'border-amber-200 bg-amber-50 text-amber-800'
-                    : 'border-slate-200 bg-white text-slate-700'
-                }`}>
-                  <div className="font-semibold">
-                    Số lần đăng nhập thất bại: {failedLoginAttempts}/{maxFailedAttempts}
-                  </div>
-                  {isTemporarilyLocked && (
-                    <div className="mt-1 text-xs">
-                      Nút đăng nhập đã được khóa đến {lockedUntilLabel}.
-                    </div>
-                  )}
-                </div>
-              )}
-
               {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                  {error}
-                </div>
+                <FeedbackAlert
+                  message={error}
+                  tone="error"
+                  onDismiss={() => setError('')}
+                />
               )}
 
               <button

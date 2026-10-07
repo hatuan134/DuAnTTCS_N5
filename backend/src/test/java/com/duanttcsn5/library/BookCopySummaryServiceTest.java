@@ -32,6 +32,8 @@ class BookCopySummaryServiceTest {
         when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of());
         var result = service.getSummaryByBookId(1L);
         assertEquals(0L, result.availableCount());
+        assertEquals(1L, result.originalCount());
+        assertEquals(1L, result.totalCount());
         assertTrue(result.copies().isEmpty());
     }
 
@@ -42,7 +44,24 @@ class BookCopySummaryServiceTest {
         when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(availableCopies);
         var result = service.getSummaryByBookId(1L);
         assertEquals(3L, result.availableCount());
+        assertEquals(1L, result.originalCount());
+        assertEquals(4L, result.totalCount());
         assertEquals(3, result.copies().size());
+    }
+
+    @Test void tenCopiesReportElevenTotalIncludingOriginal() {
+        when(books.existsById(1L)).thenReturn(true);
+        var tenCopies = java.util.stream.LongStream.rangeClosed(1, 10)
+                .mapToObj(id -> copy(id, 1L, "AVAILABLE"))
+                .toList();
+        when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(tenCopies);
+
+        var result = service.getSummaryByBookId(1L);
+
+        assertEquals(10L, result.availableCount());
+        assertEquals(1L, result.originalCount());
+        assertEquals(11L, result.totalCount());
+        assertEquals(10, result.copies().size());
     }
 
     @Test void mixedStatusesCountOnlyAvailableButKeepEveryTableRow() {

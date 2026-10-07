@@ -1,6 +1,8 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.BookReservationBatchResponse;
+import com.duanttcsn5.library.dto.book.CreateBookReservationsRequest;
 import com.duanttcsn5.library.dto.book.MyBookReservationResponse;
 import com.duanttcsn5.library.dto.book.CancelBookReservationRequest;
 import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
@@ -53,6 +55,16 @@ public class BookReservationController {
             @PathVariable Long bookId, @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reservations.reserve(bookId, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/books/{bookId}/reservations/bulk")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<BookReservationBatchResponse> reserveMany(
+            @PathVariable Long bookId,
+            @Valid @RequestBody CreateBookReservationsRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reservations.reserveMany(bookId, principal == null ? null : principal.id(), request.quantity()));
     }
 
     @GetMapping("/books/{bookId}/reservations")

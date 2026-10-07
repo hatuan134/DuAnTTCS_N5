@@ -97,7 +97,6 @@ public class ReaderRegistrationService {
     @Transactional(rollbackFor = Exception.class)
     public ReaderRegistrationResponse registerReader(ReaderRegistrationRequest request, String ipAddress) {
         String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-        String normalizedMemberCode = request.memberCode().trim().toUpperCase(Locale.ROOT);
 
         if (request.dateOfBirth() != null && request.dateOfBirth().isAfter(LocalDate.now())) {
             throw new ApiException(
@@ -117,16 +116,7 @@ public class ReaderRegistrationService {
             );
         }
 
-        // 2. Kiểm tra sự tồn tại của Mã sinh viên/cán bộ
-        if (readerProfileRepository.existsByMemberCodeIgnoreCase(normalizedMemberCode)) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "DUPLICATE_MEMBER_CODE",
-                    "Mã sinh viên/cán bộ '" + request.memberCode().trim() + "' đã được đăng ký hồ sơ bạn đọc. Vui lòng sử dụng chức năng Quên mật khẩu hoặc liên hệ thủ thư thư viện."
-            );
-        }
-
-        // 3. Lấy vai trò READER
+        // 2. Lấy vai trò READER
         Role readerRole = roleRepository.findByCode("READER")
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -134,7 +124,7 @@ public class ReaderRegistrationService {
                         "Không tìm thấy vai trò READER trong hệ thống."
                 ));
 
-        // 4. Tạo User
+        // 3. Tạo User
         User user = new User();
         user.setRole(readerRole);
         user.setFullName(request.fullName().trim());
@@ -148,22 +138,23 @@ public class ReaderRegistrationService {
 
         User savedUser = userRepository.save(user);
 
-        // 5. Tạo ReaderProfile liên kết với User
+        // 4. Tạo ReaderProfile liên kết với User. Mã bạn đọc do hệ thống tự cấp.
+        String generatedMemberCode = nextGeneratedMemberCode();
         ReaderProfile profile = new ReaderProfile();
         profile.setUser(savedUser);
         profile.setDateOfBirth(request.dateOfBirth());
-        profile.setMemberCode(normalizedMemberCode);
+        profile.setMemberCode(generatedMemberCode);
         profile.setRegistrationStatus("PENDING");
 
         ReaderProfile savedProfile = readerProfileRepository.save(profile);
 
-        // 6. Ghi nhật ký hệ thống (Audit Log)
+        // 5. Ghi nhật ký hệ thống (Audit Log)
         auditLogRepository.insert(
                 savedUser.getId(),
                 "READER_REGISTERED",
                 "READER_PROFILE",
                 savedUser.getId().toString(),
-                "{\"memberCode\":\"" + normalizedMemberCode + "\",\"email\":\"" + normalizedEmail + "\"}",
+                "{\"memberCode\":\"" + generatedMemberCode + "\",\"email\":\"" + normalizedEmail + "\"}",
                 ipAddress
         );
 
@@ -175,6 +166,31 @@ public class ReaderRegistrationService {
                 savedProfile.getRegistrationStatus(),
                 savedProfile.getSubmittedAt() != null ? savedProfile.getSubmittedAt() : OffsetDateTime.now(),
                 "Đăng ký tài khoản bạn đọc thành công! Hồ sơ đang ở trạng thái chờ duyệt."
+        );
+    }
+
+
+    private String nextGeneratedMemberCode() {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            Long number = readerProfileRepository.nextMemberCodeNumber();
+            if (number == null || number < 1) {
+                throw new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "MEMBER_CODE_GENERATION_FAILED",
+                        "Không thể sinh mã bạn đọc. Vui lòng thử lại."
+                );
+            }
+
+            String candidate = String.format(Locale.ROOT, "BD%06d", number);
+            if (!readerProfileRepository.existsByMemberCodeIgnoreCase(candidate)) {
+                return candidate;
+            }
+        }
+
+        throw new ApiException(
+                HttpStatus.CONFLICT,
+                "MEMBER_CODE_GENERATION_RETRY",
+                "Không thể cấp mã bạn đọc duy nhất. Vui lòng thử lại."
         );
     }
 

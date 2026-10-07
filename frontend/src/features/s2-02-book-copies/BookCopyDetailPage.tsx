@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Button from '../../components/ui/Button'
 import PageHeader from '../../components/ui/PageHeader'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
@@ -22,6 +23,12 @@ export default function BookCopyDetailPage() {
   const createdState = location.state as CreatedCopyState | null
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [copy, setCopy] = useState<BookCopy | null>(null)
+  const [createdNotice, setCreatedNotice] = useState(() => {
+    if (!createdState?.created) return ''
+    return createdState.generatedBarcode
+      ? `Đã tạo bản sao thành công. Mã vạch hệ thống cấp: ${createdState.generatedBarcode}.`
+      : 'Đã tạo bản sao thành công.'
+  })
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [editing, setEditing] = useState(false)
@@ -35,15 +42,26 @@ export default function BookCopyDetailPage() {
       .catch(e => { if (active) setError(copyError(e).message) })
     return () => { active = false }
   }, [id, allowed, reload])
-  if (!allowed) return <p role="alert">Bạn không có quyền truy cập chức năng này.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền truy cập chức năng này.</p>
   return (
     <div>
       <PageHeader title="Chi tiết bản sao" description="Thông tin nhận diện và vị trí lưu trữ của bản sao cá biệt." />
-      {createdState?.created && !saved && <p role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-        Đã tạo bản sao thành công.
-        {createdState.generatedBarcode && <> Mã vạch hệ thống cấp: <strong>{createdState.generatedBarcode}</strong>.</>}
-      </p>}
-      {saved && <p role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">Đã cập nhật thông tin và vị trí bản sao thành công. Mã vạch được giữ nguyên.</p>}
+      {createdNotice && !saved && (
+        <FeedbackAlert
+          message={createdNotice}
+          tone="success"
+          onDismiss={() => setCreatedNotice('')}
+          className="mb-5"
+        />
+      )}
+      {saved && (
+        <FeedbackAlert
+          message="Đã cập nhật thông tin và vị trí bản sao thành công. Mã vạch được giữ nguyên."
+          tone="success"
+          onDismiss={() => setSaved(false)}
+          className="mb-5"
+        />
+      )}
       {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{error} <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Thử lại</Button></div>}
       {!error && (!copy || copy.id !== id) && <p role="status">Đang tải bản sao…</p>}
       {copy && copy.id === id && <Card className="p-6">

@@ -30,20 +30,22 @@ class BookCopySummaryControllerTest {
 
     @Test void returnsCountAndRowsInTheSameResponse() throws Exception {
         when(service.getSummaryByBookId(1L)).thenReturn(new BookCopySummaryResponse(
-                List.of(copy(1L, "AVAILABLE", "Sẵn sàng"), copy(2L, "HELD", "Đang giữ cho đặt trước")), 1L));
+                List.of(copy(1L, "AVAILABLE", "Sẵn sàng"), copy(2L, "HELD", "Đang giữ cho đặt trước")), 1L, 1L, 3L));
         mvc.perform(get("/api/v1/books/1/copies/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.availableCount").value(1))
+                .andExpect(jsonPath("$.originalCount").value(1))
+                .andExpect(jsonPath("$.totalCount").value(3))
                 .andExpect(jsonPath("$.copies.length()").value(2))
                 .andExpect(jsonPath("$.copies[0].bookId").value(1))
                 .andExpect(jsonPath("$.copies[1].status").value("HELD"));
     }
 
     @Test void serializesZeroAsANumberAndCopiesAsAnEmptyArray() throws Exception {
-        when(service.getSummaryByBookId(1L)).thenReturn(new BookCopySummaryResponse(List.of(), 0L));
+        when(service.getSummaryByBookId(1L)).thenReturn(new BookCopySummaryResponse(List.of(), 0L, 1L, 1L));
         mvc.perform(get("/api/v1/books/1/copies/summary"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"copies\":[],\"availableCount\":0}"));
+                .andExpect(content().json("{\"copies\":[],\"availableCount\":0,\"originalCount\":1,\"totalCount\":1}"));
     }
 
     @Test void missingBookUsesExistingErrorResponse() throws Exception {

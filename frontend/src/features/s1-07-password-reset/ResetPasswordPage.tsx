@@ -14,6 +14,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import { passwordResetService } from './passwordResetService'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { clearAuthSession } from '../../core/auth/authStorage'
 
 type TokenState = 'valid' | 'invalid' | 'expired' | 'used'
@@ -168,7 +169,7 @@ export default function ResetPasswordPage() {
 
   if (isValidating) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="auth-page flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
           <p className="mt-4 text-sm font-medium text-slate-600">
@@ -181,7 +182,7 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="auth-page flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 size={32} />
@@ -226,7 +227,7 @@ export default function ResetPasswordPage() {
     }
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="auth-page flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
             <AlertTriangle size={32} />
@@ -259,7 +260,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+    <div className="auth-page flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
@@ -335,9 +336,7 @@ export default function ResetPasswordPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                {error}
-              </div>
+              <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
             )}
 
             <button

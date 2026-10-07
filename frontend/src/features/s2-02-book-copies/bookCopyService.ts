@@ -41,6 +41,8 @@ export interface CopyStatusHistory {
 export interface BookCopySummary {
   copies: BookCopy[]
   availableCount: number
+  originalCount: number
+  totalCount: number
 }
 export interface CreateBookCopy {
   barcodeMode: BarcodeMode
@@ -132,8 +134,10 @@ export const bookCopyService = {
   async create(bookId: number, data: CreateBookCopy): Promise<BookCopy> {
     return (await apiClient.post<BookCopy>(`/books/${bookId}/copies`, data)).data
   },
-  async previewBulk(bookId: number, quantity: number): Promise<BulkBarcodePreview> {
-    return (await apiClient.get<BulkBarcodePreview>(`/books/${bookId}/copies/bulk/preview`, { params: { quantity } })).data
+  async previewBulk(bookId: number, quantity: number, warehouseId: number, shelfId: number): Promise<BulkBarcodePreview> {
+    return (await apiClient.get<BulkBarcodePreview>(`/books/${bookId}/copies/bulk/preview`, {
+      params: { quantity, warehouseId, shelfId },
+    })).data
   },
   async createBulk(bookId: number, data: BulkCreateBookCopies & { confirmed: true; expectedStartNumber: number; expectedSkippedBarcodes: string[] }): Promise<BulkCreateBookCopiesResult> {
     return (await apiClient.post<BulkCreateBookCopiesResult>(`/books/${bookId}/copies/bulk`, data)).data

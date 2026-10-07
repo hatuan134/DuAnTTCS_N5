@@ -4,7 +4,6 @@ import type { FormEvent, ReactNode } from 'react'
 
 import {
   AlertCircle,
-  CheckCircle2,
   CreditCard,
   Eye,
   EyeOff,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import {
@@ -510,6 +510,8 @@ export default function ChangePasswordPage() {
             <Feedback
               success={profileMessage}
               error={profileError}
+              onDismissSuccess={() => setProfileMessage('')}
+              onDismissError={() => setProfileError('')}
             />
 
             <div className="flex justify-end">
@@ -599,6 +601,8 @@ export default function ChangePasswordPage() {
             <Feedback
               success={passwordMessage}
               error={passwordError}
+              onDismissSuccess={() => setPasswordMessage('')}
+              onDismissError={() => setPasswordError('')}
             />
 
             <div className="flex justify-end">
@@ -831,27 +835,22 @@ function PasswordToggle({
 function Feedback({
   success,
   error,
+  onDismissSuccess,
+  onDismissError,
 }: {
   success: string
   error: string
+  onDismissSuccess: () => void
+  onDismissError: () => void
 }) {
   if (error) {
-    return (
-      <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        <AlertCircle className="mt-0.5 shrink-0" size={18} />
-        <span>{error}</span>
-      </div>
-    )
+    return <FeedbackAlert message={error} tone="error" onDismiss={onDismissError} />
   }
 
   if (success) {
-    return (
-      <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-        <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
-        <span>{success}</span>
-      </div>
-    )
+    return <FeedbackAlert message={success} tone="success" onDismiss={onDismissSuccess} />
   }
 
   return null
+
 }

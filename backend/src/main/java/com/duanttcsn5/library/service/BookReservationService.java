@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.BookReservationBatchResponse;
 import com.duanttcsn5.library.dto.book.MyBookReservationResponse;
 import com.duanttcsn5.library.dto.book.CancelBookReservationResponse;
 import com.duanttcsn5.library.dto.book.ReservationCancellationAuditResponse;
@@ -147,6 +148,95 @@ public class BookReservationService {
                 saved.getReservedAt(), position, message, saved.getPickupDeadline(), copyInfo);
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public BookReservationBatchResponse reserveMany(Long bookId, Long readerId, int quantity) {
+        if (readerId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
+                    "Bạn chưa đăng nhập. Vui lòng đăng nhập để đặt giữ đầu sách.");
+        }
+        User reader = users.findById(readerId).orElseThrow(() ->
+                new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED",
+                        "Phiên đăng nhập không hợp lệ hoặc đã hết hạn."));
+        if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "READER_ROLE_REQUIRED",
+                    "Chỉ tài khoản Bạn đọc mới được đặt giữ đầu sách.");
+        }
+        if (!"ACTIVE".equals(reader.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE",
+                    "Tài khoản Bạn đọc không hoạt động. Không thể đặt giữ đầu sách.");
+        }
+        if (bookId == null || bookId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOK_ID", "Mã đầu sách không hợp lệ.");
+        }
+        if (quantity < 1 || quantity > MAX_ACTIVE_RESERVATIONS) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_QUANTITY",
+                    "Số lượng đặt giữ phải từ 1 đến 3 bản.");
+        }
+
+        // Lock by reader first, then by title, matching the existing single-reservation path.
+        // This keeps the global three-order limit and title allocation deterministic under concurrency.
+        reservations.lockReaderForCreation(readerId);
+        Book book = books.findForReservation(bookId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        LibraryCard card = cards.findByUserIdWithDetails(readerId).orElseThrow(() ->
+                new ApiException(HttpStatus.FORBIDDEN, "LIBRARY_CARD_REQUIRED",
+                        "Bạn chưa được cấp thẻ thư viện. Không thể đặt giữ đầu sách."));
+
+        OffsetDateTime createdAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
+        validateCard(card, createdAt.toLocalDate());
+        validateNotCurrentlyBorrowed(readerId, book);
+
+        long activeBefore = reservations.countActiveForReader(readerId);
+        if (activeBefore + quantity > MAX_ACTIVE_RESERVATIONS) {
+            long remaining = Math.max(0, MAX_ACTIVE_RESERVATIONS - activeBefore);
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_LIMIT_REACHED",
+                    "Bạn chỉ còn " + remaining + " lượt đặt giữ đang hiệu lực. "
+                            + "Mỗi bạn đọc được có tối đa 3 đơn đang chờ hoặc chờ đến nhận.");
+        }
+
+        long availableBefore = copies.countAvailableByBookId(bookId);
+        if (quantity > availableBefore) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_QUANTITY_EXCEEDS_AVAILABLE",
+                    "Chỉ còn " + availableBefore + " bản sẵn sàng của đầu sách “" + book.getTitle()
+                            + "”. Vui lòng giảm số lượng đặt giữ.");
+        }
+
+        // Calculate before holding any copy. If library-calendar configuration is invalid,
+        // the whole operation exits without changing reservations or copy statuses.
+        OffsetDateTime deadline = configuration.calculateReservationPickupDeadline(createdAt);
+        List<BookReservationResponse> created = new ArrayList<>(quantity);
+        for (int index = 0; index < quantity; index++) {
+            BookCopy selected = copies.findFirstAvailableForReservation(bookId).orElseThrow(() ->
+                    new ApiException(HttpStatus.CONFLICT, "RESERVATION_QUANTITY_EXCEEDS_AVAILABLE",
+                            "Số bản sẵn sàng vừa thay đổi. Vui lòng tải lại và chọn lại số lượng đặt giữ."));
+
+            selected.holdForReservation();
+            copies.saveAndFlush(selected);
+
+            OffsetDateTime reservedAt = createdAt.plus(index, ChronoUnit.MICROS);
+            BookReservation reservation = new BookReservation(book, reader, "READY_FOR_PICKUP");
+            reservation.setReservedAt(reservedAt);
+            reservation.setBookCopy(selected);
+            reservation.setPickupDeadline(deadline);
+            BookReservation saved = reservations.saveAndFlush(reservation);
+
+            var shelf = selected.getShelf();
+            var warehouse = shelf.getWarehouse();
+            var copyInfo = new BookReservationResponse.ReservedCopy(selected.getId(), selected.getBarcode(),
+                    warehouse.getCode(), warehouse.getName(), shelf.getCode(), shelf.getName());
+            created.add(new BookReservationResponse(saved.getId(), book.getId(), saved.getStatus(),
+                    saved.getReservedAt(), null,
+                    "Đặt giữ thành công. Thư viện đã dành bản sách này cho bạn.",
+                    saved.getPickupDeadline(), copyInfo));
+        }
+
+        long activeAfter = activeBefore + created.size();
+        long remainingSlots = Math.max(0, MAX_ACTIVE_RESERVATIONS - activeAfter);
+        String message = "Đã đặt giữ thành công " + created.size() + " bản của đầu sách “" + book.getTitle() + "”.";
+        return new BookReservationBatchResponse(quantity, created.size(), activeAfter, remainingSlots,
+                List.copyOf(created), message);
+    }
+
     private void validateNotCurrentlyBorrowed(Long readerId, Book book) {
         // Check every loan item of this title, not just the copy we might allocate.
         // Run before queue insertion, copy selection, or pickup deadline calculation.
@@ -279,7 +369,7 @@ public class BookReservationService {
 
         // Remove the old active READY allocation before assigning the same physical
         // copy to the next waiter. The partial unique index therefore stays valid.
-        target.setStatus("CANCELLED");
+        target.cancel(reader, releasedAt, "Bạn đọc tự huỷ đơn.");
         reservations.saveAndFlush(target);
         if (copy != null && next != null) {
             next.setStatus("READY_FOR_PICKUP");

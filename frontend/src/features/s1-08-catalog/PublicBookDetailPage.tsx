@@ -22,6 +22,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 
 import ReserveBookPanel from '../s2-07-reservations/ReserveBookPanel'
+import PublicSiteFooter from './PublicSiteFooter'
 import { catalogService } from './catalogService'
 import type { Book } from './catalogService'
 
@@ -117,7 +118,7 @@ export default function PublicBookDetailPage() {
   }, [bookId])
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="public-page min-h-screen bg-slate-50 text-slate-800">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
@@ -246,12 +247,12 @@ export default function PublicBookDetailPage() {
                       </p>
                       <div className="mt-2 flex items-baseline gap-2">
                         <span className="text-3xl font-extrabold text-slate-800">
-                          {book.copyCount}
+                          {book.copyCount + 1}
                         </span>
-                        <span className="text-xs text-slate-500">bản sao</span>
+                        <span className="text-xs text-slate-500">bản</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        Tổng số bản sao đã ghi nhận thuộc đầu sách
+                        1 bản gốc + {book.copyCount} bản sao đã ghi nhận
                       </p>
                     </div>
                   </div>
@@ -259,7 +260,7 @@ export default function PublicBookDetailPage() {
               </div>
             </div>
 
-            <ReserveBookPanel key={book.id} bookId={book.id} onReserved={() => {
+            <ReserveBookPanel key={book.id} bookId={book.id} availableCount={book.availableCount ?? 0} onReserved={() => {
               void catalogService.getPublicBookById(book.id).then((updated) => {
                 setBook((current) => current?.id === book.id ? updated : current)
               }).catch(() => {
@@ -486,6 +487,7 @@ export default function PublicBookDetailPage() {
           </article>
         )}
       </main>
+      <PublicSiteFooter />
     </div>
   )
 }

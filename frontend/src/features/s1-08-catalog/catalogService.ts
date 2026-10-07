@@ -121,7 +121,6 @@ export interface CatalogBookForm {
   subtitle?: string
   authorIds: number[]
   categoryId: number
-  isbn?: string
   publisher: string
   publicationYear: number
   pageCount: number
@@ -235,7 +234,7 @@ export const catalogService = {
         publicationYear: query.publicationYear,
         availableOnly: query.availableOnly || undefined,
         page: query.page,
-        size: 20,
+        size: 10,
         sort: query.sort,
       },
       signal,

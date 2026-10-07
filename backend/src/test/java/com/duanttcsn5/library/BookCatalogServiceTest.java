@@ -75,7 +75,6 @@ class BookCatalogServiceTest {
 
         when(authorRepository.findById(1L)).thenReturn(Optional.of(author));
         when(categoryRepository.findById(6L)).thenReturn(Optional.of(category));
-        when(bookRepository.existsPublisherInCatalog("NXB Trẻ")).thenReturn(true);
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> {
             Book book = invocation.getArgument(0);
             book.setId(100L);
@@ -221,85 +220,30 @@ class BookCatalogServiceTest {
     }
 
     @Test
-    @DisplayName("S2-01.3 - Cho phép để trống ISBN")
-    void catalogBook_BlankIsbn_Success() {
+    @DisplayName("S3-00.3 - ISBN client cũ gửi lên bị bỏ qua khi tạo đầu sách")
+    void catalogBook_LegacyIsbnIsIgnored_Success() {
         mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
 
         BookResponse response = bookCatalogService.catalogBook(
-                requestWithIsbn("   "), 10L, "127.0.0.1");
+                requestWithIsbn("9786041234567"), 10L, "127.0.0.1");
 
         assertNull(response.isbn());
         verify(bookRepository, never()).existsByNormalizedIsbn(anyString());
     }
 
     @Test
-    @DisplayName("S2-01.3 - Cho phép ISBN 10 chữ số")
-    void catalogBook_TenDigitIsbn_Success() {
+    @DisplayName("S3-00.3 - Cho phép nhập nhà xuất bản mới ngay khi tạo đầu sách")
+    void catalogBook_NewPublisher_Success() {
         mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
-        when(bookRepository.existsByNormalizedIsbn("1234567890")).thenReturn(false);
+        CatalogBookRequest request = new CatalogBookRequest(
+                "Sách có NXB mới", "Nhan đề phụ", null, null, 6L, null,
+                "NXB Mới Chưa Có", 2025, 320, "Tóm tắt", List.of(1L));
 
-        BookResponse response = bookCatalogService.catalogBook(
-                requestWithIsbn("1234567890"), 10L, "127.0.0.1");
+        BookResponse response = bookCatalogService.catalogBook(request, 10L, "127.0.0.1");
 
-        assertEquals("1234567890", response.isbn());
-        verify(bookRepository).existsByNormalizedIsbn("1234567890");
-    }
-
-    @Test
-    @DisplayName("S2-01.3 - Cho phép ISBN 13 chữ số")
-    void catalogBook_ThirteenDigitIsbn_Success() {
-        mockCommonCatalogDependencies(List.of(activeAuthor(1L, "Nguyễn Nhật Ánh")));
-        when(bookRepository.existsByNormalizedIsbn("9786041234567")).thenReturn(false);
-
-        BookResponse response = bookCatalogService.catalogBook(
-                requestWithIsbn("9786041234567"), 10L, "127.0.0.1");
-
-        assertEquals("9786041234567", response.isbn());
-        verify(bookRepository).existsByNormalizedIsbn("9786041234567");
-    }
-
-    @Test
-    @DisplayName("S2-01.3 - Từ chối ISBN có 9, 11, 12 hoặc 14 chữ số")
-    void catalogBook_InvalidIsbnLength_ThrowsBadRequest() {
-        for (String isbn : List.of("123456789", "12345678901", "123456789012", "12345678901234")) {
-            ApiException ex = assertThrows(ApiException.class, () ->
-                    bookCatalogService.catalogBook(requestWithIsbn(isbn), 10L, "127.0.0.1"));
-
-            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertEquals("INVALID_ISBN_FORMAT", ex.getCode());
-            assertEquals("isbn", ex.getDetails().get("field"));
-        }
-        verify(bookRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("S2-01.3 - Từ chối ISBN chứa chữ cái hoặc ký tự đặc biệt")
-    void catalogBook_IsbnContainsNonDigit_ThrowsBadRequest() {
-        for (String isbn : List.of("12345ABCDE", "97860412-3456", "97860412 3456")) {
-            ApiException ex = assertThrows(ApiException.class, () ->
-                    bookCatalogService.catalogBook(requestWithIsbn(isbn), 10L, "127.0.0.1"));
-
-            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertEquals("INVALID_ISBN_FORMAT", ex.getCode());
-            assertEquals("isbn", ex.getDetails().get("field"));
-        }
-        verify(bookRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("S2-01.3 - Từ chối ISBN đã tồn tại")
-    void catalogBook_DuplicateIsbn_ThrowsConflict() {
-        when(bookRepository.existsByNormalizedIsbn("9786041234567")).thenReturn(true);
-
-        ApiException ex = assertThrows(ApiException.class, () ->
-                bookCatalogService.catalogBook(
-                        requestWithIsbn("9786041234567"), 10L, "127.0.0.1"));
-
-        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertEquals("ISBN_ALREADY_EXISTS", ex.getCode());
-        assertEquals("isbn", ex.getDetails().get("field"));
-        assertEquals("9786041234567", ex.getDetails().get("isbn"));
-        verify(bookRepository, never()).save(any());
+        assertEquals("NXB Mới Chưa Có", response.publisher());
+        verify(bookRepository, never()).existsPublisherInCatalog(anyString());
+        verify(bookRepository).save(any(Book.class));
     }
 
     @Test
@@ -322,7 +266,6 @@ class BookCatalogServiceTest {
         Author selectedAuthor = activeAuthor(1L, "Nguyễn Nhật Ánh");
         when(authorRepository.findById(1L)).thenReturn(Optional.of(selectedAuthor));
         when(categoryRepository.findById(6L)).thenReturn(Optional.of(activeCategory(6L, "Văn học trong nước")));
-        when(bookRepository.existsPublisherInCatalog("NXB Trẻ")).thenReturn(true);
 
         Book existing = existingBook(55L, "Tôi thấy hoa vàng trên cỏ xanh");
         when(bookRepository.findAllByNormalizedTitle("Tôi thấy hoa vàng trên cỏ xanh"))
@@ -419,7 +362,6 @@ class BookCatalogServiceTest {
         }
         Category category = activeCategory(6L, "Văn học trong nước");
         when(categoryRepository.findById(6L)).thenReturn(Optional.of(category));
-        when(bookRepository.existsPublisherInCatalog("NXB Trẻ")).thenReturn(true);
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> {
             Book book = invocation.getArgument(0);
             book.setId(100L);

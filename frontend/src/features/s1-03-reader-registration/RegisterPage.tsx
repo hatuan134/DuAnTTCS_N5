@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
@@ -22,6 +21,7 @@ import {
   User,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { readerService } from './readerService'
 import type { ReaderRegistrationResponse } from './readerService'
 
@@ -37,7 +37,6 @@ export default function RegisterPage() {
   // Form states
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [memberCode, setMemberCode] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
@@ -51,10 +50,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [generalError, setGeneralError] = useState('')
   const [emailError, setEmailError] = useState('')
-  const [memberCodeError, setMemberCodeError] = useState('')
-  const [duplicateType, setDuplicateType] = useState<
-    'EMAIL' | 'MEMBER_CODE' | 'BOTH' | null
-  >(null)
+  const [duplicateType, setDuplicateType] = useState<'EMAIL' | null>(null)
   const [forgotPasswordUrl, setForgotPasswordUrl] = useState('/forgot-password')
 
   // Success state
@@ -73,38 +69,14 @@ export default function RegisterPage() {
           res.emailMessage ||
             'Email này đã được đăng ký trong hệ thống thư viện.',
         )
-        setDuplicateType((prev) => (prev === 'MEMBER_CODE' ? 'BOTH' : 'EMAIL'))
+        setDuplicateType('EMAIL')
         setForgotPasswordUrl(
           res.forgotPasswordUrl ||
             `/forgot-password?email=${encodeURIComponent(trimmed)}`,
         )
       } else {
         setEmailError('')
-        setDuplicateType((prev) => (prev === 'EMAIL' ? null : prev))
-      }
-    } catch {
-      // Ignore network errors on background blur check
-    }
-  }
-
-  const handleMemberCodeBlur = async () => {
-    const trimmed = memberCode.trim()
-    if (!trimmed) return
-
-    try {
-      const res = await readerService.checkDuplicate(undefined, trimmed)
-      if (res.memberCodeExists) {
-        setMemberCodeError(
-          res.memberCodeMessage ||
-            'Mã sinh viên / cán bộ này đã được đăng ký hồ sơ bạn đọc.',
-        )
-        setDuplicateType((prev) => (prev === 'EMAIL' ? 'BOTH' : 'MEMBER_CODE'))
-        if (!forgotPasswordUrl.includes('email=')) {
-          setForgotPasswordUrl('/forgot-password')
-        }
-      } else {
-        setMemberCodeError('')
-        setDuplicateType((prev) => (prev === 'MEMBER_CODE' ? null : prev))
+        setDuplicateType(null)
       }
     } catch {
       // Ignore network errors on background blur check
@@ -115,12 +87,10 @@ export default function RegisterPage() {
     event.preventDefault()
     setGeneralError('')
     setEmailError('')
-    setMemberCodeError('')
     setDuplicateType(null)
 
     // Basic frontend validations
     const normEmail = email.trim().toLowerCase()
-    const normMemberCode = memberCode.trim().toUpperCase()
 
     if (!fullName.trim()) {
       setGeneralError('Vui lòng nhập họ và tên.')
@@ -128,10 +98,6 @@ export default function RegisterPage() {
     }
     if (!normEmail) {
       setGeneralError('Vui lòng nhập địa chỉ email.')
-      return
-    }
-    if (!normMemberCode) {
-      setGeneralError('Vui lòng nhập mã sinh viên hoặc mã cán bộ.')
       return
     }
     if (!dateOfBirth) {
@@ -157,7 +123,6 @@ export default function RegisterPage() {
       const result = await readerService.register({
         fullName: fullName.trim(),
         email: normEmail,
-        memberCode: normMemberCode,
         dateOfBirth,
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
@@ -178,10 +143,6 @@ export default function RegisterPage() {
           setForgotPasswordUrl(
             `/forgot-password?email=${encodeURIComponent(normEmail)}`,
           )
-        } else if (errorCode === 'DUPLICATE_MEMBER_CODE') {
-          setMemberCodeError(errorMessage)
-          setDuplicateType('MEMBER_CODE')
-          setForgotPasswordUrl('/forgot-password')
         } else {
           setGeneralError(errorMessage)
         }
@@ -194,7 +155,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="auth-page min-h-screen bg-slate-50">
       <div className="grid min-h-screen lg:grid-cols-[1fr_1.15fr]">
         {/* =========================
             BÊN TRÁI: SHOWCASE & BRANDING
@@ -226,9 +187,9 @@ export default function RegisterPage() {
             </h1>
 
             <p className="mt-6 text-base leading-7 text-slate-400">
-              Chỉ cần mã sinh viên hoặc mã cán bộ của trường, bạn có thể đăng ký
-              thẻ thư viện trực tuyến, mượn sách giáo trình và tài liệu nghiên
-              cứu hoàn toàn miễn phí.
+              Bạn chỉ cần thông tin cá nhân và email để đăng ký. Mã bạn đọc sẽ
+              được hệ thống tự cấp theo thứ tự, sau đó hồ sơ được gửi đến thủ thư
+              để duyệt thẻ thư viện.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -239,8 +200,8 @@ export default function RegisterPage() {
                 <div>
                   <p className="font-semibold text-white">Thẻ thư viện số</p>
                   <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">
-                    Hồ sơ được số hóa tự động, liên kết trực tiếp với mã định
-                    danh sinh viên / cán bộ.
+                    Hồ sơ được số hóa tự động và hệ thống tự cấp mã bạn đọc
+                    duy nhất, không cần nhập mã sinh viên hay mã cán bộ.
                   </p>
                 </div>
               </div>
@@ -252,8 +213,8 @@ export default function RegisterPage() {
                 <div>
                   <p className="font-semibold text-white">Bảo mật tài khoản</p>
                   <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">
-                    Mỗi mã định danh và email chỉ gắn duy nhất với một hồ sơ bạn
-                    đọc được bảo vệ.
+                    Mỗi email chỉ gắn với một tài khoản bạn đọc và mã bạn đọc
+                    được hệ thống cấp tự động, duy nhất.
                   </p>
                 </div>
               </div>
@@ -327,7 +288,7 @@ export default function RegisterPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">
-                      Mã sinh viên / cán bộ:
+                      Mã bạn đọc:
                     </span>
                     <strong className="text-blue-700 font-mono">
                       {successData.memberCode}
@@ -353,7 +314,6 @@ export default function RegisterPage() {
                     onClick={() => {
                       setSuccessData(null)
                       setEmail('')
-                      setMemberCode('')
                       setFullName('')
                       setPassword('')
                       setConfirmPassword('')
@@ -391,15 +351,10 @@ export default function RegisterPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="text-base font-bold text-amber-950">
-                          {duplicateType === 'EMAIL'
-                            ? 'Email này đã tồn tại trong hệ thống'
-                            : duplicateType === 'MEMBER_CODE'
-                              ? 'Mã sinh viên / cán bộ đã được đăng ký'
-                              : 'Thông tin định danh đã tồn tại trong hệ thống'}
+                          Email này đã tồn tại trong hệ thống
                         </h3>
                         <p className="mt-1 text-sm leading-relaxed text-amber-900">
                           {emailError ||
-                            memberCodeError ||
                             'Bạn có thể đã có tài khoản bạn đọc trước đây. Vui lòng không tạo hồ sơ mới trùng lặp.'}
                         </p>
 
@@ -427,10 +382,12 @@ export default function RegisterPage() {
 
                 {/* Lỗi chung khác */}
                 {generalError && (
-                  <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                    <span>{generalError}</span>
-                  </div>
+                  <FeedbackAlert
+                    message={generalError}
+                    tone="error"
+                    onDismiss={() => setGeneralError('')}
+                    className="mt-5"
+                  />
                 )}
 
                 {/* Form fields */}
@@ -459,86 +416,47 @@ export default function RegisterPage() {
                     </div>
                   </div>
 
-                  {/* 2 cột: Email & Mã sinh viên/cán bộ */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {/* Email */}
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                          Email <span className="text-red-500">*</span>
-                        </label>
-                      </div>
-                      <div className="relative">
-                        <Mail
-                          size={17}
-                          className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${
-                            emailError ? 'text-red-500' : 'text-slate-400'
-                          }`}
-                        />
-                        <input
-                          type="email"
-                          required
-                          value={email}
-                          onBlur={handleEmailBlur}
-                          onChange={(e) => {
-                            setEmail(e.target.value)
-                            setEmailError('')
-                            setGeneralError('')
-                          }}
-                          placeholder="sv@ictu.edu.vn"
-                          className={`w-full rounded-xl border py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
-                            emailError
-                              ? 'border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100'
-                              : 'border-slate-300 bg-white focus:border-blue-500 focus:ring-blue-100'
-                          }`}
-                        />
-                      </div>
-                      {emailError && (
-                        <p className="mt-1 text-xs text-red-600 font-medium">
-                          {emailError}
-                        </p>
-                      )}
+                  {/* Email */}
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                        Email <span className="text-red-500">*</span>
+                      </label>
                     </div>
-
-                    {/* Mã sinh viên / cán bộ */}
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                          Mã SV / Mã Cán bộ{' '}
-                          <span className="text-red-500">*</span>
-                        </label>
-                      </div>
-                      <div className="relative">
-                        <IdCard
-                          size={17}
-                          className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${
-                            memberCodeError ? 'text-red-500' : 'text-slate-400'
-                          }`}
-                        />
-                        <input
-                          type="text"
-                          required
-                          value={memberCode}
-                          onBlur={handleMemberCodeBlur}
-                          onChange={(e) => {
-                            setMemberCode(e.target.value)
-                            setMemberCodeError('')
-                            setGeneralError('')
-                          }}
-                          placeholder="DTC215480201..."
-                          className={`w-full rounded-xl border py-3 pl-10 pr-4 text-sm text-slate-900 uppercase font-mono outline-none transition placeholder:text-slate-400 focus:ring-4 ${
-                            memberCodeError
-                              ? 'border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100'
-                              : 'border-slate-300 bg-white focus:border-blue-500 focus:ring-blue-100'
-                          }`}
-                        />
-                      </div>
-                      {memberCodeError && (
-                        <p className="mt-1 text-xs text-red-600 font-medium">
-                          {memberCodeError}
-                        </p>
-                      )}
+                    <div className="relative">
+                      <Mail
+                        size={17}
+                        className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                          emailError ? 'text-red-500' : 'text-slate-400'
+                        }`}
+                      />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onBlur={handleEmailBlur}
+                        onChange={(e) => {
+                          setEmail(e.target.value)
+                          setEmailError('')
+                          setGeneralError('')
+                          setDuplicateType(null)
+                        }}
+                        placeholder="sv@ictu.edu.vn"
+                        className={`w-full rounded-xl border py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
+                          emailError
+                            ? 'border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100'
+                            : 'border-slate-300 bg-white focus:border-blue-500 focus:ring-blue-100'
+                        }`}
+                      />
                     </div>
+                    {emailError && (
+                      <p className="mt-1 text-xs text-red-600 font-medium">
+                        {emailError}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-400">
+                      Mã bạn đọc sẽ được hệ thống tự sinh sau khi đăng ký thành công.
+                    </p>
                   </div>
 
                   {/* 2 cột: Ngày sinh & Số điện thoại */}
@@ -607,7 +525,7 @@ export default function RegisterPage() {
                         type="text"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Khoa CNTT, Ký túc xá K1..."
+                        placeholder="Khoa Công nghệ thông tin, Ký túc xá K1..."
                         className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                       />
                     </div>
