@@ -4,8 +4,9 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
+import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { directLoanService } from './directLoanService'
-import type { DirectLoanItem, ReaderLoanEligibility } from './directLoanService'
+import type { DirectLoanItem, DirectLoanResult, ReaderLoanEligibility } from './directLoanService'
 
 interface DraftRow {
   id: number
@@ -15,13 +16,22 @@ interface DraftRow {
   checking: boolean
 }
 
-export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEligibility }) {
+export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, onNewLoan }: {
+  reader: ReaderLoanEligibility
+  onCreated?: (result: DirectLoanResult) => void
+  onLockChange?: (locked: boolean) => void
+  onNewLoan?: () => void
+}) {
   const [barcode, setBarcode] = useState('')
   const [items, setItems] = useState<DraftRow[]>([])
   const [limit, setLimit] = useState(reader.remainingBooks)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmationError, setConfirmationError] = useState('')
+  const [awaitingResult, setAwaitingResult] = useState(false)
+  const [completed, setCompleted] = useState<DirectLoanResult | null>(null)
+  const submitted = useRef<{ id: string; barcodes: string[] } | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const active = useRef(true)
   const inFlight = useRef(false)
@@ -29,10 +39,11 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
   const form = useRef<HTMLFormElement>(null)
   const validItems = items.filter((row) => row.item !== null)
   const atLimit = validItems.length >= limit
-  const blocked = !reader.eligible || atLimit
+  const frozen = loading || awaitingResult || completed !== null
+  const blocked = frozen || !reader.eligible || atLimit
   const unresolved = items.filter((row) => row.item === null).length
   const canConfirm = reader.eligible && validItems.length > 0 && validItems.length <= limit
-    && unresolved === 0 && !loading && editingId === null && !barcode.trim()
+    && unresolved === 0 && !loading && editingId === null && !barcode.trim() && !completed
   const editingIndex = items.findIndex((row) => row.id === editingId)
 
   function focusBarcode() {
@@ -47,7 +58,7 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (inFlight.current) return
+    if (inFlight.current || awaitingResult || completed) return
     setError(''); setNotice('')
     const code = barcode.trim()
     if (!code || code.length > 100) {
@@ -65,6 +76,8 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
       return
     }
     const rowId = editingId ?? ++nextId.current
+    submitted.current = null
+    setConfirmationError('')
     const pending: DraftRow = { id: rowId, barcode: code, item: null, error: '', checking: true }
     setItems((rows) => editingId === null ? [...rows, pending] : rows.map((row) => row.id === rowId ? pending : row))
     setBarcode('')
@@ -93,7 +106,9 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
   }
 
   function remove(row: DraftRow) {
-    if (inFlight.current) return
+    if (inFlight.current || awaitingResult || completed) return
+    submitted.current = null
+    setConfirmationError('')
     setItems((rows) => rows.filter((item) => item.id !== row.id))
     if (editingId === row.id) { setEditingId(null); setBarcode('') }
     setError('')
@@ -102,7 +117,7 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
   }
 
   function edit(row: DraftRow) {
-    if (inFlight.current || row.item !== null) return
+    if (inFlight.current || awaitingResult || completed || row.item !== null) return
     setEditingId(row.id); setBarcode(row.barcode); setError(''); setNotice('')
     focusBarcode()
   }
@@ -113,11 +128,58 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
     focusBarcode()
   }
 
-  function confirmDraft() {
-    // S3-02.3 confirms the browser draft only; it does not persist a loan.
+  async function confirmDraft() {
     if (!canConfirm || inFlight.current) return
-    setNotice(`Đã xác nhận danh sách ${validItems.length} sách hợp lệ. Phiếu mượn chưa được ghi.`)
+    inFlight.current = true
+    setLoading(true); setConfirmationError(''); setNotice('')
+    onLockChange?.(true)
+    let keepLocked = false
+    try {
+      // Preserve the exact key/payload on retry after a timeout or lost response.
+      if (!submitted.current) submitted.current = {
+        id: crypto.randomUUID(), barcodes: validItems.map((row) => row.barcode),
+      }
+      const result = await directLoanService.confirm(reader.cardNumber, submitted.current.barcodes, submitted.current.id)
+      if (!active.current) return
+      setCompleted(result); setAwaitingResult(false)
+      onCreated?.(result)
+    } catch (e: unknown) {
+      if (!active.current) return
+      const response = (e as { response?: { status?: number; data?: { code?: string } } } | null)?.response
+      keepLocked = !response || ((response.status ?? 500) >= 500 && response.data?.code !== 'DIRECT_LOAN_SAVE_FAILED')
+      setAwaitingResult(keepLocked)
+      setConfirmationError(keepLocked
+        ? 'Chưa xác định được kết quả xác nhận. Giữ nguyên lượt và nhấn Xác nhận lượt mượn để kiểm tra lại; hệ thống sẽ không tạo phiếu trùng.'
+        : `Không thể ghi trọn vẹn lượt mượn. ${getApiErrorMessage(e, 'Vui lòng kiểm tra lại thẻ và sách trước khi thử lại.')}`)
+    } finally {
+      inFlight.current = false
+      if (active.current) { setLoading(false); onLockChange?.(keepLocked) }
+    }
   }
+
+  if (completed) return <Card className="p-4 sm:p-6">
+    <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
+      <p className="font-semibold">Đã ghi toàn bộ {completed.loan.items.length} sách vào phiếu mượn</p>
+      <p>{completed.message}</p>
+    </div>
+    <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="min-w-0"><dt className="text-sm text-slate-500">Số phiếu mượn</dt><dd className="mt-1 break-all font-mono text-sm font-semibold text-slate-900">{completed.loan.loanNumber}</dd></div>
+      <div className="min-w-0"><dt className="text-sm text-slate-500">Người lập phiếu</dt><dd className="mt-1 break-words font-semibold text-slate-900">{completed.loan.createdByName}</dd></div>
+    </dl>
+    <ul className="mt-5 divide-y divide-slate-200 rounded-xl border border-slate-200 px-4">
+      {completed.loan.items.map((item) => <li key={item.id} className="flex flex-col gap-2 py-4 sm:flex-row sm:justify-between">
+        <div className="min-w-0"><p className="break-words font-medium text-slate-900">{item.bookTitle}</p>
+          <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.barcode}</p>
+          <p className="mt-1 text-sm text-slate-600">Ngày mượn: {formatLoanTimestamp(item.borrowedAt, true)} · Hạn trả: {formatLoanTimestamp(item.dueAt, true)}</p>
+        </div>
+        <span className="self-start rounded-lg bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">Đang mượn</span>
+      </li>)}
+    </ul>
+    <div className="mt-5 flex flex-wrap items-center gap-3">
+      {onNewLoan && <Button type="button" onClick={onNewLoan}>Bắt đầu lượt mới</Button>}
+      <a className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" href={`/loans/${completed.loan.id}`}>Xem chi tiết phiếu</a>
+    </div>
+  </Card>
 
   return <Card className="p-4 sm:p-6">
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -137,20 +199,20 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
         <div className="min-w-0 flex-1">
           <Input id="direct-loan-barcode" label="Mã vạch sách" required autoComplete="off" maxLength={100}
             placeholder="Nhập mã vạch của bản sao" value={barcode} error={error}
-            disabled={!reader.eligible || loading}
+            disabled={!reader.eligible || frozen}
             onChange={(event) => { setBarcode(event.target.value); setError(''); setNotice('') }} />
         </div>
         <div className="flex flex-wrap gap-2 sm:mt-7">
-          <Button type="submit" loading={loading} disabled={blocked}>{editingId === null ? 'Thêm sách' : 'Kiểm tra lại'}</Button>
+          <Button type="submit" loading={loading && submitted.current === null} disabled={blocked}>{editingId === null ? 'Thêm sách' : 'Kiểm tra lại'}</Button>
           {editingId !== null && <Button type="button" variant="secondary" disabled={loading} onClick={cancelEdit}>Hủy sửa</Button>}
         </div>
       </div>
       <div aria-live="polite" aria-atomic="true">
-        {loading && <p role="status" className="text-sm text-blue-700">Đang tìm sách theo mã vạch…</p>}
+        {loading && submitted.current === null && <p role="status" className="text-sm text-blue-700">Đang tìm sách theo mã vạch…</p>}
         {notice && <p role="status" className="break-words text-sm text-emerald-700">{notice}</p>}
       </div>
     </form>
-    {blocked && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+    {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
       {reader.eligible
         ? `Đã đạt giới hạn ${limit} sách hợp lệ trong lượt này. Không thể thêm sách vì sẽ vượt số sách bạn đọc còn được mượn. Xóa một dòng hợp lệ để nhập sách khác.`
         : reader.message}
@@ -179,9 +241,9 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
               <td className="px-1 py-3 text-center sm:px-3">
                 <div className="flex flex-col items-center gap-1">
                   {!row.item && <Button type="button" variant="secondary" size="sm"
-                    aria-label={`Sửa mã vạch ${row.barcode}`} disabled={loading} onClick={() => edit(row)}>Sửa</Button>}
+                    aria-label={`Sửa mã vạch ${row.barcode}`} disabled={frozen} onClick={() => edit(row)}>Sửa</Button>}
                   <Button type="button" variant="ghost" size="sm" className="text-red-700 hover:bg-red-50 hover:text-red-800"
-                    aria-label={`Xóa sách có mã vạch ${row.barcode}`} disabled={loading} onClick={() => remove(row)}>Xóa</Button>
+                    aria-label={`Xóa sách có mã vạch ${row.barcode}`} disabled={frozen} onClick={() => remove(row)}>Xóa</Button>
                 </div>
               </td>
             </tr>)}
@@ -194,8 +256,13 @@ export default function DirectLoanItemsPanel({ reader }: { reader: ReaderLoanEli
           : barcode.trim() ? 'Còn mã vạch chưa được kiểm tra. Thêm sách hoặc xóa nội dung ô nhập trước khi xác nhận.'
           : validItems.length ? 'Tất cả các dòng đã nhập đều hợp lệ.' : 'Danh sách cần có ít nhất một sách hợp lệ.'}
       </p>
-      <Button type="button" className="shrink-0 self-start" disabled={!canConfirm} onClick={confirmDraft}>Xác nhận danh sách</Button>
+      <Button type="button" className="shrink-0 self-start" loading={loading && submitted.current !== null}
+        disabled={!canConfirm} onClick={confirmDraft}>Xác nhận lượt mượn</Button>
     </div>
-    <p className="mt-4 text-xs leading-5 text-slate-500">Danh sách tạm thời, chưa ghi phiếu mượn. Xác nhận danh sách chỉ kiểm tra các dòng đã nhập.</p>
+    {confirmationError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">{confirmationError}</p>}
+    <p role="status" className="mt-4 text-xs leading-5 text-slate-500">{loading && submitted.current
+      ? 'Đang kiểm tra lại thẻ, giới hạn và toàn bộ sách để ghi lượt mượn…'
+      : awaitingResult ? 'Giữ nguyên mã thẻ và danh sách cho đến khi xác định được kết quả.'
+      : 'Khi xác nhận, hệ thống kiểm tra lại toàn bộ điều kiện và ghi tất cả sách trong một phiếu. Nếu có lỗi khi ghi, toàn bộ lượt sẽ được hủy.'}</p>
   </Card>
 }

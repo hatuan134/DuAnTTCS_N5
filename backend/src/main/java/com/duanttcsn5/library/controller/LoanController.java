@@ -3,6 +3,8 @@ package com.duanttcsn5.library.controller;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
 import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
+import com.duanttcsn5.library.dto.loan.CreateDirectLoanRequest;
+import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
@@ -69,6 +71,14 @@ public class LoanController {
             @Valid @RequestBody AddDirectLoanItemRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.previewDirectLoanItem(request, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/direct")
+    public ResponseEntity<DirectLoanResponse> createDirectLoan(
+            @Valid @RequestBody CreateDirectLoanRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(loans.createDirectLoan(
+                request, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/{loanId}")

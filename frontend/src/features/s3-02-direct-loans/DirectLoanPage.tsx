@@ -17,6 +17,7 @@ export default function DirectLoanPage() {
   const [result, setResult] = useState<ReaderLoanEligibility | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmationLocked, setConfirmationLocked] = useState(false)
   const [revision, setRevision] = useState(0)
   const requestId = useRef(0)
   const immediate = useRef(false)
@@ -51,7 +52,7 @@ export default function DirectLoanPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (inFlight.current) return
+    if (inFlight.current || confirmationLocked) return
     if (!cardNumber.trim()) {
       setError('Vui lòng nhập mã thẻ thư viện.')
       return
@@ -69,14 +70,14 @@ export default function DirectLoanPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
             <Input id="direct-loan-card" label="Mã thẻ thư viện" required autoComplete="off" maxLength={100}
-              placeholder="Nhập mã thẻ ghi trên thẻ thư viện" value={cardNumber} error={error}
+              placeholder="Nhập mã thẻ ghi trên thẻ thư viện" value={cardNumber} error={error} disabled={confirmationLocked}
               onChange={(event) => {
                 ++requestId.current
                 inFlight.current = false
                 setCardNumber(event.target.value); setResult(null); setError(''); setLoading(false)
               }} />
           </div>
-          <Button type="submit" variant="secondary" loading={loading} className="sm:mt-7">Kiểm tra thẻ</Button>
+          <Button type="submit" variant="secondary" loading={loading} disabled={confirmationLocked} className="sm:mt-7">Kiểm tra thẻ</Button>
         </div>
         <p className="text-xs leading-5 text-slate-500">Thông tin tự cập nhật sau khi ngừng nhập mã thẻ. Có thể nhấn Enter để kiểm tra ngay.</p>
       </form>
@@ -103,7 +104,11 @@ export default function DirectLoanPage() {
         <p className="break-words">{result.message}</p>
       </div>
     </Card>}
-    {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result} />}
-    <p className="text-sm leading-6 text-slate-500">Danh sách sách đang nhập chưa được lưu. Khi đổi hoặc kiểm tra lại thẻ, danh sách sẽ bắt đầu lại.</p>
+    {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result}
+      onLockChange={setConfirmationLocked} onCreated={(data) => setResult(data.reader)}
+      onNewLoan={() => { setConfirmationLocked(false); immediate.current = true; setRevision((value) => value + 1) }} />}
+    <p className="text-sm leading-6 text-slate-500">{confirmationLocked
+      ? 'Lượt mượn đang được xác nhận. Giữ nguyên mã thẻ và danh sách để nhận đúng kết quả.'
+      : 'Danh sách đang nhập chỉ được lưu khi xác nhận thành công. Khi đổi hoặc kiểm tra lại thẻ, danh sách tạm sẽ bắt đầu lại; phiếu đã ghi vẫn được lưu.'}</p>
   </div>
 }
