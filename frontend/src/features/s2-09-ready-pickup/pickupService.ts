@@ -11,6 +11,30 @@ export interface ReadyPickupReservation {
   status: 'READY_FOR_PICKUP'
   reservedAt: string
   pickupDeadline: string | null
+  cardNumber?: string | null
+  converted?: boolean
+  loanNumber?: string | null
+}
+
+export interface ReservationLoanContext {
+  cardNumber: string | null
+  converted: boolean
+  loanNumber: string | null
+}
+
+export interface ReservationLoanResult {
+  id: number
+  loanNumber: string
+  reservationId: number
+  readerId: number
+  readerName: string
+  cardNumber: string
+  bookId: number
+  bookTitle: string
+  copyId: number
+  barcode: string
+  borrowedAt: string
+  message: string
 }
 
 export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED'
@@ -87,6 +111,14 @@ export function formatPickupDate(value: string | null, includeSeconds = false): 
 }
 
 export const pickupService = {
+  createLoan: async (id: number, cardNumber: string): Promise<ReservationLoanResult> => {
+    const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, { cardNumber: cardNumber.trim() })
+    return response.data
+  },
+  loanContext: async (id: number): Promise<ReservationLoanContext> => {
+    const response = await apiClient.get<ReservationLoanContext>(`/reservations/${id}/loan-context`)
+    return response.data
+  },
   cancel: async (id: number, reason: string): Promise<CancelReservationResult> => {
     const response = await apiClient.post<CancelReservationResult>(`/reservations/${id}/cancel`, { reason: reason.trim() })
     return response.data
@@ -102,7 +134,10 @@ export const pickupService = {
     return response.data
   },
   detail: async (id: number): Promise<ReadyPickupReservation> => {
-    const response = await apiClient.get<ReadyPickupReservation>(`/reservations/ready-for-pickup/${id}`)
-    return response.data
+    const [response, context] = await Promise.all([
+      apiClient.get<ReadyPickupReservation>(`/reservations/ready-for-pickup/${id}`),
+      pickupService.loanContext(id),
+    ])
+    return { ...response.data, ...context }
   },
 }
