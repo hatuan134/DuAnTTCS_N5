@@ -6,6 +6,9 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import TableActionButton, { TableActions, tableActionClassName } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatPickupDate, pickupRoles, pickupService } from './pickupService'
@@ -74,6 +77,8 @@ export default function ReadyPickupPage() {
     setRevision((value) => value + 1)
   }
 
+  const pickupPagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem danh sách sách đang chờ nhận.</p>
 
   return (
@@ -104,10 +109,11 @@ export default function ReadyPickupPage() {
           Có <strong>{items.length}</strong> đơn đang chờ nhận.
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
             <caption className="sr-only">Sách đang chờ nhận theo hạn nhận tăng dần</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th scope="col" className="px-5 py-3">STT</th>
                 <th scope="col" className="px-5 py-3">Đầu sách</th>
                 <th scope="col" className="px-5 py-3">Mã vạch bản sao</th>
                 <th scope="col" className="px-5 py-3">Bạn đọc</th>
@@ -116,7 +122,10 @@ export default function ReadyPickupPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {items.map((item) => <tr key={item.id} className="align-top hover:bg-slate-50">
+              {pickupPagination.pageItems.map((item, index) => <tr key={item.id} className="hover:bg-slate-50">
+                <td className="px-5 py-4 font-semibold text-slate-500">
+                  {pickupPagination.startIndex + index + 1}
+                </td>
                 <td className="px-5 py-4">
                   <Link to={`/books/${item.bookId}`} className="font-semibold text-blue-700 hover:underline">
                     {item.bookTitle}
@@ -130,20 +139,35 @@ export default function ReadyPickupPage() {
                   {formatPickupDate(item.pickupDeadline)}
                 </td>
                 <td className="px-5 py-4">
-                  <Link to={`/reservations/ready-for-pickup/${item.id}`}
-                    className="whitespace-nowrap font-semibold text-blue-600 hover:underline">
-                    Chi tiết đơn #{item.id}
-                  </Link>
-                  <Button type="button" variant="danger" size="sm" className="mt-3" disabled={!!cancelTarget}
-                    aria-label={`Huỷ đơn #${item.id}`}
-                    onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
-                    Huỷ đơn
-                  </Button>
+                  <TableActions>
+                    <Link
+                      to={`/reservations/ready-for-pickup/${item.id}`}
+                      title="Xem chi tiết đơn đặt giữ"
+                      className={tableActionClassName('primary')}
+                    >
+                      Xem chi tiết
+                    </Link>
+                    <TableActionButton
+                      tone="danger"
+                      disabled={!!cancelTarget}
+                      aria-label={`Hủy đơn #${item.id}`}
+                      onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}
+                    >
+                      Hủy đơn
+                    </TableActionButton>
+                  </TableActions>
                 </td>
               </tr>)}
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={pickupPagination.page}
+          totalItems={pickupPagination.totalItems}
+          totalPages={pickupPagination.totalPages}
+          pageSize={pickupPagination.pageSize}
+          onPageChange={pickupPagination.goToPage}
+        />
       </Card>}
     </div>
   )

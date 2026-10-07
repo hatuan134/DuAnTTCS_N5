@@ -12,7 +12,6 @@ import {
   AlertCircle,
   AlertTriangle,
   BookOpen,
-  CornerDownRight,
   Pencil,
   Plus,
   Power,
@@ -29,6 +28,9 @@ import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton, { TableActions, tableActionClassName } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import BookCoverEditorDialog from '../s2-10-book-cover/BookCoverEditorDialog'
 import {
   catalogService,
@@ -845,37 +847,6 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         )}
       </Card>
 
-      {/* Rules Notice Box */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-5">
-        <div className="flex items-start gap-3">
-          <BookOpen size={20} className="mt-0.5 shrink-0 text-blue-600" />
-          <div className="space-y-1.5">
-            <h4 className="text-sm font-semibold text-blue-900">
-              Quy tắc nghiệp vụ S1-08 (Khai báo danh mục & Biên mục sách)
-            </h4>
-            <ul className="list-disc pl-5 text-sm leading-relaxed text-blue-800 space-y-1">
-              <li>
-                <strong>Không trùng tên:</strong> Tên tác giả là duy nhất trong danh mục tác giả;
-                Tên thể loại là duy nhất trong cùng danh mục cha / cùng cấp.
-              </li>
-              <li>
-                <strong>Xếp lồng tối đa 2 cấp:</strong> Thể loại chỉ được tối đa 2 cấp (ví dụ:
-                "Văn học trong nước" nằm dưới "Văn học"). Không cho phép tạo thể loại cấp 3.
-              </li>
-              <li>
-                <strong>Bảo vệ dữ liệu sách:</strong> Không cho xoá tác giả hoặc thể loại đang gắn
-                với ít nhất một đầu sách; chỉ cho phép <em>ngừng sử dụng</em>.
-              </li>
-              <li>
-                <strong>Quy tắc biên mục:</strong> Danh mục đã ngừng sử dụng không xuất hiện trong ô
-                chọn khi biên mục mới, nhưng vẫn hiển thị đầy đủ và rõ ràng trên các sách cũ đã biên
-                mục.
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
       {/* MODAL: Thêm / Sửa Tác giả */}
       {isAuthorModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
@@ -1391,8 +1362,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                           <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
                             <span><strong>Tác giả:</strong> {authorNames || 'Không rõ'}</span>
                             <span><strong>ISBN:</strong> {book.isbn || 'Chưa có ISBN'}</span>
-                            <span><strong>NXB:</strong> {book.publisher || '—'}</span>
-                            <span><strong>Năm XB:</strong> {book.publicationYear || '—'}</span>
+                            <span><strong>Nhà xuất bản:</strong> {book.publisher || '—'}</span>
+                            <span><strong>Năm xuất bản:</strong> {book.publicationYear || '—'}</span>
                           </div>
                         </div>
                         <Link
@@ -1525,6 +1496,8 @@ interface AuthorsTableProps {
 }
 
 function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1535,34 +1508,33 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-authors-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Tác giả</th>
-            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-6 py-3.5 text-center">Trạng thái</th>
-            <th className="px-6 py-3.5 text-right">Thao tác</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Tác giả</th>
+            <th className="px-3 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-3 py-3.5 text-center">Trạng thái</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((author) => (
+          {pagination.pageItems.map((author, index) => (
             <tr key={author.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                    <UserRound size={18} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{author.name}</div>
-                    <div className="text-xs text-slate-500 max-w-md truncate">
-                      {author.note || 'Chưa có ghi chú'}
-                    </div>
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="font-semibold text-slate-900">{author.name}</div>
+                  <div className="text-xs text-slate-500 max-w-md truncate">
+                    {author.note || 'Chưa có ghi chú'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-3 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     author.bookCount > 0
@@ -1574,7 +1546,7 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-3 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                     author.active
@@ -1586,48 +1558,35 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(author)}
-                    title="Chỉnh sửa tác giả"
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
-                  >
-                    <Pencil size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onToggle(author)}
-                    title={author.active ? 'Ngừng sử dụng tác giả' : 'Kích hoạt lại tác giả'}
-                    className={`rounded-lg p-1.5 transition ${
-                      author.active
-                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
-                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                    }`}
-                  >
-                    <Power size={16} />
-                  </button>
-
-                  <button
-                    type="button"
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(author)}>
+                    Chỉnh sửa
+                  </TableActionButton>
+                  <TableActionButton icon={<Power size={16} />} tone={author.active ? 'warning' : 'success'} onClick={() => onToggle(author)}>
+                    {author.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
+                  </TableActionButton>
+                  <TableActionButton
+                    icon={<Trash2 size={16} />}
+                    tone="danger"
                     onClick={() => onDelete(author)}
-                    title={
-                      author.bookCount > 0
-                        ? 'Không thể xoá vì đang gắn với đầu sách'
-                        : 'Xoá tác giả'
-                    }
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                    title={author.bookCount > 0 ? 'Không thể xóa vì đang gắn với đầu sách' : 'Xóa tác giả'}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                    Xóa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }
@@ -1643,6 +1602,8 @@ interface CategoriesTableProps {
 }
 
 function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1653,45 +1614,35 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-categories-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Thể loại</th>
-            <th className="px-6 py-3.5">Thuộc thể loại cha</th>
-            <th className="px-6 py-3.5 text-center">Cấp</th>
-            <th className="px-6 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-6 py-3.5 text-center">Trạng thái</th>
-            <th className="px-6 py-3.5 text-right">Thao tác</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Thể loại</th>
+            <th className="table-cell-left px-3 py-3.5">Thuộc thể loại cha</th>
+            <th className="px-2 py-3.5 text-center">Cấp</th>
+            <th className="px-2 py-3.5 text-center">Số đầu sách</th>
+            <th className="px-2 py-3.5 text-center">Trạng thái</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((cat) => (
+          {pagination.pageItems.map((cat, index) => (
             <tr key={cat.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-2.5">
-                  {cat.level === 2 && (
-                    <CornerDownRight size={16} className="text-slate-400 shrink-0 ml-3" />
-                  )}
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                      cat.level === 1
-                        ? 'bg-violet-100 text-violet-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    <Tags size={16} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{cat.name}</div>
-                    <div className="text-xs text-slate-500 max-w-sm truncate">
-                      {cat.description || 'Chưa có mô tả'}
-                    </div>
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="font-semibold text-slate-900">{cat.name}</div>
+                  <div className="text-xs text-slate-500 max-w-sm truncate">
+                    {cat.description || 'Chưa có mô tả'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-sm text-slate-600">
+              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
                 {cat.parentName ? (
                   <span className="font-medium text-violet-900">{cat.parentName}</span>
                 ) : (
@@ -1699,7 +1650,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 )}
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${
                     cat.level === 1
@@ -1711,7 +1662,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     cat.bookCount > 0
@@ -1723,7 +1674,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-center">
+              <td className="px-2 py-4 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                     cat.active
@@ -1735,48 +1686,35 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(cat)}
-                    title="Chỉnh sửa thể loại"
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition"
-                  >
-                    <Pencil size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onToggle(cat)}
-                    title={cat.active ? 'Ngừng sử dụng thể loại' : 'Kích hoạt lại thể loại'}
-                    className={`rounded-lg p-1.5 transition ${
-                      cat.active
-                        ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600'
-                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                    }`}
-                  >
-                    <Power size={16} />
-                  </button>
-
-                  <button
-                    type="button"
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
+                    Chỉnh sửa
+                  </TableActionButton>
+                  <TableActionButton icon={<Power size={16} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
+                    {cat.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
+                  </TableActionButton>
+                  <TableActionButton
+                    icon={<Trash2 size={16} />}
+                    tone="danger"
                     onClick={() => onDelete(cat)}
-                    title={
-                      cat.bookCount > 0
-                        ? 'Không thể xoá vì đang gắn với đầu sách'
-                        : 'Xoá thể loại'
-                    }
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                    title={cat.bookCount > 0 ? 'Không thể xóa vì đang gắn với đầu sách' : 'Xóa thể loại'}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                    Xóa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }
@@ -1791,6 +1729,8 @@ interface BooksTableProps {
 }
 
 function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps) {
+  const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1809,54 +1749,45 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps)
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
+    <div className="fit-table-wrap">
+      <table className="data-table data-table-fit catalog-books-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-6 py-3.5">Tiêu đề sách / ISBN</th>
-            <th className="px-6 py-3.5">Tác giả</th>
-            <th className="px-6 py-3.5">Thể loại</th>
-            <th className="px-6 py-3.5">Nhà xuất bản</th>
-            <th className="px-6 py-3.5 text-center">Năm XB</th>
+            <th className="px-3 py-3.5">STT</th>
+            <th className="table-cell-left px-4 py-3.5">Tiêu đề sách / ISBN</th>
+            <th className="table-cell-left px-3 py-3.5">Tác giả</th>
+            <th className="table-cell-left px-3 py-3.5">Thể loại</th>
+            <th className="table-cell-left px-3 py-3.5">Nhà xuất bản</th>
+            <th className="px-2 py-3.5 text-center">Năm xuất bản</th>
+            <th className="px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.map((book) => (
+          {pagination.pageItems.map((book, index) => (
             <tr key={book.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <BookOpen size={18} />
+              <td className="px-3 py-4 font-semibold text-slate-500">
+                {pagination.startIndex + index + 1}
+              </td>
+              <td className="table-cell-left px-4 py-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+                    {!book.hasCopies && (
+                      <StatusBadge status="NO_COPY" />
+                    )}
                   </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
-                      {!book.hasCopies && (
-                        <StatusBadge status="NO_COPY" />
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {book.hasCopies
-                        ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
-                        : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
-                    </div>
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={() => onEditCover(book)}
-                        className="text-xs font-semibold text-blue-600 hover:underline"
-                      >
-                        Chỉnh sửa ảnh bìa
-                      </button>
-                    </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {book.hasCopies
+                      ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
+                      : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4">
+              <td className="table-cell-left px-3 py-4">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(book.authors?.length
                     ? book.authors
@@ -1880,7 +1811,7 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps)
                 </div>
               </td>
 
-              <td className="px-6 py-4">
+              <td className="table-cell-left px-3 py-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-slate-800">{book.categoryName}</span>
                   {!book.categoryActive && (
@@ -1894,17 +1825,39 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps)
                 </div>
               </td>
 
-              <td className="px-6 py-4 text-sm text-slate-600">
+              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
                 {book.publisher || '—'}
               </td>
 
-              <td className="px-6 py-4 text-center text-sm font-medium text-slate-700">
+              <td className="px-2 py-4 text-center text-sm font-medium text-slate-700">
                 {book.publicationYear || '—'}
+              </td>
+
+              <td className="table-action-cell px-3 py-4">
+                <TableActions>
+                  <Link
+                    to={`/books/${book.id}`}
+                    title="Xem chi tiết đầu sách"
+                    className={tableActionClassName('primary')}
+                  >
+                    Xem chi tiết
+                  </Link>
+                  <TableActionButton tone="neutral" title="Chỉnh sửa ảnh bìa đầu sách" onClick={() => onEditCover(book)}>
+                    Chỉnh sửa ảnh bìa
+                  </TableActionButton>
+                </TableActions>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination
+        page={pagination.page}
+        totalItems={pagination.totalItems}
+        totalPages={pagination.totalPages}
+        pageSize={pagination.pageSize}
+        onPageChange={pagination.goToPage}
+      />
     </div>
   )
 }

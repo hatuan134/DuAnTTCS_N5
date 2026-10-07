@@ -10,7 +10,6 @@ import {
   Power,
   RefreshCw,
   Trash2,
-  Users,
   X,
 } from 'lucide-react'
 
@@ -19,6 +18,9 @@ import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 import LoadingState from '../../components/ui/LoadingState'
+import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import {
   cardTypeService,
@@ -288,6 +290,9 @@ export default function CardTypesPage() {
     ? Math.max(...cardTypes.map((c) => c.maxBooks))
     : 10
 
+  const cardTypePagination = useTablePagination(cardTypes)
+  const historyPagination = useTablePagination(history)
+
   if (!canRead) {
     return (
       <div className="space-y-6">
@@ -425,36 +430,40 @@ export default function CardTypesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px]">
+          <>
+          <div className="fit-table-wrap">
+            <table className="data-table data-table-fit borrow-policy-table w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+                    STT
+                  </th>
+                  <th className="table-cell-left px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
                     Loại thẻ
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                    Sách tối đa
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số sách mượn tối đa
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                    Ngày mượn
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số ngày mượn tối đa
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Số lần gia hạn
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                    Ngày / lần
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số ngày mỗi lần gia hạn
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Thời hạn thẻ
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Độc giả gắn thẻ
                   </th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Trạng thái
                   </th>
                   {canManage && (
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">
+                    <th className="px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                       Thao tác
                     </th>
                   )}
@@ -462,57 +471,54 @@ export default function CardTypesPage() {
               </thead>
 
               <tbody>
-                {cardTypes.map((cardType) => {
+                {cardTypePagination.pageItems.map((cardType, index) => {
                   const isActionLoading = actionLoadingId === cardType.id
                   return (
                     <tr
                       key={cardType.id}
                       className="border-b border-slate-100 transition hover:bg-slate-50/80"
                     >
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                            <CreditCard size={20} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {cardType.name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {cardType.description || 'Không có mô tả'}
-                            </p>
-                          </div>
+                      <td className="px-3 py-4 font-semibold text-slate-500">
+                        {cardTypePagination.startIndex + index + 1}
+                      </td>
+                      <td className="table-cell-left px-3 py-4">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">
+                            {cardType.name}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                            {cardType.description || 'Không có mô tả'}
+                          </p>
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 text-center text-sm font-semibold text-slate-800">
+                      <td className="px-3 py-4 text-center text-sm font-semibold text-slate-800">
                         {cardType.maxBooks} <span className="text-xs font-normal text-slate-500">cuốn</span>
                       </td>
 
-                      <td className="px-5 py-4 text-center text-sm text-slate-700">
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
                         {cardType.loanDays} ngày
                       </td>
 
-                      <td className="px-5 py-4 text-center text-sm text-slate-700">
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
                         {cardType.maxRenewals} lần
                       </td>
 
-                      <td className="px-5 py-4 text-center text-sm text-slate-700">
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
                         {cardType.renewalDays} ngày
                       </td>
 
-                      <td className="px-5 py-4 text-center text-sm text-slate-700">
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
                         {cardType.duration} tháng
                       </td>
 
-                      <td className="px-5 py-4 text-center">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
-                          <Users size={12} />
+                      <td className="px-3 py-4 text-center">
+                        <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
                           {cardType.usageCount ?? 0}
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 text-center">
+                      <td className="px-3 py-4 text-center">
                         <StatusBadge
                           status={cardType.active ? 'ACTIVE' : 'DISABLED'}
                           label={cardType.active ? 'Đang áp dụng' : 'Ngừng áp dụng'}
@@ -520,51 +526,43 @@ export default function CardTypesPage() {
                       </td>
 
                       {canManage && (
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex justify-end gap-1.5">
-                          <button
-                            type="button"
-                            title="Chỉnh sửa chính sách"
-                            disabled={isActionLoading}
-                            onClick={() => openEditModal(cardType)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
-                          >
-                            <Pencil size={15} />
-                          </button>
+                        <td className="table-action-cell px-2 py-4">
+                          <TableActions>
+                            <TableActionButton
+                              icon={<Pencil size={15} />}
+                              tone="primary"
+                              title="Chỉnh sửa chính sách"
+                              disabled={isActionLoading}
+                              onClick={() => openEditModal(cardType)}
+                            >
+                              Chỉnh sửa
+                            </TableActionButton>
 
-                          <button
-                            type="button"
-                            title={
-                              cardType.active
+                            <TableActionButton
+                              icon={<Power size={15} />}
+                              tone={cardType.active ? 'warning' : 'success'}
+                              title={cardType.active
                                 ? 'Tạm ngừng áp dụng thẻ này'
-                                : 'Kích hoạt áp dụng lại thẻ này'
-                            }
-                            disabled={isActionLoading}
-                            onClick={() => handleToggleStatus(cardType.id)}
-                            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition disabled:opacity-50 ${
-                              cardType.active
-                                ? 'border-amber-200 text-amber-600 hover:bg-amber-50'
-                                : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                            }`}
-                          >
-                            <Power size={15} />
-                          </button>
+                                : 'Kích hoạt áp dụng lại thẻ này'}
+                              disabled={isActionLoading}
+                              onClick={() => handleToggleStatus(cardType.id)}
+                            >
+                              {cardType.active ? 'Ngừng áp dụng' : 'Kích hoạt'}
+                            </TableActionButton>
 
-                          <button
-                            type="button"
-                            title={
-                              (cardType.usageCount ?? 0) > 0
+                            <TableActionButton
+                              icon={<Trash2 size={15} />}
+                              tone="danger"
+                              title={(cardType.usageCount ?? 0) > 0
                                 ? 'Không thể xóa loại thẻ đang được sử dụng'
-                                : 'Xóa loại thẻ'
-                            }
-                            disabled={isActionLoading || (cardType.usageCount ?? 0) > 0}
-                            onClick={() => handleDelete(cardType)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
+                                : 'Xóa loại thẻ'}
+                              disabled={isActionLoading || (cardType.usageCount ?? 0) > 0}
+                              onClick={() => handleDelete(cardType)}
+                            >
+                              Xóa
+                            </TableActionButton>
+                          </TableActions>
+                        </td>
                       )}
                     </tr>
                   )
@@ -572,6 +570,14 @@ export default function CardTypesPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={cardTypePagination.page}
+            totalItems={cardTypePagination.totalItems}
+            totalPages={cardTypePagination.totalPages}
+            pageSize={cardTypePagination.pageSize}
+            onPageChange={cardTypePagination.goToPage}
+          />
+          </>
         )}
       </Card>
 
@@ -613,11 +619,15 @@ export default function CardTypesPage() {
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
+            <table className="data-table w-full min-w-[1160px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
+                    STT
+                  </th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
                     Thời điểm
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
@@ -639,8 +649,11 @@ export default function CardTypesPage() {
               </thead>
 
               <tbody>
-                {history.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 align-top hover:bg-slate-50/50">
+                {historyPagination.pageItems.map((item, index) => (
+                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td className="px-5 py-4 font-semibold text-slate-500">
+                      {historyPagination.startIndex + index + 1}
+                    </td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600 font-mono text-xs">
                       {formatDate(item.changedAt)}
                     </td>
@@ -671,6 +684,14 @@ export default function CardTypesPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={historyPagination.page}
+            totalItems={historyPagination.totalItems}
+            totalPages={historyPagination.totalPages}
+            pageSize={historyPagination.pageSize}
+            onPageChange={historyPagination.goToPage}
+          />
+          </>
         )}
       </Card>
 

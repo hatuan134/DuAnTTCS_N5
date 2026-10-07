@@ -17,6 +17,8 @@ import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { readerService } from './readerService'
 import type { ReaderProfileResponse } from './readerService'
 
@@ -65,6 +67,11 @@ export default function ReadersPage() {
   const rejectedCount = readers.filter(
     (r) => r.registrationStatus === 'REJECTED',
   ).length
+
+  const readerPagination = useTablePagination(
+    filteredReaders,
+    `${searchTerm}|${statusFilter}`,
+  )
 
   return (
     <div className="space-y-6">
@@ -201,10 +208,12 @@ export default function ReadersPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <>
+            <div className="overflow-x-auto">
+            <table className="data-table w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="py-3.5 px-4">STT</th>
                   <th className="py-3.5 px-4">Mã định danh</th>
                   <th className="py-3.5 px-4">Họ và tên</th>
                   <th className="py-3.5 px-4">Loại thẻ</th>
@@ -216,8 +225,11 @@ export default function ReadersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredReaders.map((reader) => (
+                {readerPagination.pageItems.map((reader, index) => (
                   <tr key={reader.userId} className="hover:bg-slate-50/50 transition">
+                    <td className="py-3.5 px-4 font-semibold text-slate-500">
+                      {readerPagination.startIndex + index + 1}
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                       {reader.memberCode}
                     </td>
@@ -267,7 +279,15 @@ export default function ReadersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            <TablePagination
+              page={readerPagination.page}
+              totalItems={readerPagination.totalItems}
+              totalPages={readerPagination.totalPages}
+              pageSize={readerPagination.pageSize}
+              onPageChange={readerPagination.goToPage}
+            />
+          </>
         )}
       </div>
     </div>

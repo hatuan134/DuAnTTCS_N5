@@ -7,6 +7,9 @@ import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { canCancelReservation, formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
@@ -105,6 +108,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
 
   const items = queue?.items ?? []
   const pendingCount = items.filter((item) => item.status === 'PENDING').length
+  const queuePagination = useTablePagination(items, `${bookId}|${status}`)
 
   return (
     <div>
@@ -158,10 +162,11 @@ function ReservationQueue({ bookId }: { bookId: number }) {
           <strong>{items.length}</strong> đơn hiển thị; <strong>{pendingCount}</strong> đơn đang xếp hàng trong kết quả.
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
             <caption className="sr-only">Các đơn đặt giữ của {queue.bookTitle}, {status ? reservationStatusLabel(status) : 'tất cả trạng thái'}, từ sớm đến muộn</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th scope="col" className="px-5 py-3">STT</th>
                 <th scope="col" className="px-5 py-3">Đơn</th>
                 <th scope="col" className="px-5 py-3">Vị trí hàng đợi</th>
                 <th scope="col" className="px-5 py-3">Bạn đọc</th>
@@ -172,7 +177,10 @@ function ReservationQueue({ bookId }: { bookId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {items.map((item) => <tr key={item.id} className="align-top hover:bg-slate-50">
+              {queuePagination.pageItems.map((item, index) => <tr key={item.id} className="hover:bg-slate-50">
+                <td className="px-5 py-4 font-semibold text-slate-500">
+                  {queuePagination.startIndex + index + 1}
+                </td>
                 <td className="px-5 py-4 font-medium text-slate-700">#{item.id}</td>
                 <td className="px-5 py-4 font-semibold text-blue-700">
                   {item.queuePosition == null ? <span className="text-slate-500">—</span> : `#${item.queuePosition}`}
@@ -188,11 +196,13 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                   {item.barcode || 'Chưa cấp bản'}
                 </td>
                 <td className="min-w-64 max-w-sm px-5 py-4">
-                  {canCancelReservation(item.status) && <Button type="button" variant="danger" size="sm"
-                    disabled={!!cancelTarget} aria-label={`Huỷ đơn #${item.id}`}
+                  {canCancelReservation(item.status) && <TableActionButton
+                    tone="danger"
+                    disabled={!!cancelTarget}
+                    aria-label={`Hủy đơn #${item.id}`}
                     onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
-                    Huỷ đơn
-                  </Button>}
+                    Hủy đơn
+                  </TableActionButton>}
                   {item.cancellation && <CancellationAudit audit={item.cancellation} />}
                   {item.status === 'CANCELLED' && !item.cancellation && <span className="text-slate-500">
                     Đơn cũ chưa có thông tin người và thời điểm huỷ.
@@ -202,6 +212,13 @@ function ReservationQueue({ bookId }: { bookId: number }) {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={queuePagination.page}
+          totalItems={queuePagination.totalItems}
+          totalPages={queuePagination.totalPages}
+          pageSize={queuePagination.pageSize}
+          onPageChange={queuePagination.goToPage}
+        />
       </Card>}
     </div>
   )

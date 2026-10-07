@@ -3,25 +3,10 @@ import { NavLink } from 'react-router-dom'
 
 import { navItems } from '../../app/featureRegistry'
 import { getCurrentUser } from '../../core/auth/authStorage'
-import type { NavItem } from '../../types/feature'
 
 interface SidebarProps {
   open?: boolean
   onClose?: () => void
-}
-
-type NavGroup = {
-  label: string
-  items: NavItem[]
-}
-
-function groupFor(item: NavItem) {
-  if (item.to === '/dashboard') return 'Tổng quan'
-  if (['/users', '/readers', '/library-cards'].includes(item.to)) return 'Người dùng'
-  if (item.to === '/change-password') return 'Cá nhân'
-  if (['/authors', '/categories', '/cataloging', '/borrow-policy'].includes(item.to)) return 'Kho sách & chính sách'
-  if (item.to.startsWith('/reservations') || item.to === '/my-reservations') return 'Đặt giữ'
-  return 'Quản trị & cấu hình'
 }
 
 export default function Sidebar({
@@ -35,14 +20,6 @@ export default function Sidebar({
       !item.roles ||
       (currentUser?.role && item.roles.includes(currentUser.role)),
   )
-
-  const groups = visibleNavItems.reduce<NavGroup[]>((result, item) => {
-    const label = groupFor(item)
-    const existing = result.find((group) => group.label === label)
-    if (existing) existing.items.push(item)
-    else result.push({ label, items: [item] })
-    return result
-  }, [])
 
   return (
     <>
@@ -86,50 +63,33 @@ export default function Sidebar({
           </button>
         </div>
 
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Điều hướng chính">
-          {groups.map((group) => (
-            <div key={group.label}>
-              <div className="mb-1.5 px-3 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-400">
-                {group.label}
-              </div>
+        <nav
+          className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
+          aria-label="Điều hướng chính"
+        >
+          {visibleNavItems.map((item) => {
+            const Icon = item.icon
 
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon
-
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={onClose}
-                      className={({ isActive }) => [
-                        'group flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5',
-                        'text-sm font-semibold transition-colors',
-                        isActive
-                          ? 'bg-blue-50 text-blue-700 shadow-[inset_3px_0_0_#2563eb]'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950',
-                      ].join(' ')}
-                    >
-                      <Icon size={18} className="shrink-0" />
-                      <span className="min-w-0 truncate">{item.label}</span>
-                    </NavLink>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={onClose}
+                className={({ isActive }) => [
+                  'group flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5',
+                  'text-sm font-semibold transition-colors',
+                  isActive
+                    ? 'bg-blue-50 text-blue-700 shadow-[inset_3px_0_0_#2563eb]'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950',
+                ].join(' ')}
+              >
+                <Icon size={18} className="shrink-0" />
+                <span className="min-w-0 truncate">{item.label}</span>
+              </NavLink>
+            )
+          })}
         </nav>
 
-        <div className="shrink-0 border-t border-slate-200 p-3">
-          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <div className="truncate text-xs font-semibold text-slate-700">
-              {currentUser?.fullName ?? 'Người dùng'}
-            </div>
-            <div className="mt-0.5 text-[0.7rem] text-slate-500">
-              Phiên làm việc hiện tại
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   )

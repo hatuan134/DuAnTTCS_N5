@@ -16,6 +16,9 @@ import Button from '../../components/ui/Button'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { cardTypeService } from '../s1-05-borrow-policy/cardTypeService'
@@ -79,6 +82,12 @@ export default function LibraryCardsPage() {
     () => cardTypes.filter((item) => item.active),
     [cardTypes],
   )
+
+  const pendingPagination = useTablePagination(
+    pending,
+    `${search}|${fromDate}|${toDate}`,
+  )
+  const issuedPagination = useTablePagination(issued)
 
   const load = async () => {
     setLoading(true)
@@ -258,10 +267,12 @@ export default function LibraryCardsPage() {
             ) : pending.length === 0 ? (
               <div className="p-10 text-center text-sm text-slate-500">Không có hồ sơ chờ duyệt phù hợp.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+              <>
+                <div className="overflow-x-auto">
+                <table className="data-table w-full text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
+                      <th className="px-4 py-3">STT</th>
                       <th className="px-4 py-3">Mã định danh</th>
                       <th className="px-4 py-3">Bạn đọc</th>
                       <th className="px-4 py-3">Liên hệ</th>
@@ -270,8 +281,11 @@ export default function LibraryCardsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pending.map((reader) => (
+                    {pendingPagination.pageItems.map((reader, index) => (
                       <tr key={reader.userId} className="hover:bg-slate-50">
+                        <td className="px-4 py-4 font-semibold text-slate-500">
+                          {pendingPagination.startIndex + index + 1}
+                        </td>
                         <td className="px-4 py-4 font-mono font-semibold text-blue-700">{reader.memberCode}</td>
                         <td className="px-4 py-4">
                           <div className="font-semibold text-slate-900">{reader.fullName}</div>
@@ -279,20 +293,32 @@ export default function LibraryCardsPage() {
                         </td>
                         <td className="px-4 py-4 text-slate-600">
                           <div>{reader.email}</div>
-                          <div className="mt-1 text-xs">{reader.phone || 'Chưa có SĐT'}</div>
+                          <div className="mt-1 text-xs">{reader.phone || 'Chưa có số điện thoại'}</div>
                         </td>
                         <td className="px-4 py-4 text-slate-600">{formatDateTime(reader.submittedAt)}</td>
                         <td className="px-4 py-4">
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => openApprove(reader)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Duyệt & cấp thẻ</button>
-                            <button onClick={() => openReject(reader)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">Từ chối</button>
-                          </div>
+                          <TableActions>
+                            <TableActionButton tone="success" onClick={() => openApprove(reader)}>
+                              Duyệt và cấp thẻ
+                            </TableActionButton>
+                            <TableActionButton tone="danger" onClick={() => openReject(reader)}>
+                              Từ chối
+                            </TableActionButton>
+                          </TableActions>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+                <TablePagination
+                  page={pendingPagination.page}
+                  totalItems={pendingPagination.totalItems}
+                  totalPages={pendingPagination.totalPages}
+                  pageSize={pendingPagination.pageSize}
+                  onPageChange={pendingPagination.goToPage}
+                />
+              </>
             )}
           </div>
         </>
@@ -301,10 +327,12 @@ export default function LibraryCardsPage() {
           {issued.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500">Chưa có thẻ thư viện nào được cấp.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <>
+              <div className="overflow-x-auto">
+              <table className="data-table w-full text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
+                    <th className="px-4 py-3">STT</th>
                     <th className="px-4 py-3">Mã thẻ</th>
                     <th className="px-4 py-3">Bạn đọc</th>
                     <th className="px-4 py-3">Loại thẻ</th>
@@ -314,8 +342,11 @@ export default function LibraryCardsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {issued.map((card) => (
+                  {issuedPagination.pageItems.map((card, index) => (
                     <tr key={card.id}>
+                      <td className="px-4 py-4 font-semibold text-slate-500">
+                        {issuedPagination.startIndex + index + 1}
+                      </td>
                       <td className="px-4 py-4 font-mono font-semibold text-blue-700">{card.cardNumber}</td>
                       <td className="px-4 py-4"><div className="font-semibold">{card.readerName}</div><div className="text-xs text-slate-500">{card.memberCode}</div></td>
                       <td className="px-4 py-4">{card.cardTypeName}</td>
@@ -326,7 +357,15 @@ export default function LibraryCardsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+              <TablePagination
+                page={issuedPagination.page}
+                totalItems={issuedPagination.totalItems}
+                totalPages={issuedPagination.totalPages}
+                pageSize={issuedPagination.pageSize}
+                onPageChange={issuedPagination.goToPage}
+              />
+            </>
           )}
         </div>
       )}

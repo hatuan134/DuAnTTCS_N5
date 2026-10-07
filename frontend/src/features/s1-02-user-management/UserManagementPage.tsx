@@ -26,6 +26,9 @@ import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 
 import {
@@ -349,6 +352,11 @@ export default function UserManagementPage() {
     }
   }
 
+  const accountPagination = useTablePagination(
+    accounts,
+    `${search}|${roleFilter}|${statusFilter}`,
+  )
+
   return (
     <div>
       <PageHeader
@@ -464,10 +472,12 @@ export default function UserManagementPage() {
             />
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
+                  <th className="px-5 py-3">STT</th>
                   <th className="px-5 py-3">Họ tên</th>
                   <th className="px-5 py-3">Liên hệ</th>
                   <th className="px-5 py-3">Vai trò</th>
@@ -476,7 +486,7 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {accounts.map((account) => {
+                {accountPagination.pageItems.map((account, index) => {
                   const isSelf = currentUser?.id === account.id
                   const canToggle =
                     account.status === 'ACTIVE' ||
@@ -484,6 +494,9 @@ export default function UserManagementPage() {
 
                   return (
                     <tr key={account.id} className="hover:bg-slate-50/70">
+                      <td className="px-5 py-4 font-semibold text-slate-500">
+                        {accountPagination.startIndex + index + 1}
+                      </td>
                       <td className="px-5 py-4">
                         <div className="font-medium text-slate-900">
                           {account.fullName}
@@ -509,55 +522,41 @@ export default function UserManagementPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
+                      <td className="px-5 py-4">
+                        <TableActions>
+                          <TableActionButton
+                            icon={<Pencil size={15} />}
+                            tone="primary"
                             disabled={changingId === account.id}
                             onClick={() => openEdit(account)}
                           >
-                            <Pencil size={15} />
-                            Sửa
-                          </Button>
+                            Chỉnh sửa
+                          </TableActionButton>
 
                           {canToggle && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={
-                                account.status === 'ACTIVE'
-                                  ? 'danger'
-                                  : 'secondary'
-                              }
-                              disabled={isSelf}
-                              loading={changingId === account.id}
+                            <TableActionButton
+                              icon={account.status === 'ACTIVE'
+                                ? <LockKeyhole size={15} />
+                                : <UnlockKeyhole size={15} />}
+                              tone={account.status === 'ACTIVE' ? 'warning' : 'success'}
+                              disabled={isSelf || changingId === account.id}
                               title={isSelf ? 'Không thể tự khóa tài khoản của chính mình' : undefined}
                               onClick={() => void handleStatusChange(account)}
                             >
-                              {account.status === 'ACTIVE' ? (
-                                <LockKeyhole size={15} />
-                              ) : (
-                                <UnlockKeyhole size={15} />
-                              )}
                               {account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}
-                            </Button>
+                            </TableActionButton>
                           )}
 
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            disabled={isSelf}
-                            loading={changingId === account.id}
+                          <TableActionButton
+                            icon={<Trash2 size={15} />}
+                            tone="danger"
+                            disabled={isSelf || changingId === account.id}
                             title={isSelf ? 'Không thể tự xóa tài khoản của chính mình' : undefined}
                             onClick={() => void handleDelete(account)}
                           >
-                            <Trash2 size={15} />
                             Xóa
-                          </Button>
-                        </div>
+                          </TableActionButton>
+                        </TableActions>
                       </td>
                     </tr>
                   )
@@ -565,6 +564,14 @@ export default function UserManagementPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={accountPagination.page}
+            totalItems={accountPagination.totalItems}
+            totalPages={accountPagination.totalPages}
+            pageSize={accountPagination.pageSize}
+            onPageChange={accountPagination.goToPage}
+          />
+          </>
         )}
       </Card>
 

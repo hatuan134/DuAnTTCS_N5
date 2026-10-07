@@ -421,3 +421,255 @@ textarea:focus-visible {
     min-height: 2.75rem;
   }
 }
+
+/* S3-00.2: shared table alignment and row rhythm. */
+.data-table th,
+.data-table td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.data-table thead th {
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  min-height: 3.5rem;
+}
+
+.data-table .table-actions {
+  min-width: max-content;
+  justify-content: center;
+}
+
+/* Text-heavy columns read better left-aligned while numeric/status columns stay centered. */
+.data-table .table-cell-left {
+  text-align: left;
+}
+
+.data-table .table-cell-left > .flex,
+.data-table .table-cell-left > div > .flex {
+  justify-content: flex-start;
+}
+
+/* Keep action buttons on one visual row. Horizontal scrolling is preferable to stacked actions. */
+.data-table .table-action-cell {
+  white-space: nowrap;
+}
+
+/* S3-00.2 UI refinement: keep dense management tables readable at 100% desktop zoom. */
+.fit-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table-fit {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.data-table-fit thead th {
+  white-space: normal;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.data-table-fit td {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.data-table-fit .table-actions {
+  min-width: 0;
+  gap: 0.375rem;
+}
+
+.data-table-fit .table-actions button,
+.data-table-fit .table-actions a {
+  min-height: 2rem;
+  padding-inline: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.data-table-fit .table-actions svg {
+  display: block;
+}
+
+/* Borrow policy: reserve enough space for status + three actions at 100% zoom. */
+.borrow-policy-table th:nth-child(1),
+.borrow-policy-table td:nth-child(1) { width: 3.5%; }
+.borrow-policy-table th:nth-child(2),
+.borrow-policy-table td:nth-child(2) { width: 14%; }
+.borrow-policy-table th:nth-child(3),
+.borrow-policy-table td:nth-child(3) { width: 8%; }
+.borrow-policy-table th:nth-child(4),
+.borrow-policy-table td:nth-child(4) { width: 8%; }
+.borrow-policy-table th:nth-child(5),
+.borrow-policy-table td:nth-child(5) { width: 7%; }
+.borrow-policy-table th:nth-child(6),
+.borrow-policy-table td:nth-child(6) { width: 9%; }
+.borrow-policy-table th:nth-child(7),
+.borrow-policy-table td:nth-child(7) { width: 7.5%; }
+.borrow-policy-table th:nth-child(8),
+.borrow-policy-table td:nth-child(8) { width: 7%; }
+.borrow-policy-table th:nth-child(9),
+.borrow-policy-table td:nth-child(9) { width: 10%; }
+.borrow-policy-table th:nth-child(10),
+.borrow-policy-table td:nth-child(10) { width: 26%; }
+
+.borrow-policy-table th:nth-child(9),
+.borrow-policy-table td:nth-child(9) {
+  padding-right: 0.75rem;
+}
+
+.borrow-policy-table th:nth-child(10),
+.borrow-policy-table td:nth-child(10) {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.borrow-policy-table td:nth-child(2) > .flex {
+  align-items: center;
+}
+
+/* Catalog tables: proportional columns prevent the action area from falling off-screen. */
+.catalog-authors-table th:nth-child(1),
+.catalog-authors-table td:nth-child(1) { width: 5%; }
+.catalog-authors-table th:nth-child(2),
+.catalog-authors-table td:nth-child(2) { width: 40%; }
+.catalog-authors-table th:nth-child(3),
+.catalog-authors-table td:nth-child(3) { width: 12%; }
+.catalog-authors-table th:nth-child(4),
+.catalog-authors-table td:nth-child(4) { width: 13%; }
+.catalog-authors-table th:nth-child(5),
+.catalog-authors-table td:nth-child(5) { width: 30%; }
+
+.catalog-categories-table th:nth-child(1),
+.catalog-categories-table td:nth-child(1) { width: 5%; }
+.catalog-categories-table th:nth-child(2),
+.catalog-categories-table td:nth-child(2) { width: 27%; }
+.catalog-categories-table th:nth-child(3),
+.catalog-categories-table td:nth-child(3) { width: 20%; }
+.catalog-categories-table th:nth-child(4),
+.catalog-categories-table td:nth-child(4) { width: 7%; }
+.catalog-categories-table th:nth-child(5),
+.catalog-categories-table td:nth-child(5) { width: 8%; }
+.catalog-categories-table th:nth-child(6),
+.catalog-categories-table td:nth-child(6) { width: 10%; }
+.catalog-categories-table th:nth-child(7),
+.catalog-categories-table td:nth-child(7) { width: 23%; }
+
+.catalog-books-table th:nth-child(1),
+.catalog-books-table td:nth-child(1) { width: 5%; }
+.catalog-books-table th:nth-child(2),
+.catalog-books-table td:nth-child(2) { width: 27%; }
+.catalog-books-table th:nth-child(3),
+.catalog-books-table td:nth-child(3) { width: 17%; }
+.catalog-books-table th:nth-child(4),
+.catalog-books-table td:nth-child(4) { width: 14%; }
+.catalog-books-table th:nth-child(5),
+.catalog-books-table td:nth-child(5) { width: 12%; }
+.catalog-books-table th:nth-child(6),
+.catalog-books-table td:nth-child(6) { width: 8%; }
+.catalog-books-table th:nth-child(7),
+.catalog-books-table td:nth-child(7) { width: 17%; }
+
+/* Library calendar: the two panels and the first two columns use identical geometry. */
+.calendar-pair-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.calendar-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.calendar-panel-header {
+  min-height: 88px;
+}
+
+/* Keep both desktop calendar headers exactly level even when one description wraps. */
+@media (min-width: 1280px) {
+  .calendar-panel-header {
+    height: 104px;
+    min-height: 104px;
+  }
+}
+
+.calendar-aligned-table {
+  table-layout: fixed;
+}
+
+.calendar-col-stt { width: 8%; }
+.calendar-col-day { width: 20%; }
+.calendar-col-weekly-status { width: 22%; }
+.calendar-col-weekly-time { width: 25%; }
+.calendar-col-closed-weekday { width: 12%; }
+.calendar-col-closed-reason { width: 24%; }
+.calendar-col-closed-actions { width: 36%; }
+
+.calendar-aligned-table th:first-child,
+.calendar-aligned-table td:first-child {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.calendar-aligned-table th:nth-child(2),
+.calendar-aligned-table td:nth-child(2) {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.calendar-pagination {
+  margin-top: auto;
+}
+
+.closed-date-table .table-action-cell {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+}
+
+.closed-date-table .table-actions {
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.closed-date-table .table-actions button {
+  padding-inline: 0.5rem;
+}
+
+@media (min-width: 1280px) {
+  .closed-date-table-wrap {
+    overflow-x: hidden;
+  }
+}
+
+@media (min-width: 1280px) {
+  .calendar-pair-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .fit-table-wrap {
+    overflow-x: visible;
+  }
+}
+
+@media (max-width: 1279px) {
+  .data-table-fit {
+    min-width: 900px !important;
+  }
+
+  .borrow-policy-table {
+    min-width: 1180px !important;
+  }
+
+  .catalog-categories-table,
+  .catalog-books-table {
+    min-width: 1080px !important;
+  }
+}

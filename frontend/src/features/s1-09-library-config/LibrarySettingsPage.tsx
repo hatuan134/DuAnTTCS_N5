@@ -3,8 +3,6 @@ import type { FormEvent, ReactNode } from 'react'
 import type { AxiosError } from 'axios'
 import {
   CalendarDays,
-  Calculator,
-  Clock3,
   Pencil,
   Plus,
   RefreshCw,
@@ -18,6 +16,9 @@ import {
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
+import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import {
   librarySettingsService,
@@ -248,6 +249,7 @@ function WarehouseShelfPage() {
   }
 
   const totalCopies = shelves.reduce((sum, item) => sum + item.copyCount, 0)
+  const shelfPagination = useTablePagination(shelves)
 
   return (
     <div className="space-y-6">
@@ -292,9 +294,9 @@ function WarehouseShelfPage() {
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                     <Warehouse size={20} />
                   </div>
-                  <button type="button" title="Sửa kho" onClick={() => openEditWarehouse(item)} className="icon-button">
-                    <Pencil size={16} />
-                  </button>
+                  <TableActionButton type="button" onClick={() => openEditWarehouse(item)} icon={<Pencil size={14} />}>
+                    Chỉnh sửa
+                  </TableActionButton>
                 </div>
                 <div className="mt-4 flex items-center gap-2">
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{item.code}</span>
@@ -328,9 +330,10 @@ function WarehouseShelfPage() {
         />
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px]">
+          <table className="data-table w-full min-w-[980px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <TableHead>STT</TableHead>
                 <TableHead>Mã kệ</TableHead>
                 <TableHead>Tên kệ</TableHead>
                 <TableHead>Kho</TableHead>
@@ -339,8 +342,11 @@ function WarehouseShelfPage() {
               </tr>
             </thead>
             <tbody>
-              {shelves.map((item) => (
+              {shelfPagination.pageItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-5 py-4 font-semibold text-slate-500">
+                    {shelfPagination.startIndex + index + 1}
+                  </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><Rows3 size={18} /></div>
@@ -355,19 +361,36 @@ function WarehouseShelfPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button type="button" title="Sửa kệ" onClick={() => openEditShelf(item)} className="icon-button"><Pencil size={16} /></button>
-                      <button type="button" title={item.inUse ? 'Không thể xoá kệ đang có bản sao' : 'Xoá kệ'} onClick={() => void deleteShelf(item)} className={`icon-button ${item.inUse ? 'cursor-not-allowed opacity-45' : 'hover:border-red-200 hover:bg-red-50 hover:text-red-600'}`}><Trash2 size={16} /></button>
-                    </div>
+                    <TableActions>
+                      <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => openEditShelf(item)}>
+                        Chỉnh sửa
+                      </TableActionButton>
+                      <TableActionButton
+                        icon={<Trash2 size={16} />}
+                        tone="danger"
+                        title={item.inUse ? 'Không thể xóa kệ đang có bản sao' : 'Xóa kệ'}
+                        disabled={item.inUse}
+                        onClick={() => void deleteShelf(item)}
+                      >
+                        Xóa
+                      </TableActionButton>
+                    </TableActions>
                   </td>
                 </tr>
               ))}
               {!loading && shelves.length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Chưa có kệ nào.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">Chưa có kệ nào.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={shelfPagination.page}
+          totalItems={shelfPagination.totalItems}
+          totalPages={shelfPagination.totalPages}
+          pageSize={shelfPagination.pageSize}
+          onPageChange={shelfPagination.goToPage}
+        />
       </Card>
 
       {warehouseModal && (
@@ -416,6 +439,10 @@ function LibraryCalendarPage() {
   const [dueDate, setDueDate] = useState('')
   const [adjustment, setAdjustment] = useState<DueDateAdjustment | null>(null)
   const [checkingDueDate, setCheckingDueDate] = useState(false)
+
+  const closedDatePagination = useTablePagination(closedDates, '', 10)
+  const openDayCount = schedule.filter((item) => item.open).length
+  const weeklyClosedDayCount = schedule.length - openDayCount
 
   const loadData = async () => {
     setLoading(true)
@@ -577,128 +604,258 @@ function LibraryCalendarPage() {
         onDismissNotice={() => setNotice('')}
       />
 
-      <Card>
-        <SectionHeader
-          title="Lịch làm việc theo tuần"
-          description="Ngày nghỉ cụ thể có độ ưu tiên cao hơn lịch tuần."
-          icon={<Clock3 size={20} />}
-          action={(
-            <button type="button" onClick={() => void saveSchedule()} disabled={saving || loading} className="primary-button disabled:opacity-50">
-              <Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu lịch'}
-            </button>
-          )}
-        />
-
-        {loading ? <LoadingBlock /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <TableHead>Ngày</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Mở cửa</TableHead>
-                  <TableHead>Đóng cửa</TableHead>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map((item) => (
-                  <tr key={item.dayOfWeek} className="border-b border-slate-100">
-                    <td className="px-5 py-4 font-medium text-slate-800">{item.dayLabel}</td>
-                    <td className="px-5 py-4">
-                      <label className="inline-flex cursor-pointer items-center gap-2">
-                        <input type="checkbox" checked={item.open} onChange={(event) => updateSchedule(item.dayOfWeek, { open: event.target.checked })} className="h-4 w-4 rounded" />
-                        <span className={`text-sm font-medium ${item.open ? 'text-emerald-700' : 'text-slate-500'}`}>{item.open ? 'Mở cửa' : 'Đóng cửa'}</span>
-                      </label>
-                    </td>
-                    <td className="px-5 py-4">
-                      <input type="time" disabled={!item.open} value={item.openTime ?? ''} onChange={(event) => updateSchedule(item.dayOfWeek, { openTime: event.target.value })} className="time-input" />
-                    </td>
-                    <td className="px-5 py-4">
-                      <input type="time" disabled={!item.open} value={item.closeTime ?? ''} onChange={(event) => updateSchedule(item.dayOfWeek, { closeTime: event.target.value })} className="time-input" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <Card className="overflow-hidden">
+        <div className="grid gap-2 border-b border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Mở cửa mỗi tuần</p>
+            <p className="mt-0.5 text-lg font-bold text-emerald-700">{openDayCount} ngày</p>
           </div>
-        )}
-      </Card>
-
-      <Card>
-        <SectionHeader
-          title="Ngày nghỉ / ngày đóng cửa cụ thể"
-          description="Có thể khai báo từng ngày hoặc nhập nhiều ngày cho cả năm."
-          icon={<CalendarDays size={20} />}
-          action={(
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setBulkModal(true)} className="secondary-button"><CalendarDays size={17} /> Khai báo cả năm</button>
-              <button type="button" onClick={openCreateHoliday} className="primary-button"><Plus size={18} /> Thêm ngày nghỉ</button>
-            </div>
-          )}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <TableHead>Ngày</TableHead>
-                <TableHead>Thứ</TableHead>
-                <TableHead>Lý do</TableHead>
-                <TableHead align="right">Thao tác</TableHead>
-              </tr>
-            </thead>
-            <tbody>
-              {closedDates.map((item) => (
-                <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-5 py-4 font-medium text-slate-800">{formatDateVi(item.closedDate)}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{weekdayVi(item.closedDate)}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{item.reason}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button type="button" title="Sửa ngày nghỉ" onClick={() => openEditHoliday(item)} className="icon-button"><Pencil size={16} /></button>
-                      <button type="button" title="Xoá ngày nghỉ" onClick={() => void deleteHoliday(item)} className="icon-button hover:border-red-200 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && closedDates.length === 0 && (
-                <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">Chưa có ngày đóng cửa cụ thể.</td></tr>
-              )}
-            </tbody>
-          </table>
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Đóng cửa cố định</p>
+            <p className="mt-0.5 text-lg font-bold text-slate-700">{weeklyClosedDayCount} ngày</p>
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-white px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ngày nghỉ đã khai báo</p>
+            <p className="mt-0.5 text-lg font-bold text-blue-700">{closedDates.length} ngày</p>
+          </div>
         </div>
-      </Card>
 
-      <Card>
-        <SectionHeader
-          title="Kiểm tra hạn trả"
-          description="Nếu ngày dự kiến đóng cửa, hệ thống tự đẩy tới ngày mở cửa kế tiếp."
-          icon={<Calculator size={20} />}
-        />
-        <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto_1.4fr] lg:items-end">
-          <div>
-            <label className="field-label">Hạn trả dự kiến</label>
-            <input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); setAdjustment(null) }} className="field-input" />
-          </div>
-          <button type="button" onClick={() => void checkDueDate()} disabled={checkingDueDate} className="primary-button h-[42px] disabled:opacity-50">
-            {checkingDueDate ? 'Đang kiểm tra...' : 'Kiểm tra'}
-          </button>
-          <div>
-            <p className="field-label">Kết quả</p>
-            <div className="min-h-[42px] rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+        <div className="calendar-pair-grid grid min-w-0 xl:grid-cols-2">
+          <section className="calendar-panel min-w-0 border-b border-slate-200 xl:border-b-0 xl:border-r">
+            <div className="calendar-panel-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 xl:flex-nowrap">
+              <div className="min-w-0">
+                <h2 className="font-semibold text-slate-900">Lịch làm việc theo tuần</h2>
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                  Bật “Mở cửa”, chọn giờ hoạt động rồi lưu một lần cho cả tuần.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void saveSchedule()}
+                disabled={saving || loading}
+                title="Lưu toàn bộ lịch làm việc theo tuần"
+                className="primary-button shrink-0 px-3 py-2 text-sm disabled:opacity-50"
+              >
+                <Save size={16} /> {saving ? 'Đang lưu...' : 'Lưu lịch'}
+              </button>
+            </div>
+
+            {loading ? <LoadingBlock /> : (
+              <div className="overflow-x-auto">
+                <table className="data-table calendar-aligned-table weekly-schedule-table w-full min-w-[620px] xl:min-w-0">
+                  <colgroup>
+                    <col className="calendar-col-stt" />
+                    <col className="calendar-col-day" />
+                    <col className="calendar-col-weekly-status" />
+                    <col className="calendar-col-weekly-time" />
+                    <col className="calendar-col-weekly-time" />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">STT</th>
+                      <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ngày</th>
+                      <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Trạng thái</th>
+                      <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Mở cửa</th>
+                      <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Đóng cửa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((item, index) => (
+                      <tr
+                        key={item.dayOfWeek}
+                        className={`border-b border-slate-100 transition ${item.open ? 'hover:bg-blue-50/30' : 'bg-slate-50/60'}`}
+                      >
+                        <td className="px-2 py-2 text-center text-sm font-semibold text-slate-500">{index + 1}</td>
+                        <td className="px-2 py-2 text-sm font-semibold text-slate-800">{item.dayLabel}</td>
+                        <td className="px-2 py-2 text-center">
+                          <label
+                            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                              item.open
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 bg-white text-slate-600'
+                            }`}
+                            title={item.open ? 'Bỏ chọn để đóng cửa ngày này' : 'Chọn để mở cửa ngày này'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={item.open}
+                              onChange={(event) => updateSchedule(item.dayOfWeek, { open: event.target.checked })}
+                              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600"
+                            />
+                            <span>{item.open ? 'Mở cửa' : 'Đóng cửa'}</span>
+                          </label>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="time"
+                            aria-label={`Giờ mở cửa ${item.dayLabel}`}
+                            title={item.open ? `Chọn giờ mở cửa cho ${item.dayLabel}` : 'Bật trạng thái Mở cửa để chọn giờ'}
+                            disabled={!item.open}
+                            value={item.openTime ?? ''}
+                            onChange={(event) => updateSchedule(item.dayOfWeek, { openTime: event.target.value })}
+                            className="time-input mx-auto h-9 w-[116px] px-2 text-sm"
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="time"
+                            aria-label={`Giờ đóng cửa ${item.dayLabel}`}
+                            title={item.open ? `Chọn giờ đóng cửa cho ${item.dayLabel}` : 'Bật trạng thái Mở cửa để chọn giờ'}
+                            disabled={!item.open}
+                            value={item.closeTime ?? ''}
+                            onChange={(event) => updateSchedule(item.dayOfWeek, { closeTime: event.target.value })}
+                            className="time-input mx-auto h-9 w-[116px] px-2 text-sm"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="calendar-panel min-w-0">
+            <div className="calendar-panel-header flex flex-wrap items-start gap-3 border-b border-slate-200 px-4 py-3 xl:flex-nowrap">
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-slate-900">Ngày nghỉ và ngày đóng cửa</h2>
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                  Thêm từng ngày hoặc khai báo nhiều ngày lễ cho cả năm.
+                </p>
+              </div>
+              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkModal(true)}
+                  title="Nhập nhanh nhiều ngày nghỉ cho cả năm"
+                  className="secondary-button px-3 py-2 text-sm whitespace-nowrap"
+                >
+                  <CalendarDays size={16} /> Cả năm
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreateHoliday}
+                  title="Thêm một ngày nghỉ hoặc ngày đóng cửa"
+                  className="primary-button px-3 py-2 text-sm whitespace-nowrap"
+                >
+                  <Plus size={16} /> Thêm ngày nghỉ
+                </button>
+              </div>
+            </div>
+
+            {loading ? <LoadingBlock /> : (
+              <>
+                <div className="closed-date-table-wrap overflow-x-auto xl:overflow-x-hidden">
+                  <table className="data-table data-table-fit calendar-aligned-table closed-date-table w-full min-w-[560px] xl:min-w-0">
+                    <colgroup>
+                      <col className="calendar-col-stt" />
+                      <col className="calendar-col-day" />
+                      <col className="calendar-col-closed-weekday" />
+                      <col className="calendar-col-closed-reason" />
+                      <col className="calendar-col-closed-actions" />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">STT</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ngày</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Thứ</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Lý do</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {closedDatePagination.pageItems.map((item, index) => (
+                        <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/80">
+                          <td className="px-2 py-2 text-center text-sm font-semibold text-slate-500">
+                            {closedDatePagination.startIndex + index + 1}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-sm font-semibold text-slate-800">{formatDateVi(item.closedDate)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 text-sm text-slate-600">{weekdayVi(item.closedDate)}</td>
+                          <td className="table-cell-left px-2 py-2 text-sm text-slate-600">{item.reason}</td>
+                          <td className="table-action-cell px-2 py-2">
+                            <TableActions>
+                              <TableActionButton
+                                icon={<Pencil size={15} />}
+                                tone="primary"
+                                title="Chỉnh sửa ngày nghỉ"
+                                onClick={() => openEditHoliday(item)}
+                              >
+                                Chỉnh sửa
+                              </TableActionButton>
+                              <TableActionButton
+                                icon={<Trash2 size={15} />}
+                                tone="danger"
+                                title="Xóa ngày nghỉ"
+                                onClick={() => void deleteHoliday(item)}
+                              >
+                                Xóa
+                              </TableActionButton>
+                            </TableActions>
+                          </td>
+                        </tr>
+                      ))}
+                      {closedDates.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-500">
+                            Chưa có ngày nghỉ riêng. Bấm “Thêm ngày nghỉ” để khai báo ngày đầu tiên.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {closedDates.length > 0 && (
+                  <TablePagination
+                    page={closedDatePagination.page}
+                    totalItems={closedDatePagination.totalItems}
+                    totalPages={closedDatePagination.totalPages}
+                    pageSize={closedDatePagination.pageSize}
+                    onPageChange={closedDatePagination.goToPage}
+                    className="calendar-pagination px-3 py-2"
+                  />
+                )}
+              </>
+            )}
+          </section>
+        </div>
+
+        <section className="border-t border-slate-200 bg-slate-50/60 px-4 py-3">
+          <div className="grid gap-3 lg:grid-cols-[auto_minmax(180px,240px)_auto_1fr] lg:items-end">
+            <div className="lg:pb-2">
+              <h2 className="font-semibold text-slate-900">Kiểm tra hạn trả</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Kiểm tra nhanh xem hạn trả có rơi vào ngày thư viện đóng cửa hay không.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Hạn trả dự kiến</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => { setDueDate(event.target.value); setAdjustment(null) }}
+                className="field-input h-10"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void checkDueDate()}
+              disabled={checkingDueDate}
+              className="primary-button h-10 px-4 disabled:opacity-50"
+            >
+              {checkingDueDate ? 'Đang kiểm tra...' : 'Kiểm tra'}
+            </button>
+            <div className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
               {!adjustment ? (
-                <span className="text-slate-400">Chọn ngày và bấm Kiểm tra</span>
+                <span className="text-slate-400">Kết quả kiểm tra sẽ hiển thị ở đây.</span>
               ) : adjustment.adjusted ? (
                 <div>
-                  <span className="font-semibold text-amber-700">{formatDateVi(adjustment.adjustedDate)} — đã chuyển sang ngày mở cửa kế tiếp</span>
-                  <p className="mt-1 text-xs text-slate-500">Đã bỏ qua: {adjustment.skippedClosedDates.map(formatDateVi).join(', ')}</p>
+                  <span className="font-semibold text-amber-700">{formatDateVi(adjustment.adjustedDate)} — chuyển sang ngày mở cửa kế tiếp</span>
+                  <p className="mt-0.5 text-xs text-slate-500">Đã bỏ qua: {adjustment.skippedClosedDates.map(formatDateVi).join(', ')}</p>
                 </div>
               ) : (
                 <span className="font-semibold text-emerald-700">{formatDateVi(adjustment.adjustedDate)} — thư viện mở cửa</span>
               )}
             </div>
           </div>
-        </div>
+        </section>
       </Card>
 
       {holidayModal && (
