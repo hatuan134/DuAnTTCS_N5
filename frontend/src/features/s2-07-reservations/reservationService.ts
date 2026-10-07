@@ -18,6 +18,15 @@ export interface BookReservation {
   } | null
 }
 
+export interface BookReservationBatch {
+  requestedQuantity: number
+  createdCount: number
+  activeReservationCount: number
+  remainingActiveSlots: number
+  reservations: BookReservation[]
+  message: string
+}
+
 export interface MyBookReservation {
   id: number
   bookId: number
@@ -38,6 +47,10 @@ export const reservationService = {
   },
   reserve: async (bookId: number): Promise<BookReservation> => {
     const response = await apiClient.post<BookReservation>(`/books/${bookId}/reservations`)
+    return response.data
+  },
+  reserveMany: async (bookId: number, quantity: number): Promise<BookReservationBatch> => {
+    const response = await apiClient.post<BookReservationBatch>(`/books/${bookId}/reservations/bulk`, { quantity })
     return response.data
   },
 }

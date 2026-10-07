@@ -44,6 +44,10 @@ class ReaderReservationCancellationServiceTest {
         service.cancelMine(100L, 12L);
         assertThat(target.getStatus()).isEqualTo("CANCELLED");
         assertThat(target.getReservedAt()).isEqualTo(time);
+        assertThat(target.getCancelledBy()).isEqualTo(12L);
+        assertThat(target.getCancelledByName()).isEqualTo("Bạn đọc An");
+        assertThat(target.getCancelledAt()).isNotNull();
+        assertThat(target.getCancellationReason()).isEqualTo("Bạn đọc tự huỷ đơn.");
         var order = inOrder(books, reservations);
         order.verify(reservations).findBookIdForCancellation(100L);
         order.verify(books).findForReservation(7L);

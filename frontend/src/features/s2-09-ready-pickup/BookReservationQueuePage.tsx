@@ -75,7 +75,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
     }
     refreshRef.current = () => { void refresh() }
     void refresh()
-    const timer = window.setInterval(refreshWhenVisible, 10000)
+    const timer = window.setInterval(refreshWhenVisible, 5000)
     window.addEventListener('focus', refreshWhenVisible)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
@@ -124,7 +124,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       <p className="mb-4 text-sm text-slate-500">
         Các đơn của đầu sách theo thời điểm đặt từ sớm đến muộn trong từng trạng thái. Vị trí chỉ tính các đơn Đang xếp hàng;
         {' '}đơn đã cấp bản hoặc kết thúc không còn vị trí trong hàng đợi.
-        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 10 giây khi đang xem trang.
+        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 5 giây khi đang xem trang.
       </p>
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <div className="w-full sm:w-80">

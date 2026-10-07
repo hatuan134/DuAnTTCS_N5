@@ -132,7 +132,7 @@ export default function BulkCreateBookCopiesResult({
 
         <section className="bulk-label-print-area" aria-label="Nhãn mã vạch của lô vừa tạo">
           <div className="bulk-label-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {copyPagination.pageItems.map((copy, index) => (
+            {copyPagination.pageItems.map((copy) => (
               <BarcodeLabel key={copy.barcode} copy={copy} bookTitle={bookTitle} />
             ))}
           </div>
@@ -204,7 +204,7 @@ export default function BulkCreateBookCopiesResult({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {createdCopies.map((copy) => (
+              {copyPagination.pageItems.map((copy, index) => (
                 <tr key={copy.barcode}>
                   <td className="px-5 py-4 font-semibold text-slate-500">
                     {copyPagination.startIndex + index + 1}

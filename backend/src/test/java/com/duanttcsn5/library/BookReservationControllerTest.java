@@ -3,6 +3,7 @@ package com.duanttcsn5.library;
 import com.duanttcsn5.library.config.SecurityConfig;
 import com.duanttcsn5.library.controller.BookReservationController;
 import com.duanttcsn5.library.dto.book.BookReservationResponse;
+import com.duanttcsn5.library.dto.book.BookReservationBatchResponse;
 import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
@@ -29,6 +30,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -166,6 +168,57 @@ class BookReservationControllerTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOK_ALREADY_BORROWED"))
                 .andExpect(jsonPath("$.message").value(message));
         verify(service).reserve(7L, 12L);
+    }
+
+
+    @Test void readerCanReserveMultipleAvailableCopiesOfSameTitle() throws Exception {
+        token("READER");
+        var first = new BookReservationResponse(201L, 7L, "READY_FOR_PICKUP",
+                OffsetDateTime.parse("2026-10-07T10:00:00+07:00"), null, "Đã dành bản sách.",
+                OffsetDateTime.parse("2026-10-10T17:00:00+07:00"),
+                new BookReservationResponse.ReservedCopy(101L, "TV-KHO-A-A01-000101", "KHO-A", "Kho A", "A01", "Kệ Văn học"));
+        var second = new BookReservationResponse(202L, 7L, "READY_FOR_PICKUP",
+                OffsetDateTime.parse("2026-10-07T10:00:00.000001+07:00"), null, "Đã dành bản sách.",
+                OffsetDateTime.parse("2026-10-10T17:00:00+07:00"),
+                new BookReservationResponse.ReservedCopy(102L, "TV-KHO-A-A01-000102", "KHO-A", "Kho A", "A01", "Kệ Văn học"));
+        when(service.reserveMany(7L, 12L, 2)).thenReturn(new BookReservationBatchResponse(
+                2, 2, 2, 1, List.of(first, second), "Đã đặt giữ thành công 2 bản."));
+
+        mvc.perform(post("/api/v1/books/7/reservations/bulk")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":2}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.requestedQuantity").value(2))
+                .andExpect(jsonPath("$.createdCount").value(2))
+                .andExpect(jsonPath("$.remainingActiveSlots").value(1))
+                .andExpect(jsonPath("$.reservations.length()").value(2))
+                .andExpect(jsonPath("$.reservations[0].reservedCopy.barcode").value("TV-KHO-A-A01-000101"));
+        verify(service).reserveMany(7L, 12L, 2);
+    }
+
+    @Test void bulkReservationQuantityIsValidatedBeforeServiceCall() throws Exception {
+        token("READER");
+        for (String body : new String[]{"{\"quantity\":0}", "{\"quantity\":4}", "{}"}) {
+            mvc.perform(post("/api/v1/books/7/reservations/bulk")
+                            .header("Authorization", "Bearer test-token")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        verify(service, never()).reserveMany(anyLong(), anyLong(), anyInt());
+    }
+
+    @Test void staffCannotUseBulkReservationEndpoint() throws Exception {
+        for (String role : new String[]{"ADMIN", "LIBRARIAN", "LIBRARY_MANAGER"}) {
+            token(role);
+            mvc.perform(post("/api/v1/books/7/reservations/bulk")
+                            .header("Authorization", "Bearer test-token")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"quantity\":2}"))
+                    .andExpect(status().isForbidden());
+        }
+        verify(service, never()).reserveMany(anyLong(), anyLong(), anyInt());
     }
 
     @Test void invalidPathUsesExistingValidation() throws Exception {

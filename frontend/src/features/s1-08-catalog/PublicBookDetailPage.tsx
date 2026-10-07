@@ -22,6 +22,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 
 import ReserveBookPanel from '../s2-07-reservations/ReserveBookPanel'
+import PublicSiteFooter from './PublicSiteFooter'
 import { catalogService } from './catalogService'
 import type { Book } from './catalogService'
 
@@ -259,7 +260,7 @@ export default function PublicBookDetailPage() {
               </div>
             </div>
 
-            <ReserveBookPanel key={book.id} bookId={book.id} onReserved={() => {
+            <ReserveBookPanel key={book.id} bookId={book.id} availableCount={book.availableCount ?? 0} onReserved={() => {
               void catalogService.getPublicBookById(book.id).then((updated) => {
                 setBook((current) => current?.id === book.id ? updated : current)
               }).catch(() => {
@@ -486,6 +487,7 @@ export default function PublicBookDetailPage() {
           </article>
         )}
       </main>
+      <PublicSiteFooter />
     </div>
   )
 }

@@ -32,6 +32,7 @@ import TableActionButton, { TableActions, tableActionClassName } from '../../com
 import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
 import BookCoverEditorDialog from '../s2-10-book-cover/BookCoverEditorDialog'
+import InlineCatalogCreateRow from './InlineCatalogCreateRow'
 import {
   catalogService,
   type Author,
@@ -130,6 +131,9 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [bookFormError, setBookFormError] = useState('')
   const [inlineAuthorName, setInlineAuthorName] = useState('')
   const [inlineAuthorSubmitting, setInlineAuthorSubmitting] = useState(false)
+  const [inlineCategoryName, setInlineCategoryName] = useState('')
+  const [inlineCategorySubmitting, setInlineCategorySubmitting] = useState(false)
+  const [inlinePublisherName, setInlinePublisherName] = useState('')
   const [bookSubmitting, setBookSubmitting] = useState(false)
   const [duplicateTitleWarning, setDuplicateTitleWarning] = useState<DuplicateTitleWarningState | null>(null)
 
@@ -396,6 +400,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     setBookForm(emptyBookForm)
     setBookFormError('')
     setInlineAuthorName('')
+    setInlineCategoryName('')
+    setInlinePublisherName('')
     setDuplicateTitleWarning(null)
     setIsBookModalOpen(true)
   }
@@ -506,6 +512,43 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     } finally {
       setInlineAuthorSubmitting(false)
     }
+  }
+
+  const handleInlineCategoryCreate = async () => {
+    const name = inlineCategoryName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên thể loại mới.')
+      return
+    }
+    if (inlineCategorySubmitting || bookSubmitting) return
+
+    setInlineCategorySubmitting(true)
+    setBookFormError('')
+    try {
+      const created = await catalogService.createCategory({ name, description: '', parentId: null })
+      setCategories((current) => [created, ...current])
+      setBookForm((current) => ({ ...current, categoryId: String(created.id) }))
+      setInlineCategoryName('')
+    } catch (err: any) {
+      setBookFormError(err.response?.data?.message || 'Không thể thêm thể loại mới.')
+    } finally {
+      setInlineCategorySubmitting(false)
+    }
+  }
+
+  const handleInlinePublisherCreate = () => {
+    const name = inlinePublisherName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên nhà xuất bản mới.')
+      return
+    }
+    if (bookSubmitting) return
+
+    const existing = publisherOptions.find((publisher) => publisher.toLocaleLowerCase('vi-VN') === name.toLocaleLowerCase('vi-VN'))
+    const selected = existing ?? name
+    setBookForm((current) => ({ ...current, publisher: selected }))
+    setInlinePublisherName('')
+    setBookFormError('')
   }
 
   const handleBookSubmit = async (e: FormEvent) => {
@@ -1137,33 +1180,18 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     ))}
                   </select>
 
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      value={inlineAuthorName}
-                      onChange={(e) => {
-                        setInlineAuthorName(e.target.value)
-                        setBookFormError('')
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          void handleInlineAuthorCreate()
-                        }
-                      }}
-                      maxLength={255}
-                      placeholder="Chưa có tác giả? Nhập tên mới"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleInlineAuthorCreate()}
-                      disabled={inlineAuthorSubmitting || bookSubmitting || !inlineAuthorName.trim()}
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {inlineAuthorSubmitting ? 'Đang thêm...' : 'Thêm tác giả mới'}
-                    </button>
-                  </div>
+                  <InlineCatalogCreateRow
+                    value={inlineAuthorName}
+                    onChange={(value) => {
+                      setInlineAuthorName(value)
+                      setBookFormError('')
+                    }}
+                    onCreate={() => void handleInlineAuthorCreate()}
+                    placeholder="Chưa có tác giả? Nhập tên mới"
+                    buttonLabel="Thêm tác giả mới"
+                    busy={inlineAuthorSubmitting}
+                    disabled={bookSubmitting}
+                  />
 
                   {bookForm.authorIds.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -1223,32 +1251,54 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                       </option>
                     ))}
                   </select>
+                  <InlineCatalogCreateRow
+                    value={inlineCategoryName}
+                    onChange={(value) => {
+                      setInlineCategoryName(value)
+                      setBookFormError('')
+                    }}
+                    onCreate={() => void handleInlineCategoryCreate()}
+                    placeholder="Chưa có thể loại? Nhập tên mới"
+                    buttonLabel="Thêm thể loại mới"
+                    busy={inlineCategorySubmitting}
+                    disabled={bookSubmitting}
+                  />
                 </div>
 
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     Nhà xuất bản <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    list="book-publisher-options"
+                  <select
                     value={bookForm.publisher}
                     onChange={(e) => {
                       setBookForm({ ...bookForm, publisher: e.target.value })
                       setBookFormError('')
                     }}
                     required
-                    maxLength={255}
-                    placeholder="Chọn NXB có sẵn hoặc nhập NXB mới"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                  />
-                  <datalist id="book-publisher-options">
+                  >
+                    <option value="">-- Chọn nhà xuất bản --</option>
+                    {bookForm.publisher && !publisherOptions.some((publisher) => publisher === bookForm.publisher) && (
+                      <option value={bookForm.publisher}>{bookForm.publisher} — mới</option>
+                    )}
                     {publisherOptions.map((publisher) => (
-                      <option key={publisher} value={publisher} />
+                      <option key={publisher} value={publisher}>{publisher}</option>
                     ))}
-                  </datalist>
+                  </select>
+                  <InlineCatalogCreateRow
+                    value={inlinePublisherName}
+                    onChange={(value) => {
+                      setInlinePublisherName(value)
+                      setBookFormError('')
+                    }}
+                    onCreate={handleInlinePublisherCreate}
+                    placeholder="Chưa có nhà xuất bản? Nhập tên mới"
+                    buttonLabel="Thêm nhà xuất bản mới"
+                    disabled={bookSubmitting}
+                  />
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Nếu nhà xuất bản chưa có, nhập tên mới và hệ thống sẽ lưu cùng đầu sách này.
+                    Nhà xuất bản mới sẽ được ghi vào cơ sở dữ liệu khi bạn lưu đầu sách.
                   </p>
                 </div>
 
@@ -1317,14 +1367,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setIsBookModalOpen(false)}
-                  disabled={bookSubmitting}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Huỷ
                 </button>
                 <button
                   type="submit"
-                  disabled={bookSubmitting || inlineAuthorSubmitting}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
                   className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {bookSubmitting ? 'Đang lưu...' : 'Lưu đầu sách'}

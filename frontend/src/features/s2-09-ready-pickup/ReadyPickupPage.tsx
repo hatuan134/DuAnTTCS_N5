@@ -55,7 +55,7 @@ export default function ReadyPickupPage() {
     }
     refreshRef.current = () => { void refresh() }
     void refresh()
-    const timer = window.setInterval(refreshWhenVisible, 10000)
+    const timer = window.setInterval(refreshWhenVisible, 5000)
     window.addEventListener('focus', refreshWhenVisible)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
@@ -91,7 +91,7 @@ export default function ReadyPickupPage() {
       />
       <p className="mb-4 text-sm text-slate-500">
         Đối chiếu mã vạch và tên bạn đọc để đưa đúng bản sách lên giá chờ nhận.
-        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 10 giây khi đang xem trang.
+        {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 5 giây khi đang xem trang.
       </p>
       {cancellation && <CancellationNotice result={cancellation} />}
       {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
@@ -117,6 +117,7 @@ export default function ReadyPickupPage() {
                 <th scope="col" className="px-5 py-3">Đầu sách</th>
                 <th scope="col" className="px-5 py-3">Mã vạch bản sao</th>
                 <th scope="col" className="px-5 py-3">Bạn đọc</th>
+                <th scope="col" className="px-5 py-3">Ngày đặt giữ</th>
                 <th scope="col" className="px-5 py-3">Hạn cuối đến nhận</th>
                 <th scope="col" className="px-5 py-3">Đơn đặt giữ</th>
               </tr>
@@ -135,6 +136,9 @@ export default function ReadyPickupPage() {
                   {item.barcode || 'Chưa có bản sao được gán'}
                 </td>
                 <td className="px-5 py-4 text-slate-700">{item.readerName}</td>
+                <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                  <time dateTime={item.reservedAt}>{formatPickupDate(item.reservedAt)}</time>
+                </td>
                 <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
                   {formatPickupDate(item.pickupDeadline)}
                 </td>
