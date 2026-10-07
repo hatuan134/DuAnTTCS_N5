@@ -2,7 +2,9 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
+import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.entity.BookReservation;
+import com.duanttcsn5.library.entity.LibraryCard;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.BookCopyRepository;
 import com.duanttcsn5.library.repository.BookRepository;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
@@ -30,16 +33,18 @@ public class LoanService {
     private final LibraryCardRepository cards;
     private final UserRepository users;
     private final LoanRepository loans;
+    private final LibraryConfigurationService configuration;
 
     public LoanService(BookRepository books, BookReservationRepository reservations,
                        BookCopyRepository copies, LibraryCardRepository cards,
-                       UserRepository users, LoanRepository loans) {
+                       UserRepository users, LoanRepository loans, LibraryConfigurationService configuration) {
         this.books = books;
         this.reservations = reservations;
         this.copies = copies;
         this.cards = cards;
         this.users = users;
         this.loans = loans;
+        this.configuration = configuration;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -48,15 +53,27 @@ public class LoanService {
         BookReservation reservation = reservations.findReadyForPickupById(reservationId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "READY_RESERVATION_NOT_FOUND",
                         "Không tìm thấy đơn đặt giữ đang chờ nhận. Đơn có thể đã đổi trạng thái."));
-        String cardNumber = cards.findByUserIdWithDetails(reservation.getReader().getId())
-                .map(card -> card.getCardNumber()).orElse(null);
+        LibraryCard card = cards.findByUserIdWithDetails(reservation.getReader().getId()).orElse(null);
+        String cardNumber = card == null ? null : card.getCardNumber();
         String loanNumber = loans.findNumberByReservation(reservationId).orElse(null);
         boolean converted = loanNumber != null || reservations.hasLoanLinkedToReservation(reservationId);
-        return new ReservationLoanContextResponse(cardNumber, converted, loanNumber);
+        if (converted) return new ReservationLoanContextResponse(cardNumber, true, loanNumber, null, null);
+        try {
+            return new ReservationLoanContextResponse(cardNumber, false, null, calculateDates(card, now()), null);
+        } catch (ApiException error) {
+            // Keep the detail/cancellation view usable when configuration is missing.
+            return new ReservationLoanContextResponse(cardNumber, false, null, null, error.getMessage());
+        }
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber) {
+        return createFromReservation(reservationId, actorId, cardNumber, null, null, null);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
+            LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
         if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
                 "Vui lòng đăng nhập để lập phiếu mượn.");
         var actor = users.findById(actorId).orElseThrow(() ->
@@ -102,17 +119,38 @@ public class LoanService {
         if (!bookId.equals(copy.getBook().getId()) || !"HELD".equals(copy.getStatus())
                 || copies.hasUnreturnedLoan(copy.getId())) throw invalidCopy();
 
-        OffsetDateTime borrowedAt = OffsetDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
-                .truncatedTo(ChronoUnit.MICROS);
+        OffsetDateTime borrowedAt = now();
+        LoanDatePreviewResponse dates = calculateDates(card, borrowedAt);
+        if ((expectedBorrowDate != null && !expectedBorrowDate.equals(dates.borrowDate()))
+                || (expectedDueAt != null && !expectedDueAt.isEqual(dates.dueAt()))
+                || (expectedLoanDays != null && expectedLoanDays != dates.loanDays())) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DATES_CHANGED",
+                    "Ngày mượn hoặc hạn trả đã thay đổi. Vui lòng kiểm tra thông tin mới và xác nhận lại.");
+        }
         String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
-        loans.insertItem(loanId, copy.getId(), borrowedAt);
+        loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
         // The existing database trigger owns the copy transition to BORROWED.
-        // Reservation status/deadline lifecycle is explicitly deferred to later slices.
+        // Reservation status/pickup-expiry lifecycle remains deferred to later slices.
         return new ReservationLoanResponse(loanId, loanNumber, reservationId,
                 readerId, reservation.getReader().getFullName(), card.getCardNumber(),
                 bookId, reservation.getBook().getTitle(), copy.getId(), copy.getBarcode(),
-                borrowedAt, "Đã lập phiếu mượn thành công từ đơn đặt giữ.");
+                borrowedAt, "Đã lập phiếu mượn thành công từ đơn đặt giữ.", dates);
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private LoanDatePreviewResponse calculateDates(LibraryCard card, OffsetDateTime borrowedAt) {
+        if (card == null) throw new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_REQUIRED",
+                "Bạn đọc chưa có thẻ thư viện để xác định chính sách mượn.");
+        var type = card.getCardType();
+        if (type == null || type.getLoanDays() < 1 || type.getLoanDays() > 60) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_POLICY_NOT_CONFIGURED",
+                    "Loại thẻ chưa có số ngày mượn hợp lệ từ 1 đến 60. Vui lòng cấu hình chính sách mượn.");
+        }
+        return configuration.calculateLoanDates(borrowedAt, type.getLoanDays(), type.getName());
     }
 
     private void validateId(Long id) {

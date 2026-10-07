@@ -4,6 +4,7 @@ import com.duanttcsn5.library.config.SecurityConfig;
 import com.duanttcsn5.library.controller.LoanController;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
+import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
@@ -28,6 +29,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -105,7 +107,7 @@ class ReservationLoanControllerTest {
     void existingStaffRolesCanCreateAndReadContext() throws Exception {
         var result = new ReservationLoanResponse(81L, "PM-DEMO", 21L, 99L, "Nguyễn Văn An", "TV-0012",
                 7L, "Mắt biếc", 31L, "LIB-031", OffsetDateTime.now(), "Đã lập phiếu mượn thành công.");
-        when(service.createFromReservation(21L, 12L, "TV-0012")).thenReturn(result);
+        when(service.createFromReservation(21L, 12L, "TV-0012", null, null, null)).thenReturn(result);
         when(service.pickupContext(21L)).thenReturn(new ReservationLoanContextResponse("TV-0012", false, null));
         for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             token(role);
@@ -133,13 +135,49 @@ class ReservationLoanControllerTest {
     @Test
     void mismatchAndRepeatedConversionUseVietnameseDomainErrors() throws Exception {
         token("LIBRARIAN");
-        when(service.createFromReservation(21L, 12L, "WRONG")).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
+        when(service.createFromReservation(21L, 12L, "WRONG", null, null, null)).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
                 "RESERVATION_CARD_MISMATCH", "Mã thẻ không đúng với bạn đọc sở hữu đơn đặt giữ."));
         mvc.perform(submit("{\"cardNumber\":\"WRONG\"}")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RESERVATION_CARD_MISMATCH"));
-        when(service.createFromReservation(21L, 12L, "TV-0012")).thenThrow(new ApiException(HttpStatus.CONFLICT,
+        when(service.createFromReservation(21L, 12L, "TV-0012", null, null, null)).thenThrow(new ApiException(HttpStatus.CONFLICT,
                 "RESERVATION_ALREADY_CONVERTED", "Đơn đã chuyển thành phiếu mượn."));
         mvc.perform(submit("{\"cardNumber\":\"TV-0012\"}")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RESERVATION_ALREADY_CONVERTED"));
+    }
+
+    @Test
+    void previewAndConfirmationExposeTheComputedDatesAndPassExpectedValues() throws Exception {
+        token("LIBRARIAN");
+        LocalDate borrow = LocalDate.of(2026, 10, 7), due = LocalDate.of(2026, 10, 22);
+        OffsetDateTime dueAt = OffsetDateTime.parse("2026-10-22T17:00:00+07:00");
+        var dates = new LoanDatePreviewResponse(borrow, "Thẻ sinh viên", 14,
+                LocalDate.of(2026, 10, 21), due, dueAt, true, List.of(LocalDate.of(2026, 10, 21)));
+        when(service.pickupContext(21L)).thenReturn(new ReservationLoanContextResponse("TV-0012", false, null, dates, null));
+        when(service.createFromReservation(21L, 12L, "TV-0012", borrow, dueAt, 14)).thenReturn(
+                new ReservationLoanResponse(81L, "PM-DEMO", 21L, 99L, "Nguyễn Văn An", "TV-0012",
+                        7L, "Mắt biếc", 31L, "LIB-031", OffsetDateTime.now(), "Đã lập phiếu mượn.", dates));
+        mvc.perform(get("/api/v1/reservations/21/loan-context").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.dates.borrowDate").value("2026-10-07"))
+                .andExpect(jsonPath("$.dates.loanDays").value(14))
+                .andExpect(jsonPath("$.dates.dueDate").value("2026-10-22"))
+                .andExpect(jsonPath("$.dates.adjusted").value(true));
+        mvc.perform(submit("""
+                {"cardNumber":"TV-0012","expectedBorrowDate":"2026-10-07",
+                 "expectedDueAt":"2026-10-22T17:00:00+07:00","expectedLoanDays":14}
+                """))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.dates.dueDate").value("2026-10-22"));
+        verify(service).createFromReservation(21L, 12L, "TV-0012", borrow, dueAt, 14);
+    }
+
+    @Test
+    void missingCalendarIsShownInContextAndInvalidExpectedDaysAreRejected() throws Exception {
+        token("LIBRARIAN");
+        when(service.pickupContext(21L)).thenReturn(new ReservationLoanContextResponse("TV-0012", false, null,
+                null, "Lịch làm việc chưa được cấu hình đủ 7 ngày."));
+        mvc.perform(get("/api/v1/reservations/21/loan-context").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.dateError").value("Lịch làm việc chưa được cấu hình đủ 7 ngày."));
+        mvc.perform(submit("{\"cardNumber\":\"TV-0012\",\"expectedLoanDays\":0}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
     }
 }
