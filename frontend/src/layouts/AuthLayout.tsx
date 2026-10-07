@@ -36,8 +36,8 @@ export default function AuthLayout({
   children,
 }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[1.05fr_0.95fr]">
-      <section className="relative hidden min-h-screen overflow-hidden bg-blue-600 px-12 py-10 text-white lg:flex lg:flex-col">
+    <div className="auth-page min-h-screen bg-slate-50 lg:grid lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="relative hidden min-h-screen overflow-hidden bg-slate-950 px-12 py-10 text-white lg:flex lg:flex-col">
         <div className="pointer-events-none absolute -right-32 -top-28 h-96 w-96 rounded-full border-[70px] border-white/5" />
 
         <div className="pointer-events-none absolute -bottom-40 -left-32 h-[480px] w-[480px] rounded-full border-[90px] border-white/5" />
@@ -52,14 +52,14 @@ export default function AuthLayout({
               LIBRA
             </div>
 
-            <div className="text-sm text-blue-100">
+            <div className="text-sm text-slate-300">
               Hệ thống quản lý thư viện
             </div>
           </div>
         </div>
 
         <div className="relative z-10 my-auto max-w-2xl py-12">
-          <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-blue-50">
+          <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
             HỆ THỐNG QUẢN LÝ THƯ VIỆN
           </div>
 
@@ -69,7 +69,7 @@ export default function AuthLayout({
             đơn giản và hiệu quả hơn
           </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-7 text-blue-100">
+          <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
             Một nền tảng thống nhất cho tài khoản,
             bạn đọc, thẻ thư viện, chính sách mượn
             và các nghiệp vụ quản lý thư viện.
@@ -93,7 +93,7 @@ export default function AuthLayout({
                       {item.title}
                     </div>
 
-                    <div className="mt-1 text-sm leading-5 text-blue-100">
+                    <div className="mt-1 text-sm leading-5 text-slate-300">
                       {item.description}
                     </div>
                   </div>
@@ -103,7 +103,7 @@ export default function AuthLayout({
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center justify-between text-xs text-blue-100">
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-300">
           <span>Nhóm 5 • Dự án TTCS</span>
 
           <span>LIBRA © 2026</span>

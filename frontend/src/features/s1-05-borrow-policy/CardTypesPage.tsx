@@ -17,6 +17,7 @@ import {
 
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import LoadingState from '../../components/ui/LoadingState'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import {
@@ -537,15 +538,10 @@ export default function CardTypesPage() {
                       </td>
 
                       <td className="px-5 py-4 text-center">
-                        {cardType.active ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                            Đang áp dụng
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/20">
-                            Ngừng áp dụng
-                          </span>
-                        )}
+                        <StatusBadge
+                          status={cardType.active ? 'ACTIVE' : 'DISABLED'}
+                          label={cardType.active ? 'Đang áp dụng' : 'Ngừng áp dụng'}
+                        />
                       </td>
 
                       {canManage && (

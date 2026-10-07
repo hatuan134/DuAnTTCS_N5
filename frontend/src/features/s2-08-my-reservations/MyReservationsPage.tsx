@@ -5,17 +5,18 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { reservationService } from '../s2-07-reservations/reservationService'
 import type { MyBookReservation } from '../s2-07-reservations/reservationService'
 
-const statuses: Record<string, { label: string; style: string }> = {
-  PENDING: { label: 'Đang xếp hàng', style: 'bg-amber-50 text-amber-800' },
-  READY_FOR_PICKUP: { label: 'Đang chờ nhận', style: 'bg-green-50 text-green-700' },
-  FULFILLED: { label: 'Đã chuyển thành phiếu mượn', style: 'bg-blue-50 text-blue-700' },
-  CANCELLED: { label: 'Đã huỷ', style: 'bg-slate-100 text-slate-600' },
-  EXPIRED: { label: 'Hết hạn', style: 'bg-red-50 text-red-700' },
+const statusLabels: Record<string, string> = {
+  PENDING: 'Đang xếp hàng',
+  READY_FOR_PICKUP: 'Đang chờ nhận',
+  FULFILLED: 'Đã chuyển thành phiếu mượn',
+  CANCELLED: 'Đã huỷ',
+  EXPIRED: 'Hết hạn',
 }
 
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
@@ -158,7 +159,7 @@ export default function MyReservationsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {items.map((item) => {
-                const status = statuses[item.status] ?? { label: item.status, style: 'bg-slate-100 text-slate-600' }
+                const statusLabel = statusLabels[item.status] ?? item.status
                 return <tr key={item.id} className="align-top hover:bg-slate-50">
                   <td className="px-5 py-4">
                     <Link to={`/catalog/books/${item.bookId}`} className="font-semibold text-blue-700 hover:underline">
@@ -170,9 +171,7 @@ export default function MyReservationsPage() {
                     <time dateTime={item.reservedAt}>{formatDate(item.reservedAt)}</time>
                   </td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${status.style}`}>
-                      {status.label}
-                    </span>
+                    <StatusBadge status={item.status} label={statusLabel} />
                   </td>
                   <td className="px-5 py-4 font-semibold text-slate-900">
                     {item.status === 'PENDING' ? (item.queuePosition ?? 'Chưa xác định') : '—'}

@@ -13,6 +13,10 @@ import {
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 
+import Button from '../../components/ui/Button'
+import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { cardTypeService } from '../s1-05-borrow-policy/cardTypeService'
 import type { CardType } from '../s1-05-borrow-policy/cardTypeService'
@@ -172,26 +176,16 @@ export default function LibraryCardsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">S1-04</span>
-            <h1 className="text-2xl font-bold text-slate-900">Duyệt hồ sơ & cấp thẻ thư viện</h1>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Duyệt hồ sơ chờ, chọn loại thẻ, hạn thẻ và cấp mã thẻ duy nhất cho bạn đọc.
-          </p>
-        </div>
-
-        <button
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Làm mới
-        </button>
-      </div>
+      <PageHeader
+        title="Duyệt hồ sơ & cấp thẻ thư viện"
+        description="Duyệt hồ sơ chờ, chọn loại thẻ, hạn thẻ và cấp mã thẻ duy nhất cho bạn đọc."
+        action={(
+          <Button type="button" variant="secondary" onClick={() => void load()} loading={loading}>
+            <RefreshCw size={16} />
+            Làm mới
+          </Button>
+        )}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Stat title="Hồ sơ chờ duyệt" value={pending.length} icon={<UserCheck size={19} />} />
@@ -329,7 +323,7 @@ export default function LibraryCardsPage() {
                       <td className="px-4 py-4">{card.cardTypeName}</td>
                       <td className="px-4 py-4">{formatDate(card.issuedAt)}</td>
                       <td className="px-4 py-4">{formatDate(card.expiresAt)}</td>
-                      <td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{card.status === 'ACTIVE' ? 'Đang hoạt động' : card.status === 'LOCKED' ? 'Đã khóa' : card.status === 'EXPIRED' ? 'Hết hạn' : card.status === 'DISABLED' ? 'Ngừng hoạt động' : card.status}</span></td>
+                      <td className="px-4 py-4"><StatusBadge status={card.status} /></td>
                     </tr>
                   ))}
                 </tbody>

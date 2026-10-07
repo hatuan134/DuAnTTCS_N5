@@ -6,18 +6,11 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { canCancelReservation, formatPickupDate, pickupRoles, pickupService, reservationFilterStatuses, reservationStatusLabel } from './pickupService'
-import type { BookReservationQueue, ReservationStatus, ReservationStatusFilter, ReservationQueueEntry, CancelReservationResult } from './pickupService'
-
-const statusClasses: Record<ReservationStatus, string> = {
-  PENDING: 'border-blue-200 bg-blue-50 text-blue-800',
-  READY_FOR_PICKUP: 'border-amber-200 bg-amber-50 text-amber-800',
-  FULFILLED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  CANCELLED: 'border-slate-200 bg-slate-100 text-slate-600',
-  EXPIRED: 'border-red-200 bg-red-50 text-red-800',
-}
+import type { BookReservationQueue, ReservationStatusFilter, ReservationQueueEntry, CancelReservationResult } from './pickupService'
 
 export default function BookReservationQueuePage() {
   const { bookId } = useParams()
@@ -189,9 +182,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                   <time dateTime={item.reservedAt}>{formatPickupDate(item.reservedAt, true)}</time>
                 </td>
                 <td className="px-5 py-4">
-                  <span className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses[item.status] ?? statusClasses.CANCELLED}`}>
-                    {reservationStatusLabel(item.status)}
-                  </span>
+                  <StatusBadge status={item.status} label={reservationStatusLabel(item.status)} />
                 </td>
                 <td className="break-all px-5 py-4 font-mono font-semibold text-slate-900">
                   {item.barcode || 'Chưa cấp bản'}

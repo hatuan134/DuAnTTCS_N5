@@ -117,7 +117,7 @@ export default function PublicBookDetailPage() {
   }, [bookId])
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="public-page min-h-screen bg-slate-50 text-slate-800">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">

@@ -4,6 +4,7 @@ import BookCoverImage from '../s2-10-book-cover/BookCoverImage'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import type { Book } from '../s1-08-catalog/catalogService'
 import BookCopyStatusBadge from './BookCopyStatusBadge'
@@ -168,9 +169,7 @@ export default function BookDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-xl font-semibold text-slate-900">{book.title}</h3>
               {copies.length === 0 && (
-                <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                  Chưa có bản sao
-                </span>
+                <StatusBadge status="NO_COPY" />
               )}
             </div>
             {book.subtitle && (

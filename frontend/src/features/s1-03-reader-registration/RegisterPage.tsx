@@ -194,7 +194,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="auth-page min-h-screen bg-slate-50">
       <div className="grid min-h-screen lg:grid-cols-[1fr_1.15fr]">
         {/* =========================
             BÊN TRÁI: SHOWCASE & BRANDING

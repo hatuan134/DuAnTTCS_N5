@@ -28,6 +28,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
 import {
   catalogService,
   type Author,
@@ -1825,9 +1826,7 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
                       {!book.hasCopies && (
-                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                          Chưa có bản sao
-                        </span>
+                        <StatusBadge status="NO_COPY" />
                       )}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">

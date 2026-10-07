@@ -234,7 +234,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="auth-page min-h-screen bg-slate-50">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
 
         {/* =========================
