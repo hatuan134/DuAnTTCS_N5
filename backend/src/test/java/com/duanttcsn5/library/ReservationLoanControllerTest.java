@@ -8,6 +8,7 @@ import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
+import com.duanttcsn5.library.exception.ReservationPickupExpiredException;
 import com.duanttcsn5.library.exception.GlobalExceptionHandler;
 import com.duanttcsn5.library.repository.UserRepository;
 import com.duanttcsn5.library.security.*;
@@ -87,6 +88,7 @@ class ReservationLoanControllerTest {
         mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"cardNumber\":\"TV-0012\"}"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/reservations/21/loan-context")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/reservations/21/pickup-check")).andExpect(status().isUnauthorized());
         when(context.getBean(JwtService.class).decode("bad-token")).thenThrow(new JwtException("invalid"));
         mvc.perform(post(URL).header("Authorization", "Bearer bad-token")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"cardNumber\":\"TV-0012\"}"))
@@ -97,6 +99,8 @@ class ReservationLoanControllerTest {
     @Test
     void readerCannotConvertOrReadAnotherReadersCard() throws Exception {
         token("READER");
+        mvc.perform(post("/api/v1/reservations/21/pickup-check").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
         mvc.perform(submit("{\"cardNumber\":\"TV-0012\"}")).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/reservations/21/loan-context").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden());
@@ -178,6 +182,40 @@ class ReservationLoanControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.dateError").value("Lịch làm việc chưa được cấu hình đủ 7 ngày."));
         mvc.perform(submit("{\"cardNumber\":\"TV-0012\",\"expectedLoanDays\":0}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test void expiredConversionReturnsConflictWithReReservationInstruction() throws Exception {
+        token("LIBRARIAN");
+        when(service.createFromReservation(21L, 12L, "TV-0012", null, null, null))
+                .thenThrow(new ReservationPickupExpiredException(21L));
+        mvc.perform(submit("{\"cardNumber\":\"TV-0012\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESERVATION_PICKUP_EXPIRED"))
+                .andExpect(jsonPath("$.message").value(ReservationPickupExpiredException.MESSAGE))
+                .andExpect(jsonPath("$.details.status").value("EXPIRED"))
+                .andExpect(jsonPath("$.details.reservationId").value(21));
+    }
+    @Test void allExistingStaffRolesCanCheckExpiryAndReceiveSafeSummary() throws Exception {
+        var checked = OffsetDateTime.parse("2026-10-07T17:01:00+07:00");
+        var deadline = checked.minusMinutes(1);
+        var summary = new com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse(
+                21L, 7L, "Mắt biếc", 31L, "LIB-031", 99L, "Nguyễn Văn An", "EXPIRED", checked.minusDays(3), deadline);
+        var result = new ReservationLoanContextResponse("TV-0012", false, null, null, null,
+                "EXPIRED", true, deadline, checked, ReservationPickupExpiredException.MESSAGE, "AVAILABLE", summary);
+        when(service.checkPickup(21L, 12L)).thenReturn(result);
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+            token(role);
+            mvc.perform(post("/api/v1/reservations/21/pickup-check").header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.expired").value(true))
+                    .andExpect(jsonPath("$.status").value("EXPIRED"))
+                    .andExpect(jsonPath("$.copyStatus").value("AVAILABLE"))
+                    .andExpect(jsonPath("$.reservation.id").value(21))
+                    .andExpect(jsonPath("$.reservation.readerId").value(99))
+                    .andExpect(jsonPath("$.reservation.passwordHash").doesNotExist())
+                    .andExpect(jsonPath("$.reservation.email").doesNotExist());
+        }
+        verify(service, times(3)).checkPickup(21L, 12L);
         verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
     }
 }

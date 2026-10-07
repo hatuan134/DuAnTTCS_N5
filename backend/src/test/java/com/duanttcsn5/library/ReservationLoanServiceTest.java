@@ -7,6 +7,8 @@ import com.duanttcsn5.library.service.LoanService;
 import com.duanttcsn5.library.service.LibraryConfigurationService;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import java.time.ZoneId;
+import java.time.Clock;
+import com.duanttcsn5.library.exception.ReservationPickupExpiredException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,8 @@ class ReservationLoanServiceTest {
     private BookCopy copy;
     private LibraryCard card;
     private User actor;
+    private Clock clock;
+    private static final OffsetDateTime CONFIRMED = OffsetDateTime.parse("2026-10-07T17:00:00+07:00");
 
     @BeforeEach
     void setup() {
@@ -38,7 +42,10 @@ class ReservationLoanServiceTest {
         copies = mock(BookCopyRepository.class); cards = mock(LibraryCardRepository.class);
         users = mock(UserRepository.class); loans = mock(LoanRepository.class);
         configuration = mock(LibraryConfigurationService.class);
-        service = new LoanService(books, reservations, copies, cards, users, loans, configuration);
+        clock = mock(Clock.class);
+        when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
+        when(clock.instant()).thenReturn(CONFIRMED.toInstant());
+        service = new LoanService(books, reservations, copies, cards, users, loans, configuration, clock);
         actor = new User(); actor.setId(3L); actor.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("LIBRARIAN"); actor.setRole(role);
         when(users.findById(3L)).thenReturn(Optional.of(actor));
@@ -49,8 +56,8 @@ class ReservationLoanServiceTest {
         when(copy.getBarcode()).thenReturn("LIB-031"); when(copy.getStatus()).thenReturn("HELD");
         reservation = new BookReservation(book, reader, "READY_FOR_PICKUP");
         reservation.setId(21L); reservation.setBookCopy(copy);
-        reservation.setReservedAt(OffsetDateTime.now().minusDays(10));
-        reservation.setPickupDeadline(OffsetDateTime.now().minusDays(7));
+        reservation.setReservedAt(CONFIRMED.minusDays(10));
+        reservation.setPickupDeadline(CONFIRMED.plusDays(3));
         card = new LibraryCard(); card.setCardNumber("TV-0012"); card.setUser(reader);
         CardType type = new CardType(); type.setName("Thẻ sinh viên"); type.setLoanDays(14); card.setCardType(type);
         when(configuration.calculateLoanDates(any(), eq(14), eq("Thẻ sinh viên"))).thenAnswer(call -> {
@@ -77,7 +84,7 @@ class ReservationLoanServiceTest {
     }
 
     @Test
-    void validCardCreatesExactReaderHeldCopyAndCalculatedDatesWithoutRejectingPastPickupDeadline() {
+    void validCardCreatesExactReaderHeldCopyAndCalculatedDatesBeforePickupDeadline() {
         var result = service.createFromReservation(21L, 3L, "  TV-0012  ");
         assertThat(result.id()).isEqualTo(81L); assertThat(result.reservationId()).isEqualTo(21L);
         assertThat(result.readerId()).isEqualTo(12L); assertThat(result.readerName()).isEqualTo("Nguyễn Văn An");
@@ -119,7 +126,7 @@ class ReservationLoanServiceTest {
         rejected("RESERVATION_ALREADY_CONVERTED", () -> service.createFromReservation(21L, 3L, "TV-0012"));
     }
     @Test void onlyReadyReservationsCanCreateLoans() {
-        for (String status : new String[]{"PENDING", "CANCELLED", "EXPIRED"}) {
+        for (String status : new String[]{"PENDING", "CANCELLED"}) {
             reservation.setStatus(status);
             rejected("RESERVATION_NOT_READY", () -> service.createFromReservation(21L, 3L, "TV-0012"));
         }
@@ -231,5 +238,118 @@ class ReservationLoanServiceTest {
         assertThat(context.loanNumber()).isEqualTo("PM-SAVED");
         assertThat(context.dates()).isNull();
         verifyNoInteractions(configuration);
+    }
+
+    private void expiredWithoutLoan() {
+        assertThatThrownBy(() -> service.createFromReservation(21L, 3L, "TV-0012"))
+                .isInstanceOfSatisfying(ReservationPickupExpiredException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo("RESERVATION_PICKUP_EXPIRED");
+                    assertThat(error.getMessage()).contains("quá hạn nhận", "đặt giữ lại");
+                });
+        assertThat(reservation.getStatus()).isEqualTo("EXPIRED");
+        verify(reservations).saveAndFlush(reservation);
+        verify(copy).releaseReservationHold();
+        verify(copies).saveAndFlush(copy);
+        verify(loans, never()).insert(any(), any(), any(), any(), any());
+        verify(loans, never()).insertItem(any(), any(), any(), any());
+        verify(reservations, never()).findNextPendingForCancellation(any());
+        verifyNoInteractions(configuration);
+    }
+
+    @Test void oneMicrosecondBeforeDeadlineIsAllowed() {
+        reservation.setPickupDeadline(CONFIRMED.plusNanos(1000));
+        assertThat(service.createFromReservation(21L, 3L, "TV-0012").id()).isEqualTo(81L);
+        verify(copy, never()).releaseReservationHold();
+    }
+    @Test void exactDeadlineIsAllowed() {
+        reservation.setPickupDeadline(CONFIRMED);
+        assertThat(service.createFromReservation(21L, 3L, "TV-0012").borrowedAt()).isEqualTo(CONFIRMED);
+    }
+    @Test void sameInstantInAnotherOffsetIsAllowed() {
+        reservation.setPickupDeadline(CONFIRMED.withOffsetSameInstant(java.time.ZoneOffset.UTC));
+        assertThat(service.createFromReservation(21L, 3L, "TV-0012").id()).isEqualTo(81L);
+    }
+    @Test void oneMicrosecondAfterDeadlineExpiresAndReleasesWithoutAnyLoan() {
+        reservation.setPickupDeadline(CONFIRMED.minusNanos(1000));
+        expiredWithoutLoan();
+    }
+    @Test void samePickupDayBeforeClosingTimeIsAllowed() {
+        reservation.setPickupDeadline(CONFIRMED);
+        when(clock.instant()).thenReturn(CONFIRMED.minusMinutes(30).toInstant());
+        assertThat(service.createFromReservation(21L, 3L, "TV-0012").id()).isEqualTo(81L);
+    }
+    @Test void samePickupDayAfterClosingTimeIsExpired() {
+        reservation.setPickupDeadline(CONFIRMED);
+        when(clock.instant()).thenReturn(CONFIRMED.plusMinutes(1).toInstant());
+        expiredWithoutLoan();
+    }
+    @Test void timeIsSampledAfterWaitingForTheCopyLock() {
+        reservation.setPickupDeadline(CONFIRMED.plusSeconds(1));
+        when(copies.findForStatusChange(31L)).thenAnswer(call -> {
+            when(clock.instant()).thenReturn(CONFIRMED.plusSeconds(2).toInstant());
+            return Optional.of(copy);
+        });
+        expiredWithoutLoan();
+    }
+    @Test void readOnlyContextFlagsExpiryWithoutChangingData() {
+        reservation.setPickupDeadline(CONFIRMED.minusSeconds(1));
+        when(reservations.findForLoanContext(21L)).thenReturn(Optional.of(reservation));
+        var result = service.pickupContext(21L);
+        assertThat(result.expired()).isTrue();
+        assertThat(result.checkedAt()).isEqualTo(CONFIRMED);
+        assertThat(result.status()).isEqualTo("READY_FOR_PICKUP");
+        assertThat(result.reservation().id()).isEqualTo(21L);
+        assertThat(result.pickupMessage()).contains("đặt giữ lại");
+        assertThat(result.dates()).isNull();
+        assertThat(reservation.getStatus()).isEqualTo("READY_FOR_PICKUP");
+        verify(reservations, never()).saveAndFlush(any());
+        verify(copy, never()).releaseReservationHold();
+    }
+    @Test void explicitOpenCheckPersistsExpiryAndReturnsAvailableCopyForReload() {
+        reservation.setPickupDeadline(CONFIRMED.minusSeconds(1));
+        doAnswer(call -> { when(copy.getStatus()).thenReturn("AVAILABLE"); return null; })
+                .when(copy).releaseReservationHold();
+        var result = service.checkPickup(21L, 3L);
+        assertThat(result.expired()).isTrue();
+        assertThat(result.status()).isEqualTo("EXPIRED");
+        assertThat(result.copyStatus()).isEqualTo("AVAILABLE");
+        assertThat(result.reservation().status()).isEqualTo("EXPIRED");
+        verify(loans, never()).insert(any(), any(), any(), any(), any());
+        verify(reservations, never()).findNextPendingForCancellation(any());
+        var reloaded = service.checkPickup(21L, 3L);
+        assertThat(reloaded.expired()).isTrue();
+        verify(copy, times(1)).releaseReservationHold();
+        verify(copies, times(1)).saveAndFlush(copy);
+    }
+    @Test void alreadyExpiredReturnsTheSameDomainErrorWithoutReleasingTwice() {
+        reservation.setStatus("EXPIRED");
+        rejected("RESERVATION_PICKUP_EXPIRED", () -> service.createFromReservation(21L, 3L, "TV-0012"));
+        verify(copy, never()).releaseReservationHold();
+        verify(copies, never()).saveAndFlush(any());
+    }
+    @Test void missingDeadlineBlocksConversionAndReturnsAnExplanation() {
+        reservation.setPickupDeadline(null);
+        rejected("RESERVATION_PICKUP_DEADLINE_MISSING", () -> service.createFromReservation(21L, 3L, "TV-0012"));
+        var result = service.checkPickup(21L, 3L);
+        assertThat(result.expired()).isFalse();
+        assertThat(result.pickupMessage()).contains("chưa có hạn nhận");
+        assertThat(result.dates()).isNull();
+    }
+    @Test void convertedOrderWithPastDeadlineNeverReleasesItsBorrowedCopy() {
+        reservation.setPickupDeadline(CONFIRMED.minusDays(1));
+        when(loans.findNumberByReservation(21L)).thenReturn(Optional.of("PM-OLD"));
+        var result = service.checkPickup(21L, 3L);
+        assertThat(result.converted()).isTrue();
+        assertThat(result.expired()).isFalse();
+        verify(copy, never()).releaseReservationHold();
+        verify(copies, never()).findForStatusChange(any());
+    }
+    @Test void failedReleasePropagatesToRollBackTheEntireExpiryTransaction() {
+        reservation.setPickupDeadline(CONFIRMED.minusSeconds(1));
+        when(copies.saveAndFlush(copy)).thenThrow(new IllegalStateException("release failed"));
+        assertThatThrownBy(() -> service.createFromReservation(21L, 3L, "TV-0012"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("release failed");
+        verify(loans, never()).insert(any(), any(), any(), any(), any());
+        // PostgreSQL test verifies persisted rollback; Mockito only verifies the failure is propagated.
     }
 }

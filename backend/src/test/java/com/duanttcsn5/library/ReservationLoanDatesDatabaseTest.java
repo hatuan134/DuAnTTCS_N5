@@ -57,7 +57,7 @@ class ReservationLoanDatesDatabaseTest {
         Long reservation = jdbc.queryForObject("""
                 INSERT INTO book_reservations(book_id, reader_id, book_copy_id, status, reserved_at, pickup_deadline)
                 VALUES (?, ?, ?, 'READY_FOR_PICKUP', ?, ?) RETURNING id
-                """, Long.class, book, reader, copy, reserved, reserved.plusDays(3));
+                """, Long.class, book, reader, copy, reserved, OffsetDateTime.now().plusDays(3));
         return new Fixture(reservation, staff, card);
     }
 

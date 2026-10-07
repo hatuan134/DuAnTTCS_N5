@@ -135,7 +135,7 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             JOIN FETCH r.book
             JOIN FETCH r.reader
             LEFT JOIN FETCH r.bookCopy
-            WHERE r.id = :reservationId AND r.status IN ('READY_FOR_PICKUP', 'FULFILLED')
+            WHERE r.id = :reservationId AND r.status IN ('READY_FOR_PICKUP', 'FULFILLED', 'EXPIRED')
             """)
     Optional<BookReservation> findForLoanContext(@Param("reservationId") Long reservationId);
 

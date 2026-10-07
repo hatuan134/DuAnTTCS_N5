@@ -30,6 +30,12 @@ public class LoanController {
         return ResponseEntity.ok(loans.pickupContext(reservationId));
     }
 
+    @PostMapping("/{reservationId}/pickup-check")
+    public ResponseEntity<ReservationLoanContextResponse> checkPickup(@PathVariable Long reservationId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.checkPickup(reservationId, principal == null ? null : principal.id()));
+    }
+
     @PostMapping("/{reservationId}/loan")
     public ResponseEntity<ReservationLoanResponse> createFromReservation(
             @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
