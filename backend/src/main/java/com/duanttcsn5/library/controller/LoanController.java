@@ -1,5 +1,8 @@
 package com.duanttcsn5.library.controller;
 
+import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
+import java.util.List;
 import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
@@ -18,30 +21,41 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/reservations")
+@RequestMapping("/api/v1")
 @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
 public class LoanController {
     private final LoanService loans;
 
     public LoanController(LoanService loans) { this.loans = loans; }
 
-    @GetMapping("/{reservationId}/loan-context")
+    @GetMapping("/reservations/{reservationId}/loan-context")
     public ResponseEntity<ReservationLoanContextResponse> pickupContext(@PathVariable Long reservationId) {
         return ResponseEntity.ok(loans.pickupContext(reservationId));
     }
 
-    @PostMapping("/{reservationId}/pickup-check")
+    @PostMapping("/reservations/{reservationId}/pickup-check")
     public ResponseEntity<ReservationLoanContextResponse> checkPickup(@PathVariable Long reservationId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.checkPickup(reservationId, principal == null ? null : principal.id()));
     }
 
-    @PostMapping("/{reservationId}/loan")
+    @PostMapping("/reservations/{reservationId}/loan")
     public ResponseEntity<ReservationLoanResponse> createFromReservation(
             @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
                 reservationId, principal == null ? null : principal.id(), request.cardNumber(),
                 request.expectedBorrowDate(), request.expectedDueAt(), request.expectedLoanDays()));
+    }
+
+    @GetMapping("/loans")
+    public ResponseEntity<List<LoanSummaryResponse>> listLoans(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.listLoans(principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/{loanId}")
+    public ResponseEntity<LoanDetailResponse> loanDetail(@PathVariable Long loanId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.loanDetail(loanId, principal == null ? null : principal.id()));
     }
 }

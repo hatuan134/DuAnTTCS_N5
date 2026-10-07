@@ -6,6 +6,8 @@ import com.duanttcsn5.library.repository.*;
 import com.duanttcsn5.library.service.LoanService;
 import com.duanttcsn5.library.service.LibraryConfigurationService;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
+import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import java.time.ZoneId;
 import java.time.Clock;
 import com.duanttcsn5.library.exception.ReservationPickupExpiredException;
@@ -351,5 +353,65 @@ class ReservationLoanServiceTest {
                 .isInstanceOf(IllegalStateException.class).hasMessage("release failed");
         verify(loans, never()).insert(any(), any(), any(), any(), any());
         // PostgreSQL test verifies persisted rollback; Mockito only verifies the failure is propagated.
+    }
+
+    @Test void loanDetailReadsSavedItemsAndOriginalCreatorWithoutRecalculatingPolicy() {
+        var due = CONFIRMED.plusDays(14);
+        var header = new LoanDetailResponse(81L, "PM-SAVED", 21L, 12L, "Nguyễn Văn An",
+                9L, "Thủ thư lập phiếu", CONFIRMED, List.of());
+        var item = new LoanDetailResponse.Item(91L, 31L, "LIB-031", 7L, "Mắt biếc", CONFIRMED, due);
+        when(loans.findHeaderForStaff(81L)).thenReturn(Optional.of(header));
+        when(loans.findItemsForStaff(81L)).thenReturn(List.of(item));
+        card.getCardType().setLoanDays(1);
+        var result = service.loanDetail(81L, 3L);
+        assertThat(result.loanNumber()).isEqualTo("PM-SAVED");
+        assertThat(result.createdById()).isEqualTo(9L);
+        assertThat(result.createdByName()).isEqualTo("Thủ thư lập phiếu");
+        assertThat(result.borrowedAt()).isEqualTo(CONFIRMED);
+        assertThat(result.items()).containsExactly(item);
+        assertThat(result.items().get(0).dueAt()).isEqualTo(due);
+        assertThat(service.loanDetail(81L, 3L)).isEqualTo(result);
+        verifyNoInteractions(configuration, books, reservations, copies, cards);
+        verify(loans, never()).insert(any(), any(), any(), any(), any());
+        verify(loans, never()).insertItem(any(), any(), any(), any());
+    }
+    @Test void listLoansKeepsRepositoryOrderAndAcceptsAllExistingStaffRoles() {
+        var row = new LoanSummaryResponse(81L, "PM-SAVED", 12L, "Bạn đọc", 9L, "Người lập", CONFIRMED, 1);
+        when(loans.findAllForStaff()).thenReturn(List.of(row));
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+            actor.getRole().setCode(role);
+            assertThat(service.listLoans(3L)).containsExactly(row);
+        }
+        verifyNoInteractions(configuration, reservations, copies, cards, books);
+    }
+    @Test void invalidAndMissingLoanIdsReturnDomainErrorsWithoutReadingItems() {
+        for (Long id : new Long[]{null, 0L, -1L}) {
+            rejected("INVALID_LOAN_ID", () -> service.loanDetail(id, 3L));
+        }
+        rejected("LOAN_NOT_FOUND", () -> service.loanDetail(999L, 3L));
+        verify(loans, never()).findItemsForStaff(any());
+    }
+    @Test void loanReadServiceRejectsUnauthenticatedReaderAndInactiveStaff() {
+        rejected("LOGIN_REQUIRED", () -> service.loanDetail(81L, null));
+        rejected("LOGIN_REQUIRED", () -> service.listLoans(null));
+        actor.getRole().setCode("READER");
+        rejected("STAFF_ROLE_REQUIRED", () -> service.loanDetail(81L, 3L));
+        rejected("STAFF_ROLE_REQUIRED", () -> service.listLoans(3L));
+        actor.getRole().setCode("LIBRARIAN"); actor.setStatus("LOCKED");
+        rejected("STAFF_ROLE_REQUIRED", () -> service.loanDetail(81L, 3L));
+        verify(loans, never()).findHeaderForStaff(any());
+        verify(loans, never()).findAllForStaff();
+    }
+    @Test void legacyLoanWithMultipleItemsAndMissingDueDateDoesNotInventData() {
+        var header = new LoanDetailResponse(81L, "PM-LEGACY", null, 12L, "Bạn đọc", 3L, "Thủ thư", CONFIRMED, List.of());
+        var first = new LoanDetailResponse.Item(91L, 31L, "COPY-A", 7L, "Sách A", CONFIRMED, null);
+        var second = new LoanDetailResponse.Item(92L, 32L, "COPY-B", 8L, "Sách B", CONFIRMED.plusDays(1), CONFIRMED.plusDays(15));
+        when(loans.findHeaderForStaff(81L)).thenReturn(Optional.of(header));
+        when(loans.findItemsForStaff(81L)).thenReturn(List.of(first, second));
+        var result = service.loanDetail(81L, 3L);
+        assertThat(result.reservationId()).isNull();
+        assertThat(result.items()).containsExactly(first, second);
+        assertThat(result.items().get(0).dueAt()).isNull();
+        verifyNoInteractions(configuration);
     }
 }

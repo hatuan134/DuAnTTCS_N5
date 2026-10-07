@@ -42,6 +42,7 @@ function find(element, predicate) {
 async function detailFixture({ error, role = 'LIBRARIAN', overrides = {} } = {}) {
   const states = []
   const effects = []
+  const navigation = []
   let cursor = 0
   let effectStarted = false
   const hooks = {
@@ -62,6 +63,7 @@ async function detailFixture({ error, role = 'LIBRARIAN', overrides = {} } = {})
     react: hooks,
     'react-router-dom': {
       useParams: () => ({ reservationId: '21' }),
+      useNavigate: () => (path, options) => navigation.push({ path, options }),
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
     },
     '../../components/ui/Button': { __esModule: true, default: ({ children, ...props }) => react.createElement('button', props, children) },
@@ -86,7 +88,7 @@ async function detailFixture({ error, role = 'LIBRARIAN', overrides = {} } = {})
   for (const effect of effects) effect()
   effectStarted = true
   await new Promise((resolve) => setImmediate(resolve))
-  return { render, loan: () => find(render(), (element) => element.type === LoanPanel) }
+  return { render, navigation, loan: () => find(render(), (element) => element.type === LoanPanel) }
 }
 
 test('successful confirmation immediately replaces the pickup badge and offers history and copy links', async () => {
@@ -94,7 +96,9 @@ test('successful confirmation immediately replaces the pickup badge and offers h
   const before = renderToStaticMarkup(f.render())
   assert.match(before, /Đang chờ nhận/)
   assert.match(before, /Huỷ đơn/)
-  f.loan().props.onSuccess({ loanNumber: 'PM-NEW' })
+  f.loan().props.onSuccess({ id: 81, loanNumber: 'PM-NEW' })
+  assert.equal(f.navigation[0].path, '/loans/81')
+  assert.equal(f.navigation[0].options.state.loanCreated, true)
   const after = renderToStaticMarkup(f.render())
   assert.match(after, /Đã chuyển thành phiếu mượn/)
   assert.doesNotMatch(after, /Đang chờ nhận/)
