@@ -50,13 +50,14 @@ public class LoanService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ReservationLoanContextResponse pickupContext(Long reservationId) {
         validateId(reservationId);
-        BookReservation reservation = reservations.findReadyForPickupById(reservationId).orElseThrow(() ->
+        BookReservation reservation = reservations.findForLoanContext(reservationId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "READY_RESERVATION_NOT_FOUND",
                         "Không tìm thấy đơn đặt giữ đang chờ nhận. Đơn có thể đã đổi trạng thái."));
         LibraryCard card = cards.findByUserIdWithDetails(reservation.getReader().getId()).orElse(null);
         String cardNumber = card == null ? null : card.getCardNumber();
         String loanNumber = loans.findNumberByReservation(reservationId).orElse(null);
-        boolean converted = loanNumber != null || reservations.hasLoanLinkedToReservation(reservationId);
+        boolean converted = "FULFILLED".equals(reservation.getStatus())
+                || loanNumber != null || reservations.hasLoanLinkedToReservation(reservationId);
         if (converted) return new ReservationLoanContextResponse(cardNumber, true, loanNumber, null, null);
         try {
             return new ReservationLoanContextResponse(cardNumber, false, null, calculateDates(card, now()), null);
@@ -130,8 +131,10 @@ public class LoanService {
         String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
         loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
-        // The existing database trigger owns the copy transition to BORROWED.
-        // Reservation status/pickup-expiry lifecycle remains deferred to later slices.
+        // insertItem has succeeded and its existing trigger has changed the copy to BORROWED.
+        // Flush the reservation in this same transaction: any failure rolls back all three writes.
+        reservation.setStatus("FULFILLED");
+        reservations.saveAndFlush(reservation);
         return new ReservationLoanResponse(loanId, loanNumber, reservationId,
                 readerId, reservation.getReader().getFullName(), card.getCardNumber(),
                 bookId, reservation.getBook().getTitle(), copy.getId(), copy.getBarcode(),

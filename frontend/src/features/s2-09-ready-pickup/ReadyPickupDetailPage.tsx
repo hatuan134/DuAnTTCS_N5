@@ -9,7 +9,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
-import { formatPickupDate, pickupRoles, pickupService } from './pickupService'
+import { formatPickupDate, pickupRoles, pickupService, reservationStatusLabel } from './pickupService'
 import type { ReadyPickupReservation, CancelReservationResult } from './pickupService'
 
 export default function ReadyPickupDetailPage() {
@@ -76,10 +76,11 @@ function ReadyPickupDetail({ id }: { id: number }) {
       {!loading && !error && item && item.id === id && <Card className="p-6">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
-          <StatusBadge status="READY_FOR_PICKUP" label="Đang chờ nhận" />
+          <StatusBadge status={item.converted ? 'FULFILLED' : item.status}
+            label={reservationStatusLabel(item.converted ? 'FULFILLED' : item.status)} />
         </div>
-        <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan || item.converted}
-          aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>
+        {!item.converted && <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan}
+          aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>}
         <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Tên đầu sách</dt>
@@ -87,9 +88,11 @@ function ReadyPickupDetail({ id }: { id: number }) {
               className="text-blue-700 hover:underline">{item.bookTitle}</Link></dd>
           </div>
           <div>
-            <dt className="text-slate-500">Mã vạch bản sao đang được giữ</dt>
+            <dt className="text-slate-500">Mã vạch bản sao</dt>
             <dd className="mt-1 break-all font-mono font-semibold text-slate-900">
-              {item.barcode || 'Chưa có bản sao được gán'}
+              {item.copyId ? <Link to={`/book-copies/${item.copyId}`} className="text-blue-700 hover:underline">
+                {item.barcode || 'Xem bản sao'}
+              </Link> : 'Chưa có bản sao được gán'}
             </dd>
           </div>
           <div>
@@ -109,6 +112,12 @@ function ReadyPickupDetail({ id }: { id: number }) {
           onBusyChange={setCreatingLoan}
           onSuccess={(result) => setItem((current) => current ? { ...current, converted: true, loanNumber: result.loanNumber } : current)}
           onAlreadyConverted={() => setItem((current) => current ? { ...current, converted: true } : current)} />
+        {item.converted && <p className="mt-4 text-sm text-slate-700">
+          Đơn đã được loại khỏi danh sách Chờ nhận.{' '}
+          <Link to={`/books/${item.bookId}/reservations`} className="font-medium text-blue-700 hover:underline">
+            Xem lịch sử đặt giữ của đầu sách
+          </Link>
+        </p>}
         {(!item.barcode || !item.pickupDeadline) && <p role="status"
           className="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           Đơn cũ chưa có đủ thông tin bản sao hoặc hạn nhận. Cần đối chiếu dữ liệu trước khi đưa sách lên giá chờ nhận.

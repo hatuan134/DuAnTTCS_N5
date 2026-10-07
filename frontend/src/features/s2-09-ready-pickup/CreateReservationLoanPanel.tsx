@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import StatusBadge from '../../components/ui/StatusBadge'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanDate, formatPickupDate, pickupService } from './pickupService'
 import type { LoanDatePreview, ReadyPickupReservation, ReservationLoanResult } from './pickupService'
@@ -93,6 +94,10 @@ export default function CreateReservationLoanPanel({
     {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {result ? <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
       <p className="font-semibold">{result.message}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div>Đơn đặt giữ: <StatusBadge status="FULFILLED" label="Đã chuyển thành phiếu mượn" /></div>
+        <div>Bản sao: <StatusBadge status="BORROWED" label="Đang mượn" /></div>
+      </div>
       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
         <div><dt>Mã phiếu mượn</dt><dd className="break-all font-mono font-semibold">{result.loanNumber}</dd></div>
         <div><dt>Bạn đọc</dt><dd className="font-semibold">{result.readerName}</dd></div>

@@ -93,6 +93,7 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
   const panel = load('CreateReservationLoanPanel.tsx', {
     react: hooks,
     '../../components/ui/Button': { __esModule: true, default: (props) => react.createElement('button', { disabled: props.disabled || props.loading }, props.children) },
+    '../../components/ui/StatusBadge': load('../../components/ui/StatusBadge.tsx', {}),
     '../../components/ui/Input': { __esModule: true, default: (props) => react.createElement('label', {}, props.label, react.createElement('input', { id: props.id, required: props.required, value: props.value, onChange: props.onChange, disabled: props.disabled })) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (error) => error.message },
     './pickupService': { pickupService: service, formatPickupDate: (v) => v, formatLoanDate: (v) => v },
@@ -137,7 +138,7 @@ test('success renders matching reader and barcode and removes the conversion for
   assert.deepEqual(f.busy, [true, false])
   assert.equal(find(tree, 'form'), null)
   const html = renderToStaticMarkup(tree)
-  for (const text of ['PM-NEW', 'Nguyễn Văn An', 'LIB-031', 'TV-0012']) assert.ok(html.includes(text))
+  for (const text of ['PM-NEW', 'Nguyễn Văn An', 'LIB-031', 'TV-0012', 'Đã chuyển thành phiếu mượn', 'Đang mượn']) assert.ok(html.includes(text))
 })
 
 test('two immediate submissions issue one request while saving', async () => {
