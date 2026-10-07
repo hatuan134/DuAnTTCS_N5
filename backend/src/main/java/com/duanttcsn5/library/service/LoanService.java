@@ -35,6 +35,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 /** Lending is a new domain; reservation creation/cancellation stays in its existing service. */
 @Service
@@ -292,6 +293,12 @@ public class LoanService {
         var copy = copies.findByBarcode(barcode).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "LOAN_DRAFT_COPY_NOT_FOUND",
                         "Không tìm thấy sách theo mã vạch đã nhập. Vui lòng kiểm tra lại."));
+        // Read the actual allocation even if a stale copy status says AVAILABLE.
+        // Preview remains read-only; expiration/release and conversion use their existing flows.
+        var hold = reservations.findEffectiveHoldForCopy(copy.getId(), now());
+        if (hold.isPresent() && !converted(hold.get())) {
+            throw directLoanHoldConflict(hold.get(), reader.readerId());
+        }
         if (!"AVAILABLE".equals(copy.getStatus())) {
             String status = copy.getStatus();
             String label = status == null || status.isBlank() ? "Chưa xác định" : switch (status) {
@@ -310,6 +317,24 @@ public class LoanService {
                 "Bản sao chưa có thông tin đầu sách. Vui lòng kiểm tra lại.");
         return new DirectLoanItemResponse(copy.getId(), copy.getBook().getId(), copy.getBarcode(),
                 copy.getBook().getTitle(), reader.remainingBooks());
+    }
+
+    private ApiException directLoanHoldConflict(BookReservation reservation, Long readerId) {
+        var owner = reservation.getReader();
+        boolean ownHold = owner.getId().equals(readerId);
+        String readerName = owner.getFullName();
+        if (readerName == null || readerName.isBlank()) readerName = "Bạn đọc của đơn đặt giữ";
+        String order = "đơn đặt giữ #" + reservation.getId();
+        String message = ownHold
+                ? "Bản sao đang được đặt giữ cho chính bạn đọc " + readerName + " (" + order + "). "
+                    + "Vui lòng lập phiếu mượn từ đơn này tại mục Sách đang chờ nhận."
+                : "Bản sao đang được đặt giữ cho bạn đọc " + readerName + " (" + order + "). "
+                    + "Không thể thêm vào lượt mượn của bạn đọc khác.";
+        // Same staff-only scope as the pickup queue: name and order information, no contact data.
+        return new ApiException(HttpStatus.CONFLICT,
+                ownHold ? "LOAN_DRAFT_COPY_HELD_FOR_CURRENT_READER" : "LOAN_DRAFT_COPY_HELD_FOR_OTHER_READER",
+                message, Map.of("reservationId", reservation.getId(), "readerName", readerName,
+                        "pickupDeadline", reservation.getPickupDeadline().toString(), "ownReservation", ownHold));
     }
 
     private String normalizeDraftBarcode(String value) {

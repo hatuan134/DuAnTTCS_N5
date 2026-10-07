@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 const require = createRequire(import.meta.url), react = require('react')
 const root = new URL('../src/features/s3-02-direct-loans/', import.meta.url)
 function load(file, imports = {}, extra = {}) {
-  const code = ts.transpileModule(readFileSync(new URL(file, root), 'utf8'), {
+  const source = readFileSync(new URL(file, root), 'utf8').replaceAll('import.meta.env.VITE_API_URL', 'undefined')
+  const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   const context = { exports: {}, require: (name) => imports[name] ?? require(name), ...extra }
@@ -26,7 +27,7 @@ function find(node, predicate) {
   if (predicate(node)) return node
   return find(node.props?.children, predicate)
 }
-function fixture({ reader = result, preview = async (_card, code) => copy(code) } = {}) {
+function fixture({ reader = result, preview = async (_card, code) => copy(code), errorMessage = (e) => e.message } = {}) {
   const states = [], effects = [], timers = new Map(), calls = []
   let cursor = 0, timerId = 0, tree
   const hooks = {
@@ -49,7 +50,7 @@ function fixture({ reader = result, preview = async (_card, code) => copy(code) 
 
     react: hooks,
 
-    '../s1-02-user-management/accountService': { getApiErrorMessage: (e) => e.message },
+    '../s1-02-user-management/accountService': { getApiErrorMessage: errorMessage },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
     './directLoanService': { directLoanService: { previewItem(card, code, rows) { calls.push([card, code, rows]); return preview(card, code, rows) } } },
   }
@@ -241,4 +242,73 @@ test('confirmation stays disabled for empty, ineligible, checking or unsubmitted
   f.change('BC-2'); assert.ok(f.confirmDisabled()); f.confirm()
   assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
   f.change(''); assert.equal(f.confirmDisabled(), false)
+})
+
+// S3-02.4 exercises the existing UI with the real shared API-error formatter.
+const { getApiErrorMessage } = load('../s1-02-user-management/accountService.ts', {
+  '../../core/api/apiClient': { apiClient: {} },
+})
+function heldError(ownReservation = false, name = 'Trần Thị Bình', id = 42) {
+  return { isAxiosError: true, response: { status: 409, data: {
+    code: ownReservation ? 'LOAN_DRAFT_COPY_HELD_FOR_CURRENT_READER' : 'LOAN_DRAFT_COPY_HELD_FOR_OTHER_READER',
+    message: ownReservation
+      ? `Bản sao đang được đặt giữ cho chính bạn đọc ${name} (đơn đặt giữ #${id}). Vui lòng lập phiếu mượn từ đơn này tại mục Sách đang chờ nhận.`
+      : `Bản sao đang được đặt giữ cho bạn đọc ${name} (đơn đặt giữ #${id}). Không thể thêm vào lượt mượn của bạn đọc khác.`,
+    details: { reservationId: id, readerName: name, ownReservation },
+  } } }
+}
+
+test('S3-02.4 hold error names the correct owner and order only on its barcode row and blocks confirmation', async () => {
+  const f = fixture({ errorMessage: getApiErrorMessage, preview: async (_card, code) => {
+    if (code === 'HELD-42') throw heldError()
+    return copy(code)
+  } })
+  for (const code of ['BC-1', 'HELD-42', 'BC-3']) { f.change(code); f.submit(); await settle(); f.html() }
+  assert.match(f.rowHtml('HELD-42'), /Trần Thị Bình.*đơn đặt giữ #42/)
+  assert.match(f.rowHtml('HELD-42'), /role="alert"/)
+  for (const code of ['BC-1', 'BC-3']) {
+    assert.match(f.rowHtml(code), /Hợp lệ · Sẵn sàng/)
+    assert.doesNotMatch(f.rowHtml(code), /Trần Thị Bình|đơn đặt giữ/)
+  }
+  assert.match(f.html(), /Dự kiến mượn: 2 \/ 3 sách/)
+  assert.deepEqual(Array.from(f.calls.at(-1)[2]), ['BC-1'])
+  assert.ok(f.confirmDisabled()); f.confirm(); assert.doesNotMatch(f.html(), /Đã xác nhận danh sách/)
+  f.remove('HELD-42'); assert.equal(f.confirmDisabled(), false); f.confirm()
+  assert.match(f.html(), /Đã xác nhận danh sách 2 sách hợp lệ/)
+})
+
+test('S3-02.4 own hold explains the reservation flow and keeps the row rejected', async () => {
+  const f = fixture({ errorMessage: getApiErrorMessage, preview: async () => { throw heldError(true, 'Nguyễn Văn An') } })
+  f.change('OWN-42'); f.submit(); await settle()
+  assert.match(f.rowHtml('OWN-42'), /chính bạn đọc Nguyễn Văn An.*đơn đặt giữ #42/)
+  assert.match(f.rowHtml('OWN-42'), /Sách đang chờ nhận/)
+  assert.match(f.html(), /Dự kiến mượn: 0 \/ 3 sách/)
+  assert.ok(f.confirmDisabled()); assert.equal(f.addDisabled(), false)
+})
+
+test('S3-02.4 two held barcodes show their own order and owner without mixing messages', async () => {
+  const f = fixture({ errorMessage: getApiErrorMessage, preview: async (_card, code) => {
+    throw code === 'HELD-42' ? heldError() : heldError(false, 'Lê Minh Long', 73)
+  } })
+  for (const code of ['HELD-42', 'HELD-73']) { f.change(code); f.submit(); await settle(); f.html() }
+  assert.match(f.rowHtml('HELD-42'), /Trần Thị Bình.*#42/)
+  assert.doesNotMatch(f.rowHtml('HELD-42'), /Lê Minh Long|#73/)
+  assert.match(f.rowHtml('HELD-73'), /Lê Minh Long.*#73/)
+  assert.doesNotMatch(f.rowHtml('HELD-73'), /Trần Thị Bình|#42/)
+  assert.ok(f.confirmDisabled())
+})
+
+test('S3-02.4 rechecking a released hold replaces only the rejected row', async () => {
+  let held = true
+  const f = fixture({ errorMessage: getApiErrorMessage, preview: async (_card, code) => {
+    if (code === 'HELD-42' && held) throw heldError()
+    return copy(code)
+  } })
+  for (const code of ['BC-1', 'HELD-42', 'BC-3']) { f.change(code); f.submit(); await settle(); f.html() }
+  held = false; f.edit('HELD-42'); f.submit(); await settle()
+  assert.match(f.rowHtml('HELD-42'), /Hợp lệ · Sẵn sàng/)
+  assert.doesNotMatch(f.rowHtml('HELD-42'), /Trần Thị Bình|#42/)
+  assert.match(f.rowHtml('BC-1'), /Hợp lệ/); assert.match(f.rowHtml('BC-3'), /Hợp lệ/)
+  assert.match(f.html(), /Dự kiến mượn: 3 \/ 3 sách/)
+  assert.equal(f.confirmDisabled(), false)
 })

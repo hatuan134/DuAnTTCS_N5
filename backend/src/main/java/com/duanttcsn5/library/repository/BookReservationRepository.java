@@ -7,8 +7,22 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 
 public interface BookReservationRepository extends JpaRepository<BookReservation, Long> {
+
+    // Only the reservation allocated to this physical copy can block its preview.
+    // Keep the deadline boundary consistent with LoanService.checkPickup: equality is valid.
+    // Converted legacy rows are checked by the existing loan-link logic in LoanService.
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.reader
+            WHERE r.bookCopy.id = :bookCopyId
+              AND r.status = 'READY_FOR_PICKUP'
+              AND r.pickupDeadline >= :checkedAt
+            """)
+    Optional<BookReservation> findEffectiveHoldForCopy(
+            @Param("bookCopyId") Long bookCopyId, @Param("checkedAt") OffsetDateTime checkedAt);
 
     // Positive identity user ids use negative advisory keys. This does not overlap
     // the positive barcode-sequence key. Released automatically at transaction end.

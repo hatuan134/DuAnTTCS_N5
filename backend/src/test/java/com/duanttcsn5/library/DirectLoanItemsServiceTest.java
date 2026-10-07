@@ -70,7 +70,8 @@ class DirectLoanItemsServiceTest {
         assertThat(third.bookCopyId()).isEqualTo(3L);
         assertThat(third.bookTitle()).isEqualTo("Lập trình Java");
         assertThat(third.remainingBooks()).isEqualTo(3L);
-        verifyNoInteractions(reservations);
+        verify(reservations, times(3)).findEffectiveHoldForCopy(anyLong(), any(OffsetDateTime.class));
+        verifyNoMoreInteractions(reservations);
         verify(loans, times(3)).countUnreturnedBooksForReader(12L);
         verifyNoMoreInteractions(loans);
         verify(copies, times(3)).findByBarcode(anyString());
@@ -120,7 +121,8 @@ class DirectLoanItemsServiceTest {
                         assertThat(e.getMessage()).contains("Trạng thái hiện tại: " + status[1]);
                     });
         }
-        verifyNoInteractions(reservations);
+        verify(reservations, times(statuses.length)).findEffectiveHoldForCopy(anyLong(), any(OffsetDateTime.class));
+        verifyNoMoreInteractions(reservations);
         verify(loans, times(statuses.length)).countUnreturnedBooksForReader(12L);
         verifyNoMoreInteractions(loans);
         verify(copies, never()).save(any());
@@ -139,7 +141,8 @@ class DirectLoanItemsServiceTest {
         when(bad.getStatus()).thenReturn("AVAILABLE");
         assertThat(service.previewDirectLoanItem(request("BC-2", selected.toArray(String[]::new)), 3L).barcode())
                 .isEqualTo("BC-2");
-        verifyNoInteractions(reservations);
+        verify(reservations, times(4)).findEffectiveHoldForCopy(anyLong(), any(OffsetDateTime.class));
+        verifyNoMoreInteractions(reservations);
         verify(copies, never()).save(any());
     }
 

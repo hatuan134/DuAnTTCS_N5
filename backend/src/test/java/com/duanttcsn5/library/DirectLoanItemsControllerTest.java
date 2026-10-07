@@ -30,6 +30,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import java.util.List;
 import org.springframework.http.MediaType;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -143,5 +144,44 @@ class DirectLoanItemsControllerTest {
                 .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("LOAN_DRAFT_LIMIT_EXCEEDED"));
+    }
+
+    @Test void staffReceiveOnlyTheAllowedHoldDetailsThroughTheExistingErrorContract() throws Exception {
+        String message = "Bản sao đang được đặt giữ cho bạn đọc Trần Thị Bình (đơn đặt giữ #42). "
+                + "Không thể thêm vào lượt mượn của bạn đọc khác.";
+        when(service.previewDirectLoanItem(any(), eq(12L))).thenThrow(new ApiException(HttpStatus.CONFLICT,
+                "LOAN_DRAFT_COPY_HELD_FOR_OTHER_READER", message,
+                Map.of("reservationId", 42L, "readerName", "Trần Thị Bình",
+                        "pickupDeadline", "2026-10-10T00:00+07:00", "ownReservation", false)));
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+            token(role);
+            mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                    .header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("LOAN_DRAFT_COPY_HELD_FOR_OTHER_READER"))
+                    .andExpect(jsonPath("$.message").value(message))
+                    .andExpect(jsonPath("$.details.reservationId").value(42))
+                    .andExpect(jsonPath("$.details.readerName").value("Trần Thị Bình"))
+                    .andExpect(jsonPath("$.details.ownReservation").value(false))
+                    .andExpect(jsonPath("$.details.email").doesNotExist())
+                    .andExpect(jsonPath("$.details.phone").doesNotExist())
+                    .andExpect(jsonPath("$.details.passwordHash").doesNotExist());
+        }
+    }
+
+    @Test void ownHoldExplainsThatStaffMustUseTheReservationLoanFlow() throws Exception {
+        token("LIBRARIAN");
+        String message = "Bản sao đang được đặt giữ cho chính bạn đọc Nguyễn Văn An (đơn đặt giữ #42). "
+                + "Vui lòng lập phiếu mượn từ đơn này tại mục Sách đang chờ nhận.";
+        when(service.previewDirectLoanItem(any(), eq(12L))).thenThrow(new ApiException(HttpStatus.CONFLICT,
+                "LOAN_DRAFT_COPY_HELD_FOR_CURRENT_READER", message,
+                Map.of("reservationId", 42L, "readerName", "Nguyễn Văn An",
+                        "pickupDeadline", "2026-10-10T00:00+07:00", "ownReservation", true)));
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LOAN_DRAFT_COPY_HELD_FOR_CURRENT_READER"))
+                .andExpect(jsonPath("$.message").value(message))
+                .andExpect(jsonPath("$.details.ownReservation").value(true));
     }
 }
