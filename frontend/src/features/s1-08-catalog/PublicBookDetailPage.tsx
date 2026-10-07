@@ -246,12 +246,12 @@ export default function PublicBookDetailPage() {
                       </p>
                       <div className="mt-2 flex items-baseline gap-2">
                         <span className="text-3xl font-extrabold text-slate-800">
-                          {book.copyCount}
+                          {book.copyCount + 1}
                         </span>
-                        <span className="text-xs text-slate-500">bản sao</span>
+                        <span className="text-xs text-slate-500">bản</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        Tổng số bản sao đã ghi nhận thuộc đầu sách
+                        1 bản gốc + {book.copyCount} bản sao đã ghi nhận
                       </p>
                     </div>
                   </div>

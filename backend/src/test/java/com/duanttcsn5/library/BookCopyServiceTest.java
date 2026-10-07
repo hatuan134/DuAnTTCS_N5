@@ -66,35 +66,35 @@ class BookCopyServiceTest {
         verify(copies).insertIfBarcodeAbsent(1L, "TV-001", 20L, today(), new BigDecimal("85000.00"), "GOOD");
         verify(copies, never()).nextAutoBarcodeNumber();
     }
-    @Test void autoGeneratesBarcodeFromGlobalSequence() {
+    @Test void autoGeneratesBarcodeFromWarehouseShelfAndGlobalSequence() {
         when(books.existsById(1L)).thenReturn(true);
         when(shelves.findForCopyCreation(20L)).thenReturn(Optional.of(location()));
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L);
-        when(copies.insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
-        BookCopy copy = existing("TV-000001", true);
-        when(copies.findByBarcode("TV-000001")).thenReturn(Optional.of(copy));
+        when(copies.insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
+        BookCopy copy = existing("TV-KHO-A-A01-000001", true);
+        when(copies.findByBarcode("TV-KHO-A-A01-000001")).thenReturn(Optional.of(copy));
 
         var response = service.create(1L, auto(today()));
 
-        assertEquals("TV-000001", response.barcode());
+        assertEquals("TV-KHO-A-A01-000001", response.barcode());
         verify(copies).nextAutoBarcodeNumber();
-        verify(copies).insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD");
+        verify(copies).insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD");
     }
     @Test void autoSkipsCodeAlreadyOccupiedByManualEntry() {
         when(books.existsById(1L)).thenReturn(true);
         when(shelves.findForCopyCreation(20L)).thenReturn(Optional.of(location()));
         when(copies.nextAutoBarcodeNumber()).thenReturn(1L, 2L);
-        when(copies.insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(0);
-        when(copies.insertIfBarcodeAbsent(1L, "TV-000002", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
-        BookCopy copy = existing("TV-000002", true);
-        when(copies.findByBarcode("TV-000002")).thenReturn(Optional.of(copy));
+        when(copies.insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(0);
+        when(copies.insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000002", 20L, today(), new BigDecimal("85000.00"), "GOOD")).thenReturn(1);
+        BookCopy copy = existing("TV-KHO-A-A01-000002", true);
+        when(copies.findByBarcode("TV-KHO-A-A01-000002")).thenReturn(Optional.of(copy));
 
         var response = service.create(1L, auto(today()));
 
-        assertEquals("TV-000002", response.barcode());
+        assertEquals("TV-KHO-A-A01-000002", response.barcode());
         verify(copies, times(2)).nextAutoBarcodeNumber();
-        verify(copies).insertIfBarcodeAbsent(1L, "TV-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD");
-        verify(copies).insertIfBarcodeAbsent(1L, "TV-000002", 20L, today(), new BigDecimal("85000.00"), "GOOD");
+        verify(copies).insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000001", 20L, today(), new BigDecimal("85000.00"), "GOOD");
+        verify(copies).insertIfBarcodeAbsent(1L, "TV-KHO-A-A01-000002", 20L, today(), new BigDecimal("85000.00"), "GOOD");
     }
     @Test void autoRejectsClientSuppliedBarcode() {
         when(books.existsById(1L)).thenReturn(true);

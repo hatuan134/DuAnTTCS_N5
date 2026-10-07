@@ -4,5 +4,7 @@ import java.util.List;
 
 public record BookCopySummaryResponse(
         List<BookCopyResponse> copies,
-        long availableCount
+        long availableCount,
+        long originalCount,
+        long totalCount
 ) {}

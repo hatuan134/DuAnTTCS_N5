@@ -71,24 +71,13 @@ class ReaderRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("S1-03: Đăng ký với Email đã có trong hệ thống - Từ chối lưu hồ sơ và hiện gợi ý quên mật khẩu")
+    @DisplayName("S3-00.3 - Đăng ký với Email đã có vẫn bị từ chối")
     void testRegisterReader_DuplicateEmail_ThrowsConflictWithForgotPasswordHint() {
-        // Arrange
         String existingEmail = "sv01@ictu.edu.vn";
-        ReaderRegistrationRequest request = new ReaderRegistrationRequest(
-                "Nguyen Van A",
-                existingEmail,
-                "B21DCCN001",
-                LocalDate.of(2003, 5, 15),
-                "0987654321",
-                "Ha Noi",
-                "Password123"
-        );
+        ReaderRegistrationRequest request = request(existingEmail, "MÃ-CŨ-KHÔNG-CÒN-DÙNG");
 
-        when(userRepository.existsByEmailIgnoreCase(existingEmail.toLowerCase()))
-                .thenReturn(true);
+        when(userRepository.existsByEmailIgnoreCase(existingEmail)).thenReturn(true);
 
-        // Act & Assert
         assertThatThrownBy(() -> service.registerReader(request, "127.0.0.1"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(ex -> {
@@ -101,56 +90,33 @@ class ReaderRegistrationServiceTest {
                             .contains("/forgot-password");
                 });
 
-        // Đảm bảo TUYỆT ĐỐI KHÔNG lưu hồ sơ hay người dùng vào DB
         verify(userRepository, never()).save(any(User.class));
         verify(readerProfileRepository, never()).save(any(ReaderProfile.class));
+        verify(readerProfileRepository, never()).nextMemberCodeNumber();
     }
 
     @Test
-    @DisplayName("S1-03: Đăng ký với Mã sinh viên/cán bộ đã có trong hệ thống - Từ chối lưu hồ sơ và hiện gợi ý quên mật khẩu")
-    void testRegisterReader_DuplicateMemberCode_ThrowsConflictWithForgotPasswordHint() {
-        // Arrange
-        String existingMemberCode = "B21DCCN999";
-        ReaderRegistrationRequest request = new ReaderRegistrationRequest(
-                "Tran Thi B",
-                "new.email@ictu.edu.vn",
-                existingMemberCode,
-                LocalDate.of(2002, 8, 20),
-                "0912345678",
-                "Thai Nguyen",
-                "Password123"
-        );
+    @DisplayName("S3-00.3 - Mã do client gửi lên bị bỏ qua, hệ thống tự sinh mã bạn đọc")
+    void testRegisterReader_LegacyMemberCodeIsIgnoredAndGeneratedBySystem() {
+        ReaderRegistrationRequest request = request("new.email@ictu.edu.vn", "B21DCCN999");
+        stubSuccessfulRegistration("new.email@ictu.edu.vn", 25L);
 
-        when(userRepository.existsByEmailIgnoreCase("new.email@ictu.edu.vn"))
-                .thenReturn(false);
-        when(readerProfileRepository.existsByMemberCodeIgnoreCase(existingMemberCode.toUpperCase()))
-                .thenReturn(true);
+        ReaderRegistrationResponse response = service.registerReader(request, "127.0.0.1");
 
-        // Act & Assert
-        assertThatThrownBy(() -> service.registerReader(request, "127.0.0.1"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> {
-                    ApiException apiException = (ApiException) ex;
-                    assertThat(apiException.getStatus()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(apiException.getCode()).isEqualTo("DUPLICATE_MEMBER_CODE");
-                    assertThat(apiException.getMessage())
-                            .contains(existingMemberCode)
-                            .contains("Quên mật khẩu");
-                });
-
-        // Đảm bảo TUYỆT ĐỐI KHÔNG lưu hồ sơ hay người dùng vào DB
-        verify(userRepository, never()).save(any(User.class));
-        verify(readerProfileRepository, never()).save(any(ReaderProfile.class));
+        assertThat(response.memberCode()).isEqualTo("BD000025");
+        ArgumentCaptor<ReaderProfile> profileCaptor = ArgumentCaptor.forClass(ReaderProfile.class);
+        verify(readerProfileRepository).save(profileCaptor.capture());
+        assertThat(profileCaptor.getValue().getMemberCode()).isEqualTo("BD000025");
+        assertThat(profileCaptor.getValue().getMemberCode()).isNotEqualTo("B21DCCN999");
     }
 
     @Test
-    @DisplayName("S1-03: Đăng ký với Email và Mã sinh viên mới - Thành công lưu User và ReaderProfile")
+    @DisplayName("S3-00.3 - Đăng ký thành công tự cấp mã BD theo sequence")
     void testRegisterReader_Success() {
-        // Arrange
         ReaderRegistrationRequest request = new ReaderRegistrationRequest(
                 "Le Van C",
                 "levanc@ictu.edu.vn",
-                "B21DCCN123",
+                null,
                 LocalDate.of(2003, 1, 10),
                 "0933333333",
                 "Ha Noi",
@@ -158,14 +124,12 @@ class ReaderRegistrationServiceTest {
         );
 
         when(userRepository.existsByEmailIgnoreCase("levanc@ictu.edu.vn")).thenReturn(false);
-        when(readerProfileRepository.existsByMemberCodeIgnoreCase("B21DCCN123")).thenReturn(false);
 
         Role readerRole = new Role();
         readerRole.setId(1L);
         readerRole.setCode("READER");
         readerRole.setName("Bạn đọc");
         when(roleRepository.findByCode("READER")).thenReturn(Optional.of(readerRole));
-
         when(passwordEncoder.encode("SecurePass123")).thenReturn("$2a$10$hashedPassword");
 
         User mockSavedUser = new User();
@@ -174,29 +138,21 @@ class ReaderRegistrationServiceTest {
         mockSavedUser.setEmail("levanc@ictu.edu.vn");
         mockSavedUser.setRole(readerRole);
         mockSavedUser.setStatus("ACTIVE");
-
         when(userRepository.save(any(User.class))).thenReturn(mockSavedUser);
 
-        ReaderProfile mockSavedProfile = new ReaderProfile();
-        mockSavedProfile.setUser(mockSavedUser);
-        mockSavedProfile.setMemberCode("B21DCCN123");
-        mockSavedProfile.setRegistrationStatus("PENDING");
-        mockSavedProfile.setDateOfBirth(LocalDate.of(2003, 1, 10));
+        when(readerProfileRepository.nextMemberCodeNumber()).thenReturn(1L);
+        when(readerProfileRepository.existsByMemberCodeIgnoreCase("BD000001")).thenReturn(false);
+        when(readerProfileRepository.save(any(ReaderProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(readerProfileRepository.save(any(ReaderProfile.class))).thenReturn(mockSavedProfile);
-
-        // Act
         ReaderRegistrationResponse response = service.registerReader(request, "127.0.0.1");
 
-        // Assert
         assertThat(response).isNotNull();
         assertThat(response.userId()).isEqualTo(10L);
         assertThat(response.email()).isEqualTo("levanc@ictu.edu.vn");
-        assertThat(response.memberCode()).isEqualTo("B21DCCN123");
+        assertThat(response.memberCode()).isEqualTo("BD000001");
         assertThat(response.registrationStatus()).isEqualTo("PENDING");
         assertThat(response.message()).contains("thành công");
 
-        // Verify entities were saved
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         assertThat(userCaptor.getValue().getEmail()).isEqualTo("levanc@ictu.edu.vn");
@@ -204,7 +160,7 @@ class ReaderRegistrationServiceTest {
 
         ArgumentCaptor<ReaderProfile> profileCaptor = ArgumentCaptor.forClass(ReaderProfile.class);
         verify(readerProfileRepository).save(profileCaptor.capture());
-        assertThat(profileCaptor.getValue().getMemberCode()).isEqualTo("B21DCCN123");
+        assertThat(profileCaptor.getValue().getMemberCode()).isEqualTo("BD000001");
         assertThat(profileCaptor.getValue().getRegistrationStatus()).isEqualTo("PENDING");
 
         verify(auditLogRepository).insert(
@@ -218,7 +174,7 @@ class ReaderRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("S1-03: Kiểm tra API checkDuplicate khi trùng Email")
+    @DisplayName("S1-03 - API checkDuplicate vẫn tương thích với Email")
     void testCheckDuplicate_EmailExists() {
         when(userRepository.existsByEmailIgnoreCase("test@example.com")).thenReturn(true);
 
@@ -231,7 +187,7 @@ class ReaderRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("S1-03: Kiểm tra API checkDuplicate khi trùng MemberCode")
+    @DisplayName("S1-03 - API checkDuplicate cũ vẫn tương thích với MemberCode")
     void testCheckDuplicate_MemberCodeExists() {
         when(readerProfileRepository.existsByMemberCodeIgnoreCase("CB001")).thenReturn(true);
 
@@ -244,12 +200,12 @@ class ReaderRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("S1-03: Từ chối ngày sinh vượt quá ngày hiện tại")
+    @DisplayName("S1-03 - Từ chối ngày sinh vượt quá ngày hiện tại")
     void testRegisterReader_FutureDateOfBirth_ThrowsBadRequest() {
         ReaderRegistrationRequest request = new ReaderRegistrationRequest(
                 "Nguyen Van D",
                 "future@ictu.edu.vn",
-                "B21DCCN777",
+                null,
                 LocalDate.now().plusMonths(1),
                 "0987654321",
                 "Thai Nguyen",
@@ -268,4 +224,39 @@ class ReaderRegistrationServiceTest {
         verify(readerProfileRepository, never()).save(any(ReaderProfile.class));
     }
 
+    private ReaderRegistrationRequest request(String email, String legacyMemberCode) {
+        return new ReaderRegistrationRequest(
+                "Tran Thi B",
+                email,
+                legacyMemberCode,
+                LocalDate.of(2002, 8, 20),
+                "0912345678",
+                "Thai Nguyen",
+                "Password123"
+        );
+    }
+
+    private void stubSuccessfulRegistration(String email, long memberNumber) {
+        when(userRepository.existsByEmailIgnoreCase(email)).thenReturn(false);
+
+        Role readerRole = new Role();
+        readerRole.setId(1L);
+        readerRole.setCode("READER");
+        readerRole.setName("Bạn đọc");
+        when(roleRepository.findByCode("READER")).thenReturn(Optional.of(readerRole));
+        when(passwordEncoder.encode("Password123")).thenReturn("hash");
+
+        User savedUser = new User();
+        savedUser.setId(11L);
+        savedUser.setFullName("Tran Thi B");
+        savedUser.setEmail(email);
+        savedUser.setRole(readerRole);
+        savedUser.setStatus("ACTIVE");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        String generatedCode = String.format("BD%06d", memberNumber);
+        when(readerProfileRepository.nextMemberCodeNumber()).thenReturn(memberNumber);
+        when(readerProfileRepository.existsByMemberCodeIgnoreCase(generatedCode)).thenReturn(false);
+        when(readerProfileRepository.save(any(ReaderProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 }

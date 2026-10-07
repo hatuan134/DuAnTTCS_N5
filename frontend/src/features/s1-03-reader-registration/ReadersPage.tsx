@@ -157,7 +157,7 @@ export default function ReadersPage() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm kiếm theo họ tên, email, mã sinh viên / cán bộ..."
+            placeholder="Tìm kiếm theo họ tên, email, mã bạn đọc..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
         </div>

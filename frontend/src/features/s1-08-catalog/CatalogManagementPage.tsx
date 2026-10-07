@@ -62,7 +62,6 @@ interface BookFormState {
   subtitle: string
   authorIds: number[]
   categoryId: string
-  isbn: string
   publisher: string
   publicationYear: string
   pageCount: string
@@ -91,7 +90,6 @@ const emptyBookForm: BookFormState = {
   subtitle: '',
   authorIds: [],
   categoryId: '',
-  isbn: '',
   publisher: '',
   publicationYear: '',
   pageCount: '',
@@ -130,7 +128,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
   const [bookFormError, setBookFormError] = useState('')
-  const [isbnError, setIsbnError] = useState('')
+  const [inlineAuthorName, setInlineAuthorName] = useState('')
+  const [inlineAuthorSubmitting, setInlineAuthorSubmitting] = useState(false)
   const [bookSubmitting, setBookSubmitting] = useState(false)
   const [duplicateTitleWarning, setDuplicateTitleWarning] = useState<DuplicateTitleWarningState | null>(null)
 
@@ -396,14 +395,13 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const openCreateBookModal = () => {
     setBookForm(emptyBookForm)
     setBookFormError('')
-    setIsbnError('')
+    setInlineAuthorName('')
     setDuplicateTitleWarning(null)
     setIsBookModalOpen(true)
   }
 
   const buildCatalogPayload = (confirmDuplicateTitle: boolean): CatalogBookForm | null => {
     setBookFormError('')
-    setIsbnError('')
 
     const currentYear = new Date().getFullYear()
     const publicationYear = Number(bookForm.publicationYear)
@@ -421,14 +419,8 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       setBookFormError('Vui lòng chọn thể loại cho đầu sách.')
       return null
     }
-    if (!bookForm.publisher) {
-      setBookFormError('Vui lòng chọn nhà xuất bản từ danh mục hiện có.')
-      return null
-    }
-
-    const normalizedIsbn = bookForm.isbn.trim()
-    if (normalizedIsbn && !/^(?:[0-9]{10}|[0-9]{13})$/.test(normalizedIsbn)) {
-      setIsbnError('ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.')
+    if (!bookForm.publisher.trim()) {
+      setBookFormError('Vui lòng chọn hoặc nhập nhà xuất bản.')
       return null
     }
 
@@ -446,8 +438,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       subtitle: bookForm.subtitle.trim() || undefined,
       authorIds: bookForm.authorIds,
       categoryId: Number(bookForm.categoryId),
-      isbn: normalizedIsbn || undefined,
-      publisher: bookForm.publisher,
+      publisher: bookForm.publisher.trim(),
       publicationYear,
       pageCount,
       description: bookForm.description.trim() || undefined,
@@ -473,7 +464,6 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       const msg = err.response?.data?.message || 'Đã xảy ra lỗi khi tạo hồ sơ đầu sách.'
       const code = err.response?.data?.code
       const details = err.response?.data?.details
-      const field = details?.field
 
       if (code === 'TITLE_ALREADY_EXISTS') {
         const duplicateBooks = Array.isArray(details?.duplicates) ? details.duplicates as Book[] : []
@@ -484,14 +474,37 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         })
       } else {
         setDuplicateTitleWarning(null)
-        if (field === 'isbn' || code === 'INVALID_ISBN_FORMAT' || code === 'ISBN_ALREADY_EXISTS') {
-          setIsbnError(msg)
-        } else {
-          setBookFormError(msg)
-        }
+        setBookFormError(msg)
       }
     } finally {
       setBookSubmitting(false)
+    }
+  }
+
+  const handleInlineAuthorCreate = async () => {
+    const name = inlineAuthorName.trim()
+    if (!name) {
+      setBookFormError('Vui lòng nhập tên tác giả mới.')
+      return
+    }
+    if (inlineAuthorSubmitting || bookSubmitting) return
+
+    setInlineAuthorSubmitting(true)
+    setBookFormError('')
+    try {
+      const created = await catalogService.createAuthor({ name, note: '' })
+      setAuthors((current) => [created, ...current])
+      setBookForm((current) => ({
+        ...current,
+        authorIds: current.authorIds.includes(created.id)
+          ? current.authorIds
+          : [...current.authorIds, created.id],
+      }))
+      setInlineAuthorName('')
+    } catch (err: any) {
+      setBookFormError(err.response?.data?.message || 'Không thể thêm tác giả mới.')
+    } finally {
+      setInlineAuthorSubmitting(false)
     }
   }
 
@@ -1040,7 +1053,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">Tạo hồ sơ đầu sách</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  ISBN có thể để trống; nếu nhập phải gồm đúng 10 hoặc 13 chữ số và không được trùng.
+                  Có thể thêm tác giả và nhập nhà xuất bản mới ngay tại đây; mã bản vật lý sẽ do hệ thống sinh theo kho/kệ.
                 </p>
               </div>
               <button
@@ -1124,6 +1137,34 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                     ))}
                   </select>
 
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={inlineAuthorName}
+                      onChange={(e) => {
+                        setInlineAuthorName(e.target.value)
+                        setBookFormError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void handleInlineAuthorCreate()
+                        }
+                      }}
+                      maxLength={255}
+                      placeholder="Chưa có tác giả? Nhập tên mới"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleInlineAuthorCreate()}
+                      disabled={inlineAuthorSubmitting || bookSubmitting || !inlineAuthorName.trim()}
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {inlineAuthorSubmitting ? 'Đang thêm...' : 'Thêm tác giả mới'}
+                    </button>
+                  </div>
+
                   {bookForm.authorIds.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {bookForm.authorIds.map((authorId) => {
@@ -1186,61 +1227,29 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    ISBN
+                    Nhà xuất bản <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={bookForm.isbn}
-                    onChange={(e) => {
-                      setBookForm({ ...bookForm, isbn: e.target.value })
-                      setIsbnError('')
-                      setBookFormError('')
-                    }}
-                    placeholder="Nhập ISBN 10 hoặc 13 chữ số nếu có"
-                    maxLength={50}
-                    inputMode="numeric"
-                    aria-invalid={Boolean(isbnError)}
-                    aria-describedby={isbnError ? 'book-isbn-error' : 'book-isbn-help'}
-                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none ${
-                      isbnError
-                        ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-slate-300 focus:border-blue-500'
-                    }`}
-                  />
-                  {isbnError ? (
-                    <p id="book-isbn-error" className="mt-1 text-xs font-medium text-red-600">
-                      {isbnError}
-                    </p>
-                  ) : (
-                    <p id="book-isbn-help" className="mt-1 text-[11px] text-slate-400">
-                      Có thể để trống. Nếu nhập, chỉ chấp nhận đúng 10 hoặc 13 chữ số.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Nhà xuất bản <span className="text-red-500">*</span>
-                  </label>
-                  <select
+                    list="book-publisher-options"
                     value={bookForm.publisher}
                     onChange={(e) => {
                       setBookForm({ ...bookForm, publisher: e.target.value })
                       setBookFormError('')
                     }}
                     required
+                    maxLength={255}
+                    placeholder="Chọn NXB có sẵn hoặc nhập NXB mới"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                  >
-                    <option value="">-- Chọn nhà xuất bản --</option>
+                  />
+                  <datalist id="book-publisher-options">
                     {publisherOptions.map((publisher) => (
-                      <option key={publisher} value={publisher}>{publisher}</option>
+                      <option key={publisher} value={publisher} />
                     ))}
-                  </select>
-                  {publisherOptions.length === 0 && (
-                    <p className="mt-1 text-[11px] text-amber-600">
-                      Chưa có nhà xuất bản nào trong dữ liệu đầu sách hiện tại.
-                    </p>
-                  )}
+                  </datalist>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Nếu nhà xuất bản chưa có, nhập tên mới và hệ thống sẽ lưu cùng đầu sách này.
+                  </p>
                 </div>
 
                 <div>
@@ -1315,7 +1324,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 </button>
                 <button
                   type="submit"
-                  disabled={bookSubmitting || publisherOptions.length === 0}
+                  disabled={bookSubmitting || inlineAuthorSubmitting}
                   className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {bookSubmitting ? 'Đang lưu...' : 'Lưu đầu sách'}

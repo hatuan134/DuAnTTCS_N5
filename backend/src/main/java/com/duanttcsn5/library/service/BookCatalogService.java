@@ -380,7 +380,6 @@ public class BookCatalogService {
     @Transactional
     public BookResponse catalogBook(CatalogBookRequest request, Long currentUserId, String ipAddress) {
         validateBasicBibliographicData(request);
-        String isbn = validateAndNormalizeIsbn(request.isbn());
 
         List<Author> authors = resolveAuthors(request, currentUserId, ipAddress);
 
@@ -394,11 +393,9 @@ public class BookCatalogService {
                             + "' đã ngừng sử dụng. Vui lòng chọn thể loại đang hoạt động.");
         }
 
+        // S3-00.3: cho phép nhập nhà xuất bản mới ngay trong lúc biên mục.
+        // Publisher hiện là thuộc tính của Book, không có entity riêng trong kiến trúc hiện tại.
         String publisher = request.publisher().trim();
-        if (!bookRepository.existsPublisherInCatalog(publisher)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHER_NOT_IN_CATALOG",
-                    "Nhà xuất bản '" + publisher + "' chưa có trong danh mục hiện tại. Vui lòng chọn nhà xuất bản có sẵn.");
-        }
 
         String normalizedTitle = request.title().trim();
         validateDuplicateTitleConfirmation(normalizedTitle, request.confirmDuplicateTitle());
@@ -406,7 +403,9 @@ public class BookCatalogService {
         Book book = new Book();
         book.setTitle(normalizedTitle);
         book.setSubtitle(normalizeOptional(request.subtitle()));
-        book.setIsbn(isbn);
+        // S3-00.3: thủ thư không còn nhập ISBN khi tạo đầu sách.
+        // Mã nhận diện bản vật lý được sinh ở luồng thêm bản sao theo kho/kệ.
+        book.setIsbn(null);
         // Giữ author_id là tác giả đầu tiên để tương thích dữ liệu/chức năng cũ.
         book.setAuthor(authors.get(0));
         book.setAuthors(authors);
@@ -567,31 +566,6 @@ public class BookCatalogService {
                         "duplicates", duplicateResponses,
                         "matchingRule", "So sánh nhan đề sau khi bỏ khoảng trắng đầu/cuối và không phân biệt chữ hoa/chữ thường."
                 ));
-    }
-
-    private String validateAndNormalizeIsbn(String rawIsbn) {
-        String isbn = normalizeOptional(rawIsbn);
-        if (isbn == null) {
-            return null;
-        }
-
-        if (!isbn.matches("(?:[0-9]{10}|[0-9]{13})")) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_ISBN_FORMAT",
-                    "ISBN phải gồm đúng 10 hoặc 13 chữ số và không chứa chữ cái hay ký tự đặc biệt.",
-                    Map.of("field", "isbn"));
-        }
-
-        if (bookRepository.existsByNormalizedIsbn(isbn)) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "ISBN_ALREADY_EXISTS",
-                    "ISBN '" + isbn + "' đã được sử dụng bởi một đầu sách khác.",
-                    Map.of("field", "isbn", "isbn", isbn));
-        }
-
-        return isbn;
     }
 
     private List<Author> resolveAuthors(CatalogBookRequest request, Long currentUserId, String ipAddress) {

@@ -232,7 +232,7 @@ export default function LibraryCardsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm theo họ tên, mã sinh viên / cán bộ..."
+                placeholder="Tìm theo họ tên, mã bạn đọc..."
                 className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>

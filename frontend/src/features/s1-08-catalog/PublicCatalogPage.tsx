@@ -162,9 +162,9 @@ export default function PublicCatalogPage() {
       )}
       {submittedQuery.availableOnly && (
         <button type="button" disabled={loading} onClick={() => removeFilter('availableOnly')}
-          aria-label="Xóa bộ lọc còn bản rảnh"
+          aria-label="Xóa bộ lọc còn bản sẵn sàng"
           className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 disabled:opacity-50">
-          Còn bản rảnh <X size={14} />
+          Còn bản sẵn sàng <X size={14} />
         </button>
       )}
       <button type="button" disabled={loading} onClick={clearFilters}
@@ -276,7 +276,7 @@ export default function PublicCatalogPage() {
                   onChange={(event) => setFilters((current) => ({ ...current, availableOnly: event.target.checked }))}
                   className="h-4 w-4 accent-blue-600"
                 />
-                Chỉ hiện sách còn bản rảnh
+                Chỉ hiện sách còn bản sẵn sàng
               </label>
             </fieldset>
             <p className="mt-3 text-xs text-slate-400">Chọn bộ lọc rồi bấm Tra cứu để áp dụng cùng từ khóa.</p>
@@ -387,7 +387,7 @@ export default function PublicCatalogPage() {
                       <h3 className="text-lg font-semibold text-slate-900">{book.title}</h3>
                     </div>
                     <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      {book.availableCount ?? 0} bản rảnh
+                      {book.availableCount ?? 0} bản sẵn sàng
                     </span>
                   </div>
 

@@ -85,56 +85,58 @@ class BookCopyBulkControllerTest {
 
     @Test
     void previewReturnsRangeWithoutCreating() throws Exception {
-        when(service.previewBulk(eq(1L), any())).thenReturn(
-                new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(1, "TV-000001", "TV-000010", 10));
+        when(service.previewBulk(eq(1L), any(), eq(10L), eq(20L))).thenReturn(
+                new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(1, "TV-KHO-A-A01-000001", "TV-KHO-A-A01-000010", 10));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/api/v1/books/1/copies/bulk/preview").param("quantity", "10"))
+                        .get("/api/v1/books/1/copies/bulk/preview")
+                        .param("quantity", "10").param("warehouseId", "10").param("shelfId", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.startBarcode").value("TV-000001"))
-                .andExpect(jsonPath("$.endBarcode").value("TV-000010"))
+                .andExpect(jsonPath("$.startBarcode").value("TV-KHO-A-A01-000001"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-KHO-A-A01-000010"))
                 .andExpect(jsonPath("$.quantity").value(10));
         org.mockito.Mockito.verify(service, org.mockito.Mockito.never()).createBulk(any(), any());
     }
 
     @Test
     void serializesSkippedBarcodesAndActualRangeBeforeAndAfterCreation() throws Exception {
-        var skipped = java.util.List.of("TV-000001", "TV-000003");
-        when(service.previewBulk(eq(1L), any())).thenReturn(
+        var skipped = java.util.List.of("TV-KHO-A-A01-000001", "TV-KHO-A-A01-000003");
+        when(service.previewBulk(eq(1L), any(), eq(10L), eq(20L))).thenReturn(
                 new com.duanttcsn5.library.dto.bookcopy.BulkBarcodePreviewResponse(
-                        1, "TV-000002", "TV-000007", 5, skipped));
+                        1, "TV-KHO-A-A01-000002", "TV-KHO-A-A01-000007", 5, skipped));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/api/v1/books/1/copies/bulk/preview").param("quantity", "5"))
+                        .get("/api/v1/books/1/copies/bulk/preview")
+                        .param("quantity", "5").param("warehouseId", "10").param("shelfId", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.startNumber").value(1))
-                .andExpect(jsonPath("$.startBarcode").value("TV-000002"))
-                .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
-                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
-                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"));
+                .andExpect(jsonPath("$.startBarcode").value("TV-KHO-A-A01-000002"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-KHO-A-A01-000007"))
+                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-KHO-A-A01-000001"))
+                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-KHO-A-A01-000003"));
         var createdCopies = java.util.List.of(
-                createdCopy("TV-000002"),
-                createdCopy("TV-000004"),
-                createdCopy("TV-000005"),
-                createdCopy("TV-000006"),
-                createdCopy("TV-000007")
+                createdCopy("TV-KHO-A-A01-000002"),
+                createdCopy("TV-KHO-A-A01-000004"),
+                createdCopy("TV-KHO-A-A01-000005"),
+                createdCopy("TV-KHO-A-A01-000006"),
+                createdCopy("TV-KHO-A-A01-000007")
         );
         when(service.createBulk(eq(1L), any())).thenReturn(
-                new BulkCreateBookCopiesResponse(5, "TV-000002", "TV-000007", skipped, createdCopies));
+                new BulkCreateBookCopiesResponse(5, "TV-KHO-A-A01-000002", "TV-KHO-A-A01-000007", skipped, createdCopies));
         mvc.perform(post("/api/v1/books/1/copies/bulk").contentType(MediaType.APPLICATION_JSON)
                         .content(valid(5).replace("\"expectedSkippedBarcodes\":[]",
-                                "\"expectedSkippedBarcodes\":[\"TV-000001\",\"TV-000003\"]")))
+                                "\"expectedSkippedBarcodes\":[\"TV-KHO-A-A01-000001\",\"TV-KHO-A-A01-000003\"]")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.createdCount").value(5))
-                .andExpect(jsonPath("$.startBarcode").value("TV-000002"))
-                .andExpect(jsonPath("$.endBarcode").value("TV-000007"))
-                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-000001"))
-                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-000003"))
+                .andExpect(jsonPath("$.startBarcode").value("TV-KHO-A-A01-000002"))
+                .andExpect(jsonPath("$.endBarcode").value("TV-KHO-A-A01-000007"))
+                .andExpect(jsonPath("$.skippedBarcodes[0]").value("TV-KHO-A-A01-000001"))
+                .andExpect(jsonPath("$.skippedBarcodes[1]").value("TV-KHO-A-A01-000003"))
                 .andExpect(jsonPath("$.createdCopies.length()").value(5))
-                .andExpect(jsonPath("$.createdCopies[0].barcode").value("TV-000002"))
+                .andExpect(jsonPath("$.createdCopies[0].barcode").value("TV-KHO-A-A01-000002"))
                 .andExpect(jsonPath("$.createdCopies[0].bookId").value(1))
                 .andExpect(jsonPath("$.createdCopies[0].warehouseCode").value("KHO-A"))
                 .andExpect(jsonPath("$.createdCopies[0].shelfCode").value("A01"))
                 .andExpect(jsonPath("$.createdCopies[0].receivedDate").value("2026-09-30"))
-                .andExpect(jsonPath("$.createdCopies[4].barcode").value("TV-000007"));
+                .andExpect(jsonPath("$.createdCopies[4].barcode").value("TV-KHO-A-A01-000007"));
         var request = org.mockito.ArgumentCaptor.forClass(
                 com.duanttcsn5.library.dto.bookcopy.BulkCreateBookCopiesRequest.class);
         org.mockito.Mockito.verify(service).createBulk(eq(1L), request.capture());

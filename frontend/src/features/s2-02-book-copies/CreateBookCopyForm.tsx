@@ -103,7 +103,7 @@ export default function CreateBookCopyForm({ bookId, bookTitle, onCancel }: {
                 onChange={() => changeBarcodeMode('AUTO')} className="mt-1 h-4 w-4" />
               <span>
                 <span className="block font-semibold text-slate-900">Hệ thống sinh mã</span>
-                <span className="mt-1 block text-sm text-slate-600">Tự cấp mã duy nhất toàn hệ thống theo dãy TV-000001, TV-000002…</span>
+                <span className="mt-1 block text-sm text-slate-600">Tự cấp mã duy nhất theo kho, kệ và số thứ tự, ví dụ TV-KHO-A-A01-000001.</span>
               </span>
             </label>
             <label className={modeClass(barcodeMode === 'MANUAL')}>
@@ -120,7 +120,7 @@ export default function CreateBookCopyForm({ bookId, bookTitle, onCancel }: {
             {barcodeMode === 'MANUAL' && <Input id="copy-barcode" label="Mã vạch *" value={barcode} maxLength={100} required autoComplete="off"
               onChange={e => { setBarcode(e.target.value); setDuplicate(undefined); setError('') }} placeholder="Ví dụ: TV-000125" />}
             {barcodeMode === 'AUTO' && <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-              Không cần nhập mã vạch. Hệ thống sẽ cấp số tiếp theo và tự bỏ qua mã trong dãy nếu mã đó đã tồn tại.
+              Không cần nhập mã vạch. Sau khi chọn kho và kệ, hệ thống tự ghép mã kho, mã kệ và số thứ tự duy nhất; nếu mã đã tồn tại thì tự chuyển sang số tiếp theo.
             </div>}
             <div>
               <label htmlFor="copy-condition" className="mb-2 block text-sm font-medium text-slate-700">Tình trạng vật lý *</label>

@@ -121,7 +121,6 @@ export interface CatalogBookForm {
   subtitle?: string
   authorIds: number[]
   categoryId: number
-  isbn?: string
   publisher: string
   publicationYear: number
   pageCount: number

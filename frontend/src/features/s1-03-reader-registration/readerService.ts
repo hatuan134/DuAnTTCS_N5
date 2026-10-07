@@ -12,7 +12,6 @@ export interface DuplicateCheckResponse {
 export interface ReaderRegistrationRequest {
   fullName: string
   email: string
-  memberCode: string
   dateOfBirth: string
   phone?: string
   address?: string

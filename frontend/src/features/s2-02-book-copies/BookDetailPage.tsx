@@ -313,11 +313,24 @@ export default function BookDetailPage() {
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
-                className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900"
+                className="mt-4 grid gap-3 sm:grid-cols-2"
               >
-                <span className="font-medium">Tổng số bản đang Sẵn sàng:</span>
-                <strong className="text-3xl">{summary.availableCount}</strong>
-                <span className="text-sm">bản có thể cho mượn</span>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900">
+                  <div className="text-sm font-medium">Tổng số bản</div>
+                  <div className="mt-1 flex items-end gap-2">
+                    <strong className="text-3xl">{summary.totalCount}</strong>
+                    <span className="pb-1 text-sm">bản</span>
+                  </div>
+                  <p className="mt-1 text-xs">1 bản gốc + {summary.copies.length} bản sao đã nhập.</p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
+                  <div className="text-sm font-medium">Số bản sẵn sàng</div>
+                  <div className="mt-1 flex items-end gap-2">
+                    <strong className="text-3xl">{summary.availableCount}</strong>
+                    <span className="pb-1 text-sm">bản có thể cho mượn</span>
+                  </div>
+                  <p className="mt-1 text-xs">Chỉ tính các bản sao có trạng thái Sẵn sàng.</p>
+                </div>
               </div>
               <p className="mt-2 text-xs text-slate-500">
                 Tự cập nhật mỗi 10 giây khi đang xem trang và khi quay lại cửa sổ.

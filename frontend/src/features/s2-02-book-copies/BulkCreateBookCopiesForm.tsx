@@ -76,11 +76,15 @@ export default function BulkCreateBookCopiesForm({
     setReviewing(false)
     const count = Number(quantity)
     if (!/^\d+$/.test(quantity) || !Number.isSafeInteger(count) || count < 1 || count > 50) return
+    const selectedWarehouseId = Number(warehouseId)
+    const selectedShelfId = Number(shelfId)
+    if (!Number.isSafeInteger(selectedWarehouseId) || selectedWarehouseId < 1
+      || !Number.isSafeInteger(selectedShelfId) || selectedShelfId < 1) return
     async function updatePreview() {
       if (submitting.current || pending) return
       pending = true
       try {
-        const result = await bookCopyService.previewBulk(bookId, count)
+        const result = await bookCopyService.previewBulk(bookId, count, selectedWarehouseId, selectedShelfId)
         if (!active || submitting.current) return
         const signature = JSON.stringify(result)
         if (lastPreview !== undefined && lastPreview !== signature) setReviewing(false)
