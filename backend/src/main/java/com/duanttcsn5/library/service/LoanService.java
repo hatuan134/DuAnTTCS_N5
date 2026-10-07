@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
@@ -260,6 +261,64 @@ public class LoanService {
     private ApiException invalidCopy() {
         return new ApiException(HttpStatus.CONFLICT, "RESERVATION_COPY_CONFLICT",
                 "Đơn không có bản sao đang giữ hợp lệ. Vui lòng tải lại và đối chiếu dữ liệu.");
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ReaderLoanEligibilityResponse readerEligibility(String cardNumber, Long actorId) {
+        requireStaff(actorId);
+        String number = cardNumber == null ? "" : cardNumber.strip();
+        if (number.isEmpty() || number.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CARD_NUMBER",
+                    "Vui lòng nhập mã thẻ từ 1 đến 100 ký tự.");
+        }
+        LibraryCard card = cards.findByCardNumberWithDetails(number).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND",
+                        "Không tìm thấy bạn đọc với mã thẻ này. Vui lòng kiểm tra lại mã thẻ."));
+        var reader = card.getUser();
+        var type = card.getCardType();
+        if (reader == null || type == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_DETAILS_MISSING",
+                    "Thẻ thiếu thông tin bạn đọc hoặc loại thẻ. Vui lòng kiểm tra hồ sơ thẻ.");
+        }
+        long borrowed = loans.countUnreturnedBooksForReader(reader.getId());
+        int maxBooks = type.getMaxBooks();
+        long remaining = Math.max(0L, (long) maxBooks - borrowed);
+        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        String reason = "ELIGIBLE";
+        String message = "Bạn đọc đủ điều kiện mượn thêm " + remaining + " sách.";
+        if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
+            reason = "READER_ROLE_REQUIRED";
+            message = "Chủ thẻ không còn vai trò Bạn đọc. Vui lòng kiểm tra tài khoản.";
+        } else if (!"ACTIVE".equals(reader.getStatus())) {
+            reason = "READER_ACCOUNT_INACTIVE";
+            message = "Tài khoản Bạn đọc không hoạt động. Không thể tiếp tục mượn sách.";
+        } else if ("LOCKED".equals(card.getStatus())) {
+            reason = "LIBRARY_CARD_LOCKED";
+            message = "Thẻ thư viện đang bị khóa. Vui lòng liên hệ người quản lý thẻ.";
+        } else if ("EXPIRED".equals(card.getStatus())
+                || (card.getExpiresAt() != null && card.getExpiresAt().isBefore(today))) {
+            reason = "LIBRARY_CARD_EXPIRED";
+            message = "Thẻ thư viện đã hết hạn. Vui lòng gia hạn thẻ trước khi mượn sách.";
+        } else if (!"ACTIVE".equals(card.getStatus()) || card.getExpiresAt() == null) {
+            reason = "LIBRARY_CARD_INACTIVE";
+            message = "Thẻ thư viện không ở trạng thái hoạt động hoặc thiếu hạn thẻ.";
+        } else if (card.getIssuedAt() == null || card.getIssuedAt().isAfter(today)) {
+            reason = "LIBRARY_CARD_NOT_YET_VALID";
+            message = "Thẻ thư viện chưa có ngày cấp hợp lệ hoặc chưa đến ngày có hiệu lực.";
+        } else if (!type.isActive()) {
+            reason = "CARD_TYPE_INACTIVE";
+            message = "Loại thẻ đã ngừng hoạt động. Vui lòng kiểm tra chính sách mượn.";
+        } else if (maxBooks < 0 || maxBooks > 10) {
+            reason = "LOAN_POLICY_NOT_CONFIGURED";
+            message = "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.";
+        } else if (remaining == 0) {
+            reason = "LOAN_LIMIT_REACHED";
+            message = "Bạn đọc đã đạt giới hạn mượn của loại thẻ. Vui lòng trả sách trước khi mượn thêm.";
+        }
+        boolean eligible = "ELIGIBLE".equals(reason);
+        return new ReaderLoanEligibilityResponse(reader.getId(), reader.getFullName(), card.getCardNumber(),
+                type.getName(), card.getStatus(), card.getExpiresAt(), maxBooks, borrowed,
+                eligible ? remaining : 0L, eligible, reason, message);
     }
 
     @Transactional(readOnly = true)
