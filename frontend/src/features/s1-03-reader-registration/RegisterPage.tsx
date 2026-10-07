@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
@@ -22,6 +21,7 @@ import {
   User,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { readerService } from './readerService'
 import type { ReaderRegistrationResponse } from './readerService'
 
@@ -427,10 +427,12 @@ export default function RegisterPage() {
 
                 {/* Lỗi chung khác */}
                 {generalError && (
-                  <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                    <span>{generalError}</span>
-                  </div>
+                  <FeedbackAlert
+                    message={generalError}
+                    tone="error"
+                    onDismiss={() => setGeneralError('')}
+                    className="mt-5"
+                  />
                 )}
 
                 {/* Form fields */}

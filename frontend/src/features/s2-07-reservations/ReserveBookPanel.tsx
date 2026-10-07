@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import axios from 'axios'
 import { Bookmark, LogIn } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { getAccessToken, getCurrentUser } from '../../core/auth/authStorage'
 import { reservationService } from './reservationService'
 import type { BookReservation } from './reservationService'
@@ -65,7 +66,7 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
         mỗi đầu sách chỉ được có một đơn trong các trạng thái này.
         Bạn không thể đặt giữ đầu sách đang mượn chưa trả; hãy trả hết các bản của đầu sách đó trước khi đặt giữ.
       </p>
-      {reason && <p role="alert" className="mt-3 text-sm text-amber-800">{reason}</p>}
+      {reason && <p role="alert" className="mt-3 text-sm font-medium text-red-700">{reason}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => void reserve()} disabled={!roleAllowed || submitting}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -83,7 +84,7 @@ export default function ReserveBookPanel({ bookId, onReserved }: Props) {
           </Link>
         )}
       </div>
-      {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} className="mt-4" />}
       {reservation && (
         <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <p className="font-semibold">{reservation.message}</p>

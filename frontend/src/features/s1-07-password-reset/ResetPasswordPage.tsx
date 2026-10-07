@@ -14,6 +14,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import { passwordResetService } from './passwordResetService'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { clearAuthSession } from '../../core/auth/authStorage'
 
 type TokenState = 'valid' | 'invalid' | 'expired' | 'used'
@@ -335,9 +336,7 @@ export default function ResetPasswordPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                {error}
-              </div>
+              <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
             )}
 
             <button

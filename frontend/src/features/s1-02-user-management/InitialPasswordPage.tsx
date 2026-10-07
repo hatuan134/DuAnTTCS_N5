@@ -17,6 +17,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import AuthLayout from '../../layouts/AuthLayout'
 
 import {
@@ -225,9 +226,7 @@ export default function InitialPasswordPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
+              <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
             )}
 
             <button

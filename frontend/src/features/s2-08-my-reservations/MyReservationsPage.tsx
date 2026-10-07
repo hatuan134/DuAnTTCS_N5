@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -104,7 +105,7 @@ export default function MyReservationsPage() {
     }
   }
 
-  if (!allowed) return <p role="alert">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
 
   const activeCount = items.filter((item) => ['PENDING', 'READY_FOR_PICKUP'].includes(item.status)).length
 
@@ -118,8 +119,8 @@ export default function MyReservationsPage() {
         Ngày giờ theo Việt Nam (UTC+7). Vị trí được tính trong hàng đợi của từng đầu sách.
         {' '}Nhấn Làm mới hoặc quay lại cửa sổ để cập nhật.
       </p>
-      {success && <div role="status" className="mb-4 rounded-lg bg-green-50 p-4 text-green-800">{success}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">{actionError}</div>}
+      {success && <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} className="mb-4" />}
+      {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} className="mb-4" />}
       {confirming && <Card className="mb-4 border border-red-200 p-5">
         <h2 className="font-semibold text-slate-900">Xác nhận huỷ đặt giữ</h2>
         <p className="my-3 text-sm text-slate-700">

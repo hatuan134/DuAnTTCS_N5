@@ -3,7 +3,6 @@ import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
   AlertCircle,
-  CheckCircle2,
   CreditCard,
   History,
   Pencil,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 import LoadingState from '../../components/ui/LoadingState'
@@ -130,15 +130,6 @@ export default function CardTypesPage() {
       setLoading(false)
     }
   }, [canRead])
-
-  // Tự động ẩn thông báo thành công sau 4 giây
-  useEffect(() => {
-    if (!successMessage) return
-    const timer = setTimeout(() => {
-      setSuccessMessage('')
-    }, 4000)
-    return () => clearTimeout(timer)
-  }, [successMessage])
 
   const openCreateModal = () => {
     setEditingId(null)
@@ -304,7 +295,7 @@ export default function CardTypesPage() {
           title="Chính sách mượn"
           description="Xem quy định mượn và gia hạn sách theo từng loại thẻ."
         />
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
           Tài khoản hiện tại không có quyền xem chính sách mượn.
         </div>
       </div>
@@ -349,35 +340,19 @@ export default function CardTypesPage() {
 
       {/* THÔNG BÁO GLOBAL */}
       {globalError && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">
-          <div className="flex items-center gap-3">
-            <AlertCircle size={20} className="shrink-0 text-red-600" />
-            <span>{globalError}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setGlobalError('')}
-            className="rounded p-1 text-red-600 hover:bg-red-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <FeedbackAlert
+          message={globalError}
+          tone="error"
+          onDismiss={() => setGlobalError('')}
+        />
       )}
 
       {successMessage && (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
-            <span>{successMessage}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessMessage('')}
-            className="rounded p-1 text-emerald-600 hover:bg-emerald-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <FeedbackAlert
+          message={successMessage}
+          tone="success"
+          onDismiss={() => setSuccessMessage('')}
+        />
       )}
 
       {/* THỐNG KÊ */}

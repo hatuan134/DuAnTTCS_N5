@@ -16,7 +16,7 @@ export default function ReadyPickupDetailPage() {
   const id = Number(reservationId)
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
 
-  if (!allowed) return <p role="alert">Bạn không có quyền xem đơn đặt giữ đang chờ nhận.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem đơn đặt giữ đang chờ nhận.</p>
   if (!Number.isSafeInteger(id) || id < 1) return <div>
     <Link to="/reservations/ready-for-pickup" className="text-blue-600 hover:underline">← Sách đang chờ nhận</Link>
     <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">Mã đơn đặt giữ không hợp lệ.</p>

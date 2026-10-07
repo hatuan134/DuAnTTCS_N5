@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import BookCoverImage from '../s2-10-book-cover/BookCoverImage'
+import BookCoverEditorDialog from '../s2-10-book-cover/BookCoverEditorDialog'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { getCurrentUser } from '../../core/auth/authStorage'
@@ -30,10 +32,12 @@ function locationLabel(copy: BookCopy) {
 export default function BookDetailPage() {
   const { bookId } = useParams()
   const location = useLocation()
-  const successMessage = (location.state as { successMessage?: string } | null)?.successMessage
+  const routeState = location.state as { successMessage?: string; openCoverEditor?: boolean } | null
   const id = Number(bookId)
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [book, setBook] = useState<Book | null>(null)
+  const [notice, setNotice] = useState(routeState?.successMessage ?? '')
+  const [coverEditorOpen, setCoverEditorOpen] = useState(Boolean(routeState?.openCoverEditor))
   const [summary, setSummary] = useState<BookCopySummary | null>(null)
   const [refreshError, setRefreshError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -110,7 +114,7 @@ export default function BookDetailPage() {
 
   useEffect(() => { setBulkSuccess(null) }, [id])
 
-  if (!allowed) return <p role="alert">Bạn không có quyền truy cập chức năng này.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền truy cập chức năng này.</p>
 
   if (bulkSuccess && book && book.id === id) {
     return (
@@ -139,13 +143,13 @@ export default function BookDetailPage() {
         description="Xem đầy đủ thông tin thư mục của đầu sách và các bản sao cá biệt hiện có."
       />
 
-      {successMessage && (
-        <div
-          role="status"
-          className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
-        >
-          {successMessage}
-        </div>
+      {notice && (
+        <FeedbackAlert
+          message={notice}
+          tone="success"
+          onDismiss={() => setNotice('')}
+          className="mb-5"
+        />
       )}
 
       {error && (
@@ -176,10 +180,16 @@ export default function BookDetailPage() {
               <p className="mt-1 text-sm font-medium text-slate-500">{book.subtitle}</p>
             )}
             {book.coverImageUrl && <BookCoverImage bookId={book.id} url={book.coverImageUrl} title={book.title} />}
-            {allowed && <Link to={`/books/${book.id}/cover/edit`}
-              className="mt-4 inline-block rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-slate-50">
-              Chỉnh sửa ảnh bìa
-            </Link>}
+            {allowed && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="mt-4"
+                onClick={() => setCoverEditorOpen(true)}
+              >
+                Chỉnh sửa ảnh bìa
+              </Button>
+            )}
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
               {[
                 ['Mã đầu sách', `#${book.id}`],
@@ -283,10 +293,12 @@ export default function BookDetailPage() {
                 Tự cập nhật mỗi 10 giây khi đang xem trang và khi quay lại cửa sổ.
               </p>
               {refreshError && (
-                <div role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-                  Chưa cập nhật được dữ liệu. Bảng và tổng đang hiển thị lần tải thành công gần nhất.
-                  {' '}{refreshError} Nhấn “Làm mới” để thử lại.
-                </div>
+                <FeedbackAlert
+                  message={`Chưa cập nhật được dữ liệu. Bảng và tổng đang hiển thị lần tải thành công gần nhất. ${refreshError} Nhấn “Làm mới” để thử lại.`}
+                  tone="error"
+                  onDismiss={() => setRefreshError('')}
+                  className="mt-3"
+                />
               )}
             </div>
 
@@ -351,6 +363,18 @@ export default function BookDetailPage() {
             )}
           </Card>
         </>
+      )}
+
+      {book && coverEditorOpen && (
+        <BookCoverEditorDialog
+          book={book}
+          onClose={() => setCoverEditorOpen(false)}
+          onSaved={(message) => {
+            setCoverEditorOpen(false)
+            setNotice(message)
+            setReload((value) => value + 1)
+          }}
+        />
       )}
     </div>
   )

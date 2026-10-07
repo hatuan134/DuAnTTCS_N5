@@ -12,7 +12,6 @@ import {
   AlertCircle,
   AlertTriangle,
   BookOpen,
-  CheckCircle2,
   CornerDownRight,
   Pencil,
   Plus,
@@ -27,8 +26,10 @@ import {
 
 import { Link, useNavigate } from 'react-router-dom'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
+import BookCoverEditorDialog from '../s2-10-book-cover/BookCoverEditorDialog'
 import {
   catalogService,
   type Author,
@@ -105,6 +106,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [coverBook, setCoverBook] = useState<Book | null>(null)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -175,9 +177,6 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
   const showNotification = (msg: string) => {
     setSuccessMessage(msg)
-    setTimeout(() => {
-      setSuccessMessage(null)
-    }, 4000)
   }
 
   // --- Author Actions ---
@@ -609,26 +608,19 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
       {/* Notifications */}
       {successMessage && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
-          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
+        <FeedbackAlert
+          message={successMessage}
+          tone="success"
+          onDismiss={() => setSuccessMessage(null)}
+        />
       )}
 
       {apiError && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={18} className="text-red-600 shrink-0" />
-            <span>{apiError}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setApiError(null)}
-            className="text-red-500 hover:text-red-700"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <FeedbackAlert
+          message={apiError}
+          tone="error"
+          onDismiss={() => setApiError(null)}
+        />
       )}
 
       {/* Tabs navigation */}
@@ -848,6 +840,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
           <BooksTable
             items={filteredBooks}
             onOpenCatalogModal={openCreateBookModal}
+            onEditCover={setCoverBook}
           />
         )}
       </Card>
@@ -1443,6 +1436,18 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         </div>
       )}
 
+      {coverBook && (
+        <BookCoverEditorDialog
+          book={coverBook}
+          onClose={() => setCoverBook(null)}
+          onSaved={(message) => {
+            setCoverBook(null)
+            showNotification(message)
+            void loadData()
+          }}
+        />
+      )}
+
       {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
       {deleteDialog.open && deleteDialog.item && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
@@ -1782,9 +1787,10 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
 interface BooksTableProps {
   items: Book[]
   onOpenCatalogModal: () => void
+  onEditCover: (book: Book) => void
 }
 
-function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
+function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps) {
   if (items.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -1838,9 +1844,13 @@ function BooksTable({ items, onOpenCatalogModal }: BooksTableProps) {
                       {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                     </div>
                     <div className="mt-2">
-                      <Link to={`/books/${book.id}/cover/edit`} className="text-xs font-semibold text-blue-600 hover:underline">
+                      <button
+                        type="button"
+                        onClick={() => onEditCover(book)}
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
                         Chỉnh sửa ảnh bìa
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -74,7 +74,7 @@ export default function ReadyPickupPage() {
     setRevision((value) => value + 1)
   }
 
-  if (!allowed) return <p role="alert">Bạn không có quyền xem danh sách sách đang chờ nhận.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem danh sách sách đang chờ nhận.</p>
 
   return (
     <div>

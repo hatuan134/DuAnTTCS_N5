@@ -17,7 +17,7 @@ export default function BookReservationQueuePage() {
   const id = Number(bookId)
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
 
-  if (!allowed) return <p role="alert">Bạn không có quyền xem hàng đợi đặt giữ đầu sách.</p>
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Bạn không có quyền xem hàng đợi đặt giữ đầu sách.</p>
   if (!Number.isSafeInteger(id) || id < 1) return <div>
     <Link to="/cataloging" className="text-blue-600 hover:underline">← Sách đã biên mục</Link>
     <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">Mã đầu sách không hợp lệ.</p>

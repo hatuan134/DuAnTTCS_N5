@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import {
@@ -78,7 +79,7 @@ export default function LibrarySettingsPage({ mode }: Props) {
           title="Cấu hình thư viện"
           description="Chức năng dành cho Quản lý thư viện."
         />
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
           Tài khoản hiện tại không có quyền khai báo kho, kệ hoặc lịch đóng cửa.
         </div>
       </div>
@@ -255,7 +256,12 @@ function WarehouseShelfPage() {
         description="Khai báo kho, kệ và kiểm soát kệ đang có bản sao sách."
       />
 
-      <Feedback error={error} notice={notice} />
+      <Feedback
+        error={error}
+        notice={notice}
+        onDismissError={() => setError('')}
+        onDismissNotice={() => setNotice('')}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Tổng số kho" value={warehouses.length} />
@@ -564,7 +570,12 @@ function LibraryCalendarPage() {
         description="Khai báo lịch làm việc theo tuần, ngày nghỉ cụ thể và kiểm tra hạn trả tự động."
       />
 
-      <Feedback error={error} notice={notice} />
+      <Feedback
+        error={error}
+        notice={notice}
+        onDismissError={() => setError('')}
+        onDismissNotice={() => setNotice('')}
+      />
 
       <Card>
         <SectionHeader
@@ -725,11 +736,21 @@ function LibraryCalendarPage() {
   )
 }
 
-function Feedback({ error, notice }: { error: string; notice: string }) {
+function Feedback({
+  error,
+  notice,
+  onDismissError,
+  onDismissNotice,
+}: {
+  error: string
+  notice: string
+  onDismissError: () => void
+  onDismissNotice: () => void
+}) {
   return (
     <>
-      {error && <ErrorBox message={error} />}
-      {notice && <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
+      {error && <FeedbackAlert message={error} tone="error" onDismiss={onDismissError} />}
+      {notice && <FeedbackAlert message={notice} tone="success" onDismiss={onDismissNotice} />}
     </>
   )
 }

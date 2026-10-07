@@ -7,7 +7,6 @@ import {
 import type { FormEvent } from 'react'
 
 import {
-  CheckCircle2,
   LockKeyhole,
   Pencil,
   Plus,
@@ -22,6 +21,7 @@ import {
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
@@ -371,16 +371,21 @@ export default function UserManagementPage() {
       />
 
       {success && (
-        <div className="mb-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
-          <span>{success}</span>
-        </div>
+        <FeedbackAlert
+          message={success}
+          tone="success"
+          onDismiss={() => setSuccess('')}
+          className="mb-5"
+        />
       )}
 
       {error && (
-        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <FeedbackAlert
+          message={error}
+          tone="error"
+          onDismiss={() => setError('')}
+          className="mb-5"
+        />
       )}
 
       <div className="mb-5 grid gap-4 sm:grid-cols-3">

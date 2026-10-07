@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import axios from 'axios'
 import {
   CalendarDays,
-  CheckCircle2,
   CreditCard,
   FilterX,
   RefreshCw,
@@ -14,6 +13,7 @@ import {
 import { Navigate } from 'react-router-dom'
 
 import Button from '../../components/ui/Button'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 
@@ -194,12 +194,10 @@ export default function LibraryCardsPage() {
       </div>
 
       {success && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          <CheckCircle2 size={18} /> {success}
-        </div>
+        <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} />
       )}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
       )}
 
       <div className="flex gap-2 rounded-xl border border-slate-200 bg-white p-2">
