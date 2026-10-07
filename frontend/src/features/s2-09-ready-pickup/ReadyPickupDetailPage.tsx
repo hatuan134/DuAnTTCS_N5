@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
+import CreateReservationLoanPanel from './CreateReservationLoanPanel'
 import CancelReservationPanel, { CancellationNotice } from './CancelReservationPanel'
 import Card from '../../components/ui/Card'
 import LoadingState from '../../components/ui/LoadingState'
@@ -32,6 +33,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
   const [reload, setReload] = useState(0)
+  const [creatingLoan, setCreatingLoan] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -76,7 +78,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
           <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
           <StatusBadge status="READY_FOR_PICKUP" label="Đang chờ nhận" />
         </div>
-        <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen}
+        <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan || item.converted}
           aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>
         <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
           <div>
@@ -103,6 +105,10 @@ function ReadyPickupDetail({ id }: { id: number }) {
             <dd className="mt-1 font-medium text-slate-900">{formatPickupDate(item.reservedAt)}</dd>
           </div>
         </dl>
+        <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
+          onBusyChange={setCreatingLoan}
+          onSuccess={(result) => setItem((current) => current ? { ...current, converted: true, loanNumber: result.loanNumber } : current)}
+          onAlreadyConverted={() => setItem((current) => current ? { ...current, converted: true } : current)} />
         {(!item.barcode || !item.pickupDeadline) && <p role="status"
           className="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           Đơn cũ chưa có đủ thông tin bản sao hoặc hạn nhận. Cần đối chiếu dữ liệu trước khi đưa sách lên giá chờ nhận.
