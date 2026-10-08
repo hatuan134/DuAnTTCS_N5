@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
+import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse.BlockReason;
 import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
 import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
 import com.duanttcsn5.library.dto.loan.CreateDirectLoanRequest;
@@ -218,6 +219,11 @@ public class LoanService {
             // Commit only the intended EXPIRED/AVAILABLE transition, then return HTTP 409.
             throw new ReservationPickupExpiredException(reservationId);
         }
+        // S3-03.2: reservation conversions are loans too; never bypass card/overdue checks.
+        var cardBlockReasons = cardAndOverdueReasons(card, readerId,
+                LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE));
+        if (!cardBlockReasons.isEmpty()) throw new ApiException(HttpStatus.CONFLICT,
+                cardBlockReasons.get(0).code(), joinReasons(cardBlockReasons));
         LoanDatePreviewResponse dates = calculateDates(card, borrowedAt);
         if ((expectedBorrowDate != null && !expectedBorrowDate.equals(dates.borrowDate()))
                 || (expectedDueAt != null && !expectedDueAt.isEqual(dates.dueAt()))
@@ -505,42 +511,69 @@ public class LoanService {
         int maxBooks = type.getMaxBooks();
         long remaining = Math.max(0L, (long) maxBooks - borrowed);
         LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
-        String reason = "ELIGIBLE";
-        String message = "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
-                + " sách. Có thể mượn thêm " + remaining + " sách.";
+        List<BlockReason> reasons = new ArrayList<>();
         if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
-            reason = "READER_ROLE_REQUIRED";
-            message = "Chủ thẻ không còn vai trò Bạn đọc. Vui lòng kiểm tra tài khoản.";
-        } else if (!"ACTIVE".equals(reader.getStatus())) {
-            reason = "READER_ACCOUNT_INACTIVE";
-            message = "Tài khoản Bạn đọc không hoạt động. Không thể tiếp tục mượn sách.";
-        } else if ("LOCKED".equals(card.getStatus())) {
-            reason = "LIBRARY_CARD_LOCKED";
-            message = "Thẻ thư viện đang bị khóa. Vui lòng liên hệ người quản lý thẻ.";
-        } else if ("EXPIRED".equals(card.getStatus())
-                || (card.getExpiresAt() != null && card.getExpiresAt().isBefore(today))) {
-            reason = "LIBRARY_CARD_EXPIRED";
-            message = "Thẻ thư viện đã hết hạn. Vui lòng gia hạn thẻ trước khi mượn sách.";
-        } else if (!"ACTIVE".equals(card.getStatus()) || card.getExpiresAt() == null) {
-            reason = "LIBRARY_CARD_INACTIVE";
-            message = "Thẻ thư viện không ở trạng thái hoạt động hoặc thiếu hạn thẻ.";
-        } else if (card.getIssuedAt() == null || card.getIssuedAt().isAfter(today)) {
-            reason = "LIBRARY_CARD_NOT_YET_VALID";
-            message = "Thẻ thư viện chưa có ngày cấp hợp lệ hoặc chưa đến ngày có hiệu lực.";
-        } else if (!type.isActive()) {
-            reason = "CARD_TYPE_INACTIVE";
-            message = "Loại thẻ đã ngừng hoạt động. Vui lòng kiểm tra chính sách mượn.";
-        } else if (maxBooks < 0 || maxBooks > 10) {
-            reason = "LOAN_POLICY_NOT_CONFIGURED";
-            message = "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.";
-        } else if (remaining == 0) {
-            reason = "LOAN_LIMIT_REACHED";
-            message = loanLimitMessage(borrowed, maxBooks);
+            reasons.add(new BlockReason("READER_ROLE_REQUIRED",
+                    "Chủ thẻ không còn vai trò Bạn đọc. Vui lòng kiểm tra tài khoản."));
         }
-        boolean eligible = "ELIGIBLE".equals(reason);
+        if (!"ACTIVE".equals(reader.getStatus())) {
+            reasons.add(new BlockReason("READER_ACCOUNT_INACTIVE",
+                    "Tài khoản Bạn đọc không hoạt động. Không thể tiếp tục mượn sách."));
+        }
+        reasons.addAll(cardAndOverdueReasons(card, reader.getId(), today));
+        if (card.getIssuedAt() == null || card.getIssuedAt().isAfter(today)) {
+            reasons.add(new BlockReason("LIBRARY_CARD_NOT_YET_VALID",
+                    "Thẻ thư viện chưa có ngày cấp hợp lệ hoặc chưa đến ngày có hiệu lực."));
+        }
+        if (!type.isActive()) {
+            reasons.add(new BlockReason("CARD_TYPE_INACTIVE",
+                    "Loại thẻ đã ngừng hoạt động. Vui lòng kiểm tra chính sách mượn."));
+        }
+        if (maxBooks < 0 || maxBooks > 10) {
+            reasons.add(new BlockReason("LOAN_POLICY_NOT_CONFIGURED",
+                    "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách."));
+        }
+        if (remaining == 0) {
+            reasons.add(new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks)));
+        }
+        boolean eligible = reasons.isEmpty();
+        String reason = eligible ? "ELIGIBLE" : reasons.get(0).code();
+        String message = eligible ? "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
+                + " sách. Có thể mượn thêm " + remaining + " sách." : joinReasons(reasons);
         return new ReaderLoanEligibilityResponse(reader.getId(), reader.getFullName(), card.getCardNumber(),
                 type.getName(), card.getStatus(), card.getExpiresAt(), maxBooks, borrowed,
-                eligible ? remaining : 0L, eligible, reason, message);
+                eligible ? remaining : 0L, eligible, reason, message, reasons);
+    }
+
+    /** Independent conditions are intentionally accumulated, never mutually exclusive. */
+    private List<BlockReason> cardAndOverdueReasons(LibraryCard card, Long readerId, LocalDate today) {
+        List<BlockReason> reasons = new ArrayList<>();
+        if ("LOCKED".equals(card.getStatus())) {
+            reasons.add(new BlockReason("LIBRARY_CARD_LOCKED",
+                    "Thẻ thư viện đang bị khóa. Vui lòng liên hệ người quản lý thẻ."));
+        }
+        // The existing S3-02 policy treats the expiry day itself as valid.
+        if ("EXPIRED".equals(card.getStatus())
+                || (card.getExpiresAt() != null && card.getExpiresAt().isBefore(today))) {
+            reasons.add(new BlockReason("LIBRARY_CARD_EXPIRED",
+                    "Thẻ thư viện đã hết hạn. Vui lòng gia hạn thẻ trước khi mượn sách."));
+        }
+        if (!Set.of("ACTIVE", "LOCKED", "EXPIRED").contains(
+                card.getStatus() == null ? "" : card.getStatus()) || card.getExpiresAt() == null) {
+            reasons.add(new BlockReason("LIBRARY_CARD_INACTIVE",
+                    "Thẻ thư viện không ở trạng thái hoạt động hoặc thiếu hạn thẻ."));
+        }
+        long overdueLoans = loans.countOverdueUnreturnedLoansForReader(readerId, today);
+        if (overdueLoans > 0) {
+            reasons.add(new BlockReason("LOAN_OVERDUE_UNRETURNED",
+                    "Bạn đọc có " + overdueLoans + " phiếu mượn quá hạn chưa trả. "
+                    + "Vui lòng trả sách quá hạn trước khi mượn tiếp."));
+        }
+        return reasons;
+    }
+
+    private String joinReasons(List<BlockReason> reasons) {
+        return String.join(" ", reasons.stream().map(BlockReason::message).toList());
     }
 
     private String loanLimitMessage(long borrowed, int maxBooks) {

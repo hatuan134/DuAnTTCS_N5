@@ -101,7 +101,11 @@ export default function DirectLoanPage() {
       </dl>
       <div role={result.eligible ? 'status' : 'alert'} className={`mt-4 rounded-xl border p-4 text-sm leading-6 ${result.eligible ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
         <p className="font-semibold">{result.eligible ? 'Đủ điều kiện mượn' : 'Không đủ điều kiện mượn'}</p>
-        <p className="break-words">{result.message}</p>
+        {!result.eligible && result.blockReasons && result.blockReasons.length > 0
+          ? <ul className="mt-2 list-disc space-y-1 pl-5">
+              {result.blockReasons.map((reason) => <li key={reason.code} className="break-words">{reason.message}</li>)}
+            </ul>
+          : <p className="break-words">{result.message}</p>}
       </div>
     </Card>}
     {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result}

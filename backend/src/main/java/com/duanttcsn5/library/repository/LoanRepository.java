@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -78,6 +79,22 @@ public class LoanRepository {
                 WHERE l.borrower_user_id = ? AND li.returned_at IS NULL
                 """, Long.class, readerId);
         return count == null ? 0 : count;
+    }
+
+    /** A loan is overdue if at least one unreturned copy has a due date before today
+     *  in the library time zone. The due date itself remains a TIMESTAMPTZ.
+     *  Counting distinct loans avoids reporting one loan twice for multiple overdue copies.
+     */
+    public long countOverdueUnreturnedLoansForReader(Long readerId, LocalDate today) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT l.id)
+                FROM loans l
+                JOIN loan_items li ON li.loan_id = l.id
+                WHERE l.borrower_user_id = ?
+                  AND li.returned_at IS NULL
+                  AND (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < ?
+                """, Long.class, readerId, today);
+        return count == null ? 0L : count;
     }
 
     public Optional<String> findNumberByReservation(Long reservationId) {

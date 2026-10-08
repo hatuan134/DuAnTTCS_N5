@@ -14,6 +14,7 @@ export interface ReaderLoanEligibility {
   eligible: boolean
   reasonCode: string
   message: string
+  blockReasons?: { code: string; message: string }[]
 }
 
 export interface DirectLoanItem {
