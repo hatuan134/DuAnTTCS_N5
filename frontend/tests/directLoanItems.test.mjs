@@ -13,7 +13,7 @@ function load(file, imports = {}, extra = {}) {
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = { exports: {}, crypto: webcrypto, require: (name) => imports[name] ?? require(name), ...extra }
+  const context = { exports: {}, crypto: webcrypto, require: (name) => imports[name] ?? (name === '../../components/ui/FeedbackAlert' ? load('../../components/ui/FeedbackAlert.tsx', {}) : require(name)), ...extra }
   vm.runInNewContext(code, context)
   return context.exports
 }

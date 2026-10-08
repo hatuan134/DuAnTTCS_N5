@@ -259,7 +259,7 @@ function WarehouseShelfPage() {
       />
 
       <Feedback
-        error={error}
+        error={warehouseModal || shelfModal ? '' : error}
         notice={notice}
         onDismissError={() => setError('')}
         onDismissNotice={() => setNotice('')}
@@ -399,7 +399,7 @@ function WarehouseShelfPage() {
             <TextField label="Mã kho" required value={warehouseForm.code} placeholder="Ví dụ: KHO-A" onChange={(code) => setWarehouseForm({ ...warehouseForm, code })} />
             <TextField label="Tên kho" required value={warehouseForm.name} placeholder="Ví dụ: Kho sách chính" onChange={(name) => setWarehouseForm({ ...warehouseForm, name })} />
             <TextAreaField label="Mô tả" value={warehouseForm.description} onChange={(description) => setWarehouseForm({ ...warehouseForm, description })} />
-            {error && <ErrorBox message={error} />}
+            {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
             <ModalActions saving={saving} submitText={editingWarehouse ? 'Lưu thay đổi' : 'Thêm kho'} onCancel={() => setWarehouseModal(false)} />
           </form>
         </Modal>
@@ -412,7 +412,7 @@ function WarehouseShelfPage() {
             <TextField label="Mã kệ" required value={shelfForm.code} placeholder="Ví dụ: A03" onChange={(code) => setShelfForm({ ...shelfForm, code })} />
             <TextField label="Tên kệ" required value={shelfForm.name} placeholder="Ví dụ: Kệ Khoa học" onChange={(name) => setShelfForm({ ...shelfForm, name })} />
             <TextAreaField label="Mô tả" value={shelfForm.description} onChange={(description) => setShelfForm({ ...shelfForm, description })} />
-            {error && <ErrorBox message={error} />}
+            {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
             <ModalActions saving={saving} submitText={editingShelf ? 'Lưu thay đổi' : 'Thêm kệ'} onCancel={() => setShelfModal(false)} />
           </form>
         </Modal>
@@ -598,7 +598,7 @@ function LibraryCalendarPage() {
       />
 
       <Feedback
-        error={error}
+        error={holidayModal || bulkModal ? '' : error}
         notice={notice}
         onDismissError={() => setError('')}
         onDismissNotice={() => setNotice('')}
@@ -866,7 +866,7 @@ function LibraryCalendarPage() {
               <input type="date" required value={holidayForm.closedDate} onChange={(event) => setHolidayForm({ ...holidayForm, closedDate: event.target.value })} className="field-input" />
             </div>
             <TextField label="Lý do đóng cửa" required value={holidayForm.reason} placeholder="Ví dụ: Nghỉ Quốc khánh" onChange={(reason) => setHolidayForm({ ...holidayForm, reason })} />
-            {error && <ErrorBox message={error} />}
+            {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
             <ModalActions saving={saving} submitText={editingHoliday ? 'Lưu thay đổi' : 'Thêm ngày nghỉ'} onCancel={() => setHolidayModal(false)} />
           </form>
         </Modal>
@@ -884,7 +884,7 @@ function LibraryCalendarPage() {
               <p className="mb-2 text-xs text-slate-500">Mỗi dòng theo mẫu: <strong>MM-DD | Lý do</strong></p>
               <textarea rows={8} value={bulkText} onChange={(event) => setBulkText(event.target.value)} className="field-input resize-none font-mono text-sm" />
             </div>
-            {error && <ErrorBox message={error} />}
+            {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
             <ModalActions saving={saving} submitText="Khai báo các ngày" onCancel={() => setBulkModal(false)} />
           </form>
         </Modal>
@@ -988,9 +988,6 @@ function ModalActions({ submitText, onCancel, saving }: { submitText: string; on
   )
 }
 
-function ErrorBox({ message }: { message: string }) {
-  return <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>
-}
 
 function parseLocalDate(value: string) {
   return new Date(`${value}T12:00:00`)

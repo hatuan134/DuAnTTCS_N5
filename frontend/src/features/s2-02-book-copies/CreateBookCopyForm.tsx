@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -148,12 +149,10 @@ export default function CreateBookCopyForm({ bookId, bookTitle, onCancel }: {
             <Input id="copy-price" label="Giá bìa (VNĐ) *" inputMode="decimal" required value={coverPrice} onChange={e => setCoverPrice(e.target.value)} placeholder="Ví dụ: 85000" />
           </div>
         </fieldset>
-        {error && <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{error}</p>
-          {duplicate && <div className="mt-2">
+        {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} className="mt-5" />}
+        {duplicate && <div className="mt-2">
             <p>Mã {duplicate.barcode} đang thuộc bản sao #{duplicate.existingCopyId} — {duplicate.bookTitle} (đầu sách #{duplicate.bookId}).</p>
             <Link className="mt-2 inline-block font-semibold underline" to={`/book-copies/${duplicate.existingCopyId}`}>Mở bản sao đang giữ mã này</Link>
-          </div>}
         </div>}
         <div className="mt-6 flex flex-wrap gap-3">
           <Button type="submit" loading={saving} disabled={loading || !!loadError || warehouses.length === 0}>{saving ? 'Đang lưu…' : 'Lưu bản sao'}</Button>

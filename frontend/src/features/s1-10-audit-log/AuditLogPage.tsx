@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AxiosError } from 'axios'
@@ -114,6 +115,7 @@ function AuditLogContent() {
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [detailError, setDetailError] = useState('')
 
   const loadOptions = async () => {
     try {
@@ -174,11 +176,12 @@ function AuditLogContent() {
 
   const openDetail = async (item: AuditLogItem) => {
     setSelectedLog(item)
+    setDetailError('')
     try {
       const detail = await auditLogService.getById(item.id)
       setSelectedLog(detail)
     } catch {
-      // Dữ liệu ở bảng đã đủ để hiển thị nếu request chi tiết lỗi.
+      setDetailError('Không tải được chi tiết mới nhất. Đang hiển thị dữ liệu đã tải trong danh sách.')
     }
   }
 
@@ -199,9 +202,7 @@ function AuditLogContent() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
       )}
 
       <Card>
@@ -451,6 +452,7 @@ function AuditLogContent() {
             </div>
 
             <div className="space-y-5 p-6">
+              {detailError && <FeedbackAlert message={detailError} tone="error" onDismiss={() => setDetailError('')} className="sm:col-span-2" />}
               <DetailItem label="Thời điểm" value={formatDateTime(selectedLog.timestamp)} />
               <DetailItem label="Người thực hiện" value={`${selectedLog.actor} — ${selectedLog.actorRole}`} />
               <DetailItem label="Hành động" value={selectedLog.actionLabel} />

@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -298,9 +299,7 @@ export default function BulkCreateBookCopiesForm({
         </div>}
 
         {error && (
-          <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
+          <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
         )}
 
         <div className="mt-6 flex flex-wrap gap-3">
