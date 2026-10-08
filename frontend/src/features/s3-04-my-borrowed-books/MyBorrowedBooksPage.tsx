@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { myBorrowedBooksService } from './myBorrowedBooksService'
 import type { MyBorrowedBook } from './myBorrowedBooksService'
+import BorrowedBookDueWarning from './BorrowedBookDueWarning'
 
 export default function MyBorrowedBooksPage() {
   const allowed = getCurrentUser()?.role === 'READER'
@@ -45,7 +46,7 @@ export default function MyBorrowedBooksPage() {
     {!loading && failed && <EmptyState title="Chưa tải được danh sách" description="Nhấn Làm mới để thử lại." />}
     {!loading && !failed && items.length === 0 && <EmptyState title="Bạn không có sách đang mượn" description="Sách sẽ xuất hiện ở đây sau khi Thủ thư xác nhận cho mượn." />}
     {!loading && !failed && items.length > 0 && <>
-      <p className="text-sm text-slate-600">Bạn đang mượn {items.length} bản sách. Số ngày còn lại bằng 0 khi hạn trả là hôm nay; số âm là số ngày đã qua hạn trả.</p>
+      <p className="text-sm text-slate-600">Bạn đang mượn {items.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ.</p>
       <Card className="overflow-hidden">
         <div className="divide-y divide-slate-200 md:hidden">
           {items.map((item) => <article key={item.id} className="space-y-3 p-4">
@@ -54,7 +55,7 @@ export default function MyBorrowedBooksPage() {
               <div><dt className="text-slate-500">Mã vạch bản sao</dt><dd className="break-all font-mono text-slate-900">{item.barcode}</dd></div>
               <div><dt className="text-slate-500">Ngày mượn</dt><dd>{formatLoanTimestamp(item.borrowedAt, true)}</dd></div>
               <div><dt className="text-slate-500">Hạn trả</dt><dd>{item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Chưa có hạn trả'}</dd></div>
-              <div><dt className="text-slate-500">Số ngày còn lại</dt><dd className="font-semibold">{remaining(item)}</dd></div>
+              <div><dt className="text-slate-500">Số ngày còn lại</dt><dd className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></dd></div>
             </dl>
           </article>)}
         </div>
@@ -70,7 +71,7 @@ export default function MyBorrowedBooksPage() {
               <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
               <td className="px-4 py-4">{formatLoanTimestamp(item.borrowedAt, true)}</td>
               <td className="px-4 py-4">{item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Chưa có hạn trả'}</td>
-              <td className="px-4 py-4 font-semibold">{remaining(item)}</td>
+              <td className="px-4 py-4"><div className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></div></td>
             </tr>)}</tbody>
           </table>
         </div>

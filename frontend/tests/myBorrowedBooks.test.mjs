@@ -15,6 +15,9 @@ function load(file, imports = {}) {
   vm.runInNewContext(compiled, context)
   return context.exports
 }
+const dueWarningModule = load('BorrowedBookDueWarning.tsx', {
+  '../../components/ui/StatusBadge': load('../../components/ui/StatusBadge.tsx'),
+})
 const serviceModule = load('../s3-01-loans/loanService.ts', { '../../core/api/apiClient': { apiClient: {} } })
 const loan = {
   id: 81, loanNumber: 'PM-SAVED-000081', reservationId: 21, readerId: 12, readerName: 'Nguyễn Văn An',
@@ -43,6 +46,7 @@ async function pageFixture(file, { data, error, role = 'READER', id = '81', crea
   }
   const page = load(file, {
     react: hooks,
+    './BorrowedBookDueWarning': dueWarningModule,
     'react-router-dom': {
       useParams: () => ({ loanId: id }), useLocation: () => ({ state: { loanCreated: created } }),
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
@@ -88,7 +92,8 @@ test('all copies including same title negative days and missing due dates are sh
     { ...book, id: 2, barcode: 'LIB-002', remainingDays: -1 },
     { ...book, id: 3, barcode: 'LIB-003', dueAt: null, remainingDays: null }] })
   for (const value of ['LIB-001', 'LIB-002', 'LIB-003', '-1 ngày', 'Chưa có hạn trả', 'Chưa xác định']) assert.ok(f.html().includes(value))
-  assert.doesNotMatch(f.html(), /Sắp đến hạn|Quá hạn|href=.*loans/)
+  assert.match(f.html(), /Sắp đến hạn/); assert.match(f.html(), /Quá hạn/); assert.match(f.html(), /Trễ 1 ngày/)
+  assert.doesNotMatch(f.html(), /href=.*loans/)
 })
 test('staff never requests reader books', async () => {
   for (const role of ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN']) {
@@ -106,4 +111,22 @@ test('client supplies no reader identity', async () => {
   const f = load('myBorrowedBooksService.ts', { '../../core/api/apiClient': { apiClient: { async get(value) { url = value; return { data: [book] } } } } })
   assert.equal((await f.myBorrowedBooksService.list())[0].barcode, 'LIB-001')
   assert.equal(url, '/loans/me/borrowed-books')
+})
+
+for (const [days, label, late] of [[5, null, null], [3, null, null], [2, 'Sắp đến hạn', null],
+  [1, 'Sắp đến hạn', null], [0, 'Sắp đến hạn', null], [-1, 'Quá hạn', 'Trễ 1 ngày'], [-12, 'Quá hạn', 'Trễ 12 ngày']]) {
+  test(`day ${days}: both mobile and desktop rows display the exact warning`, async () => {
+    const f = await pageFixture('MyBorrowedBooksPage.tsx', { data: [{ ...book, remainingDays: days }] })
+    const html = f.html()
+    // The explanation includes Sắp đến hạn; count actual badge text only.
+    const badges = html.match(/>Sắp đến hạn<|>Quá hạn</g) ?? []
+    assert.equal(badges.length, label ? 2 : 0)
+    if (label) assert.equal(badges.filter((value) => value === `>${label}<`).length, 2)
+    if (late) assert.equal((html.match(new RegExp(`>${late}<`, 'g')) ?? []).length, 2)
+    else assert.doesNotMatch(html, />Trễ \d+ ngày</)
+  })
+}
+test('missing legacy deadline has no warning on either layout', async () => {
+  const f = await pageFixture('MyBorrowedBooksPage.tsx', { data: [{ ...book, dueAt: null, remainingDays: null }] })
+  assert.doesNotMatch(f.html(), />Sắp đến hạn<|>Quá hạn<|>Trễ \d+ ngày</)
 })
