@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -31,6 +31,7 @@ export default function MyBorrowedBooksPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [queueRejection, setQueueRejection] = useState<{ itemId: number; message: string } | null>(null)
   const [confirming, setConfirming] = useState<MyBorrowedBook | null>(null)
   const [checking, setChecking] = useState(false)
   const checkingRef = useRef(false)
@@ -58,14 +59,22 @@ export default function MyBorrowedBooksPage() {
     setChecking(true)
     setActionError('')
     setNotice('')
+    setQueueRejection(null)
     try {
       const result = await myBorrowedBooksService.checkRenewal(confirming.id)
       setNotice(result.message)
     } catch (e: unknown) {
-      setActionError(getApiErrorMessage(e, 'Không kiểm tra được điều kiện gia hạn. Vui lòng thử lại.'))
-      // Only refresh on a stale item/state; a network outage must not create two alerts.
+      const message = getApiErrorMessage(e, 'Không kiểm tra được điều kiện gia hạn. Vui lòng thử lại.')
       const status = axios.isAxiosError(e) ? e.response?.status : undefined
-      if (status === 404 || status === 409) setRevision((value) => value + 1)
+      const code = axios.isAxiosError(e) ? e.response?.data?.code : undefined
+      if (status === 409 && code === 'RENEWAL_BLOCKED_BY_RESERVATION') {
+        // Keep the reason next to this book. Do not refresh and accidentally hide it.
+        setQueueRejection({ itemId: confirming.id, message })
+      } else {
+        setActionError(message)
+        // A returned/overdue item may have disappeared or changed since loading.
+        if (status === 404 || status === 409) setRevision((value) => value + 1)
+      }
     } finally {
       checkingRef.current = false
       setChecking(false)
@@ -78,9 +87,13 @@ export default function MyBorrowedBooksPage() {
   const remaining = (item: MyBorrowedBook) => item.remainingDays === null ? 'Chưa xác định' : `${item.remainingDays} ngày`
   const renewButton = (item: MyBorrowedBook) => canRequestRenewal(item) ? (
     <Button type="button" size="sm" variant="secondary" disabled={checking || loading}
-      onClick={() => { setNotice(''); setActionError(''); setConfirming(item) }}>
+      onClick={() => { setNotice(''); setActionError(''); setQueueRejection(null); setConfirming(item) }}>
       Gia hạn
     </Button>
+  ) : null
+  const queueRejectionAlert = (item: MyBorrowedBook) => queueRejection?.itemId === item.id ? (
+    <FeedbackAlert message={queueRejection.message} tone="error"
+      onDismiss={() => setQueueRejection((current) => current?.itemId === item.id ? null : current)} />
   ) : null
 
   return <div className="space-y-4">
@@ -128,6 +141,7 @@ export default function MyBorrowedBooksPage() {
               <div><dt className="text-slate-500">Số ngày còn lại</dt><dd className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></dd></div>
             </dl>
             <div className="flex justify-end">{renewButton(item)}</div>
+            {queueRejectionAlert(item)}
           </article>)}
         </div>
         <div className="hidden md:block">
@@ -138,14 +152,16 @@ export default function MyBorrowedBooksPage() {
               <th scope="col" className="px-4 py-3">Ngày mượn</th><th scope="col" className="px-4 py-3">Hạn trả</th><th scope="col" className="px-4 py-3">Số ngày còn lại</th>
               <th scope="col" className="w-28 px-3 py-3 text-right">Thao tác</th>
             </tr></thead>
-            <tbody className="divide-y divide-slate-100">{currentItems.map((item) => <tr key={item.id} className="hover:bg-slate-50">
+            <tbody className="divide-y divide-slate-100">{currentItems.map((item) => <Fragment key={item.id}><tr className="hover:bg-slate-50">
               <td className="break-words px-4 py-4 font-medium">{item.bookTitle}</td>
               <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
               <td className="px-4 py-4">{formatLoanTimestamp(item.borrowedAt, true)}</td>
               <td className="px-4 py-4">{item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Chưa có hạn trả'}</td>
               <td className="px-4 py-4"><div className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></div></td>
               <td className="px-3 py-4 text-right">{renewButton(item)}</td>
-            </tr>)}</tbody>
+            </tr>
+            {queueRejection?.itemId === item.id && <tr><td colSpan={6} className="px-4 pb-4">{queueRejectionAlert(item)}</td></tr>}
+            </Fragment>)}</tbody>
           </table>
         </div>
       </Card>
