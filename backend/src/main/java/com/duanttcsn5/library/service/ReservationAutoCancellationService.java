@@ -32,6 +32,7 @@ public class ReservationAutoCancellationService {
     private final LibraryConfigurationService configuration;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ReservationAutoCancellationService(
             BookReservationRepository reservations,
             BookCopyRepository copies,
