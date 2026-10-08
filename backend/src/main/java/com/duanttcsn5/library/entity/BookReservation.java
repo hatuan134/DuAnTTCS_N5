@@ -69,6 +69,14 @@ public class BookReservation {
         cancel(actor, time, reason);
     }
 
+    public void cancelBySystem(OffsetDateTime time, String reason) {
+        this.status = "CANCELLED";
+        this.cancelledBy = null;
+        this.cancelledByName = "Hệ thống";
+        this.cancelledAt = time;
+        this.cancellationReason = reason;
+    }
+
     public BookReservation() {}
 
     public BookReservation(Book book, User reader, String status) {

@@ -23,15 +23,29 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.duanttcsn5.library.dto.book.AutoCancelledReservationResponse;
+import com.duanttcsn5.library.service.ReservationAutoCancellationService;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
 public class BookReservationController {
     private final BookReservationService reservations;
+    private final ReservationAutoCancellationService autoCancellationService;
 
     public BookReservationController(BookReservationService reservations) {
+        this(reservations, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BookReservationController(
+            BookReservationService reservations,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) ReservationAutoCancellationService autoCancellationService) {
         this.reservations = reservations;
+        this.autoCancellationService = autoCancellationService;
     }
 
     @GetMapping("/reservations/mine")
@@ -94,5 +108,18 @@ public class BookReservationController {
     public ResponseEntity<ReadyForPickupReservationResponse> getReadyForPickupById(
             @PathVariable Long reservationId) {
         return ResponseEntity.ok(reservations.getReadyForPickupById(reservationId));
+    }
+
+    @PostMapping("/reservations/auto-cancel-overdue")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<AutoCancelledReservationResponse>> autoCancelOverdue(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime checkTime) {
+        if (autoCancellationService == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        if (checkTime != null) {
+            return ResponseEntity.ok(autoCancellationService.processOverdueReservationsAt(checkTime));
+        }
+        return ResponseEntity.ok(autoCancellationService.processOverdueReservations());
     }
 }
