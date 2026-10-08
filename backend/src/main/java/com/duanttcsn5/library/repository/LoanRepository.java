@@ -2,6 +2,7 @@ package com.duanttcsn5.library.repository;
 
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
+import com.duanttcsn5.library.dto.loan.MyReturnedBookResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -145,6 +146,35 @@ public class LoanRepository {
                 """, (rs, index) -> new MyBorrowedBookResponse(rs.getLong("id"), rs.getString("title"),
                 rs.getString("barcode"), rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("due_date", OffsetDateTime.class), null), readerId);
+    }
+
+    public long countReturnedForReader(Long readerId) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(li.id)
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL
+                """, Long.class, readerId);
+        return count == null ? 0L : count;
+    }
+
+    /** Stable tie-breaker prevents equal return timestamps from shuffling across pages. */
+    public List<MyReturnedBookResponse> findReturnedForReader(Long readerId, int limit, long offset) {
+        return jdbc.query("""
+                SELECT li.id, b.title, c.barcode, l.loan_number, li.borrowed_at, li.returned_at
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL
+                ORDER BY li.returned_at DESC, li.id DESC
+                LIMIT ? OFFSET ?
+                """, (rs, index) -> new MyReturnedBookResponse(rs.getLong("id"), rs.getString("title"),
+                rs.getString("barcode"), rs.getString("loan_number"),
+                rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), readerId, limit, offset);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {

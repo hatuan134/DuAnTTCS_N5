@@ -11,9 +11,11 @@ import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { myBorrowedBooksService } from './myBorrowedBooksService'
 import type { MyBorrowedBook } from './myBorrowedBooksService'
 import BorrowedBookDueWarning from './BorrowedBookDueWarning'
+import MyReturnedBooksPanel from './MyReturnedBooksPanel'
 
 export default function MyBorrowedBooksPage() {
   const allowed = getCurrentUser()?.role === 'READER'
+  const [tab, setTab] = useState<'borrowed' | 'returned'>('borrowed')
   const [items, setItems] = useState<MyBorrowedBook[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -21,7 +23,7 @@ export default function MyBorrowedBooksPage() {
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
-    if (!allowed) return
+    if (!allowed || tab !== 'borrowed') return
     let active = true
     setLoading(true); setFailed(false); setError(''); setItems([])
     myBorrowedBooksService.list()
@@ -34,13 +36,24 @@ export default function MyBorrowedBooksPage() {
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [allowed, revision])
+  }, [allowed, revision, tab])
 
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Chức năng Sách đang mượn dành cho Bạn đọc.</p>
   const remaining = (item: MyBorrowedBook) => item.remainingDays === null ? 'Chưa xác định' : `${item.remainingDays} ngày`
   return <div className="space-y-4">
-    <PageHeader title="Sách đang mượn" description="Danh sách từng bản sao bạn đang mượn, ngày mượn và hạn trả theo giờ Việt Nam."
-      action={<Button type="button" variant="secondary" loading={loading} onClick={() => setRevision((value) => value + 1)}>Làm mới</Button>} />
+    <PageHeader title={tab === 'borrowed' ? 'Sách đang mượn' : 'Lịch sử đã trả'}
+      description={tab === 'borrowed' ? 'Danh sách từng bản sao bạn đang mượn, ngày mượn và hạn trả theo giờ Việt Nam.' : 'Xem lại các giao dịch trả sách đã hoàn tất của bạn.'}
+      action={tab === 'borrowed' ? <Button type="button" variant="secondary" loading={loading} onClick={() => setRevision((value) => value + 1)}>Làm mới</Button> : undefined} />
+    <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3" role="tablist" aria-label="Sách của tôi">
+      <button type="button" role="tab" id="borrowed-books-tab" aria-selected={tab === 'borrowed'} aria-controls="borrowed-books-panel"
+        className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${tab === 'borrowed' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+        onClick={() => setTab('borrowed')}>Sách đang mượn</button>
+      <button type="button" role="tab" id="returned-books-tab" aria-selected={tab === 'returned'} aria-controls="returned-books-panel"
+        className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${tab === 'returned' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+        onClick={() => setTab('returned')}>Lịch sử đã trả</button>
+    </div>
+    {tab === 'returned' ? <section id="returned-books-panel" role="tabpanel" aria-labelledby="returned-books-tab"><MyReturnedBooksPanel /></section>
+      : <section id="borrowed-books-panel" role="tabpanel" aria-labelledby="borrowed-books-tab" className="space-y-4">
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
     {loading && <LoadingState />}
     {!loading && failed && <EmptyState title="Chưa tải được danh sách" description="Nhấn Làm mới để thử lại." />}
@@ -77,5 +90,6 @@ export default function MyBorrowedBooksPage() {
         </div>
       </Card>
     </>}
+    </section>}
   </div>
 }
