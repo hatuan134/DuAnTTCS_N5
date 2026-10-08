@@ -51,6 +51,8 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
     '../../components/ui/Card': { __esModule: true, default: ({ children, ...props }) => react.createElement('div', props, children) },
     '../../components/ui/LoadingState': { __esModule: true, default: () => react.createElement('p', {}, 'Đang tải') },
     '../../components/ui/EmptyState': { __esModule: true, default: ({ title, description }) => react.createElement('p', {}, title, description) },
+    // Page uses the shared 3-second notification; timing itself is covered by feedbackAlert.test.mjs.
+    '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message }) => react.createElement('p', { role: 'status' }, message) },
     '../../components/ui/PageHeader': { __esModule: true, default: ({ title, description, action }) => react.createElement('header', {}, title, description, action) },
     '../../components/ui/TablePagination': { __esModule: true, default: ({ page, totalItems, totalPages }) => react.createElement('p', {}, `Trang ${page}/${totalPages}, tổng ${totalItems}`) },
     '../../components/ui/TableActionButton': { tableActionClassName: () => 'action' },

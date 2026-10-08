@@ -9,6 +9,9 @@ import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.math.BigDecimal;
+import java.text.NumberFormat;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashSet;
@@ -569,7 +572,20 @@ public class LoanService {
                     "Bạn đọc có " + overdueLoans + " phiếu mượn quá hạn chưa trả. "
                     + "Vui lòng trả sách quá hạn trước khi mượn tiếp."));
         }
+        // S3-03.3: only the remaining unpaid portion counts. Never trust a stale browser preview.
+        // This check runs in both direct-loan confirmation and reservation-to-loan conversion.
+        BigDecimal unpaid = loans.sumUnpaidFeesForReader(readerId);
+        if (unpaid != null && unpaid.signum() > 0) {
+            reasons.add(new BlockReason("LOAN_UNPAID_FEES",
+                    "Bạn đọc còn nợ phí chưa thanh toán: " + formatVnd(unpaid)
+                    + ". Vui lòng thanh toán hết trước khi mượn sách."));
+        }
         return reasons;
+    }
+
+    private String formatVnd(BigDecimal amount) {
+        // Vietnamese locale groups whole VND without rounding through double arithmetic.
+        return NumberFormat.getIntegerInstance(Locale.forLanguageTag("vi-VN")).format(amount) + " ₫";
     }
 
     private String joinReasons(List<BlockReason> reasons) {
