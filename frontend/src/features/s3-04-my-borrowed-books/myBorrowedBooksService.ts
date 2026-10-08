@@ -32,6 +32,7 @@ export interface RenewalCheckResponse {
   message: string
   renewalsUsed: number
   maxRenewals: number
+  dueAt: string
 }
 
 export const myBorrowedBooksService = {

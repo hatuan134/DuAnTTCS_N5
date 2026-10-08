@@ -32,7 +32,7 @@ class ReaderRenewalQuotaServiceTest {
     @BeforeEach void setUp() {
         service = new LoanService(mock(BookRepository.class), reservations,
                 mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, loans,
-                mock(LibraryConfigurationService.class), Clock.fixed(
+                RenewalCalendarStub.mockCalendar(), Clock.fixed(
                         OffsetDateTime.parse("2026-10-08T09:00:00Z").toInstant(), ZoneOffset.UTC));
         User reader = new User(); reader.setId(READER); reader.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("READER"); reader.setRole(role);
@@ -44,7 +44,7 @@ class ReaderRenewalQuotaServiceTest {
 
     private void quota(int used, Integer maximum) {
         when(loans.findRenewalPolicyForReader(ITEM, READER)).thenReturn(
-                Optional.of(new LoanRepository.RenewalPolicy(LOAN, used, maximum)));
+                Optional.of(new LoanRepository.RenewalPolicy(LOAN, used, maximum, 7)));
     }
 
     private void rejected(String code) {
@@ -62,8 +62,9 @@ class ReaderRenewalQuotaServiceTest {
         assertThat(result.eligible()).isTrue();
         assertThat(result.renewalsUsed()).isEqualTo(1);
         assertThat(result.maxRenewals()).isEqualTo(2);
-        assertThat(result.message()).contains("1/2").contains("chưa thay đổi");
+        assertThat(result.message()).contains("1/2").contains("Hạn trả mới");
         verify(loans).incrementRenewalCountIfAllowed(LOAN, READER);
+        verify(loans).updateDueAtForRenewal(eq(ITEM), eq(READER), any(), any());
     }
 
     @Test void usedBelowLimitCountsExactlyOneMore() {

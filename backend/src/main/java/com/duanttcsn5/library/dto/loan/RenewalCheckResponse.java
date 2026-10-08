@@ -1,5 +1,7 @@
 package com.duanttcsn5.library.dto.loan;
 
-/** S3-05.3 records an allowed renewal count; the due date is not changed in this slice. */
+import java.time.OffsetDateTime;
+
+/** Successful renewal returns both the persisted new due date and the updated loan quota. */
 public record RenewalCheckResponse(boolean eligible, String message,
-                                   int renewalsUsed, int maxRenewals) {}
+                                   int renewalsUsed, int maxRenewals, OffsetDateTime dueAt) {}

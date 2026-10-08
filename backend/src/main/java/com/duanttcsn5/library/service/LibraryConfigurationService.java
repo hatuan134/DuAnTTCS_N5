@@ -460,6 +460,37 @@ public class LibraryConfigurationService {
         return moveToOpenDate(originalDate, loadWeeklySchedule(), loadClosedDates());
     }
 
+    /** S3-05.5: add the configured calendar days to the *current due date*,
+     * then skip weekly and explicitly configured closing days. The new due timestamp
+     * is the library closing time of the final open date in Vietnam's time zone.
+     */
+    @Transactional(readOnly = true)
+    public OffsetDateTime calculateRenewalDueAt(OffsetDateTime currentDueAt, int renewalDays) {
+        if (currentDueAt == null || renewalDays <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_DAYS_NOT_CONFIGURED",
+                    "Loại thẻ chưa cấu hình số ngày gia hạn hợp lệ. Vui lòng liên hệ thư viện.");
+        }
+        Map<Integer, LibraryWeeklySchedule> schedule = loadWeeklySchedule();
+        for (LibraryWeeklySchedule day : schedule.values()) {
+            if (day.isOpen() && (day.getOpenTime() == null || day.getCloseTime() == null
+                    || !day.getCloseTime().isAfter(day.getOpenTime()))) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INVALID",
+                        "Ngày mở cửa chưa có giờ mở và đóng cửa hợp lệ. Vui lòng kiểm tra lịch thư viện.");
+            }
+        }
+        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate expected;
+        try {
+            expected = currentDueAt.atZoneSameInstant(zone).toLocalDate().plusDays(renewalDays);
+        } catch (java.time.DateTimeException ex) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_DAYS_NOT_CONFIGURED",
+                    "Số ngày gia hạn không hợp lệ. Vui lòng liên hệ thư viện.");
+        }
+        LocalDate adjusted = moveToOpenDate(expected, schedule, loadClosedDates()).adjustedDate();
+        return adjusted.atTime(schedule.get(adjusted.getDayOfWeek().getValue()).getCloseTime())
+                .atZone(zone).toOffsetDateTime();
+    }
+
     /** S3-01.2: count calendar days, then move only the final date to an open day. */
     @Transactional(readOnly = true, noRollbackFor = ApiException.class)
     public LoanDatePreviewResponse calculateLoanDates(OffsetDateTime borrowedAt, int loanDays, String cardTypeName) {

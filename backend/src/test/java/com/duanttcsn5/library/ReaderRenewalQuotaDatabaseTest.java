@@ -103,7 +103,7 @@ class ReaderRenewalQuotaDatabaseTest {
                 });
         assertThat(count(f.loanId())).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT due_date FROM loan_items WHERE id = ?",
-                OffsetDateTime.class, f.firstItem()).toInstant()).isEqualTo(f.due().toInstant());
+                OffsetDateTime.class, f.firstItem()).toInstant()).isAfter(f.due().toInstant());
     }
 
     @Test void queueRejectionNeverIncrementsQuotaOrChangesDueDate() {

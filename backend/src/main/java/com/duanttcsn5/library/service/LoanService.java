@@ -752,8 +752,8 @@ public class LoanService {
                 .toList();
     }
 
-    /** S3-05.3: recheck the loan, queue and card-type quota under a transaction.
-     *  Count one approved request per loan; calculating the new due date belongs to a later slice.
+    /** S3-05.5: validate every prior renewal guard and update the selected copy's
+     * due date together with the parent loan's shared renewal counter in one transaction.
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public RenewalCheckResponse checkMyLoanRenewal(Long itemId, Long readerId) {
@@ -818,15 +818,26 @@ public class LoanService {
                     "Không thể gia hạn: đã dùng " + policy.renewalsUsed() + "/" + limit
                             + " lần gia hạn của phiếu này. Hạn trả không thay đổi.");
         }
+        Integer days = policy.renewalDays();
+        if (days == null || days <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_DAYS_NOT_CONFIGURED",
+                    "Loại thẻ chưa cấu hình số ngày gia hạn hợp lệ. Vui lòng liên hệ thư viện.");
+        }
+        OffsetDateTime newDueAt = configuration.calculateRenewalDueAt(candidate.dueAt(), days);
+        // Update due date first, then consume exactly one shared loan renewal.
+        // Spring rolls back BOTH writes if the second update or the transaction fails.
+        loans.updateDueAtForRenewal(itemId, readerId, candidate.dueAt(), newDueAt);
         if (loans.incrementRenewalCountIfAllowed(policy.loanId(), readerId) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_LIMIT_REACHED",
                     "Không thể gia hạn: giới hạn loại thẻ vừa thay đổi hoặc đã hết lượt. "
-                            + "Vui lòng tải lại danh sách. Hạn trả không thay đổi.");
+                            + "Hạn trả và số lần gia hạn không thay đổi.");
         }
         int used = policy.renewalsUsed() + 1;
+        String date = newDueAt.atZoneSameInstant(LIBRARY_ZONE)
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy"));
         return new RenewalCheckResponse(true,
-                "Đã ghi nhận lượt gia hạn " + used + "/" + limit
-                        + ". Hạn trả chưa thay đổi ở bước này.", used, limit);
+                "Gia hạn thành công " + used + "/" + limit + " lần. Hạn trả mới: " + date + ".",
+                used, limit, newDueAt);
     }
 
     private void requireReader(Long readerId) {

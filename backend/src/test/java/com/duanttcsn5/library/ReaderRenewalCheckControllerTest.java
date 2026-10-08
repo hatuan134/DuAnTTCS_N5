@@ -41,7 +41,7 @@ class ReaderRenewalCheckControllerTest {
         @Bean LoanService service(UserRepository users, LoanRepository loans, BookReservationRepository reservations) {
             return new LoanService(mock(BookRepository.class), reservations,
                     mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, loans,
-                    mock(LibraryConfigurationService.class), Clock.fixed(
+                    RenewalCalendarStub.mockCalendar(), Clock.fixed(
                             OffsetDateTime.parse("2026-10-08T09:00:00Z").toInstant(), ZoneOffset.UTC));
         }
     }
@@ -56,7 +56,7 @@ class ReaderRenewalCheckControllerTest {
         context.register(Config.class); context.refresh();
         repository = context.getBean(LoanRepository.class);
         when(repository.findRenewalPolicyForReader(100L, 12L)).thenReturn(
-                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 2)));
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 2, 7)));
         when(repository.incrementRenewalCountIfAllowed(50L, 12L)).thenReturn(1);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
@@ -81,7 +81,8 @@ class ReaderRenewalCheckControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligible").value(true))
                 .andExpect(jsonPath("$.renewalsUsed").value(1))
-                .andExpect(jsonPath("$.maxRenewals").value(2));
+                .andExpect(jsonPath("$.maxRenewals").value(2))
+                .andExpect(jsonPath("$.dueAt").value("2026-10-16T17:00:00+07:00"));
         verify(repository).findRenewalCandidateForReader(100L, 12L);
         verify(repository, never()).findRenewalCandidateForReader(100L, 13L);
     }

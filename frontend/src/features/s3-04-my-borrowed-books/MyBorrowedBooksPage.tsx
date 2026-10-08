@@ -63,7 +63,12 @@ export default function MyBorrowedBooksPage() {
     try {
       const result = await myBorrowedBooksService.checkRenewal(confirming.id)
       setNotice(result.message)
-      // Refetch all copies: the renewal counter belongs to the loan, not only this item.
+      // Show the new due timestamp immediately, even before the full list refresh.
+      // The renewal count is shared across all items on the same loan and is
+      // synchronized from the server when the list request completes.
+      setItems((previous) => previous.map((item) => item.id === confirming.id
+        ? { ...item, dueAt: result.dueAt, renewalsUsed: result.renewalsUsed }
+        : item))
       setRevision((value) => value + 1)
     } catch (e: unknown) {
       const message = getApiErrorMessage(e, 'Không kiểm tra được điều kiện gia hạn. Vui lòng thử lại.')
@@ -123,11 +128,11 @@ export default function MyBorrowedBooksPage() {
     {confirming && <Card className="border border-blue-200 p-5">
       <h2 className="font-semibold text-slate-900">Xác nhận lượt gia hạn</h2>
       <p className="my-3 text-sm leading-6 text-slate-700">
-        Bạn muốn ghi nhận một lượt gia hạn cho sách <strong className="break-words">{confirming.bookTitle}</strong>
+        Bạn muốn gia hạn sách <strong className="break-words">{confirming.bookTitle}</strong>
         {' '}({confirming.barcode})? Đã dùng {confirming.renewalsUsed}/{confirming.maxRenewals ?? 'chưa cấu hình'} lần.
         Hệ thống sẽ kiểm tra lại điều kiện khi bạn xác nhận.
       </p>
-      <p className="mb-4 text-xs text-slate-600">Nếu được chấp nhận, số lần đã dùng sẽ tăng 1. Bước này chưa tính hoặc thay đổi hạn trả.</p>
+      <p className="mb-4 text-xs text-slate-600">Nếu đủ điều kiện, hệ thống sẽ tính hạn trả mới theo loại thẻ, dời sang ngày thư viện mở cửa kế tiếp khi cần và tăng số lượt đã gia hạn.</p>
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" disabled={checking} onClick={() => setConfirming(null)}>Đóng</Button>
         <Button type="button" loading={checking} onClick={() => void confirmRenewal()}>Xác nhận gia hạn</Button>

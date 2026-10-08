@@ -186,14 +186,14 @@ public class LoanRepository {
                 .stream().findFirst();
     }
 
-    public record RenewalPolicy(Long loanId, int renewalsUsed, Integer maxRenewals) {}
+    public record RenewalPolicy(Long loanId, int renewalsUsed, Integer maxRenewals, Integer renewalDays) {}
 
     /** Read the quota attached to this reader's library card after locking the loan row.
      *  A missing card/policy is rejected rather than interpreted as unlimited renewals.
      */
     public Optional<RenewalPolicy> findRenewalPolicyForReader(Long itemId, Long readerId) {
         return jdbc.query("""
-                SELECT l.id AS loan_id, l.renewal_count, ct.max_renewals
+                SELECT l.id AS loan_id, l.renewal_count, ct.max_renewals, ct.renewal_days
                 FROM loan_items li
                 JOIN loans l ON l.id = li.loan_id
                 JOIN library_cards lc ON lc.user_id = l.borrower_user_id
@@ -201,8 +201,28 @@ public class LoanRepository {
                 WHERE li.id = ? AND l.borrower_user_id = ?
                 FOR SHARE OF lc, ct
                 """, (rs, index) -> new RenewalPolicy(rs.getLong("loan_id"),
-                rs.getInt("renewal_count"), rs.getObject("max_renewals", Integer.class)),
+                rs.getInt("renewal_count"), rs.getObject("max_renewals", Integer.class),
+                rs.getObject("renewal_days", Integer.class)),
                 itemId, readerId).stream().findFirst();
+    }
+
+    /** The caller already locked both loan and item. An unsuccessful write throws so the
+     * surrounding renewal transaction rolls back the due-date change and quota together.
+     */
+    public void updateDueAtForRenewal(Long itemId, Long readerId,
+                                     OffsetDateTime expectedDueAt, OffsetDateTime newDueAt) {
+        int changed = jdbc.update("""
+                UPDATE loan_items li
+                SET due_date = ?
+                FROM loans l
+                WHERE li.id = ? AND li.loan_id = l.id AND l.borrower_user_id = ?
+                  AND li.returned_at IS NULL AND li.due_date = ?
+                """, newDueAt, itemId, readerId, expectedDueAt);
+        if (changed != 1) {
+            throw new com.duanttcsn5.library.exception.ApiException(
+                    org.springframework.http.HttpStatus.CONFLICT, "RENEWAL_UPDATE_FAILED",
+                    "Phiếu đã thay đổi trước khi gia hạn. Hạn trả và lượt gia hạn được giữ nguyên.");
+        }
     }
 
     /** Conditional, atomic update. The loan row has already been locked by the check;
