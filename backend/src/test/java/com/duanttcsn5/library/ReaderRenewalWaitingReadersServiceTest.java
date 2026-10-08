@@ -48,6 +48,9 @@ class ReaderRenewalWaitingReadersServiceTest {
         when(users.findById(READER_ID)).thenReturn(Optional.of(reader));
         when(loans.findRenewalCandidateForReader(ITEM_ID, READER_ID)).thenReturn(Optional.of(
                 new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-15T09:00:00Z"), null)));
+        when(loans.findRenewalPolicyForReader(ITEM_ID, READER_ID)).thenReturn(
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3)));
+        when(loans.incrementRenewalCountIfAllowed(50L, READER_ID)).thenReturn(1);
     }
 
     @Test

@@ -7,6 +7,8 @@ export interface MyBorrowedBook {
   borrowedAt: string
   dueAt: string | null
   remainingDays: number | null
+  renewalsUsed: number
+  maxRenewals: number | null
 }
 
 export interface MyReturnedBook {
@@ -28,6 +30,8 @@ export interface MyReturnedBooksPage {
 export interface RenewalCheckResponse {
   eligible: boolean
   message: string
+  renewalsUsed: number
+  maxRenewals: number
 }
 
 export const myBorrowedBooksService = {

@@ -63,11 +63,14 @@ export default function MyBorrowedBooksPage() {
     try {
       const result = await myBorrowedBooksService.checkRenewal(confirming.id)
       setNotice(result.message)
+      // Refetch all copies: the renewal counter belongs to the loan, not only this item.
+      setRevision((value) => value + 1)
     } catch (e: unknown) {
       const message = getApiErrorMessage(e, 'Không kiểm tra được điều kiện gia hạn. Vui lòng thử lại.')
       const status = axios.isAxiosError(e) ? e.response?.status : undefined
       const code = axios.isAxiosError(e) ? e.response?.data?.code : undefined
-      if (status === 409 && code === 'RENEWAL_BLOCKED_BY_RESERVATION') {
+      if (status === 409 && (code === 'RENEWAL_BLOCKED_BY_RESERVATION' || code === 'RENEWAL_LIMIT_REACHED'
+        || code === 'RENEWAL_POLICY_MISSING')) {
         // Keep the reason next to this book. Do not refresh and accidentally hide it.
         setQueueRejection({ itemId: confirming.id, message })
       } else {
@@ -85,12 +88,19 @@ export default function MyBorrowedBooksPage() {
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Chức năng Sách đang mượn dành cho Bạn đọc.</p>
   const currentItems = dataReaderId === user?.id ? items : []
   const remaining = (item: MyBorrowedBook) => item.remainingDays === null ? 'Chưa xác định' : `${item.remainingDays} ngày`
+  const quotaReached = (item: MyBorrowedBook) => item.maxRenewals !== null
+    && item.maxRenewals > 0 && item.renewalsUsed >= item.maxRenewals
   const renewButton = (item: MyBorrowedBook) => canRequestRenewal(item) ? (
     <Button type="button" size="sm" variant="secondary" disabled={checking || loading}
       onClick={() => { setNotice(''); setActionError(''); setQueueRejection(null); setConfirming(item) }}>
       Gia hạn
     </Button>
   ) : null
+  const renewalUsage = (item: MyBorrowedBook) => (
+    <span className={quotaReached(item) ? 'font-semibold text-amber-700' : 'text-slate-700'}>
+      {item.renewalsUsed}/{item.maxRenewals !== null && item.maxRenewals > 0 ? item.maxRenewals : 'Chưa cấu hình'} lần
+    </span>
+  )
   const queueRejectionAlert = (item: MyBorrowedBook) => queueRejection?.itemId === item.id ? (
     <FeedbackAlert message={queueRejection.message} tone="error"
       onDismiss={() => setQueueRejection((current) => current?.itemId === item.id ? null : current)} />
@@ -111,15 +121,16 @@ export default function MyBorrowedBooksPage() {
     {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
     {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} />}
     {confirming && <Card className="border border-blue-200 p-5">
-      <h2 className="font-semibold text-slate-900">Kiểm tra điều kiện gia hạn</h2>
+      <h2 className="font-semibold text-slate-900">Xác nhận lượt gia hạn</h2>
       <p className="my-3 text-sm leading-6 text-slate-700">
-        Bạn muốn kiểm tra yêu cầu gia hạn cho sách <strong className="break-words">{confirming.bookTitle}</strong>
-        {' '}({confirming.barcode})? Hệ thống sẽ kiểm tra lại phiếu khi bạn xác nhận.
+        Bạn muốn ghi nhận một lượt gia hạn cho sách <strong className="break-words">{confirming.bookTitle}</strong>
+        {' '}({confirming.barcode})? Đã dùng {confirming.renewalsUsed}/{confirming.maxRenewals ?? 'chưa cấu hình'} lần.
+        Hệ thống sẽ kiểm tra lại điều kiện khi bạn xác nhận.
       </p>
-      <p className="mb-4 text-xs text-slate-600">Bước này chưa thay đổi hoặc tính lại hạn trả.</p>
+      <p className="mb-4 text-xs text-slate-600">Nếu được chấp nhận, số lần đã dùng sẽ tăng 1. Bước này chưa tính hoặc thay đổi hạn trả.</p>
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" disabled={checking} onClick={() => setConfirming(null)}>Đóng</Button>
-        <Button type="button" loading={checking} onClick={() => void confirmRenewal()}>Xác nhận kiểm tra</Button>
+        <Button type="button" loading={checking} onClick={() => void confirmRenewal()}>Xác nhận gia hạn</Button>
       </div>
     </Card>}
     {tab === 'returned' ? <section id="returned-books-panel" role="tabpanel" aria-labelledby="returned-books-tab"><MyReturnedBooksPanel /></section>
@@ -129,7 +140,7 @@ export default function MyBorrowedBooksPage() {
     {!loading && failed && <EmptyState title="Chưa tải được danh sách" description="Nhấn Làm mới để thử lại." />}
     {!loading && !failed && currentItems.length === 0 && <EmptyState title="Bạn không có sách đang mượn" description="Sách sẽ xuất hiện ở đây sau khi Thủ thư xác nhận cho mượn." />}
     {!loading && !failed && currentItems.length > 0 && <>
-      <p className="text-sm text-slate-600">Bạn đang mượn {currentItems.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ. Chỉ sách chưa quá hạn mới có nút Gia hạn.</p>
+      <p className="text-sm text-slate-600">Bạn đang mượn {currentItems.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ. Chỉ sách chưa quá hạn mới có nút Gia hạn. Khi hết lượt, hệ thống sẽ từ chối và nêu rõ số lần đã dùng.</p>
       <Card className="overflow-hidden">
         <div className="divide-y divide-slate-200 md:hidden">
           {currentItems.map((item) => <article key={item.id} className="space-y-3 p-4">
@@ -139,6 +150,7 @@ export default function MyBorrowedBooksPage() {
               <div><dt className="text-slate-500">Ngày mượn</dt><dd>{formatLoanTimestamp(item.borrowedAt, true)}</dd></div>
               <div><dt className="text-slate-500">Hạn trả</dt><dd>{item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Chưa có hạn trả'}</dd></div>
               <div><dt className="text-slate-500">Số ngày còn lại</dt><dd className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></dd></div>
+              <div><dt className="text-slate-500">Số lần gia hạn đã dùng / tối đa</dt><dd>{renewalUsage(item)}</dd></div>
             </dl>
             <div className="flex justify-end">{renewButton(item)}</div>
             {queueRejectionAlert(item)}
@@ -157,7 +169,7 @@ export default function MyBorrowedBooksPage() {
               <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
               <td className="px-4 py-4">{formatLoanTimestamp(item.borrowedAt, true)}</td>
               <td className="px-4 py-4">{item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Chưa có hạn trả'}</td>
-              <td className="px-4 py-4"><div className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /></div></td>
+              <td className="px-4 py-4"><div className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /><p className="text-xs">Gia hạn: {renewalUsage(item)}</p></div></td>
               <td className="px-3 py-4 text-right">{renewButton(item)}</td>
             </tr>
             {queueRejection?.itemId === item.id && <tr><td colSpan={6} className="px-4 pb-4">{queueRejectionAlert(item)}</td></tr>}

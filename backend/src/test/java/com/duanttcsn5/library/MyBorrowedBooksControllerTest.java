@@ -89,11 +89,13 @@ class MyBorrowedBooksControllerTest {
         when(service.myBorrowedBooks(12L)).thenReturn(java.util.List.of(
                 new com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse(1L, "Mắt biếc", "LIB-1",
                         java.time.OffsetDateTime.parse("2026-10-07T10:00:00Z"),
-                        java.time.OffsetDateTime.parse("2026-10-08T10:00:00Z"), 0L)));
+                        java.time.OffsetDateTime.parse("2026-10-08T10:00:00Z"), 0L, 0, 2)));
         mvc.perform(get(URL).param("readerId", "99").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].bookTitle").value("Mắt biếc"))
                 .andExpect(jsonPath("$[0].barcode").value("LIB-1"))
-                .andExpect(jsonPath("$[0].remainingDays").value(0));
+                .andExpect(jsonPath("$[0].remainingDays").value(0))
+                .andExpect(jsonPath("$[0].renewalsUsed").value(0))
+                .andExpect(jsonPath("$[0].maxRenewals").value(2));
         verify(service).myBorrowedBooks(12L);
         verifyNoMoreInteractions(service);
     }

@@ -136,16 +136,20 @@ public class LoanRepository {
     /** Filter each item, so partially returned loans retain only their outstanding copies. */
     public List<MyBorrowedBookResponse> findUnreturnedForReader(Long readerId) {
         return jdbc.query("""
-                SELECT li.id, b.title, c.barcode, li.borrowed_at, li.due_date
+                SELECT li.id, b.title, c.barcode, li.borrowed_at, li.due_date,
+                       l.renewal_count, ct.max_renewals
                 FROM loan_items li
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
+                LEFT JOIN library_cards lc ON lc.user_id = l.borrower_user_id
+                LEFT JOIN card_types ct ON ct.id = lc.card_type_id
                 WHERE l.borrower_user_id = ? AND li.returned_at IS NULL
                 ORDER BY li.borrowed_at DESC, li.id DESC
                 """, (rs, index) -> new MyBorrowedBookResponse(rs.getLong("id"), rs.getString("title"),
                 rs.getString("barcode"), rs.getObject("borrowed_at", OffsetDateTime.class),
-                rs.getObject("due_date", OffsetDateTime.class), null), readerId);
+                rs.getObject("due_date", OffsetDateTime.class), null,
+                rs.getInt("renewal_count"), rs.getObject("max_renewals", Integer.class)), readerId);
     }
 
     public record RenewalCandidate(OffsetDateTime dueAt, OffsetDateTime returnedAt) {}
@@ -159,11 +163,46 @@ public class LoanRepository {
                 FROM loan_items li
                 JOIN loans l ON l.id = li.loan_id
                 WHERE li.id = ? AND l.borrower_user_id = ?
-                FOR UPDATE OF li
+                FOR UPDATE OF li, l
                 """, (rs, index) -> new RenewalCandidate(
                 rs.getObject("due_date", OffsetDateTime.class),
                 rs.getObject("returned_at", OffsetDateTime.class)), itemId, readerId)
                 .stream().findFirst();
+    }
+
+    public record RenewalPolicy(Long loanId, int renewalsUsed, Integer maxRenewals) {}
+
+    /** Read the quota attached to this reader's library card after locking the loan row.
+     *  A missing card/policy is rejected rather than interpreted as unlimited renewals.
+     */
+    public Optional<RenewalPolicy> findRenewalPolicyForReader(Long itemId, Long readerId) {
+        return jdbc.query("""
+                SELECT l.id AS loan_id, l.renewal_count, ct.max_renewals
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN library_cards lc ON lc.user_id = l.borrower_user_id
+                JOIN card_types ct ON ct.id = lc.card_type_id
+                WHERE li.id = ? AND l.borrower_user_id = ?
+                FOR SHARE OF lc, ct
+                """, (rs, index) -> new RenewalPolicy(rs.getLong("loan_id"),
+                rs.getInt("renewal_count"), rs.getObject("max_renewals", Integer.class)),
+                itemId, readerId).stream().findFirst();
+    }
+
+    /** Conditional, atomic update. The loan row has already been locked by the check;
+     *  this guard additionally protects against concurrent policy/card-type changes.
+     */
+    public int incrementRenewalCountIfAllowed(Long loanId, Long readerId) {
+        return jdbc.update("""
+                UPDATE loans l
+                SET renewal_count = l.renewal_count + 1
+                FROM library_cards lc
+                JOIN card_types ct ON ct.id = lc.card_type_id
+                WHERE l.id = ? AND l.borrower_user_id = ?
+                  AND lc.user_id = l.borrower_user_id
+                  AND ct.max_renewals > 0
+                  AND l.renewal_count < ct.max_renewals
+                """, loanId, readerId);
     }
 
     public long countReturnedForReader(Long readerId) {
