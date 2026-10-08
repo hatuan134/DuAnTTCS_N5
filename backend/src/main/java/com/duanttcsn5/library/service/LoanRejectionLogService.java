@@ -58,6 +58,21 @@ public class LoanRejectionLogService {
                         .map(reason -> new LoanRejectionResponse.Reason(reason.code(), reason.message())).toList());
     }
 
+    /** Audit and loan MUST commit or roll back together (never REQUIRES_NEW here). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void logOverride(UUID requestId, String source, Long readerId, String readerName,
+            String cardNumber, Long actorId, Long reservationId, long borrowed, int maximum,
+            Long loanId, String reason, List<LoanRejectionResponse.Reason> violations) {
+        String actorName = users.findById(actorId).map(u -> u.getFullName()).orElse("Quản lý #" + actorId);
+        long overdue = loans.countOverdueUnreturnedLoansForReader(readerId,
+                LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+        BigDecimal unpaid = loans.sumUnpaidFeesForReader(readerId);
+        repository.saveOverride(requestId, source, readerId, readerName, cardNumber, actorId,
+                actorName == null ? "Quản lý #" + actorId : actorName, reservationId,
+                borrowed, maximum, overdue, unpaid == null ? BigDecimal.ZERO : unpaid,
+                loanId, reason, violations);
+    }
+
     @Transactional(readOnly = true)
     public LoanRejectionPageResponse page(String cardNumber, int page, int size) {
         if (page < 0 || size < 1 || size > 100 || (cardNumber != null && cardNumber.length() > 100)) {

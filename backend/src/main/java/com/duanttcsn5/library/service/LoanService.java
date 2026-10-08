@@ -63,6 +63,11 @@ public class LoanService {
     private final Clock clock;
     private final LoanRejectionLogService rejectionLogs;
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    // Provisional policy pending PO approval: only borrowing/fee/overdue policy blocks.
+    // Identity, account/card validity, configuration and physical-copy constraints NEVER bypass.
+    private static final Set<String> OVERRIDABLE = Set.of(
+            "LOAN_LIMIT_REACHED", "LOAN_DRAFT_LIMIT_EXCEEDED",
+            "LOAN_OVERDUE_UNRETURNED", "LOAN_UNPAID_FEES");
     private static final String MISSING_DEADLINE =
             "Đơn chưa có hạn nhận hợp lệ. Vui lòng đối chiếu dữ liệu trước khi lập phiếu mượn.";
 
@@ -193,13 +198,22 @@ public class LoanService {
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
             LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
         return createFromReservation(reservationId, actorId, cardNumber,
-                expectedBorrowDate, expectedDueAt, expectedLoanDays, null);
+                expectedBorrowDate, expectedDueAt, expectedLoanDays, null, false, null);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
             LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays, UUID requestId) {
+        return createFromReservation(reservationId, actorId, cardNumber,
+                expectedBorrowDate, expectedDueAt, expectedLoanDays, requestId, false, null);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
+    public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
+            LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays,
+            UUID requestId, boolean overrideRequested, String overrideReason) {
         requireStaff(actorId);
+        String approvedReason = validateOverrideRequest(actorId, overrideRequested, overrideReason);
         validateId(reservationId);
         String confirmed = cardNumber == null ? "" : cardNumber.strip();
         if (confirmed.isBlank() || confirmed.length() > 100
@@ -250,15 +264,23 @@ public class LoanService {
         // S3-03.2: reservation conversions are loans too; never bypass card/overdue checks.
         var cardBlockReasons = cardAndOverdueReasons(card, readerId,
                 LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE));
-        if (!cardBlockReasons.isEmpty()) {
-            long borrowed = loans.countUnreturnedBooksForReader(readerId);
-            int maximum = card.getCardType() == null ? -1 : card.getCardType().getMaxBooks();
-            List<BlockReason> allReasons = new ArrayList<>(cardBlockReasons);
-            if (borrowed >= maximum) allReasons.add(new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maximum)));
-            logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
-                    card.getCardNumber(), actorId, reservationId, borrowed, maximum, allReasons);
-            throw new ApiException(HttpStatus.CONFLICT, cardBlockReasons.get(0).code(), joinReasons(cardBlockReasons));
+        long borrowed = loans.countUnreturnedBooksForReader(readerId);
+        int maxBooks = card.getCardType() == null ? -1 : card.getCardType().getMaxBooks();
+        List<BlockReason> allReasons = new ArrayList<>(cardBlockReasons);
+        if (maxBooks >= 0 && borrowed >= maxBooks &&
+                allReasons.stream().noneMatch(r -> "LOAN_LIMIT_REACHED".equals(r.code()))) {
+            allReasons.add(new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks)));
         }
+        // A manager override must also honor every non-bypassable account/card restriction.
+        if (approvedReason != null) {
+            allReasons = new ArrayList<>(readerEligibility(confirmed, actorId).blockReasons());
+        }
+        if (!allReasons.isEmpty() && approvedReason == null) {
+            logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
+                    card.getCardNumber(), actorId, reservationId, borrowed, maxBooks, allReasons);
+            throw new ApiException(HttpStatus.CONFLICT, allReasons.get(0).code(), joinReasons(allReasons));
+        }
+        requirePermittedViolations(allReasons, approvedReason);
         LoanDatePreviewResponse dates = calculateDates(card, borrowedAt);
         if ((expectedBorrowDate != null && !expectedBorrowDate.equals(dates.borrowDate()))
                 || (expectedDueAt != null && !expectedDueAt.isEqual(dates.dueAt()))
@@ -266,16 +288,8 @@ public class LoanService {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_DATES_CHANGED",
                     "Ngày mượn hoặc hạn trả đã thay đổi. Vui lòng kiểm tra thông tin mới và xác nhận lại.");
         }
-        int maxBooks = card.getCardType().getMaxBooks();
         if (maxBooks < 0 || maxBooks > 10) throw new ApiException(HttpStatus.CONFLICT,
                 "LOAN_POLICY_NOT_CONFIGURED", "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.");
-        long borrowed = loans.countUnreturnedBooksForReader(readerId);
-        if (borrowed >= maxBooks) {
-            var reason = new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks));
-            logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
-                    card.getCardNumber(), actorId, reservationId, borrowed, maxBooks, List.of(reason));
-            throw new ApiException(HttpStatus.CONFLICT, reason.code(), reason.message());
-        }
         String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
         loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
@@ -283,6 +297,9 @@ public class LoanService {
         // Flush the reservation in this same transaction: any failure rolls back all three writes.
         reservation.setStatus("FULFILLED");
         reservations.saveAndFlush(reservation);
+        if (approvedReason != null) recordOverride(requestId, "RESERVATION_CONFIRM", readerId,
+                reservation.getReader().getFullName(), card.getCardNumber(), actorId, reservationId,
+                borrowed, maxBooks, loanId, approvedReason, allReasons);
         return new ReservationLoanResponse(loanId, loanNumber, reservationId,
                 readerId, reservation.getReader().getFullName(), card.getCardNumber(),
                 bookId, reservation.getBook().getTitle(), copy.getId(), copy.getBarcode(),
@@ -304,6 +321,61 @@ public class LoanService {
         rejectionLogs.log(requestId == null ? UUID.randomUUID() : requestId, source,
                 readerId, readerName, cardNumber, actorId, reservationId, borrowed, limit,
                 reasons.stream().map(reason -> new LoanRejectionResponse.Reason(reason.code(), reason.message())).toList());
+    }
+
+    private String validateOverrideRequest(Long actorId, boolean requested, String reason) {
+        if (!requested) {
+            if (reason != null && !reason.isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "OVERRIDE_FLAG_REQUIRED", "Vui lòng chọn bỏ qua lần chặn trước khi nhập lý do.");
+            return null;
+        }
+        if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập.");
+        var manager = users.findById(actorId).orElseThrow(() -> new ApiException(
+                HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (manager.getRole() == null || !"LIBRARY_MANAGER".equals(manager.getRole().getCode())
+                || !"ACTIVE".equals(manager.getStatus())) throw new ApiException(
+                HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện được bỏ qua lần chặn.");
+        String normalized = reason == null ? "" : reason.strip();
+        if (normalized.isBlank() || normalized.length() > 500) throw new ApiException(
+                HttpStatus.BAD_REQUEST, "OVERRIDE_REASON_REQUIRED",
+                "Phải nhập lý do bỏ qua từ 1 đến 500 ký tự.");
+        return normalized;
+    }
+
+    private void validateOverridePreview(Long actorId) {
+        if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập.");
+        var user = users.findById(actorId).orElseThrow(() -> new ApiException(
+                HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (user.getRole() == null || !"LIBRARY_MANAGER".equals(user.getRole().getCode())
+                || !"ACTIVE".equals(user.getStatus())) throw new ApiException(HttpStatus.FORBIDDEN,
+                "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện được kiểm tra sách cho lượt bỏ qua.");
+    }
+
+    private boolean canOverride(List<BlockReason> reasons) {
+        return !reasons.isEmpty() && reasons.stream().allMatch(r -> OVERRIDABLE.contains(r.code()));
+    }
+
+    private void requirePermittedViolations(List<BlockReason> reasons, String approvedReason) {
+        if (approvedReason == null) return;
+        if (reasons.isEmpty()) throw new ApiException(HttpStatus.CONFLICT,
+                "OVERRIDE_NOT_NEEDED", "Không có vi phạm cần bỏ qua trong lượt mượn này.");
+        if (!canOverride(reasons)) throw new ApiException(HttpStatus.CONFLICT,
+                "OVERRIDE_NOT_ALLOWED", "Có điều kiện không thể bỏ qua: " + joinReasons(reasons));
+        if (rejectionLogs == null) throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                "OVERRIDE_AUDIT_UNAVAILABLE", "Nhật ký bỏ qua chưa sẵn sàng. Không được lập phiếu.");
+    }
+
+    private void recordOverride(UUID requestId, String source, Long readerId, String readerName,
+            String cardNumber, Long actorId, Long reservationId, long borrowed, int maxBooks,
+            Long loanId, String reason, List<BlockReason> reasons) {
+        // A blocked attempt already owns its audit request_id. Retrying that same
+        // loan confirmation with manager approval must append an OVERRIDDEN event,
+        // not collide with or overwrite the earlier BLOCKED snapshot. The loan
+        // itself remains idempotent through its original direct request UUID.
+        rejectionLogs.logOverride(UUID.randomUUID(),
+                source, readerId, readerName, cardNumber, actorId, reservationId,
+                borrowed, maxBooks, loanId, reason, reasons.stream()
+                    .map(r -> new LoanRejectionResponse.Reason(r.code(), r.message())).toList());
     }
 
     private void requireStaff(Long actorId) {
@@ -362,11 +434,14 @@ public class LoanService {
         }
         if (selected.contains(barcode)) throw duplicateDraftBarcode();
 
+        // Reject a non-manager's preview override before revealing policy findings.
+        if (request.overridePreview()) validateOverridePreview(actorId);
         // Reuse S3-02.1 and re-read quota for every addition. No draft is persisted.
         var reader = readerEligibility(request.cardNumber(), actorId);
-        if (!reader.eligible()) throw new ApiException(HttpStatus.CONFLICT,
+        if (!reader.eligible() && !(request.overridePreview()
+                && canOverride(reader.blockReasons()))) throw new ApiException(HttpStatus.CONFLICT,
                 reader.reasonCode(), reader.message());
-        if ((long) selected.size() + 1 > reader.remainingBooks()) {
+        if (!request.overridePreview() && (long) selected.size() + 1 > reader.remainingBooks()) {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_LIMIT_EXCEEDED",
                     "Không thể thêm sách: lượt mượn sẽ vượt giới hạn. Bạn đọc đang mượn "
                             + reader.borrowedBooks() + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
@@ -410,6 +485,7 @@ public class LoanService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_DRAFT",
                     "Lượt mượn phải có mã xác nhận và từ 1 đến 10 sách.");
         }
+        String approvedReason = validateOverrideRequest(actorId, request.overrideRequested(), request.overrideReason());
         String cardNumber = request.cardNumber() == null ? "" : request.cardNumber().strip();
         if (cardNumber.isEmpty() || cardNumber.length() > 100) throw new ApiException(HttpStatus.BAD_REQUEST,
                 "INVALID_CARD_NUMBER", "Vui lòng nhập mã thẻ từ 1 đến 100 ký tự.");
@@ -464,20 +540,18 @@ public class LoanService {
 
         // Sample eligibility/time only after all lock waits; do not trust browser previews.
         var reader = readerEligibility(cardNumber, actorId);
-        if (!reader.eligible()) {
-            logBlocked(request.requestId(), "DIRECT_CONFIRM", reader.readerId(), reader.readerName(),
-                    reader.cardNumber(), actorId, null, reader.borrowedBooks(), reader.maxBooks(), reader.blockReasons());
-            throw new ApiException(HttpStatus.CONFLICT, reader.reasonCode(), reader.message());
+        List<BlockReason> violations = new ArrayList<>(reader.blockReasons());
+        if (barcodes.size() > Math.max(0L, (long) reader.maxBooks() - reader.borrowedBooks())) {
+            String message = "Lượt mượn " + barcodes.size() + " sách vượt giới hạn còn lại "
+                    + Math.max(0L, (long) reader.maxBooks() - reader.borrowedBooks()) + " sách của bạn đọc.";
+            violations.add(new BlockReason("LOAN_DRAFT_LIMIT_EXCEEDED", message));
         }
-        if (barcodes.size() > reader.remainingBooks()) {
-            String message = "Không thể ghi lượt mượn: bạn đọc đang mượn " + reader.borrowedBooks()
-                    + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
-                    + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.";
+        if (!violations.isEmpty() && approvedReason == null) {
             logBlocked(request.requestId(), "DIRECT_CONFIRM", reader.readerId(), reader.readerName(),
-                    reader.cardNumber(), actorId, null, reader.borrowedBooks(), reader.maxBooks(),
-                    List.of(new BlockReason("LOAN_DRAFT_LIMIT_EXCEEDED", message)));
-            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_LIMIT_EXCEEDED", message);
+                    reader.cardNumber(), actorId, null, reader.borrowedBooks(), reader.maxBooks(), violations);
+            throw new ApiException(HttpStatus.CONFLICT, violations.get(0).code(), joinReasons(violations));
         }
+        requirePermittedViolations(violations, approvedReason);
         OffsetDateTime borrowedAt = now();
         for (BookCopy copy : lockedCopies) {
             var hold = reservations.findEffectiveHoldForCopy(copy.getId(), borrowedAt);
@@ -496,6 +570,9 @@ public class LoanService {
                     request.requestId(), fingerprint);
             // Keep the scanned order in the loan while acquiring locks in a deterministic order.
             for (var identity : identities) loans.insertItem(loanId, identity.copyId(), borrowedAt, dates.dueAt());
+            if (approvedReason != null) recordOverride(request.requestId(), "DIRECT_CONFIRM", readerId,
+                    reader.readerName(), cardNumber, actorId, null, reader.borrowedBooks(),
+                    reader.maxBooks(), loanId, approvedReason, violations);
             return directResult(loanId, cardNumber, actorId);
         } catch (DataAccessException error) {
             // Throw through the transactional proxy; never swallow or commit a partial write.

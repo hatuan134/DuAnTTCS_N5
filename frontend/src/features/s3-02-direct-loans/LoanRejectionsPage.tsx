@@ -76,7 +76,7 @@ export default function LoanRejectionsPage() {
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Bạn không có quyền xem nhật ký từ chối cho mượn.</p>
 
   return <div className="space-y-5">
-    <PageHeader title="Nhật ký từ chối cho mượn" description="Lưu dấu vết những lần hệ thống từ chối cho mượn: thời gian, người thao tác, bạn đọc và nguyên nhân tại thời điểm kiểm tra." />
+    <PageHeader title="Nhật ký chặn và bỏ qua cho mượn" description="Theo dõi các lượt bị chặn và lượt được Quản lý cho phép bỏ qua, kèm nguyên nhân và người thực hiện." />
     <Card className="p-4 sm:p-6">
       <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
         <AlertTriangle size={18} className="mt-1 shrink-0" />
@@ -100,16 +100,19 @@ export default function LoanRejectionsPage() {
 
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-4">
-        <h2 className="font-semibold text-slate-900">Lịch sử kiểm tra bị từ chối</h2>
+        <h2 className="font-semibold text-slate-900">Lịch sử kiểm tra và quyết định</h2>
         <span className="text-sm text-slate-600">{data ? `${data.total} lần` : '—'}</span>
       </div>
       {loading && <p role="status" className="p-5 text-sm text-slate-600">Đang tải nhật ký…</p>}
       {!loading && loadError && <div className="p-4"><p role="alert" className="text-sm text-red-700">{loadError}</p><Button variant="secondary" type="button" onClick={() => setReload((v) => v + 1)}>Thử lại</Button></div>}
-      {!loading && data?.items.length === 0 && <p className="p-6 text-sm text-slate-600">Chưa có lần từ chối nào phù hợp. Có thể kiểm tra thẻ tại quầy và tra cứu lại tại đây.</p>}
+      {!loading && data?.items.length === 0 && <p className="p-6 text-sm text-slate-600">Chưa có nhật ký nào phù hợp với bộ lọc hiện tại.</p>}
       {!loading && data && data.items.length > 0 && <div className="divide-y divide-slate-200">
         {data.items.map((item) => <div key={item.id} className="px-4 py-4 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
-            <div className="min-w-0"><p className="text-xs text-slate-500">Thời điểm</p><p className="font-medium text-slate-900">{dateTime(item.occurredAt)}</p><p className="text-xs text-slate-500">{sources[item.source]}</p></div>
+            <div className="min-w-0"><p className="text-xs text-slate-500">Thời điểm</p><p className="font-medium text-slate-900">{dateTime(item.occurredAt)}</p><p className="text-xs text-slate-500">{sources[item.source]}</p>
+              <span className={`mt-1 inline-block rounded-lg px-2 py-1 text-xs font-semibold ${item.eventType === 'OVERRIDDEN' ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-800'}`}>
+                {item.eventType === 'OVERRIDDEN' ? 'Quản lý đã cho phép bỏ qua' : 'Giao dịch bị chặn'}
+              </span></div>
             <div className="min-w-0"><p className="text-xs text-slate-500">Bạn đọc / mã thẻ</p><p className="break-words font-medium text-slate-900">{item.readerName}</p><p className="break-all font-mono text-xs text-slate-600">{item.cardNumber}</p></div>
             <div className="min-w-0"><p className="text-xs text-slate-500">Nhân viên thao tác</p><p className="break-words font-medium text-slate-900">{item.actorName}</p><p className="text-xs text-amber-800">{item.reasons.length} lý do</p></div>
             <Button type="button" variant="secondary" onClick={() => { void openDetail(item.id) }}>
@@ -117,11 +120,16 @@ export default function LoanRejectionsPage() {
               {detailId === item.id ? 'Thu gọn' : 'Chi tiết'}
             </Button>
           </div>
-          {detailId === item.id && <section aria-label={`Chi tiết lần từ chối ${item.id}`} className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          {detailId === item.id && <section aria-label={`Chi tiết nhật ký ${item.id}` } className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             {detailLoading && <p role="status" className="text-sm text-slate-600">Đang tải lý do…</p>}
             {detailError && <FeedbackAlert tone="error" message={detailError} onDismiss={() => setDetailError('')} />}
             {detail?.id === item.id && <>
-              <p className="mb-2 font-semibold text-slate-900">Nguyên nhân hệ thống từ chối</p>
+              <p className="mb-2 font-semibold text-slate-900">{detail.eventType === 'OVERRIDDEN' ? 'Các vi phạm đã được bỏ qua cho giao dịch này' : 'Các lý do chặn giao dịch'}</p>
+              {detail.eventType === 'OVERRIDDEN' && <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                <p><strong>Quản lý xác nhận:</strong> {detail.actorName} (ID #{detail.actorId})</p>
+                <p className="mt-1 break-words"><strong>Lý do:</strong> {detail.overrideReason}</p>
+                <p className="mt-1"><strong>Phiếu mượn:</strong> {detail.loanId ? <a className="font-semibold underline" href={`/loans/${detail.loanId}`}>#{detail.loanId}</a> : '—'}</p>
+              </div>}
               <ul className="list-disc space-y-2 pl-5 text-sm text-amber-900">{detail.reasons.map((reason) => <li key={reason.code}><strong>{reason.code}</strong>: {reason.message}</li>)}</ul>
               <dl className="mt-4 grid gap-3 border-t border-slate-200 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div><dt className="text-slate-500">Sách chưa trả / hạn mức</dt><dd className="font-semibold">{detail.borrowedBooks} / {detail.maxBooks}</dd></div>

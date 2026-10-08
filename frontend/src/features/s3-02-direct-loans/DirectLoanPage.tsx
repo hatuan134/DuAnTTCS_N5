@@ -117,6 +117,7 @@ export default function DirectLoanPage() {
       </div>
     </Card>}
     {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result}
+      isManager={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
       onLockChange={setConfirmationLocked} onCreated={(data) => setResult(data.reader)}
       onNewLoan={() => { setConfirmationLocked(false); immediate.current = true; setRevision((value) => value + 1) }} />}
     <p className="text-sm leading-6 text-slate-500">{confirmationLocked

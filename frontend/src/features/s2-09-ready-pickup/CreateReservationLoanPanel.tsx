@@ -1,4 +1,5 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import type { ReaderLoanEligibility } from '../s3-02-direct-loans/directLoanService'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
@@ -10,6 +11,7 @@ import type { LoanDatePreview, ReadyPickupReservation, ReservationLoanResult, Re
 
 interface Props {
   reservation: ReadyPickupReservation
+  isManager?: boolean
   disabled: boolean
   onBusyChange: (busy: boolean) => void
   onSuccess: (result: ReservationLoanResult) => void
@@ -17,10 +19,19 @@ interface Props {
   onExpired?: (context: ReservationLoanContext) => void
 }
 
+const ALLOWED_OVERRIDES = new Set(['LOAN_LIMIT_REACHED', 'LOAN_DRAFT_LIMIT_EXCEEDED',
+  'LOAN_OVERDUE_UNRETURNED', 'LOAN_UNPAID_FEES'])
+
 export default function CreateReservationLoanPanel({
-  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted, onExpired,
+  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted, onExpired, isManager = false,
 }: Props) {
   const [cardNumber, setCardNumber] = useState('')
+  const [readerCheck, setReaderCheck] = useState<ReaderLoanEligibility | null>(null)
+  const [readerCheckError, setReaderCheckError] = useState('')
+  const [overrideRequested, setOverrideRequested] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
+  const canOverride = isManager && !!readerCheck && (readerCheck.blockReasons?.length ?? 0) > 0
+    && (readerCheck.blockReasons ?? []).every((r) => ALLOWED_OVERRIDES.has(r.code))
   const [error, setError] = useState('')
   const [dismissedError, setDismissedError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -35,6 +46,22 @@ export default function CreateReservationLoanPanel({
   const expiryCheckAttempted = useRef(false)
   const effective = currentContext ? { ...reservation, ...currentContext } : reservation
   const expired = isPickupExpired(effective, elapsedMs)
+
+  useEffect(() => {
+    if (!isManager || !cardNumber.trim() || cardNumber.trim().length > 100) {
+      setReaderCheck(null); setReaderCheckError(''); return
+    }
+    let valid = true
+    setReaderCheck(null); setReaderCheckError('')
+    const timer = window.setTimeout(() => {
+      pickupService.checkReader(cardNumber).then((data) => {
+        if (valid) setReaderCheck(data)
+      }).catch((e: unknown) => {
+        if (valid) setReaderCheckError(getApiErrorMessage(e, 'Không kiểm tra được điều kiện mượn.'))
+      })
+    }, 350)
+    return () => { valid = false; window.clearTimeout(timer) }
+  }, [cardNumber, isManager])
 
   function acceptContext(context: ReservationLoanContext) {
     expiryAnchor.current = performance.now()
@@ -93,6 +120,9 @@ export default function CreateReservationLoanPanel({
       setError('Vui lòng nhập mã thẻ hợp lệ, tối đa 100 ký tự.')
       return
     }
+    if (overrideRequested && (!canOverride || !overrideReason.trim())) {
+      setError('Chỉ được bỏ qua vi phạm chính sách được phép và phải nhập lý do.'); return
+    }
     if (!preview || dateError) {
       setError('Chưa xác định được hạn trả. Vui lòng kiểm tra cấu hình và cập nhật hạn trả trước khi xác nhận.')
       return
@@ -103,7 +133,8 @@ export default function CreateReservationLoanPanel({
     setError(''); setDismissedError('')
     try {
       if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID()
-      const created = await pickupService.createLoan(reservation.id, confirmed, preview, requestIdRef.current)
+      const created = await pickupService.createLoan(reservation.id, confirmed, preview,
+        requestIdRef.current, overrideRequested, overrideReason)
       setResult(created)
       onSuccess(created)
     } catch (e: unknown) {
@@ -181,9 +212,37 @@ export default function CreateReservationLoanPanel({
       <Input id="confirmed-card-number" label="Mã thẻ của người đến nhận" required maxLength={100}
         autoComplete="off" placeholder="Nhập hoặc quét mã thẻ thực tế"
         value={cardNumber} disabled={disabled || submitting}
-        onChange={(event) => { setCardNumber(event.target.value); setError(''); setDismissedError('') }} />
+        onChange={(event) => { setCardNumber(event.target.value); setError(''); setDismissedError('');
+          setOverrideRequested(false); setOverrideReason(''); requestIdRef.current = null }} />
+      {isManager && <section className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+        <p className="font-semibold text-amber-950">Quản lý thư viện — bỏ qua chặn đúng một lượt</p>
+        {readerCheckError && <FeedbackAlert message={readerCheckError} tone="error"
+          onDismiss={() => setReaderCheckError('')} />}
+        {readerCheck && !readerCheck.eligible && <>
+          <p className="font-semibold text-amber-900">Các lý do đang chặn:</p>
+          <ul className="list-disc space-y-1 pl-5 text-amber-900">
+            {(readerCheck.blockReasons ?? []).map((r) => <li key={r.code}>{r.message}</li>)}
+          </ul>
+          {!canOverride && <p className="text-red-800">Có vi phạm không được phép bỏ qua. Cần xử lý trước khi mượn.</p>}
+        </>}
+        {readerCheck?.eligible && <p className="text-slate-600">Bạn đọc hiện đủ điều kiện; không cần sử dụng quyền bỏ qua.</p>}
+        <label className="flex items-start gap-2 font-medium text-slate-900">
+          <input type="checkbox" checked={overrideRequested} disabled={!canOverride || submitting || disabled}
+            onChange={(e) => { setOverrideRequested(e.target.checked); requestIdRef.current = null }} />
+          Tôi xác nhận bỏ qua các lý do trên chỉ cho đơn đang chuyển thành phiếu mượn
+        </label>
+        {overrideRequested && <label className="block font-medium text-slate-900">Lý do bắt buộc
+          <textarea maxLength={500} required value={overrideReason} disabled={submitting || disabled}
+            onChange={(e) => { setOverrideReason(e.target.value); requestIdRef.current = null }}
+            className="mt-2 block min-h-24 w-full rounded-xl border border-slate-300 bg-white p-3"
+            placeholder="Nêu rõ lý do quyết định bỏ qua…" />
+          {!overrideReason.trim() && <span className="mt-1 block text-xs text-red-700">Vui lòng nhập lý do.</span>}
+        </label>}
+        <p className="text-xs text-amber-900">Vi phạm của bạn đọc không bị xóa. Lượt sau sẽ kiểm tra lại toàn bộ chính sách.</p>
+      </section>}
       <Button type="submit" loading={submitting}
-        disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage}>
+        disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage
+          || (overrideRequested && (!canOverride || !overrideReason.trim()))}>
         Xác nhận và lập phiếu mượn
       </Button>
     </form>}

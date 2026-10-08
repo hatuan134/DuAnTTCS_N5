@@ -17,8 +17,12 @@ interface DraftRow {
   checking: boolean
 }
 
-export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, onNewLoan }: {
+const ALLOWED_OVERRIDES = new Set(['LOAN_LIMIT_REACHED', 'LOAN_DRAFT_LIMIT_EXCEEDED',
+  'LOAN_OVERDUE_UNRETURNED', 'LOAN_UNPAID_FEES'])
+
+export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, onNewLoan, isManager = false }: {
   reader: ReaderLoanEligibility
+  isManager?: boolean
   onCreated?: (result: DirectLoanResult) => void
   onLockChange?: (locked: boolean) => void
   onNewLoan?: () => void
@@ -26,6 +30,10 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   const [barcode, setBarcode] = useState('')
   const [items, setItems] = useState<DraftRow[]>([])
   const [limit, setLimit] = useState(reader.remainingBooks)
+  const allowedByPolicy = reader.eligible || (reader.blockReasons?.length ?? 0) > 0
+    && (reader.blockReasons ?? []).every((r) => ALLOWED_OVERRIDES.has(r.code))
+  const [overrideRequested, setOverrideRequested] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
@@ -41,10 +49,15 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   const validItems = items.filter((row) => row.item !== null)
   const atLimit = validItems.length >= limit
   const frozen = loading || awaitingResult || completed !== null
-  const blocked = frozen || !reader.eligible || atLimit
+  const bypassDraft = isManager && allowedByPolicy && overrideRequested
+  const blocked = frozen || (!reader.eligible && !bypassDraft) || (atLimit && !bypassDraft)
+    || validItems.length >= 10
   const unresolved = items.filter((row) => row.item === null).length
-  const canConfirm = reader.eligible && validItems.length > 0 && validItems.length <= limit
-    && unresolved === 0 && !loading && editingId === null && !barcode.trim() && !completed
+  const hasViolation = !reader.eligible || validItems.length > limit
+  const canConfirm = (overrideRequested ? bypassDraft && hasViolation : reader.eligible && validItems.length <= limit)
+    && (!bypassDraft || !!overrideReason.trim())
+    && validItems.length > 0 && unresolved === 0 && !loading
+    && editingId === null && !barcode.trim() && !completed
   const editingIndex = items.findIndex((row) => row.id === editingId)
 
   function focusBarcode() {
@@ -87,7 +100,8 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     setLoading(true)
     try {
       // Failed lines never consume quota or enter the server's valid draft.
-      const item = await directLoanService.previewItem(reader.cardNumber, code, validItems.map((row) => row.barcode))
+      const item = await directLoanService.previewItem(reader.cardNumber, code,
+        validItems.map((row) => row.barcode), bypassDraft)
       if (!active.current) return
       setLimit(item.remainingBooks)
       setItems((rows) => rows.map((row) => row.id === rowId ? { ...row, item, checking: false } : row))
@@ -140,7 +154,8 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       if (!submitted.current) submitted.current = {
         id: crypto.randomUUID(), barcodes: validItems.map((row) => row.barcode),
       }
-      const result = await directLoanService.confirm(reader.cardNumber, submitted.current.barcodes, submitted.current.id)
+      const result = await directLoanService.confirm(reader.cardNumber, submitted.current.barcodes,
+        submitted.current.id, bypassDraft, overrideReason)
       if (!active.current) return
       setCompleted(result); setAwaitingResult(false)
       onCreated?.(result)
@@ -200,7 +215,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
         <div className="min-w-0 flex-1">
           <Input id="direct-loan-barcode" label="Mã vạch sách" required autoComplete="off" maxLength={100}
             placeholder="Nhập mã vạch của bản sao" value={barcode} error={error}
-            disabled={!reader.eligible || frozen}
+            disabled={(!reader.eligible && !bypassDraft) || frozen}
             onChange={(event) => { setBarcode(event.target.value); setError(''); setNotice('') }} />
         </div>
         <div className="flex flex-wrap gap-2 sm:mt-7">
@@ -215,7 +230,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     </form>
     {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
       {reader.eligible
-        ? `Đã đạt giới hạn ${limit} sách hợp lệ trong lượt này. Không thể thêm sách vì sẽ vượt số sách bạn đọc còn được mượn. Xóa một dòng hợp lệ để nhập sách khác.`
+        ? `Đã đạt giới hạn ${limit} sách hợp lệ trong lượt này. Không thể thêm sách vì sẽ vượt số sách bạn đọc còn được mượn. ${isManager ? 'Quản lý có thể xem xét bỏ qua một lần kèm lý do.' : 'Xóa một dòng hợp lệ để nhập sách khác.'}`
         : reader.message}
     </p>}
     {items.length === 0
@@ -251,6 +266,27 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
           </tbody>
         </table>
       </div>}
+    {isManager && (!reader.eligible || atLimit || overrideRequested) && <section
+      className="mt-5 space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4" aria-label="Bỏ qua chặn một lần">
+      <p className="font-semibold text-amber-950">Quản lý thư viện — xem xét bỏ qua lần chặn</p>
+      <p className="text-sm text-amber-950">Chỉ áp dụng cho một lượt mượn. Vi phạm gốc vẫn còn và lần mượn sau phải kiểm tra lại.</p>
+      {!allowedByPolicy && <p role="alert" className="text-sm text-red-800">Có điều kiện bắt buộc không được bỏ qua; cần xử lý vi phạm trước.</p>}
+      <label className="flex items-start gap-2 text-sm font-semibold text-slate-900">
+        <input type="checkbox" checked={overrideRequested} disabled={frozen || !allowedByPolicy}
+          onChange={(e) => { setOverrideRequested(e.target.checked); setConfirmationError(''); submitted.current = null }} />
+        Xác nhận xem xét bỏ qua các vi phạm để hoàn thành đúng lượt này
+      </label>
+      {overrideRequested && <label className="block text-sm font-medium text-slate-800">Lý do bắt buộc (tối đa 500 ký tự)
+        <textarea className="mt-2 block min-h-24 w-full rounded-xl border border-slate-300 bg-white p-3"
+          value={overrideReason} maxLength={500} disabled={frozen} required
+          onChange={(e) => { setOverrideReason(e.target.value); submitted.current = null }}
+          placeholder="Ghi lý do cụ thể và căn cứ quyết định…" />
+        {!overrideReason.trim() && <span className="mt-1 block text-xs text-red-700">Phải nhập lý do trước khi xác nhận bỏ qua.</span>}
+      </label>}
+      {bypassDraft && validItems.length > limit && <p className="text-sm text-amber-900">
+        Lượt này đang vượt hạn mức {limit} sách; hệ thống sẽ lưu cả vi phạm vượt hạn mức vào nhật ký.
+      </p>}
+    </section>}
     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p role="status" className={`min-w-0 text-sm leading-6 ${unresolved ? 'text-red-700' : 'text-slate-600'}`}>
         {unresolved ? `Còn ${unresolved} dòng chưa hợp lệ. Sửa hoặc xóa các dòng này trước khi xác nhận; vẫn có thể nhập sách khác.`

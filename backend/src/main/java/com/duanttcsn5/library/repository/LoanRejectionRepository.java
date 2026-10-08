@@ -52,6 +52,26 @@ public class LoanRejectionRepository {
         }
     }
 
+    /** Must run inside the successful loan's transaction; roll back audit with the loan. */
+    public void saveOverride(UUID requestId, String source, Long readerId, String readerName,
+            String cardNumber, Long actorId, String actorName, Long reservationId,
+            long borrowed, int maximum, long overdue, BigDecimal unpaid,
+            Long loanId, String overrideReason, List<LoanRejectionResponse.Reason> reasons) {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO loan_rejections (request_id, source, reader_user_id, reader_name,
+                    card_number, actor_user_id, actor_name, reservation_id, borrowed_books,
+                    max_books, overdue_loans, unpaid_amount_vnd, event_type, override_reason, loan_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OVERRIDDEN', ?, ?)
+                RETURNING id
+                """, Long.class, requestId, source, readerId, readerName, cardNumber,
+                actorId, actorName, reservationId, borrowed, maximum, overdue, unpaid,
+                overrideReason, loanId);
+        for (var reason : reasons) {
+            jdbc.update("INSERT INTO loan_rejection_reasons (rejection_id, reason_code, reason_message) VALUES (?, ?, ?)",
+                    id, reason.code(), reason.message());
+        }
+    }
+
     private LoanRejectionResponse map(ResultSet rs, int ignored) throws SQLException {
         return new LoanRejectionResponse(rs.getLong("id"),
                 rs.getObject("occurred_at", java.time.OffsetDateTime.class), rs.getString("source"),
@@ -59,13 +79,14 @@ public class LoanRejectionRepository {
                 rs.getLong("actor_user_id"), rs.getString("actor_name"),
                 rs.getObject("reservation_id", Long.class), rs.getLong("borrowed_books"),
                 rs.getInt("max_books"), rs.getLong("overdue_loans"),
-                rs.getBigDecimal("unpaid_amount_vnd"), List.of());
+                rs.getBigDecimal("unpaid_amount_vnd"), List.of(), rs.getString("event_type"),
+                rs.getString("override_reason"), rs.getObject("loan_id", Long.class));
     }
 
     private static final String FIELDS = """
             SELECT id, occurred_at, source, reader_user_id, reader_name, card_number,
                    actor_user_id, actor_name, reservation_id, borrowed_books,
-                   max_books, overdue_loans, unpaid_amount_vnd
+                   max_books, overdue_loans, unpaid_amount_vnd, event_type, override_reason, loan_id
             FROM loan_rejections
             """;
 
@@ -94,6 +115,7 @@ public class LoanRejectionRepository {
         return new LoanRejectionResponse(header.id(), header.occurredAt(), header.source(),
                 header.readerId(), header.readerName(), header.cardNumber(), header.actorId(),
                 header.actorName(), header.reservationId(), header.borrowedBooks(),
-                header.maxBooks(), header.overdueLoans(), header.unpaidAmountVnd(), reasons);
+                header.maxBooks(), header.overdueLoans(), header.unpaidAmountVnd(), reasons,
+                header.eventType(), header.overrideReason(), header.loanId());
     }
 }

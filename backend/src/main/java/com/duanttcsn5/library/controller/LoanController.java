@@ -67,6 +67,12 @@ public class LoanController {
             @AuthenticationPrincipal UserPrincipal principal) {
         Long actorId = principal == null ? null : principal.id();
         // Keep the old service API path for clients that do not yet send a request key.
+        if (request.overrideRequested()) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
+                    reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
+                    request.expectedDueAt(), request.expectedLoanDays(), request.requestId(),
+                    true, request.overrideReason()));
+        }
         if (request.requestId() == null) {
             return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
                     reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
