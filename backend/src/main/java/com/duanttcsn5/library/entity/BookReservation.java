@@ -142,11 +142,23 @@ public class BookReservation {
         this.pickupDeadline = pickupDeadline;
     }
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "auto_cancellation_run_id")
+    private ReservationAutoCancellationRun autoCancellationRun;
+
     public String getCancellationReason() {
         return cancellationReason;
     }
 
     public void setCancellationReason(String cancellationReason) {
         this.cancellationReason = cancellationReason;
+    }
+
+    public ReservationAutoCancellationRun getAutoCancellationRun() {
+        return autoCancellationRun;
+    }
+
+    public void setAutoCancellationRun(ReservationAutoCancellationRun autoCancellationRun) {
+        this.autoCancellationRun = autoCancellationRun;
     }
 }

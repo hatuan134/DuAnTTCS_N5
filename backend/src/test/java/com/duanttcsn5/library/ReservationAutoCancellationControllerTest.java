@@ -3,6 +3,7 @@ package com.duanttcsn5.library;
 import com.duanttcsn5.library.config.SecurityConfig;
 import com.duanttcsn5.library.controller.BookReservationController;
 import com.duanttcsn5.library.dto.book.AutoCancelledReservationResponse;
+import com.duanttcsn5.library.dto.book.AutoCancellationRunResponse;
 import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.GlobalExceptionHandler;
@@ -29,6 +30,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +38,7 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -175,5 +178,53 @@ class ReservationAutoCancellationControllerTest {
     void anonymous_cannotTriggerAutoCancel() throws Exception {
         mvc.perform(post("/api/v1/reservations/auto-cancel-overdue"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Quản lý thư viện xem kết quả lần chạy gần nhất thành công")
+    void manager_canGetLatestRun() throws Exception {
+        token("LIBRARY_MANAGER");
+        AutoCancellationRunResponse latestRun = new AutoCancellationRunResponse(
+                1L, LocalDate.of(2026, 10, 9),
+                OffsetDateTime.parse("2026-10-09T00:30:00+07:00"),
+                OffsetDateTime.parse("2026-10-09T00:30:01+07:00"),
+                "SUCCESS", 5, 5, 3, 2, 0, null, "SYSTEM", List.of()
+        );
+        when(autoCancellationService.getLatestRun()).thenReturn(Optional.of(latestRun));
+
+        mvc.perform(get("/api/v1/reservations/auto-cancel-runs/latest")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.totalIdentified").value(5))
+                .andExpect(jsonPath("$.totalCancelled").value(5))
+                .andExpect(jsonPath("$.totalTransferred").value(3))
+                .andExpect(jsonPath("$.totalReleased").value(2));
+
+        verify(autoCancellationService).getLatestRun();
+    }
+
+    @Test
+    @DisplayName("Quản lý thư viện xem danh sách lịch sử các lần chạy")
+    void manager_canGetAllRuns() throws Exception {
+        token("LIBRARY_MANAGER");
+        when(autoCancellationService.getAllRuns()).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/reservations/auto-cancel-runs")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(autoCancellationService).getAllRuns();
+    }
+
+    @Test
+    @DisplayName("Bạn đọc không có quyền xem kết quả lần chạy -> 403 Forbidden")
+    void reader_cannotGetLatestRun() throws Exception {
+        token("READER");
+        mvc.perform(get("/api/v1/reservations/auto-cancel-runs/latest")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
     }
 }

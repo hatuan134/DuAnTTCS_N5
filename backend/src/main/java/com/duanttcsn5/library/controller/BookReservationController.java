@@ -24,11 +24,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.duanttcsn5.library.dto.book.AutoCancelledReservationResponse;
+import com.duanttcsn5.library.dto.book.AutoCancellationRunResponse;
 import com.duanttcsn5.library.service.ReservationAutoCancellationService;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -121,5 +123,46 @@ public class BookReservationController {
             return ResponseEntity.ok(autoCancellationService.processOverdueReservationsAt(checkTime));
         }
         return ResponseEntity.ok(autoCancellationService.processOverdueReservations());
+    }
+
+    /**
+     * S3-06.3: Hiển thị kết quả của lần chạy gần nhất cho Quản lý kiểm tra.
+     */
+    @GetMapping("/reservations/auto-cancel-runs/latest")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<AutoCancellationRunResponse> getLatestAutoCancelRun() {
+        if (autoCancellationService == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Optional<AutoCancellationRunResponse> latest = autoCancellationService.getLatestRun();
+        return latest.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /**
+     * S3-06.3: Lấy danh sách lịch sử tất cả các lần chạy tự động cho Quản lý đối chiếu.
+     */
+    @GetMapping("/reservations/auto-cancel-runs")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<AutoCancellationRunResponse>> getAllAutoCancelRuns() {
+        if (autoCancellationService == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(autoCancellationService.getAllRuns());
+    }
+
+    /**
+     * S3-06.3: Kích hoạt lần chạy kiểm tra đơn quá hạn và trả về đầy đủ số liệu thống kê của lần chạy.
+     */
+    @PostMapping("/reservations/auto-cancel-runs/trigger")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<AutoCancellationRunResponse> triggerAutoCancelRun(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime checkTime,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (autoCancellationService == null) {
+            return ResponseEntity.noContent().build();
+        }
+        String actor = currentUser != null ? currentUser.email() : "MANUAL_TRIGGER";
+        OffsetDateTime time = checkTime != null ? checkTime : OffsetDateTime.now();
+        return ResponseEntity.ok(autoCancellationService.executeAutoCancellationRun(time, actor));
     }
 }
