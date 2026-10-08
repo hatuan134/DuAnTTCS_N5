@@ -70,7 +70,7 @@ export default function MyBorrowedBooksPage() {
       const status = axios.isAxiosError(e) ? e.response?.status : undefined
       const code = axios.isAxiosError(e) ? e.response?.data?.code : undefined
       if (status === 409 && (code === 'RENEWAL_BLOCKED_BY_RESERVATION' || code === 'RENEWAL_LIMIT_REACHED'
-        || code === 'RENEWAL_POLICY_MISSING')) {
+        || code === 'RENEWAL_POLICY_MISSING' || code === 'RENEWAL_BLOCKED_BY_VIOLATIONS')) {
         // Keep the reason next to this book. Do not refresh and accidentally hide it.
         setQueueRejection({ itemId: confirming.id, message })
       } else {

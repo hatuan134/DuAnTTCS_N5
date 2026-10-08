@@ -794,6 +794,25 @@ public class LoanService {
             throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_POLICY_MISSING",
                     "Loại thẻ chưa cấu hình số lần gia hạn hợp lệ. Vui lòng liên hệ thư viện.");
         }
+        // S3-05.4: recheck both independent violations on every request, before
+        // any quota update. The current loan is excluded in full from "other loans".
+        long otherOverdueLoans = loans.countOtherOverdueUnreturnedLoansForReader(
+                readerId, policy.loanId(), today);
+        BigDecimal unpaidRenewalFees = loans.sumUnpaidFeesForReader(readerId);
+        List<String> renewalViolations = new ArrayList<>();
+        if (otherOverdueLoans > 0) {
+            renewalViolations.add("Bạn có " + otherOverdueLoans
+                    + " phiếu mượn khác quá hạn chưa trả. Vui lòng trả sách quá hạn.");
+        }
+        if (unpaidRenewalFees != null && unpaidRenewalFees.signum() > 0) {
+            renewalViolations.add("Bạn còn nợ phí chưa thanh toán "
+                    + formatVnd(unpaidRenewalFees) + ". Vui lòng thanh toán hết khoản phí còn nợ.");
+        }
+        if (!renewalViolations.isEmpty()) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_BLOCKED_BY_VIOLATIONS",
+                    "Không thể gia hạn: " + String.join(" ", renewalViolations)
+                            + " Hạn trả và số lần gia hạn đã dùng không thay đổi.");
+        }
         if (policy.renewalsUsed() >= limit) {
             throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_LIMIT_REACHED",
                     "Không thể gia hạn: đã dùng " + policy.renewalsUsed() + "/" + limit
