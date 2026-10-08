@@ -129,6 +129,14 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             """, nativeQuery = true)
     Optional<BookReservation> findNextPendingForCancellation(@Param("bookId") Long bookId);
 
+    @Query(value = """
+            SELECT r.* FROM book_reservations r
+            WHERE r.book_id = :bookId AND r.status = 'PENDING'
+            ORDER BY r.reserved_at ASC, r.id ASC
+            FOR UPDATE OF r
+            """, nativeQuery = true)
+    List<BookReservation> findPendingQueueForAllocation(@Param("bookId") Long bookId);
+
     // One ordered snapshot of all statuses. PENDING entries receive positions
     // using the same (reservedAt, id) order as findPendingQueuePosition below.
     @Query("""
