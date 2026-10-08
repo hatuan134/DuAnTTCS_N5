@@ -25,7 +25,16 @@ export interface MyReturnedBooksPage {
   total: number
 }
 
+export interface RenewalCheckResponse {
+  eligible: boolean
+  message: string
+}
+
 export const myBorrowedBooksService = {
+  async checkRenewal(itemId: number): Promise<RenewalCheckResponse> {
+    const { data } = await apiClient.post<RenewalCheckResponse>(`/loans/me/borrowed-books/${itemId}/renewal-check`)
+    return data
+  },
   async history(page: number): Promise<MyReturnedBooksPage> {
     const { data } = await apiClient.get<MyReturnedBooksPage>('/loans/me/returned-books', { params: { page } })
     return data
