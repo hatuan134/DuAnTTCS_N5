@@ -99,6 +99,25 @@ class ReaderRenewalCheckControllerTest {
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Bạn đọc khác")));
     }
 
+    @Test void overdueOtherLoanAndUnpaidFeesGiveBothReasonsInOneConflict() throws Exception {
+        token(12, "READER");
+        when(repository.findRenewalCandidateForReader(100L, 12L)).thenReturn(Optional.of(
+                new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-09T01:00:00Z"), null)));
+        when(repository.countOtherOverdueUnreturnedLoansForReader(12L, 50L,
+                java.time.LocalDate.of(2026, 10, 8))).thenReturn(2L);
+        when(repository.sumUnpaidFeesForReader(12L)).thenReturn(new java.math.BigDecimal("15000"));
+        mvc.perform(post("/api/v1/loans/me/borrowed-books/100/renewal-check")
+                .header("Authorization", "Bearer token-12"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RENEWAL_BLOCKED_BY_VIOLATIONS"))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("2 phiếu mượn khác quá hạn"),
+                                org.hamcrest.Matchers.containsString("nợ phí"),
+                                org.hamcrest.Matchers.containsString("15.000"))));
+        verify(repository, never()).incrementRenewalCountIfAllowed(anyLong(), anyLong());
+    }
+
     @Test void foreignOrMissingItemIs404WithoutLeakingItsState() throws Exception {
         token(12, "READER");
         mvc.perform(post("/api/v1/loans/me/borrowed-books/101/renewal-check")

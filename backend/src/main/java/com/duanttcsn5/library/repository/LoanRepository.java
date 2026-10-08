@@ -100,6 +100,22 @@ public class LoanRepository {
         return count == null ? 0L : count;
     }
 
+    /** Count other overdue loans, excluding the entire loan being renewed (not just its item).
+     *  A partially returned loan still counts while any other outstanding copy is overdue.
+     */
+    public long countOtherOverdueUnreturnedLoansForReader(Long readerId, Long currentLoanId, LocalDate today) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT l.id)
+                FROM loans l
+                JOIN loan_items li ON li.loan_id = l.id
+                WHERE l.borrower_user_id = ?
+                  AND l.id <> ?
+                  AND li.returned_at IS NULL
+                  AND (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < ?
+                """, Long.class, readerId, currentLoanId, today);
+        return count == null ? 0L : count;
+    }
+
     /** Remaining VND across every fee belonging to this reader; zero for no fees or fully paid fees. */
     public BigDecimal sumUnpaidFeesForReader(Long readerId) {
         return jdbc.queryForObject("""
