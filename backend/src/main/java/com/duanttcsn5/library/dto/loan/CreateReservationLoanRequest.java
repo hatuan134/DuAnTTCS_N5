@@ -18,14 +18,21 @@ public record CreateReservationLoanRequest(
         @Min(value = 1, message = "Số ngày mượn phải từ 1 đến 60.")
         @Max(value = 60, message = "Số ngày mượn phải từ 1 đến 60.")
         Integer expectedLoanDays,
-        UUID requestId
+        UUID requestId,
+        boolean overrideRequested,
+        @Size(max = 500, message = "Lý do bỏ qua không được vượt quá 500 ký tự.") String overrideReason
 ) {
+    public CreateReservationLoanRequest(String cardNumber, LocalDate expectedBorrowDate,
+            OffsetDateTime expectedDueAt, Integer expectedLoanDays, UUID requestId) {
+        this(cardNumber, expectedBorrowDate, expectedDueAt, expectedLoanDays, requestId, false, null);
+    }
+
     public CreateReservationLoanRequest(String cardNumber) {
-        this(cardNumber, null, null, null, null);
+        this(cardNumber, null, null, null, null, false, null);
     }
 
     public CreateReservationLoanRequest(String cardNumber, LocalDate expectedBorrowDate,
             OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
-        this(cardNumber, expectedBorrowDate, expectedDueAt, expectedLoanDays, null);
+        this(cardNumber, expectedBorrowDate, expectedDueAt, expectedLoanDays, null, false, null);
     }
 }

@@ -1,4 +1,5 @@
 import { apiClient } from '../../core/api/apiClient'
+import type { ReaderLoanEligibility } from '../s3-02-direct-loans/directLoanService'
 
 export interface ReadyPickupReservation {
   id: number
@@ -155,10 +156,18 @@ export function isPickupExpired(reservation: Pick<ReadyPickupReservation, 'statu
 }
 
 export const pickupService = {
-  createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview, requestId?: string): Promise<ReservationLoanResult> => {
+  checkReader: async (cardNumber: string): Promise<ReaderLoanEligibility> => {
+    const response = await apiClient.get<ReaderLoanEligibility>('/loans/reader-eligibility', {
+      params: { cardNumber: cardNumber.trim() },
+    })
+    return response.data
+  },
+  createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview,
+    requestId?: string, overrideRequested = false, overrideReason = ''): Promise<ReservationLoanResult> => {
     const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, {
       cardNumber: cardNumber.trim(),
       ...(requestId ? { requestId } : {}),
+      ...(overrideRequested ? { overrideRequested: true, overrideReason: overrideReason.trim() } : {}),
       ...(dates ? { expectedBorrowDate: dates.borrowDate, expectedDueAt: dates.dueAt, expectedLoanDays: dates.loanDays } : {}),
     })
     return response.data

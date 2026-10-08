@@ -14,5 +14,11 @@ public record CreateDirectLoanRequest(
         @NotNull(message = "Vui lòng gửi danh sách sách cần mượn.")
         @Size(min = 1, max = 10, message = "Lượt mượn phải có từ 1 đến 10 sách.")
         List<@NotBlank(message = "Mã vạch trong danh sách không được để trống.")
-             @Size(max = 100, message = "Mã vạch không được vượt quá 100 ký tự.") String> barcodes
-) {}
+             @Size(max = 100, message = "Mã vạch không được vượt quá 100 ký tự.") String> barcodes,
+        boolean overrideRequested,
+        @Size(max = 500, message = "Lý do bỏ qua không được vượt quá 500 ký tự.") String overrideReason
+) {
+    public CreateDirectLoanRequest(UUID requestId, String cardNumber, List<String> barcodes) {
+        this(requestId, cardNumber, barcodes, false, null);
+    }
+}

@@ -20,6 +20,9 @@ export interface LoanRejection {
   overdueLoans: number
   unpaidAmountVnd: number
   reasons: LoanRejectionReason[]
+  eventType: 'BLOCKED' | 'OVERRIDDEN'
+  overrideReason: string | null
+  loanId: number | null
 }
 
 export interface LoanRejectionPage {
