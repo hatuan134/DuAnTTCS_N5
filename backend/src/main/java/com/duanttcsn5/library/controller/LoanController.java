@@ -11,6 +11,7 @@ import com.duanttcsn5.library.dto.loan.CreateDirectLoanRequest;
 import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import java.util.List;
 import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
@@ -81,6 +82,13 @@ public class LoanController {
         return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
                 reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
                 request.expectedDueAt(), request.expectedLoanDays(), request.requestId()));
+    }
+
+    @GetMapping("/loans/me/borrowed-books")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<List<MyBorrowedBookResponse>> myBorrowedBooks(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.myBorrowedBooks(principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans")

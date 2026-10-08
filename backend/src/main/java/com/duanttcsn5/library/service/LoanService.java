@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashSet;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
@@ -735,6 +736,25 @@ public class LoanService {
         return "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
                 + " sách, đã " + (borrowed > maxBooks ? "vượt" : "đạt")
                 + " hạn mức của loại thẻ. Không thể mượn thêm; vui lòng trả sách trước.";
+    }
+
+    @Transactional(readOnly = true)
+    public List<MyBorrowedBookResponse> myBorrowedBooks(Long readerId) {
+        if (readerId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
+                "Vui lòng đăng nhập để xem sách đang mượn.");
+        var reader = users.findById(readerId).orElseThrow(() -> new ApiException(
+                HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
+        if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())
+                || !"ACTIVE".equals(reader.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "READER_ROLE_REQUIRED",
+                    "Chỉ Bạn đọc đang hoạt động mới được xem sách đang mượn của mình.");
+        }
+        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        return loans.findUnreturnedForReader(readerId).stream().map(item ->
+                new MyBorrowedBookResponse(item.id(), item.bookTitle(), item.barcode(),
+                        item.borrowedAt(), item.dueAt(), item.dueAt() == null ? null :
+                        ChronoUnit.DAYS.between(today, item.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
