@@ -42,7 +42,7 @@ class ReaderRenewalViolationsServiceTest {
     void setUp() {
         service = new LoanService(mock(BookRepository.class), reservations,
                 mock(BookCopyRepository.class), mock(LibraryCardRepository.class),
-                users, loans, mock(LibraryConfigurationService.class),
+                users, loans, RenewalCalendarStub.mockCalendar(),
                 Clock.fixed(OffsetDateTime.parse("2026-10-08T09:00:00Z").toInstant(), ZoneOffset.UTC));
         User user = new User();
         user.setId(READER);
@@ -55,7 +55,7 @@ class ReaderRenewalViolationsServiceTest {
                 new LoanRepository.RenewalCandidate(
                         OffsetDateTime.parse("2026-10-15T09:00:00Z"), null)));
         when(loans.findRenewalPolicyForReader(ITEM, READER)).thenReturn(Optional.of(
-                new LoanRepository.RenewalPolicy(CURRENT_LOAN, 0, 3)));
+                new LoanRepository.RenewalPolicy(CURRENT_LOAN, 0, 3, 7)));
         when(loans.incrementRenewalCountIfAllowed(CURRENT_LOAN, READER)).thenReturn(1);
         when(loans.sumUnpaidFeesForReader(READER)).thenReturn(BigDecimal.ZERO);
     }

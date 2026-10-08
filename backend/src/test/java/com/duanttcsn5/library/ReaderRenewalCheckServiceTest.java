@@ -30,14 +30,14 @@ class ReaderRenewalCheckServiceTest {
     void setup() {
         service = new LoanService(mock(BookRepository.class), mock(BookReservationRepository.class),
                 mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, repository,
-                mock(LibraryConfigurationService.class), Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
+                RenewalCalendarStub.mockCalendar(), Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
         actor = new User();
         actor.setId(READER);
         actor.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("READER"); actor.setRole(role);
         when(users.findById(READER)).thenReturn(Optional.of(actor));
         when(repository.findRenewalPolicyForReader(ITEM, READER)).thenReturn(
-                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3)));
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3, 7)));
         when(repository.incrementRenewalCountIfAllowed(50L, READER)).thenReturn(1);
     }
 
@@ -54,10 +54,10 @@ class ReaderRenewalCheckServiceTest {
                 });
     }
 
-    @Test void openLoanDueTodayOrLaterRecordsAllowedRenewalWithoutChangingDueDate() {
+    @Test void openLoanDueTodayOrLaterUpdatesTheRenewalDueDate() {
         candidate(OffsetDateTime.parse("2026-10-08T02:00:00Z"), null);
         assertThat(service.checkMyLoanRenewal(ITEM, READER).eligible()).isTrue();
-        assertThat(service.checkMyLoanRenewal(ITEM, READER).message()).contains("chưa thay đổi");
+        assertThat(service.checkMyLoanRenewal(ITEM, READER).message()).contains("Hạn trả mới");
         candidate(OffsetDateTime.parse("2026-10-10T02:00:00Z"), null);
         assertThat(service.checkMyLoanRenewal(ITEM, READER).eligible()).isTrue();
         verify(repository, never()).insertItem(anyLong(), anyLong(), any());
@@ -77,7 +77,7 @@ class ReaderRenewalCheckServiceTest {
         // The UI displayed this on Oct 8. By confirmation, Vietnam is already on Oct 9.
         service = new LoanService(mock(BookRepository.class), mock(BookReservationRepository.class),
                 mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, repository,
-                mock(LibraryConfigurationService.class), Clock.fixed(
+                RenewalCalendarStub.mockCalendar(), Clock.fixed(
                         OffsetDateTime.parse("2026-10-08T17:00:01Z").toInstant(), ZoneOffset.UTC));
         candidate(OffsetDateTime.parse("2026-10-08T09:00:00Z"), null);
         rejects("LOAN_OVERDUE", 409);

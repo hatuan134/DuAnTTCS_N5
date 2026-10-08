@@ -38,7 +38,7 @@ class ReaderRenewalWaitingReadersServiceTest {
     void setUp() {
         service = new LoanService(mock(BookRepository.class), reservations,
                 mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, loans,
-                mock(LibraryConfigurationService.class), Clock.fixed(CHECKED_AT.toInstant(), ZoneOffset.UTC));
+                RenewalCalendarStub.mockCalendar(), Clock.fixed(CHECKED_AT.toInstant(), ZoneOffset.UTC));
         User reader = new User();
         reader.setId(READER_ID);
         reader.setStatus("ACTIVE");
@@ -49,14 +49,14 @@ class ReaderRenewalWaitingReadersServiceTest {
         when(loans.findRenewalCandidateForReader(ITEM_ID, READER_ID)).thenReturn(Optional.of(
                 new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-15T09:00:00Z"), null)));
         when(loans.findRenewalPolicyForReader(ITEM_ID, READER_ID)).thenReturn(
-                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3)));
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3, 7)));
         when(loans.incrementRenewalCountIfAllowed(50L, READER_ID)).thenReturn(1);
     }
 
     @Test
-    void noOtherActiveReservationAllowsEligibilityCheckWithoutChangingDueDate() {
+    void noOtherActiveReservationAllowsRenewalWithNewDueDate() {
         assertThat(service.checkMyLoanRenewal(ITEM_ID, READER_ID).eligible()).isTrue();
-        assertThat(service.checkMyLoanRenewal(ITEM_ID, READER_ID).message()).contains("chưa thay đổi");
+        assertThat(service.checkMyLoanRenewal(ITEM_ID, READER_ID).message()).contains("Hạn trả mới");
         verify(reservations, times(2)).existsOtherEffectiveReservationForLoanItem(
                 eq(ITEM_ID), eq(READER_ID), eq(OffsetDateTime.parse("2026-10-08T16:00:00+07:00")));
         verify(loans, never()).insertItem(any(), any(), any());

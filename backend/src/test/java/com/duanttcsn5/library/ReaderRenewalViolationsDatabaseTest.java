@@ -108,7 +108,7 @@ class ReaderRenewalViolationsDatabaseTest {
         assertThat(service.checkMyLoanRenewal(f.itemId(), f.reader()).eligible()).isTrue();
         assertThat(count(f)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT due_date FROM loan_items WHERE id = ?",
-                OffsetDateTime.class, f.itemId()).toInstant()).isEqualTo(f.due().toInstant());
+                OffsetDateTime.class, f.itemId()).toInstant()).isAfter(f.due().toInstant());
     }
 
     @Test void severalOverdueLoansCountOncePerLoanWhileIgnoringCurrentLoan() {
@@ -164,6 +164,6 @@ class ReaderRenewalViolationsDatabaseTest {
         assertThat(service.checkMyLoanRenewal(f.itemId(), f.reader()).eligible()).isTrue();
         assertThat(count(f)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT due_date FROM loan_items WHERE id = ?",
-                OffsetDateTime.class, f.itemId()).toInstant()).isEqualTo(f.due().toInstant());
+                OffsetDateTime.class, f.itemId()).toInstant()).isAfter(f.due().toInstant());
     }
 }
