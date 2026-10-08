@@ -26,6 +26,7 @@ export default function CreateReservationLoanPanel({
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<ReservationLoanResult | null>(null)
   const pendingRef = useRef(false)
+  const requestIdRef = useRef<string | null>(null)
   const [preview, setPreview] = useState<LoanDatePreview | null>(reservation.dates ?? null)
   const [dateError, setDateError] = useState(reservation.dateError ?? '')
   const [currentContext, setCurrentContext] = useState<ReservationLoanContext | null>(null)
@@ -101,7 +102,8 @@ export default function CreateReservationLoanPanel({
     onBusyChange(true)
     setError(''); setDismissedError('')
     try {
-      const created = await pickupService.createLoan(reservation.id, confirmed, preview)
+      if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID()
+      const created = await pickupService.createLoan(reservation.id, confirmed, preview, requestIdRef.current)
       setResult(created)
       onSuccess(created)
     } catch (e: unknown) {

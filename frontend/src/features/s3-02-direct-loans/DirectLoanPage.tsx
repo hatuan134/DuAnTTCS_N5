@@ -21,6 +21,7 @@ export default function DirectLoanPage() {
   const [revision, setRevision] = useState(0)
   const requestId = useRef(0)
   const immediate = useRef(false)
+  const explicitRequest = useRef<string | null>(null)
   const inFlight = useRef(false)
 
   useEffect(() => {
@@ -28,6 +29,8 @@ export default function DirectLoanPage() {
     const number = cardNumber.trim()
     const delay = immediate.current ? 0 : 350
     immediate.current = false
+    const manualId = explicitRequest.current
+    explicitRequest.current = null
     inFlight.current = false
     setResult(null); setError(''); setLoading(false)
     if (!allowed || !number) return
@@ -38,7 +41,11 @@ export default function DirectLoanPage() {
     setLoading(true)
     const timer = window.setTimeout(() => {
       inFlight.current = true
-      directLoanService.checkReader(number)
+      // Only an explicit staff check produces a rejection. Auto-previews remain read-only.
+      const check = manualId
+        ? directLoanService.checkReaderExplicit(number, manualId)
+        : directLoanService.checkReader(number)
+      check
         .then((data) => { if (id === requestId.current) setResult(data) })
         .catch((e: unknown) => {
           if (id === requestId.current) setError(getApiErrorMessage(e, 'Không kiểm tra được mã thẻ. Vui lòng thử lại.'))
@@ -58,6 +65,7 @@ export default function DirectLoanPage() {
       return
     }
     immediate.current = true
+    explicitRequest.current = crypto.randomUUID()
     setRevision((value) => value + 1)
   }
 

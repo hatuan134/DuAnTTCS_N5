@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
+import { webcrypto } from 'node:crypto'
 import ts from 'typescript'
 import { createRequire } from 'node:module'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -50,10 +51,13 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (e) => e.message },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
-    './directLoanService': { directLoanService: { checkReader(number) { calls.push(number); return check(number) } } },
+    './directLoanService': { directLoanService: {
+      checkReader(number) { calls.push(number); return check(number) },
+      checkReaderExplicit(number, id) { calls.push(number); return check(number, id) },
+    } },
   }
   for (const name of ['Button', 'Card', 'Input', 'PageHeader']) imports[`../../components/ui/${name}`] = load(`../../components/ui/${name}.tsx`)
-  const Page = load('DirectLoanPage.tsx', imports, { window: {
+  const Page = load('DirectLoanPage.tsx', imports, { crypto: webcrypto, window: {
     setTimeout(callback, delay) { timers.set(++timerId, { callback, delay }); return timerId },
     clearTimeout(id) { timers.delete(id) },
   } }).default
@@ -161,6 +165,7 @@ test('oversize validation and unmount cancellation prevent lookup', async () => 
 test('feature registers direct loan route and staff sidebar roles', () => {
   const f = load('feature.tsx', {
     './DirectLoanPage': { __esModule: true, default: () => null },
+    './LoanRejectionsPage': { __esModule: true, default: () => null },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
   }).default
   assert.equal(f.appRoutes[0].path, 'loans/direct'); assert.equal(f.navItems[0].label, 'Cho mượn tại quầy')

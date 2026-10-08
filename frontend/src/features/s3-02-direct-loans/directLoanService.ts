@@ -44,6 +44,12 @@ export const directLoanService = {
     })
     return response.data
   },
+  async checkReaderExplicit(cardNumber: string, requestId: string): Promise<ReaderLoanEligibility> {
+    const response = await apiClient.post<ReaderLoanEligibility>('/loans/reader-eligibility/check', {
+      cardNumber: cardNumber.trim(), requestId,
+    })
+    return response.data
+  },
   async checkReader(cardNumber: string): Promise<ReaderLoanEligibility> {
     const response = await apiClient.get<ReaderLoanEligibility>('/loans/reader-eligibility', {
       params: { cardNumber: cardNumber.trim() },
