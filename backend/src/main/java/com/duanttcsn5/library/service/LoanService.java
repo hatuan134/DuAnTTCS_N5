@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
+import com.duanttcsn5.library.dto.loan.LoanRejectionResponse;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse.BlockReason;
 import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
 import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
@@ -60,6 +61,7 @@ public class LoanService {
     private final LoanRepository loans;
     private final LibraryConfigurationService configuration;
     private final Clock clock;
+    private final LoanRejectionLogService rejectionLogs;
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String MISSING_DEADLINE =
             "Đơn chưa có hạn nhận hợp lệ. Vui lòng đối chiếu dữ liệu trước khi lập phiếu mượn.";
@@ -67,13 +69,28 @@ public class LoanService {
     @Autowired
     public LoanService(BookRepository books, BookReservationRepository reservations,
                        BookCopyRepository copies, LibraryCardRepository cards,
+                       UserRepository users, LoanRepository loans, LibraryConfigurationService configuration,
+                       LoanRejectionLogService rejectionLogs) {
+        this(books, reservations, copies, cards, users, loans, configuration, Clock.system(LIBRARY_ZONE), rejectionLogs);
+    }
+
+    /** Existing constructors are kept for backward-compatible unit tests. */
+    public LoanService(BookRepository books, BookReservationRepository reservations,
+                       BookCopyRepository copies, LibraryCardRepository cards,
                        UserRepository users, LoanRepository loans, LibraryConfigurationService configuration) {
-        this(books, reservations, copies, cards, users, loans, configuration, Clock.system(LIBRARY_ZONE));
+        this(books, reservations, copies, cards, users, loans, configuration, Clock.system(LIBRARY_ZONE), null);
     }
 
     public LoanService(BookRepository books, BookReservationRepository reservations,
                        BookCopyRepository copies, LibraryCardRepository cards,
                        UserRepository users, LoanRepository loans, LibraryConfigurationService configuration, Clock clock) {
+        this(books, reservations, copies, cards, users, loans, configuration, clock, null);
+    }
+
+    public LoanService(BookRepository books, BookReservationRepository reservations,
+                       BookCopyRepository copies, LibraryCardRepository cards,
+                       UserRepository users, LoanRepository loans, LibraryConfigurationService configuration,
+                       Clock clock, LoanRejectionLogService rejectionLogs) {
         this.books = books;
         this.reservations = reservations;
         this.copies = copies;
@@ -82,6 +99,7 @@ public class LoanService {
         this.loans = loans;
         this.configuration = configuration;
         this.clock = clock;
+        this.rejectionLogs = rejectionLogs;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -174,6 +192,13 @@ public class LoanService {
     @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
             LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
+        return createFromReservation(reservationId, actorId, cardNumber,
+                expectedBorrowDate, expectedDueAt, expectedLoanDays, null);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = ReservationPickupExpiredException.class)
+    public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
+            LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays, UUID requestId) {
         requireStaff(actorId);
         validateId(reservationId);
         String confirmed = cardNumber == null ? "" : cardNumber.strip();
@@ -225,8 +250,15 @@ public class LoanService {
         // S3-03.2: reservation conversions are loans too; never bypass card/overdue checks.
         var cardBlockReasons = cardAndOverdueReasons(card, readerId,
                 LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE));
-        if (!cardBlockReasons.isEmpty()) throw new ApiException(HttpStatus.CONFLICT,
-                cardBlockReasons.get(0).code(), joinReasons(cardBlockReasons));
+        if (!cardBlockReasons.isEmpty()) {
+            long borrowed = loans.countUnreturnedBooksForReader(readerId);
+            int maximum = card.getCardType() == null ? -1 : card.getCardType().getMaxBooks();
+            List<BlockReason> allReasons = new ArrayList<>(cardBlockReasons);
+            if (borrowed >= maximum) allReasons.add(new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maximum)));
+            logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
+                    card.getCardNumber(), actorId, reservationId, borrowed, maximum, allReasons);
+            throw new ApiException(HttpStatus.CONFLICT, cardBlockReasons.get(0).code(), joinReasons(cardBlockReasons));
+        }
         LoanDatePreviewResponse dates = calculateDates(card, borrowedAt);
         if ((expectedBorrowDate != null && !expectedBorrowDate.equals(dates.borrowDate()))
                 || (expectedDueAt != null && !expectedDueAt.isEqual(dates.dueAt()))
@@ -238,8 +270,12 @@ public class LoanService {
         if (maxBooks < 0 || maxBooks > 10) throw new ApiException(HttpStatus.CONFLICT,
                 "LOAN_POLICY_NOT_CONFIGURED", "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.");
         long borrowed = loans.countUnreturnedBooksForReader(readerId);
-        if (borrowed >= maxBooks) throw new ApiException(HttpStatus.CONFLICT,
-                "LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks));
+        if (borrowed >= maxBooks) {
+            var reason = new BlockReason("LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks));
+            logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
+                    card.getCardNumber(), actorId, reservationId, borrowed, maxBooks, List.of(reason));
+            throw new ApiException(HttpStatus.CONFLICT, reason.code(), reason.message());
+        }
         String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
         loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
@@ -251,6 +287,23 @@ public class LoanService {
                 readerId, reservation.getReader().getFullName(), card.getCardNumber(),
                 bookId, reservation.getBook().getTitle(), copy.getId(), copy.getBarcode(),
                 borrowedAt, "Đã lập phiếu mượn thành công từ đơn đặt giữ.", dates);
+    }
+
+    /** A POST request corresponds to one intentional card check; GET previews stay read-only. */
+    @Transactional(readOnly = true)
+    public ReaderLoanEligibilityResponse checkReaderAndLog(String cardNumber, Long actorId, UUID requestId) {
+        ReaderLoanEligibilityResponse eligibility = readerEligibility(cardNumber, actorId);
+        if (rejectionLogs != null) rejectionLogs.logEligibility(requestId, "CARD_CHECK", actorId, eligibility);
+        return eligibility;
+    }
+
+    private void logBlocked(UUID requestId, String source, Long readerId, String readerName,
+                            String cardNumber, Long actorId, Long reservationId,
+                            long borrowed, int limit, List<BlockReason> reasons) {
+        if (rejectionLogs == null || reasons.isEmpty()) return;
+        rejectionLogs.log(requestId == null ? UUID.randomUUID() : requestId, source,
+                readerId, readerName, cardNumber, actorId, reservationId, borrowed, limit,
+                reasons.stream().map(reason -> new LoanRejectionResponse.Reason(reason.code(), reason.message())).toList());
     }
 
     private void requireStaff(Long actorId) {
@@ -411,11 +464,20 @@ public class LoanService {
 
         // Sample eligibility/time only after all lock waits; do not trust browser previews.
         var reader = readerEligibility(cardNumber, actorId);
-        if (!reader.eligible()) throw new ApiException(HttpStatus.CONFLICT, reader.reasonCode(), reader.message());
-        if (barcodes.size() > reader.remainingBooks()) throw new ApiException(HttpStatus.CONFLICT,
-                "LOAN_DRAFT_LIMIT_EXCEEDED", "Không thể ghi lượt mượn: bạn đọc đang mượn "
-                        + reader.borrowedBooks() + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
-                        + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.");
+        if (!reader.eligible()) {
+            logBlocked(request.requestId(), "DIRECT_CONFIRM", reader.readerId(), reader.readerName(),
+                    reader.cardNumber(), actorId, null, reader.borrowedBooks(), reader.maxBooks(), reader.blockReasons());
+            throw new ApiException(HttpStatus.CONFLICT, reader.reasonCode(), reader.message());
+        }
+        if (barcodes.size() > reader.remainingBooks()) {
+            String message = "Không thể ghi lượt mượn: bạn đọc đang mượn " + reader.borrowedBooks()
+                    + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
+                    + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.";
+            logBlocked(request.requestId(), "DIRECT_CONFIRM", reader.readerId(), reader.readerName(),
+                    reader.cardNumber(), actorId, null, reader.borrowedBooks(), reader.maxBooks(),
+                    List.of(new BlockReason("LOAN_DRAFT_LIMIT_EXCEEDED", message)));
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_LIMIT_EXCEEDED", message);
+        }
         OffsetDateTime borrowedAt = now();
         for (BookCopy copy : lockedCopies) {
             var hold = reservations.findEffectiveHoldForCopy(copy.getId(), borrowedAt);

@@ -155,9 +155,10 @@ export function isPickupExpired(reservation: Pick<ReadyPickupReservation, 'statu
 }
 
 export const pickupService = {
-  createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview): Promise<ReservationLoanResult> => {
+  createLoan: async (id: number, cardNumber: string, dates?: LoanDatePreview, requestId?: string): Promise<ReservationLoanResult> => {
     const response = await apiClient.post<ReservationLoanResult>(`/reservations/${id}/loan`, {
       cardNumber: cardNumber.trim(),
+      ...(requestId ? { requestId } : {}),
       ...(dates ? { expectedBorrowDate: dates.borrowDate, expectedDueAt: dates.dueAt, expectedLoanDays: dates.loanDays } : {}),
     })
     return response.data

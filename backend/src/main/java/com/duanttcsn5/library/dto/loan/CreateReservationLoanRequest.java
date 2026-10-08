@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Max;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record CreateReservationLoanRequest(
         @NotBlank(message = "Vui lòng nhập mã thẻ của bạn đọc đến nhận sách.")
@@ -16,9 +17,15 @@ public record CreateReservationLoanRequest(
         OffsetDateTime expectedDueAt,
         @Min(value = 1, message = "Số ngày mượn phải từ 1 đến 60.")
         @Max(value = 60, message = "Số ngày mượn phải từ 1 đến 60.")
-        Integer expectedLoanDays
+        Integer expectedLoanDays,
+        UUID requestId
 ) {
     public CreateReservationLoanRequest(String cardNumber) {
-        this(cardNumber, null, null, null);
+        this(cardNumber, null, null, null, null);
+    }
+
+    public CreateReservationLoanRequest(String cardNumber, LocalDate expectedBorrowDate,
+            OffsetDateTime expectedDueAt, Integer expectedLoanDays) {
+        this(cardNumber, expectedBorrowDate, expectedDueAt, expectedLoanDays, null);
     }
 }
