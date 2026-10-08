@@ -159,7 +159,10 @@ class ReservationLoanControllerTest {
         var dates = new LoanDatePreviewResponse(borrow, "Thẻ sinh viên", 14,
                 LocalDate.of(2026, 10, 21), due, dueAt, true, List.of(LocalDate.of(2026, 10, 21)));
         when(service.pickupContext(21L)).thenReturn(new ReservationLoanContextResponse("TV-0012", false, null, dates, null));
-        when(service.createFromReservation(21L, 12L, "TV-0012", borrow, dueAt, 14)).thenReturn(
+        // Jackson can normalize an OffsetDateTime to another offset while preserving its instant.
+        // Match the instant, not the textual offset, so the mocked service returns the response.
+        when(service.createFromReservation(eq(21L), eq(12L), eq("TV-0012"), eq(borrow),
+                argThat(actual -> actual != null && actual.isEqual(dueAt)), eq(14))).thenReturn(
                 new ReservationLoanResponse(81L, "PM-DEMO", 21L, 99L, "Nguyễn Văn An", "TV-0012",
                         7L, "Mắt biếc", 31L, "LIB-031", OffsetDateTime.now(), "Đã lập phiếu mượn.", dates));
         mvc.perform(get("/api/v1/reservations/21/loan-context").header("Authorization", "Bearer test-token"))
@@ -172,7 +175,8 @@ class ReservationLoanControllerTest {
                  "expectedDueAt":"2026-10-22T17:00:00+07:00","expectedLoanDays":14}
                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.dates.dueDate").value("2026-10-22"));
-        verify(service).createFromReservation(21L, 12L, "TV-0012", borrow, dueAt, 14);
+        verify(service).createFromReservation(eq(21L), eq(12L), eq("TV-0012"), eq(borrow),
+                argThat(actual -> actual != null && actual.isEqual(dueAt)), eq(14));
     }
 
     @Test
@@ -246,7 +250,7 @@ class ReservationLoanControllerTest {
         }
         verify(service, never()).createFromReservation(any(), any(), any(), any(), any(), any());
     }
-    @Test void loanListAndDetailRequireValidJwtAndStaffRole() throws Exception {
+    @Test void loanListAndDetailEnforceAuthenticationAndOwnership() throws Exception {
         for (String url : new String[]{"/api/v1/loans", "/api/v1/loans/81"}) {
             mvc.perform(get(url)).andExpect(status().isUnauthorized());
         }
@@ -254,10 +258,15 @@ class ReservationLoanControllerTest {
         mvc.perform(get("/api/v1/loans/81").header("Authorization", "Bearer bad-token"))
                 .andExpect(status().isUnauthorized());
         token("READER");
-        for (String url : new String[]{"/api/v1/loans", "/api/v1/loans/81"}) {
-            mvc.perform(get(url).header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
-        }
-        verifyNoInteractions(service);
+        mvc.perform(get("/api/v1/loans").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
+        // A reader may request the detail endpoint, while the service enforces ownership.
+        when(service.loanDetail(81L, 12L)).thenThrow(new ApiException(HttpStatus.NOT_FOUND,
+                "LOAN_NOT_FOUND", "Phiếu không tồn tại hoặc bạn không có quyền truy cập."));
+        mvc.perform(get("/api/v1/loans/81").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("LOAN_NOT_FOUND"));
+        verify(service).loanDetail(81L, 12L);
+        verifyNoMoreInteractions(service);
     }
     @Test void invalidAndMissingLoanIdsUseExistingErrorResponse() throws Exception {
         token("LIBRARIAN");

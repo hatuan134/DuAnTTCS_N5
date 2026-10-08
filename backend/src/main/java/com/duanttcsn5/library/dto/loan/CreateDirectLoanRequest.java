@@ -1,5 +1,8 @@
 package com.duanttcsn5.library.dto.loan;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,6 +21,19 @@ public record CreateDirectLoanRequest(
         boolean overrideRequested,
         @Size(max = 500, message = "Lý do bỏ qua không được vượt quá 500 ký tự.") String overrideReason
 ) {
+
+    /** The optional JSON flag defaults to false without weakening Jackson validation globally. */
+    @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+    public CreateDirectLoanRequest(
+            @JsonProperty("requestId") UUID requestId,
+            @JsonProperty("cardNumber") String cardNumber,
+            @JsonProperty("barcodes") List<String> barcodes,
+            @JsonProperty("overrideRequested") Boolean overrideRequested,
+            @JsonProperty("overrideReason") String overrideReason) {
+        this(requestId, cardNumber, barcodes, Boolean.TRUE.equals(overrideRequested), overrideReason);
+    }
+
+
     public CreateDirectLoanRequest(UUID requestId, String cardNumber, List<String> barcodes) {
         this(requestId, cardNumber, barcodes, false, null);
     }

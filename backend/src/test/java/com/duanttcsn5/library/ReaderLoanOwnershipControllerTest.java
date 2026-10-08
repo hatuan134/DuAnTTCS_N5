@@ -4,6 +4,7 @@ import com.duanttcsn5.library.config.SecurityConfig;
 import com.duanttcsn5.library.controller.LoanController;
 import com.duanttcsn5.library.dto.loan.*;
 import com.duanttcsn5.library.entity.*;
+import com.duanttcsn5.library.entity.Role;
 import com.duanttcsn5.library.exception.GlobalExceptionHandler;
 import com.duanttcsn5.library.repository.*;
 import com.duanttcsn5.library.security.*;

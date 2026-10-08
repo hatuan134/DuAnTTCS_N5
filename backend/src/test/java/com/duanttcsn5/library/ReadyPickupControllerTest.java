@@ -82,7 +82,7 @@ class ReadyPickupControllerTest {
     void guestsAndInvalidTokensCannotReadEitherEndpoint() throws Exception {
         for (String path : new String[]{URL, URL + "/21"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
-            when(context.getBean(JwtService.class).decode("bad-token")).thenThrow(new JwtException("invalid"));
+            doThrow(new JwtException("invalid")).when(context.getBean(JwtService.class)).decode("bad-token");
             mvc.perform(get(path).header("Authorization", "Bearer bad-token"))
                     .andExpect(status().isUnauthorized());
         }

@@ -73,6 +73,8 @@ class DirectLoanItemsServiceTest {
         verify(reservations, times(3)).findEffectiveHoldForCopy(anyLong(), any(OffsetDateTime.class));
         verifyNoMoreInteractions(reservations);
         verify(loans, times(3)).countUnreturnedBooksForReader(12L);
+        verify(loans, times(3)).countOverdueUnreturnedLoansForReader(eq(12L), any(LocalDate.class));
+        verify(loans, times(3)).sumUnpaidFeesForReader(12L);
         verifyNoMoreInteractions(loans);
         verify(copies, times(3)).findByBarcode(anyString());
         verifyNoMoreInteractions(copies);
@@ -124,6 +126,8 @@ class DirectLoanItemsServiceTest {
         verify(reservations, times(statuses.length)).findEffectiveHoldForCopy(anyLong(), any(OffsetDateTime.class));
         verifyNoMoreInteractions(reservations);
         verify(loans, times(statuses.length)).countUnreturnedBooksForReader(12L);
+        verify(loans, times(statuses.length)).sumUnpaidFeesForReader(12L);
+        verify(loans, times(statuses.length)).countOverdueUnreturnedLoansForReader(eq(12L), any(LocalDate.class));
         verifyNoMoreInteractions(loans);
         verify(copies, never()).save(any());
     }
