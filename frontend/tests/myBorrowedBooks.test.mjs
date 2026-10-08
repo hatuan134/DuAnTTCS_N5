@@ -47,6 +47,7 @@ async function pageFixture(file, { data, error, role = 'READER', id = '81', crea
   const page = load(file, {
     react: hooks,
     './BorrowedBookDueWarning': dueWarningModule,
+    './MyReturnedBooksPanel': { __esModule: true, default: () => null },
     'react-router-dom': {
       useParams: () => ({ loanId: id }), useLocation: () => ({ state: { loanCreated: created } }),
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
