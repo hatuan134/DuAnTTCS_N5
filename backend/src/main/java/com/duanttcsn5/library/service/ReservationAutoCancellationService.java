@@ -320,6 +320,80 @@ public class ReservationAutoCancellationService {
     }
 
     /**
+     * S3-06.4: Quản lý tra cứu các đơn đã bị hệ thống tự động huỷ trong 30 ngày gần nhất.
+     * Mốc 30 ngày được tính theo 30 ngày lịch (Calendar days) từ thời điểm hiện tại.
+     * Chỉ lấy các đơn do quy trình tự động huỷ (quá hạn nhận, Huỷ bởi Hệ thống).
+     * Sắp xếp các đơn bị huỷ gần nhất lên trước.
+     */
+    @Transactional(readOnly = true)
+    public List<AutoCancelledReservationResponse> getAutoCancelledReservationsLast30Days() {
+        OffsetDateTime now = OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+        OffsetDateTime cutoff = now.minusDays(30);
+        return getAutoCancelledReservationsSince(cutoff);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AutoCancelledReservationResponse> getAutoCancelledReservationsSince(OffsetDateTime sinceTime) {
+        List<BookReservation> cancelledList = reservations.findAutoCancelledReservationsSince(sinceTime);
+        List<AutoCancelledReservationResponse> responses = new ArrayList<>();
+
+        for (BookReservation r : cancelledList) {
+            BookCopy copy = r.getBookCopy();
+            String copyOutcome = "NO_COPY";
+            Long nextReservationId = null;
+            String nextReaderName = null;
+            OffsetDateTime nextPickupDeadline = null;
+
+            if (copy != null) {
+                // Kiểm tra xem bản sao này sau khi huỷ có được gán cho đơn kế tiếp nào không
+                try {
+                    List<BookReservation> queueReservations = reservations.findAllForQueueByBookId(r.getBook().getId());
+                    Optional<BookReservation> successorOpt = queueReservations.stream()
+                            .filter(s -> s.getBookCopy() != null
+                                    && s.getBookCopy().getId().equals(copy.getId())
+                                    && !s.getId().equals(r.getId())
+                                    && (s.getReservedAt() != null && !s.getReservedAt().isBefore(r.getCancelledAt())))
+                            .findFirst();
+
+                    if (successorOpt.isPresent()) {
+                        BookReservation next = successorOpt.get();
+                        copyOutcome = "TRANSFERRED";
+                        nextReservationId = next.getId();
+                        nextReaderName = next.getReader() != null ? next.getReader().getFullName() : null;
+                        nextPickupDeadline = next.getPickupDeadline();
+                    } else {
+                        copyOutcome = "AVAILABLE";
+                    }
+                } catch (Exception ex) {
+                    copyOutcome = "AVAILABLE";
+                }
+            }
+
+            responses.add(new AutoCancelledReservationResponse(
+                    r.getId(),
+                    r.getBook().getId(),
+                    r.getBook().getTitle(),
+                    r.getReader().getId(),
+                    r.getReader().getFullName(),
+                    copy == null ? null : copy.getId(),
+                    copy == null ? null : copy.getBarcode(),
+                    r.getStatus(),
+                    r.getReservedAt(),
+                    r.getPickupDeadline(),
+                    r.getCancelledAt(),
+                    r.getCancelledByName(),
+                    r.getCancellationReason(),
+                    copyOutcome,
+                    nextReservationId,
+                    nextReaderName,
+                    nextPickupDeadline
+            ));
+        }
+
+        return responses;
+    }
+
+    /**
      * S3-06.2: Tìm người đứng đầu hàng đợi hợp lệ.
      * Bỏ qua những người có thẻ bị khóa, hết hạn hoặc tài khoản không hoạt động.
      */
