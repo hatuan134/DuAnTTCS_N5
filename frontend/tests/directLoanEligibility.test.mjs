@@ -46,6 +46,7 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
     },
   }
   const imports = {
+    '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message, onDismiss }) => react.createElement('div', { role: 'alert' }, message, react.createElement('button', { onClick: onDismiss }, 'Đóng thông báo')) },
     './DirectLoanItemsPanel': { __esModule: true, default: () => null },
     react: hooks,
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role }) },
@@ -101,11 +102,11 @@ test('typing debounces and renders required eligibility facts', async () => {
   assert.doesNotMatch(f.html(), /id=".*barcode|Xác nhận phiếu/)
 })
 
-test('unknown card error attaches to input and removes old reader', async () => {
+test('unknown card API error uses dismissible feedback and removes old reader', async () => {
   const f = fixture({ check: async (code) => { if (code === 'UNKNOWN') throw new Error('Không tìm thấy bạn đọc với mã thẻ này.'); return result } })
   f.change('TV-0012'); await f.runTimer(); assert.match(f.html(), /Nguyễn Văn An/)
   f.change('UNKNOWN'); assert.doesNotMatch(f.html(), /Nguyễn Văn An/); await f.runTimer()
-  assert.match(f.html(), /id="direct-loan-card-error"/); assert.match(f.html(), /aria-invalid="true"/)
+  assert.match(f.html(), /role="alert"/); assert.doesNotMatch(f.html(), /id="direct-loan-card-error"/)
   assert.match(f.html(), /Không tìm thấy bạn đọc/); assert.doesNotMatch(f.html(), /Nguyễn Văn An/)
 })
 

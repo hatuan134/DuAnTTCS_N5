@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.repository;
 
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -129,6 +130,21 @@ public class LoanRepository {
                 INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date)
                 VALUES (?, ?, ?, ?)
                 """, loanId, copyId, borrowedAt, dueAt);
+    }
+
+    /** Filter each item, so partially returned loans retain only their outstanding copies. */
+    public List<MyBorrowedBookResponse> findUnreturnedForReader(Long readerId) {
+        return jdbc.query("""
+                SELECT li.id, b.title, c.barcode, li.borrowed_at, li.due_date
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NULL
+                ORDER BY li.borrowed_at DESC, li.id DESC
+                """, (rs, index) -> new MyBorrowedBookResponse(rs.getLong("id"), rs.getString("title"),
+                rs.getString("barcode"), rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("due_date", OffsetDateTime.class), null), readerId);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {

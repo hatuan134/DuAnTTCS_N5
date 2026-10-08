@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import PageHeader from '../../components/ui/PageHeader'
@@ -16,6 +17,7 @@ export default function DirectLoanPage() {
   const [cardNumber, setCardNumber] = useState('')
   const [result, setResult] = useState<ReaderLoanEligibility | null>(null)
   const [error, setError] = useState('')
+  const [apiError, setApiError] = useState('')
   const [loading, setLoading] = useState(false)
   const [confirmationLocked, setConfirmationLocked] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -32,7 +34,7 @@ export default function DirectLoanPage() {
     const manualId = explicitRequest.current
     explicitRequest.current = null
     inFlight.current = false
-    setResult(null); setError(''); setLoading(false)
+    setResult(null); setError(''); setApiError(''); setLoading(false)
     if (!allowed || !number) return
     if (number.length > 100) {
       setError('Mã thẻ không được vượt quá 100 ký tự.')
@@ -48,7 +50,7 @@ export default function DirectLoanPage() {
       check
         .then((data) => { if (id === requestId.current) setResult(data) })
         .catch((e: unknown) => {
-          if (id === requestId.current) setError(getApiErrorMessage(e, 'Không kiểm tra được mã thẻ. Vui lòng thử lại.'))
+          if (id === requestId.current) setApiError(getApiErrorMessage(e, 'Không kiểm tra được mã thẻ. Vui lòng thử lại.'))
         })
         .finally(() => {
           if (id === requestId.current) { setLoading(false); inFlight.current = false }
@@ -73,6 +75,7 @@ export default function DirectLoanPage() {
 
   return <div className="space-y-5">
     <PageHeader title="Cho mượn tại quầy" description="Nhập hoặc quét mã thẻ để kiểm tra bạn đọc và số sách có thể mượn thêm." />
+    {apiError && <FeedbackAlert message={apiError} tone="error" onDismiss={() => setApiError('')} />}
     <Card className="p-4 sm:p-6">
       <form onSubmit={submit} noValidate className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
@@ -82,7 +85,7 @@ export default function DirectLoanPage() {
               onChange={(event) => {
                 ++requestId.current
                 inFlight.current = false
-                setCardNumber(event.target.value); setResult(null); setError(''); setLoading(false)
+                setCardNumber(event.target.value); setResult(null); setError(''); setApiError(''); setLoading(false)
               }} />
           </div>
           <Button type="submit" variant="secondary" loading={loading} disabled={confirmationLocked} className="sm:mt-7">Kiểm tra thẻ</Button>
@@ -91,7 +94,7 @@ export default function DirectLoanPage() {
       </form>
       <div aria-live="polite" aria-atomic="true" className="mt-4">
         {loading && <p role="status" className="text-sm text-blue-700">Đang kiểm tra mã thẻ…</p>}
-        {!loading && !result && !error && <p className="text-sm text-slate-500">Chưa có bạn đọc được chọn. Vui lòng nhập mã thẻ để bắt đầu.</p>}
+        {!loading && !result && !error && !apiError && <p className="text-sm text-slate-500">Chưa có bạn đọc được chọn. Vui lòng nhập mã thẻ để bắt đầu.</p>}
       </div>
     </Card>
 
