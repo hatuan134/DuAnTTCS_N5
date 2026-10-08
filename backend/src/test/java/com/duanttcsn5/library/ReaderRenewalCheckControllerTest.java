@@ -55,6 +55,9 @@ class ReaderRenewalCheckControllerTest {
         context.setServletContext(new MockServletContext());
         context.register(Config.class); context.refresh();
         repository = context.getBean(LoanRepository.class);
+        when(repository.findRenewalPolicyForReader(100L, 12L)).thenReturn(
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 2)));
+        when(repository.incrementRenewalCountIfAllowed(50L, 12L)).thenReturn(1);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
     @AfterEach void close() { context.close(); }
@@ -75,7 +78,10 @@ class ReaderRenewalCheckControllerTest {
                 new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-09T01:00:00Z"), null)));
         mvc.perform(post("/api/v1/loans/me/borrowed-books/100/renewal-check")
                 .header("Authorization", "Bearer token-12").param("readerId", "13"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.eligible").value(true));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligible").value(true))
+                .andExpect(jsonPath("$.renewalsUsed").value(1))
+                .andExpect(jsonPath("$.maxRenewals").value(2));
         verify(repository).findRenewalCandidateForReader(100L, 12L);
         verify(repository, never()).findRenewalCandidateForReader(100L, 13L);
     }

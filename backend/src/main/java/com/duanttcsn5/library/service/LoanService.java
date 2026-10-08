@@ -747,12 +747,13 @@ public class LoanService {
         return loans.findUnreturnedForReader(readerId).stream().map(item ->
                 new MyBorrowedBookResponse(item.id(), item.bookTitle(), item.barcode(),
                         item.borrowedAt(), item.dueAt(), item.dueAt() == null ? null :
-                        ChronoUnit.DAYS.between(today, item.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate())))
+                        ChronoUnit.DAYS.between(today, item.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate()),
+                        item.renewalsUsed(), item.maxRenewals()))
                 .toList();
     }
 
-    /** S3-05.1: checks eligibility at confirmation; does not extend or change the due date.
-     *  Lock-based reread rejects an item that was returned while the confirmation was open.
+    /** S3-05.3: recheck the loan, queue and card-type quota under a transaction.
+     *  Count one approved request per loan; calculating the new due date belongs to a later slice.
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public RenewalCheckResponse checkMyLoanRenewal(Long itemId, Long readerId) {
@@ -779,15 +780,34 @@ public class LoanService {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_OVERDUE",
                     "Phiếu này đã quá hạn, không thể gia hạn.");
         }
-        // S3-05.2: read the reservation queue at the time of confirmation.
-        // No extension is persisted in this slice, even when all checks succeed.
+        // Keep the S3-05.2 queue guard before any counter update.
         if (reservations.existsOtherEffectiveReservationForLoanItem(itemId, readerId, checkedAt)) {
             throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_BLOCKED_BY_RESERVATION",
                     "Không thể gia hạn: đầu sách đang có Bạn đọc khác xếp hàng đặt giữ. "
                             + "Hạn trả hiện tại của bạn không thay đổi.");
         }
+        var policy = loans.findRenewalPolicyForReader(itemId, readerId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "RENEWAL_POLICY_MISSING",
+                        "Không tìm thấy chính sách gia hạn cho thẻ của bạn. Vui lòng liên hệ thư viện."));
+        Integer limit = policy.maxRenewals();
+        if (limit == null || limit <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_POLICY_MISSING",
+                    "Loại thẻ chưa cấu hình số lần gia hạn hợp lệ. Vui lòng liên hệ thư viện.");
+        }
+        if (policy.renewalsUsed() >= limit) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_LIMIT_REACHED",
+                    "Không thể gia hạn: đã dùng " + policy.renewalsUsed() + "/" + limit
+                            + " lần gia hạn của phiếu này. Hạn trả không thay đổi.");
+        }
+        if (loans.incrementRenewalCountIfAllowed(policy.loanId(), readerId) != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_LIMIT_REACHED",
+                    "Không thể gia hạn: giới hạn loại thẻ vừa thay đổi hoặc đã hết lượt. "
+                            + "Vui lòng tải lại danh sách. Hạn trả không thay đổi.");
+        }
+        int used = policy.renewalsUsed() + 1;
         return new RenewalCheckResponse(true,
-                "Phiếu đang mở và chưa quá hạn, đủ điều kiện ở bước kiểm tra. Hạn trả chưa thay đổi.");
+                "Đã ghi nhận lượt gia hạn " + used + "/" + limit
+                        + ". Hạn trả chưa thay đổi ở bước này.", used, limit);
     }
 
     private void requireReader(Long readerId) {

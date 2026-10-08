@@ -36,6 +36,9 @@ class ReaderRenewalCheckServiceTest {
         actor.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("READER"); actor.setRole(role);
         when(users.findById(READER)).thenReturn(Optional.of(actor));
+        when(repository.findRenewalPolicyForReader(ITEM, READER)).thenReturn(
+                Optional.of(new LoanRepository.RenewalPolicy(50L, 0, 3)));
+        when(repository.incrementRenewalCountIfAllowed(50L, READER)).thenReturn(1);
     }
 
     private void candidate(OffsetDateTime dueAt, OffsetDateTime returnedAt) {
@@ -51,7 +54,7 @@ class ReaderRenewalCheckServiceTest {
                 });
     }
 
-    @Test void openLoanDueTodayOrLaterPassesWithoutWriting() {
+    @Test void openLoanDueTodayOrLaterRecordsAllowedRenewalWithoutChangingDueDate() {
         candidate(OffsetDateTime.parse("2026-10-08T02:00:00Z"), null);
         assertThat(service.checkMyLoanRenewal(ITEM, READER).eligible()).isTrue();
         assertThat(service.checkMyLoanRenewal(ITEM, READER).message()).contains("chưa thay đổi");

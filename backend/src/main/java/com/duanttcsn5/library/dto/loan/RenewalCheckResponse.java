@@ -1,4 +1,5 @@
 package com.duanttcsn5.library.dto.loan;
 
-/** Eligibility check only: no due date is calculated or updated in S3-05.1. */
-public record RenewalCheckResponse(boolean eligible, String message) {}
+/** S3-05.3 records an allowed renewal count; the due date is not changed in this slice. */
+public record RenewalCheckResponse(boolean eligible, String message,
+                                   int renewalsUsed, int maxRenewals) {}

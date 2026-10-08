@@ -27,7 +27,7 @@ class MyBorrowedBooksServiceTest {
     }
     MyBorrowedBookResponse item(long id, String due) {
         return new MyBorrowedBookResponse(id, "Tên sách " + id, "LIB-" + id,
-                OffsetDateTime.parse("2026-10-06T23:30:00Z"), due == null ? null : OffsetDateTime.parse(due), null);
+                OffsetDateTime.parse("2026-10-06T23:30:00Z"), due == null ? null : OffsetDateTime.parse(due), null, 0, 2);
     }
     @Test void emptyList() {
         when(loans.findUnreturnedForReader(12L)).thenReturn(List.of());
@@ -43,6 +43,8 @@ class MyBorrowedBooksServiceTest {
         assertThat(actual.borrowedAt()).isEqualTo(row.borrowedAt());
         assertThat(actual.dueAt()).isEqualTo(row.dueAt());
         assertThat(actual.remainingDays()).isEqualTo(1L);
+        assertThat(actual.renewalsUsed()).isZero();
+        assertThat(actual.maxRenewals()).isEqualTo(2);
     }
     @Test void allCopiesHaveIndependentDaysTodayZeroPastNegativeAndLegacyNull() {
         when(loans.findUnreturnedForReader(12L)).thenReturn(List.of(
