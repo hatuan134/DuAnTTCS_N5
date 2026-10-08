@@ -165,4 +165,16 @@ public class BookReservationController {
         OffsetDateTime time = checkTime != null ? checkTime : OffsetDateTime.now();
         return ResponseEntity.ok(autoCancellationService.executeAutoCancellationRun(time, actor));
     }
+
+    /**
+     * S3-06.4: Quản lý tra cứu các đơn đã bị hệ thống tự động huỷ trong 30 ngày gần nhất.
+     */
+    @GetMapping("/reservations/auto-cancelled-last-30-days")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<AutoCancelledReservationResponse>> getAutoCancelledLast30Days() {
+        if (autoCancellationService == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(autoCancellationService.getAutoCancelledReservationsLast30Days());
+    }
 }

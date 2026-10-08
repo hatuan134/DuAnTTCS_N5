@@ -227,4 +227,34 @@ class ReservationAutoCancellationControllerTest {
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("Quản lý thư viện xem danh sách đơn bị huỷ tự động trong 30 ngày gần nhất thành công")
+    void manager_canGetAutoCancelledLast30Days() throws Exception {
+        token("LIBRARY_MANAGER");
+        when(autoCancellationService.getAutoCancelledReservationsLast30Days()).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/reservations/auto-cancelled-last-30-days")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(autoCancellationService).getAutoCancelledReservationsLast30Days();
+    }
+
+    @Test
+    @DisplayName("Bạn đọc không có quyền tra cứu đơn huỷ tự động 30 ngày -> 403 Forbidden")
+    void reader_cannotGetAutoCancelledLast30Days() throws Exception {
+        token("READER");
+        mvc.perform(get("/api/v1/reservations/auto-cancelled-last-30-days")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Chưa đăng nhập không được tra cứu đơn huỷ tự động -> 401 Unauthorized")
+    void anonymous_cannotGetAutoCancelledLast30Days() throws Exception {
+        mvc.perform(get("/api/v1/reservations/auto-cancelled-last-30-days"))
+                .andExpect(status().isUnauthorized());
+    }
 }

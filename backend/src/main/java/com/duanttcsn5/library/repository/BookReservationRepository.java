@@ -209,4 +209,23 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             ORDER BY li.due_date ASC NULLS LAST, li.borrowed_at ASC
             """, nativeQuery = true)
     List<Object[]> findUnreturnedLoanDatesByBookId(@Param("bookId") Long bookId);
+
+    /**
+     * S3-06.4: Quản lý tra cứu các đơn đã bị hệ thống tự động huỷ trong 30 ngày gần nhất.
+     * Chỉ lấy các đơn do quy trình tự động huỷ (cancelledByName = 'Hệ thống' và lý do 'Đã huỷ do quá hạn nhận').
+     * Sắp xếp các đơn bị huỷ gần nhất lên trước.
+     */
+    @Query("""
+            SELECT r FROM BookReservation r
+            JOIN FETCH r.book
+            JOIN FETCH r.reader
+            LEFT JOIN FETCH r.bookCopy
+            LEFT JOIN FETCH r.autoCancellationRun
+            WHERE r.status = 'CANCELLED'
+              AND r.cancellationReason = 'Đã huỷ do quá hạn nhận'
+              AND r.cancelledByName = 'Hệ thống'
+              AND r.cancelledAt >= :sinceTime
+            ORDER BY r.cancelledAt DESC, r.id DESC
+            """)
+    List<BookReservation> findAutoCancelledReservationsSince(@Param("sinceTime") OffsetDateTime sinceTime);
 }
