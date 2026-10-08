@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;
@@ -95,6 +96,15 @@ public class LoanRepository {
                   AND (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < ?
                 """, Long.class, readerId, today);
         return count == null ? 0L : count;
+    }
+
+    /** Remaining VND across every fee belonging to this reader; zero for no fees or fully paid fees. */
+    public BigDecimal sumUnpaidFeesForReader(Long readerId) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(amount_vnd - paid_amount_vnd), 0)
+                FROM reader_fees
+                WHERE reader_user_id = ? AND paid_amount_vnd < amount_vnd
+                """, BigDecimal.class, readerId);
     }
 
     public Optional<String> findNumberByReservation(Long reservationId) {

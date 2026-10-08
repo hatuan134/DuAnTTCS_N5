@@ -189,3 +189,20 @@ test('S3-03.1 renders exact X/Y for empty, below, equal and above quota', async 
     assert.equal(f.panel().props.reader.eligible, eligible)
   }
 })
+
+test('S3-03.3 renders formatted VND debt and blocks draft until the reader is rechecked after payment', async () => {
+  let unpaid = true
+  const f = fixture({ check: async () => unpaid
+    ? { ...result, eligible: false, remainingBooks: 0, reasonCode: 'LOAN_UNPAID_FEES',
+      blockReasons: [{ code: 'LOAN_UNPAID_FEES', message: 'Bạn đọc còn nợ phí chưa thanh toán: 150.500 ₫.' }],
+      message: 'Bạn đọc còn nợ phí chưa thanh toán: 150.500 ₫.' }
+    : result })
+  f.change('TV-0012'); await f.runTimer()
+  assert.match(f.html(), /Không đủ điều kiện mượn/)
+  assert.match(f.html(), /150.500 ₫/)
+  assert.equal(f.panel().props.reader.eligible, false)
+  unpaid = false
+  f.submit(); await f.runTimer()
+  assert.match(f.html(), /Đủ điều kiện mượn/)
+  assert.equal(f.panel().props.reader.eligible, true)
+})
