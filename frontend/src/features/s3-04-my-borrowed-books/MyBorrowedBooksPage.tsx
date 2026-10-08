@@ -14,7 +14,9 @@ import BorrowedBookDueWarning from './BorrowedBookDueWarning'
 import MyReturnedBooksPanel from './MyReturnedBooksPanel'
 
 export default function MyBorrowedBooksPage() {
-  const allowed = getCurrentUser()?.role === 'READER'
+  const user = getCurrentUser()
+  const allowed = user?.role === 'READER'
+  const [dataReaderId, setDataReaderId] = useState<number | undefined>(undefined)
   const [tab, setTab] = useState<'borrowed' | 'returned'>('borrowed')
   const [items, setItems] = useState<MyBorrowedBook[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ export default function MyBorrowedBooksPage() {
     let active = true
     setLoading(true); setFailed(false); setError(''); setItems([])
     myBorrowedBooksService.list()
-      .then((data) => { if (active) setItems(data) })
+      .then((data) => { if (active) { setItems(data); setDataReaderId(user?.id) } })
       .catch((e: unknown) => {
         if (active) {
           setFailed(true)
@@ -36,9 +38,10 @@ export default function MyBorrowedBooksPage() {
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [allowed, revision, tab])
+  }, [allowed, user?.id, revision, tab])
 
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Chức năng Sách đang mượn dành cho Bạn đọc.</p>
+  const currentItems = dataReaderId === user?.id ? items : []
   const remaining = (item: MyBorrowedBook) => item.remainingDays === null ? 'Chưa xác định' : `${item.remainingDays} ngày`
   return <div className="space-y-4">
     <PageHeader title={tab === 'borrowed' ? 'Sách đang mượn' : 'Lịch sử đã trả'}
@@ -57,12 +60,12 @@ export default function MyBorrowedBooksPage() {
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
     {loading && <LoadingState />}
     {!loading && failed && <EmptyState title="Chưa tải được danh sách" description="Nhấn Làm mới để thử lại." />}
-    {!loading && !failed && items.length === 0 && <EmptyState title="Bạn không có sách đang mượn" description="Sách sẽ xuất hiện ở đây sau khi Thủ thư xác nhận cho mượn." />}
-    {!loading && !failed && items.length > 0 && <>
-      <p className="text-sm text-slate-600">Bạn đang mượn {items.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ.</p>
+    {!loading && !failed && currentItems.length === 0 && <EmptyState title="Bạn không có sách đang mượn" description="Sách sẽ xuất hiện ở đây sau khi Thủ thư xác nhận cho mượn." />}
+    {!loading && !failed && currentItems.length > 0 && <>
+      <p className="text-sm text-slate-600">Bạn đang mượn {currentItems.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ.</p>
       <Card className="overflow-hidden">
         <div className="divide-y divide-slate-200 md:hidden">
-          {items.map((item) => <article key={item.id} className="space-y-3 p-4">
+          {currentItems.map((item) => <article key={item.id} className="space-y-3 p-4">
             <h3 className="break-words font-semibold text-slate-900">{item.bookTitle}</h3>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div><dt className="text-slate-500">Mã vạch bản sao</dt><dd className="break-all font-mono text-slate-900">{item.barcode}</dd></div>
@@ -79,7 +82,7 @@ export default function MyBorrowedBooksPage() {
               <th scope="col" className="w-1/3 px-4 py-3">Tên sách</th><th scope="col" className="px-4 py-3">Mã vạch bản sao</th>
               <th scope="col" className="px-4 py-3">Ngày mượn</th><th scope="col" className="px-4 py-3">Hạn trả</th><th scope="col" className="px-4 py-3">Số ngày còn lại</th>
             </tr></thead>
-            <tbody className="divide-y divide-slate-100">{items.map((item) => <tr key={item.id} className="hover:bg-slate-50">
+            <tbody className="divide-y divide-slate-100">{currentItems.map((item) => <tr key={item.id} className="hover:bg-slate-50">
               <td className="break-words px-4 py-4 font-medium">{item.bookTitle}</td>
               <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
               <td className="px-4 py-4">{formatLoanTimestamp(item.borrowedAt, true)}</td>

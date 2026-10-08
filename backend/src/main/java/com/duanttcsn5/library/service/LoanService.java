@@ -783,11 +783,18 @@ public class LoanService {
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public LoanDetailResponse loanDetail(Long loanId, Long actorId) {
-        requireStaff(actorId);
+        boolean reader = actorId != null && users.findById(actorId)
+                .map(actor -> actor.getRole() != null && "READER".equals(actor.getRole().getCode()))
+                .orElse(false);
+        if (reader) requireReader(actorId);
+        else requireStaff(actorId);
         if (loanId == null || loanId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
                 "INVALID_LOAN_ID", "Mã phiếu mượn không hợp lệ.");
-        var header = loans.findHeaderForStaff(loanId).orElseThrow(() -> new ApiException(
-                HttpStatus.NOT_FOUND, "LOAN_NOT_FOUND", "Không tìm thấy phiếu mượn."));
+        var header = (reader ? loans.findHeaderForReader(loanId, actorId) : loans.findHeaderForStaff(loanId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "LOAN_NOT_FOUND", reader
+                        ? "Phiếu không tồn tại hoặc bạn không có quyền truy cập."
+                        : "Không tìm thấy phiếu mượn."));
+        // Only load items after the scoped header succeeds. The shared item query does not bypass ownership.
         // Header and items share one DB snapshot; use the saved item timestamps, never current card policy.
         return new LoanDetailResponse(header.id(), header.loanNumber(), header.reservationId(),
                 header.readerId(), header.readerName(), header.createdById(), header.createdByName(),
