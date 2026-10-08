@@ -148,6 +148,24 @@ public class LoanRepository {
                 rs.getObject("due_date", OffsetDateTime.class), null), readerId);
     }
 
+    public record RenewalCandidate(OffsetDateTime dueAt, OffsetDateTime returnedAt) {}
+
+    /** Recheck a loan item owned by the authenticated reader while holding the row lock.
+     *  READ COMMITTED allows a concurrent return to finish before this check reads its state.
+     */
+    public Optional<RenewalCandidate> findRenewalCandidateForReader(Long itemId, Long readerId) {
+        return jdbc.query("""
+                SELECT li.due_date, li.returned_at
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                WHERE li.id = ? AND l.borrower_user_id = ?
+                FOR UPDATE OF li
+                """, (rs, index) -> new RenewalCandidate(
+                rs.getObject("due_date", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), itemId, readerId)
+                .stream().findFirst();
+    }
+
     public long countReturnedForReader(Long readerId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(li.id)

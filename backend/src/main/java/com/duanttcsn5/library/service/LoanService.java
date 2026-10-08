@@ -18,6 +18,7 @@ import java.util.HexFormat;
 import java.util.HashSet;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
+import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
@@ -748,6 +749,37 @@ public class LoanService {
                         item.borrowedAt(), item.dueAt(), item.dueAt() == null ? null :
                         ChronoUnit.DAYS.between(today, item.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate())))
                 .toList();
+    }
+
+    /** S3-05.1: checks eligibility at confirmation; does not extend or change the due date.
+     *  Lock-based reread rejects an item that was returned while the confirmation was open.
+     */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public RenewalCheckResponse checkMyLoanRenewal(Long itemId, Long readerId) {
+        requireReader(readerId);
+        if (itemId == null || itemId < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_ITEM_ID",
+                    "Mã bản sách đang mượn không hợp lệ.");
+        }
+        var candidate = loans.findRenewalCandidateForReader(itemId, readerId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "LOAN_ITEM_NOT_FOUND",
+                        "Phiếu mượn không tồn tại hoặc không thuộc tài khoản của bạn."));
+        if (candidate.returnedAt() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_ALREADY_RETURNED",
+                    "Phiếu này đã trả sách, không thể gia hạn.");
+        }
+        if (candidate.dueAt() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_DUE_DATE_MISSING",
+                    "Phiếu chưa có hạn trả hợp lệ, không thể yêu cầu gia hạn.");
+        }
+        // Clock is read AFTER obtaining the locked row to avoid a stale pre-midnight check.
+        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        if (candidate.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate().isBefore(today)) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_OVERDUE",
+                    "Phiếu này đã quá hạn, không thể gia hạn.");
+        }
+        return new RenewalCheckResponse(true,
+                "Phiếu đang mở và chưa quá hạn, đủ điều kiện ở bước kiểm tra. Hạn trả chưa thay đổi.");
     }
 
     private void requireReader(Long readerId) {

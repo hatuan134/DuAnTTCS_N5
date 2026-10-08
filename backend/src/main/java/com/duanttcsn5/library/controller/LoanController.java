@@ -12,6 +12,7 @@ import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
+import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import java.util.List;
@@ -93,6 +94,13 @@ public class LoanController {
     public ResponseEntity<List<MyBorrowedBookResponse>> myBorrowedBooks(
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.myBorrowedBooks(principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/me/borrowed-books/{itemId}/renewal-check")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<RenewalCheckResponse> checkMyRenewal(
+            @PathVariable Long itemId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.checkMyLoanRenewal(itemId, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/me/returned-books")
