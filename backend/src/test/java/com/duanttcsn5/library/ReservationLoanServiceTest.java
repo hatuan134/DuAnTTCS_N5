@@ -418,7 +418,8 @@ class ReservationLoanServiceTest {
         rejected("LOGIN_REQUIRED", () -> service.loanDetail(81L, null));
         rejected("LOGIN_REQUIRED", () -> service.listLoans(null));
         actor.getRole().setCode("READER");
-        rejected("STAFF_ROLE_REQUIRED", () -> service.loanDetail(81L, 3L));
+        // Readers may request their own loan detail; an unowned/missing loan is hidden as 404.
+        rejected("LOAN_NOT_FOUND", () -> service.loanDetail(81L, 3L));
         rejected("STAFF_ROLE_REQUIRED", () -> service.listLoans(3L));
         actor.getRole().setCode("LIBRARIAN"); actor.setStatus("LOCKED");
         rejected("STAFF_ROLE_REQUIRED", () -> service.loanDetail(81L, 3L));

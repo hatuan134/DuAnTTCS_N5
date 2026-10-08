@@ -57,7 +57,8 @@ class ReaderLoanOwnershipDatabaseTest {
         Long aOpen = borrow(a, staff, book, false), bOpen = borrow(b, staff, book, false);
         for (int i = 0; i < 21; i++) { borrow(a, staff, book, true); borrow(b, staff, book, true); }
         var before = jdbc.queryForList("SELECT * FROM loan_items ORDER BY id");
-        var aDetail = service.loanDetail(aOpen, a), bDetail = service.loanDetail(bOpen, b);
+        var aDetail = service.loanDetail(aOpen, a);
+        var bDetail = service.loanDetail(bOpen, b);
         assertThat(aDetail.readerId()).isEqualTo(a); assertThat(bDetail.readerId()).isEqualTo(b);
         assertThat(service.myBorrowedBooks(a)).extracting(MyBorrowedBookResponse::id)
                 .containsExactly(aDetail.items().get(0).id());

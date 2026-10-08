@@ -53,17 +53,20 @@ public class LoanController {
     }
 
     @GetMapping("/reservations/{reservationId}/loan-context")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReservationLoanContextResponse> pickupContext(@PathVariable Long reservationId) {
         return ResponseEntity.ok(loans.pickupContext(reservationId));
     }
 
     @PostMapping("/reservations/{reservationId}/pickup-check")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReservationLoanContextResponse> checkPickup(@PathVariable Long reservationId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.checkPickup(reservationId, principal == null ? null : principal.id()));
     }
 
     @PostMapping("/reservations/{reservationId}/loan")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReservationLoanResponse> createFromReservation(
             @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -101,11 +104,13 @@ public class LoanController {
     }
 
     @GetMapping("/loans")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<LoanSummaryResponse>> listLoans(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.listLoans(principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/reader-eligibility")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReaderLoanEligibilityResponse> readerEligibility(
             @RequestParam(defaultValue = "") String cardNumber,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -113,6 +118,7 @@ public class LoanController {
     }
 
     @PostMapping("/loans/reader-eligibility/check")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReaderLoanEligibilityResponse> checkReaderAndLog(
             @Valid @RequestBody CheckReaderLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -122,6 +128,7 @@ public class LoanController {
 
     /** Viewer scope is provisional until PO decides permitted audit audiences. */
     @GetMapping("/loans/rejections")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanRejectionPageResponse> rejections(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -130,11 +137,13 @@ public class LoanController {
     }
 
     @GetMapping("/loans/rejections/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanRejectionResponse> rejectionDetail(@PathVariable Long id) {
         return ResponseEntity.ok(rejections.detail(id));
     }
 
     @PostMapping("/loans/direct/items/preview")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<DirectLoanItemResponse> previewDirectLoanItem(
             @Valid @RequestBody AddDirectLoanItemRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -142,6 +151,7 @@ public class LoanController {
     }
 
     @PostMapping("/loans/direct")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<DirectLoanResponse> createDirectLoan(
             @Valid @RequestBody CreateDirectLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
