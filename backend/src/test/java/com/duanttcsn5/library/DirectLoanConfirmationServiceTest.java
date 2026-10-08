@@ -112,6 +112,12 @@ class DirectLoanConfirmationServiceTest {
         rejects(request("BC-1"), "LOAN_LIMIT_REACHED");
     }
 
+    @Test void overdueAppearingAfterPreviewBlocksAtomicConfirmation() {
+        assertThat(service.readerEligibility("TV-12", 3L).eligible()).isTrue();
+        when(loans.countOverdueUnreturnedLoansForReader(12L, at.toLocalDate())).thenReturn(1L);
+        rejects(request("BC-1"), "LOAN_OVERDUE_UNRETURNED");
+    }
+
     @Test void missingChangedAndUnreturnedCopiesNeverWrite() {
         rejects(request("UNKNOWN"), "LOAN_DRAFT_COPY_NOT_FOUND");
         var copy = copies.findForStatusChange(2L).orElseThrow();

@@ -10,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -71,10 +73,23 @@ class DirectLoanEligibilityDatabaseTest {
         var result = service.readerEligibility(card, staff);
         assertThat(result.borrowedBooks()).isEqualTo(2);
         assertThat(result.remainingBooks()).isEqualTo(3);
-        assertThat(result.eligible()).isTrue();
+        // Previous S3-02.1 behavior allowed this; S3-03.2 must now reject overdue returns.
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        assertThat(loans.countOverdueUnreturnedLoansForReader(reader, today)).isEqualTo(2L);
+        assertThat(result.eligible()).isFalse();
+        assertThat(result.reasonCode()).isEqualTo("LOAN_OVERDUE_UNRETURNED");
+        assertThat(result.blockReasons()).extracting(r -> r.code()).contains("LOAN_OVERDUE_UNRETURNED");
         assertThat(jdbc.queryForList("SELECT * FROM loans ORDER BY id")).isEqualTo(before);
         assertThat(jdbc.queryForList("SELECT * FROM loan_items ORDER BY id")).isEqualTo(items);
         assertThat(jdbc.queryForList("SELECT * FROM book_copies ORDER BY id")).isEqualTo(copies);
         assertThat(jdbc.queryForList("SELECT * FROM book_reservations ORDER BY id")).isEqualTo(reservations);
+        // A due date later today or tomorrow is NOT overdue even if its time has passed.
+        jdbc.update("""
+                UPDATE loan_items SET due_date = (CAST(? AS date) + TIME '00:00:00') AT TIME ZONE 'Asia/Ho_Chi_Minh'
+                WHERE returned_at IS NULL AND loan_id IN
+                  (SELECT id FROM loans WHERE borrower_user_id = ?)
+                """, today, reader);
+        assertThat(loans.countOverdueUnreturnedLoansForReader(reader, today)).isZero();
+        assertThat(service.readerEligibility(card, staff).eligible()).isTrue();
     }
 }

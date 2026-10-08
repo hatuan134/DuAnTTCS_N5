@@ -117,6 +117,37 @@ class DirectLoanEligibilityServiceTest {
         type.setMaxBooks(11); blocked("LOAN_POLICY_NOT_CONFIGURED");
     }
 
+    @Test void dueTodayAndUnreturnedWithoutOverdueStayEligible() {
+        when(loans.countOverdueUnreturnedLoansForReader(12L, TODAY)).thenReturn(0L);
+        assertThat(service.readerEligibility("TV-0012", 3L).eligible()).isTrue();
+        verify(loans).countOverdueUnreturnedLoansForReader(12L, TODAY);
+    }
+
+    @Test void oneAndManyOverdueUnreturnedLoansBlockAndShowCount() {
+        when(loans.countOverdueUnreturnedLoansForReader(12L, TODAY)).thenReturn(1L);
+        var one = service.readerEligibility("TV-0012", 3L);
+        assertThat(one.eligible()).isFalse();
+        assertThat(one.reasonCode()).isEqualTo("LOAN_OVERDUE_UNRETURNED");
+        assertThat(one.message()).contains("1 phiếu mượn quá hạn chưa trả");
+        assertThat(one.blockReasons()).extracting(r -> r.code()).containsExactly("LOAN_OVERDUE_UNRETURNED");
+        when(loans.countOverdueUnreturnedLoansForReader(12L, TODAY)).thenReturn(3L);
+        var many = service.readerEligibility("TV-0012", 3L);
+        assertThat(many.message()).contains("3 phiếu mượn quá hạn chưa trả");
+        assertThat(many.remainingBooks()).isZero();
+    }
+
+    @Test void lockedExpiredAndOverdueReasonsAccumulateIndependently() {
+        card.setStatus("LOCKED");
+        card.setExpiresAt(TODAY.minusDays(1));
+        when(loans.countOverdueUnreturnedLoansForReader(12L, TODAY)).thenReturn(2L);
+        var result = service.readerEligibility("TV-0012", 3L);
+        assertThat(result.eligible()).isFalse();
+        assertThat(result.reasonCode()).isEqualTo("LIBRARY_CARD_LOCKED");
+        assertThat(result.blockReasons()).extracting(r -> r.code()).containsExactly(
+                "LIBRARY_CARD_LOCKED", "LIBRARY_CARD_EXPIRED", "LOAN_OVERDUE_UNRETURNED");
+        assertThat(result.message()).contains("khóa", "hết hạn", "2 phiếu mượn quá hạn");
+    }
+
     @Test void serviceAlsoRejectsUnauthenticatedReaderAndInactiveStaff() {
         assertThatThrownBy(() -> service.readerEligibility("TV-0012", null)).isInstanceOf(ApiException.class);
         when(users.findById(3L)).thenReturn(Optional.of(user(3L, "READER")));

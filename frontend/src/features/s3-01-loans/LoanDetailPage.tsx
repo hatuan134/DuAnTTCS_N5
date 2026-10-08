@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
@@ -29,6 +30,7 @@ function LoanDetails({ id, justCreated }: { id: number; justCreated: boolean }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [showCreatedNotice, setShowCreatedNotice] = useState(justCreated)
   useEffect(() => {
     let active = true
     setLoan(null)
@@ -43,9 +45,9 @@ function LoanDetails({ id, justCreated }: { id: number; justCreated: boolean }) 
   return <div>
     <Link to="/loans" className="mb-4 inline-block text-sm font-medium text-blue-700 hover:underline">← Danh sách phiếu mượn</Link>
     <PageHeader title="Chi tiết phiếu mượn" description="Thông tin phiếu và hạn trả đã được lưu. Thời gian hiển thị theo giờ Việt Nam." />
-    {justCreated && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-      Đã lập phiếu mượn thành công. Kiểm tra thông tin phiếu bên dưới.
-    </p>}
+    {showCreatedNotice && <FeedbackAlert className="mb-4" tone="success"
+      message="Đã lập phiếu mượn thành công. Kiểm tra thông tin phiếu bên dưới."
+      onDismiss={() => setShowCreatedNotice(false)} />}
     {loading && <div role="status"><LoadingState /></div>}
     {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
       <p>{error}</p><Button type="button" variant="secondary" className="mt-3" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>

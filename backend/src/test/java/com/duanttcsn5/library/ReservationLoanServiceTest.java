@@ -61,6 +61,8 @@ class ReservationLoanServiceTest {
         reservation.setReservedAt(CONFIRMED.minusDays(10));
         reservation.setPickupDeadline(CONFIRMED.plusDays(3));
         card = new LibraryCard(); card.setCardNumber("TV-0012"); card.setUser(reader);
+        card.setIssuedAt(CONFIRMED.toLocalDate().minusMonths(1));
+        card.setExpiresAt(CONFIRMED.toLocalDate().plusMonths(1));
         CardType type = new CardType(); type.setName("Thẻ sinh viên"); type.setLoanDays(14); type.setMaxBooks(5); card.setCardType(type);
         when(configuration.calculateLoanDates(any(), eq(14), eq("Thẻ sinh viên"))).thenAnswer(call -> {
             OffsetDateTime borrowedAt = call.getArgument(0);
@@ -117,6 +119,14 @@ class ReservationLoanServiceTest {
         ordered.verify(reservations).saveAndFlush(reservation);
         assertThat(reservation.getStatus()).isEqualTo("FULFILLED");
         verify(copies, never()).save(any());
+    }
+
+    @Test void reservationConversionAlsoBlocksLockedOrOverdueCard() {
+        card.setStatus("LOCKED");
+        rejected("LIBRARY_CARD_LOCKED", () -> service.createFromReservation(21L, 3L, "TV-0012"));
+        card.setStatus("ACTIVE");
+        when(loans.countOverdueUnreturnedLoansForReader(12L, CONFIRMED.toLocalDate())).thenReturn(1L);
+        rejected("LOAN_OVERDUE_UNRETURNED", () -> service.createFromReservation(21L, 3L, "TV-0012"));
     }
 
     @Test void wrongCardCannotCreateAnyLoan() {
