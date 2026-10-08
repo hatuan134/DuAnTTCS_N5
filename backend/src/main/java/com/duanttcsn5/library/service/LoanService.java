@@ -773,10 +773,18 @@ public class LoanService {
                     "Phiếu chưa có hạn trả hợp lệ, không thể yêu cầu gia hạn.");
         }
         // Clock is read AFTER obtaining the locked row to avoid a stale pre-midnight check.
-        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        OffsetDateTime checkedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE);
+        LocalDate today = checkedAt.toLocalDate();
         if (candidate.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate().isBefore(today)) {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_OVERDUE",
                     "Phiếu này đã quá hạn, không thể gia hạn.");
+        }
+        // S3-05.2: read the reservation queue at the time of confirmation.
+        // No extension is persisted in this slice, even when all checks succeed.
+        if (reservations.existsOtherEffectiveReservationForLoanItem(itemId, readerId, checkedAt)) {
+            throw new ApiException(HttpStatus.CONFLICT, "RENEWAL_BLOCKED_BY_RESERVATION",
+                    "Không thể gia hạn: đầu sách đang có Bạn đọc khác xếp hàng đặt giữ. "
+                            + "Hạn trả hiện tại của bạn không thay đổi.");
         }
         return new RenewalCheckResponse(true,
                 "Phiếu đang mở và chưa quá hạn, đủ điều kiện ở bước kiểm tra. Hạn trả chưa thay đổi.");

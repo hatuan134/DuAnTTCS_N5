@@ -37,8 +37,9 @@ class ReaderRenewalCheckControllerTest {
         @Bean JwtService jwtService() { return mock(JwtService.class); }
         @Bean UserRepository users() { return mock(UserRepository.class); }
         @Bean LoanRepository loans() { return mock(LoanRepository.class); }
-        @Bean LoanService service(UserRepository users, LoanRepository loans) {
-            return new LoanService(mock(BookRepository.class), mock(BookReservationRepository.class),
+        @Bean BookReservationRepository reservations() { return mock(BookReservationRepository.class); }
+        @Bean LoanService service(UserRepository users, LoanRepository loans, BookReservationRepository reservations) {
+            return new LoanService(mock(BookRepository.class), reservations,
                     mock(BookCopyRepository.class), mock(LibraryCardRepository.class), users, loans,
                     mock(LibraryConfigurationService.class), Clock.fixed(
                             OffsetDateTime.parse("2026-10-08T09:00:00Z").toInstant(), ZoneOffset.UTC));
@@ -77,6 +78,19 @@ class ReaderRenewalCheckControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.eligible").value(true));
         verify(repository).findRenewalCandidateForReader(100L, 12L);
         verify(repository, never()).findRenewalCandidateForReader(100L, 13L);
+    }
+
+    @Test void anotherReaderWaitingReturnsConflictAndReason() throws Exception {
+        token(12, "READER");
+        when(repository.findRenewalCandidateForReader(100L, 12L)).thenReturn(Optional.of(
+                new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-09T01:00:00Z"), null)));
+        when(context.getBean(BookReservationRepository.class)
+                .existsOtherEffectiveReservationForLoanItem(eq(100L), eq(12L), any())).thenReturn(true);
+        mvc.perform(post("/api/v1/loans/me/borrowed-books/100/renewal-check")
+                .header("Authorization", "Bearer token-12"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RENEWAL_BLOCKED_BY_RESERVATION"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Bạn đọc khác")));
     }
 
     @Test void foreignOrMissingItemIs404WithoutLeakingItsState() throws Exception {

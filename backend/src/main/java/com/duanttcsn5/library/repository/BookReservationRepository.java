@@ -48,6 +48,26 @@ public interface BookReservationRepository extends JpaRepository<BookReservation
             """, nativeQuery = true)
     boolean existsActiveForReaderAndBook(@Param("readerId") Long readerId, @Param("bookId") Long bookId);
 
+    /** S3-05.2: check other readers waiting for the TITLE of the borrowed copy,
+     * not just a hold assigned to the same physical copy. Completed/cancelled/expired
+     * orders do not block; a READY order needs a non-expired pickup deadline.
+     * The own-reader exclusion is provisional pending PO confirmation.
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM loan_items li
+                JOIN book_copies bc ON bc.id = li.book_copy_id
+                JOIN book_reservations r ON r.book_id = bc.book_id
+                WHERE li.id = :itemId
+                  AND r.reader_id <> :readerId
+                  AND (r.status = 'PENDING'
+                       OR (r.status = 'READY_FOR_PICKUP' AND r.pickup_deadline >= :checkedAt))
+            )
+            """, nativeQuery = true)
+    boolean existsOtherEffectiveReservationForLoanItem(@Param("itemId") Long itemId,
+            @Param("readerId") Long readerId, @Param("checkedAt") OffsetDateTime checkedAt);
+
     // The minimal lending schema has no loan-header completion status.
     // Any unreturned item for this reader/title is authoritative, including overdue
     // loans and loans opened before a reservation. Do not infer ownership from copy status.
