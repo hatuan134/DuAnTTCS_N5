@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
@@ -21,6 +22,7 @@ export default function CreateReservationLoanPanel({
 }: Props) {
   const [cardNumber, setCardNumber] = useState('')
   const [error, setError] = useState('')
+  const [dismissedError, setDismissedError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<ReservationLoanResult | null>(null)
   const pendingRef = useRef(false)
@@ -63,7 +65,7 @@ export default function CreateReservationLoanPanel({
     pendingRef.current = true
     setSubmitting(true)
     onBusyChange(true)
-    setError('')
+    setError(''); setDismissedError('')
     try {
       const context = await pickupService.loanContext(reservation.id)
       acceptContext(context)
@@ -97,7 +99,7 @@ export default function CreateReservationLoanPanel({
     pendingRef.current = true
     setSubmitting(true)
     onBusyChange(true)
-    setError('')
+    setError(''); setDismissedError('')
     try {
       const created = await pickupService.createLoan(reservation.id, confirmed, preview)
       setResult(created)
@@ -124,7 +126,7 @@ export default function CreateReservationLoanPanel({
     <p className="mt-3 text-sm text-slate-600">Mã thẻ của bạn đọc: <strong className="break-all font-mono text-slate-900">
       {reservation.cardNumber || 'Chưa có thẻ thư viện'}
     </strong></p>
-    {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {error && error !== dismissedError && <FeedbackAlert message={error} tone="error" onDismiss={() => setDismissedError(error)} className="mt-3" />}
     {result ? <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
       <p className="font-semibold">{result.message}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -177,7 +179,7 @@ export default function CreateReservationLoanPanel({
       <Input id="confirmed-card-number" label="Mã thẻ của người đến nhận" required maxLength={100}
         autoComplete="off" placeholder="Nhập hoặc quét mã thẻ thực tế"
         value={cardNumber} disabled={disabled || submitting}
-        onChange={(event) => { setCardNumber(event.target.value); setError('') }} />
+        onChange={(event) => { setCardNumber(event.target.value); setError(''); setDismissedError('') }} />
       <Button type="submit" loading={submitting}
         disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage}>
         Xác nhận và lập phiếu mượn

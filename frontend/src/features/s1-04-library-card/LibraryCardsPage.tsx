@@ -205,7 +205,7 @@ export default function LibraryCardsPage() {
       {success && (
         <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} />
       )}
-      {error && (
+      {error && !modal && (
         <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
       )}
 
@@ -381,6 +381,7 @@ export default function LibraryCardsPage() {
             </div>
 
             <div className="space-y-4 p-5">
+              {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
               {modal.type === 'approve' ? (
                 <>
                   <div>

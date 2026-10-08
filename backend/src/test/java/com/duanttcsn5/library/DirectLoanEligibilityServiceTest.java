@@ -55,6 +55,7 @@ class DirectLoanEligibilityServiceTest {
         assertThat(result.maxBooks()).isEqualTo(5);
         assertThat(result.borrowedBooks()).isEqualTo(2L);
         assertThat(result.remainingBooks()).isEqualTo(3L);
+        assertThat(result.message()).contains("đang mượn 2/5");
         assertThat(result.eligible()).isTrue();
         assertThat(result.reasonCode()).isEqualTo("ELIGIBLE");
         verify(loans).countUnreturnedBooksForReader(12L);
@@ -69,6 +70,7 @@ class DirectLoanEligibilityServiceTest {
         for (long count : new long[]{5, 6, 20}) {
             when(loans.countUnreturnedBooksForReader(12L)).thenReturn(count);
             blocked("LOAN_LIMIT_REACHED");
+            assertThat(service.readerEligibility("TV-0012", 3L).message()).contains("đang mượn " + count + "/5");
             assertThat(service.readerEligibility("TV-0012", 3L).borrowedBooks()).isEqualTo(count);
         }
         type.setMaxBooks(0); when(loans.countUnreturnedBooksForReader(12L)).thenReturn(0L);

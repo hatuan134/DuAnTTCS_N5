@@ -93,7 +93,7 @@ test('typing debounces and renders required eligibility facts', async () => {
   const f = fixture(); f.change(' TV-0012 ')
   assert.deepEqual(f.delays(), [350]); assert.match(f.html(), /Đang kiểm tra/); await f.runTimer()
   for (const text of ['Nguyễn Văn An', 'Thẻ sinh viên', 'Sách đang mượn chưa trả', 'Sách còn được mượn thêm', 'Đủ điều kiện mượn']) assert.ok(f.html().includes(text), text)
-  assert.match(f.html(), />2<\/dd>/); assert.match(f.html(), />3<\/dd>/); assert.deepEqual(f.calls, ['TV-0012'])
+  assert.match(f.html(), />2\/5<\/dd>/); assert.match(f.html(), />3<\/dd>/); assert.deepEqual(f.calls, ['TV-0012'])
   assert.doesNotMatch(f.html(), /id=".*barcode|Xác nhận phiếu/)
 })
 
@@ -174,4 +174,18 @@ test('barcode draft mounts only for an identified reader and disappears on card 
   f.submit(); assert.equal(f.panel(), null); await f.runTimer()
   assert.notEqual(f.panel().key, oldKey)
   f.change('OTHER'); assert.equal(f.panel(), null)
+})
+
+
+test('S3-03.1 renders exact X/Y for empty, below, equal and above quota', async () => {
+  for (const borrowedBooks of [0, 2, 5, 7]) {
+    const eligible = borrowedBooks < 5
+    const f = fixture({ check: async () => ({ ...result, borrowedBooks, eligible,
+      remainingBooks: Math.max(0, 5 - borrowedBooks),
+      reasonCode: eligible ? 'ELIGIBLE' : 'LOAN_LIMIT_REACHED',
+      message: `Bạn đọc đang mượn ${borrowedBooks}/5 sách.` }) })
+    f.change('TV-0012'); await f.runTimer()
+    assert.ok(f.html().includes(`>${borrowedBooks}/5</dd>`))
+    assert.equal(f.panel().props.reader.eligible, eligible)
+  }
 })

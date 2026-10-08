@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
-  AlertCircle,
   CreditCard,
   History,
   Pencil,
@@ -808,10 +807,7 @@ export default function CardTypesPage() {
               </div>
 
               {formError && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  <AlertCircle size={16} className="shrink-0 text-red-500" />
-                  <span>{formError}</span>
-                </div>
+                <FeedbackAlert message={formError} tone="error" onDismiss={() => setFormError('')} className="sm:col-span-2" />
               )}
 
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">

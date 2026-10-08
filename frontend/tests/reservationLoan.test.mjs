@@ -17,7 +17,7 @@ function load(file, imports) {
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = { exports: {}, performance: { now: () => clockMs }, window: { setInterval: (callback) => { timerCallbacks.push(callback); return timerCallbacks.length }, clearInterval() {} }, require: (name) => imports[name] ?? require(name) }
+  const context = { exports: {}, performance: { now: () => clockMs }, window: { setInterval: (callback) => { timerCallbacks.push(callback); return timerCallbacks.length }, clearInterval() {} }, require: (name) => imports[name] ?? (name === '../../components/ui/FeedbackAlert' ? load('../../components/ui/FeedbackAlert.tsx', {}) : require(name)) }
   vm.runInNewContext(compiled, context)
   return context.exports
 }

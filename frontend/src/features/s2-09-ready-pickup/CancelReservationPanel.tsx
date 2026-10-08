@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -63,7 +64,7 @@ export default function CancelReservationPanel({ reservation, onDismiss, onSucce
       <p id="cancel-reason-help" className="mt-1 text-xs text-slate-500">
         Bắt buộc có nội dung, tối đa 500 ký tự. {normalized.length}/500 ký tự.
       </p>
-      {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
       <div className="mt-4 flex flex-wrap gap-3">
         <Button type="submit" variant="danger" loading={busy} disabled={!valid}>Xác nhận huỷ</Button>
         <Button type="button" variant="secondary" disabled={busy} onClick={onDismiss}>Đóng biểu mẫu</Button>

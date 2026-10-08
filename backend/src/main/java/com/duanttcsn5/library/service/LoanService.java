@@ -183,6 +183,8 @@ public class LoanService {
         // Direct confirmations must see committed concurrent reservation loans when checking quota.
         // Acquire the shared reader lock BEFORE any title lock to avoid reversing lock order.
         loans.findReservationReaderId(reservationId).ifPresent(reservations::lockReaderForCreation);
+        // Keep the current card policy stable before loading its JPA details.
+        loans.lockDirectLoanCard(confirmed);
         Long bookId = reservations.findBookIdForCancellation(reservationId).orElseThrow(this::notFound);
         books.findForReservation(bookId).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
@@ -223,6 +225,12 @@ public class LoanService {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_DATES_CHANGED",
                     "Ngày mượn hoặc hạn trả đã thay đổi. Vui lòng kiểm tra thông tin mới và xác nhận lại.");
         }
+        int maxBooks = card.getCardType().getMaxBooks();
+        if (maxBooks < 0 || maxBooks > 10) throw new ApiException(HttpStatus.CONFLICT,
+                "LOAN_POLICY_NOT_CONFIGURED", "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.");
+        long borrowed = loans.countUnreturnedBooksForReader(readerId);
+        if (borrowed >= maxBooks) throw new ApiException(HttpStatus.CONFLICT,
+                "LOAN_LIMIT_REACHED", loanLimitMessage(borrowed, maxBooks));
         String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
         loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
@@ -298,7 +306,8 @@ public class LoanService {
                 reader.reasonCode(), reader.message());
         if ((long) selected.size() + 1 > reader.remainingBooks()) {
             throw new ApiException(HttpStatus.CONFLICT, "LOAN_DRAFT_LIMIT_EXCEEDED",
-                    "Không thể thêm sách: lượt mượn sẽ vượt giới hạn. Bạn đọc chỉ còn được mượn thêm "
+                    "Không thể thêm sách: lượt mượn sẽ vượt giới hạn. Bạn đọc đang mượn "
+                            + reader.borrowedBooks() + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
                             + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.");
         }
         var copy = copies.findByBarcode(barcode).orElseThrow(() ->
@@ -395,7 +404,8 @@ public class LoanService {
         var reader = readerEligibility(cardNumber, actorId);
         if (!reader.eligible()) throw new ApiException(HttpStatus.CONFLICT, reader.reasonCode(), reader.message());
         if (barcodes.size() > reader.remainingBooks()) throw new ApiException(HttpStatus.CONFLICT,
-                "LOAN_DRAFT_LIMIT_EXCEEDED", "Không thể ghi lượt mượn: bạn đọc chỉ còn được mượn thêm "
+                "LOAN_DRAFT_LIMIT_EXCEEDED", "Không thể ghi lượt mượn: bạn đọc đang mượn "
+                        + reader.borrowedBooks() + "/" + reader.maxBooks() + " sách; chỉ còn được mượn thêm "
                         + reader.remainingBooks() + " sách. Vui lòng xóa bớt dòng hoặc kiểm tra lại thẻ.");
         OffsetDateTime borrowedAt = now();
         for (BookCopy copy : lockedCopies) {
@@ -496,7 +506,8 @@ public class LoanService {
         long remaining = Math.max(0L, (long) maxBooks - borrowed);
         LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
         String reason = "ELIGIBLE";
-        String message = "Bạn đọc đủ điều kiện mượn thêm " + remaining + " sách.";
+        String message = "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
+                + " sách. Có thể mượn thêm " + remaining + " sách.";
         if (reader.getRole() == null || !"READER".equals(reader.getRole().getCode())) {
             reason = "READER_ROLE_REQUIRED";
             message = "Chủ thẻ không còn vai trò Bạn đọc. Vui lòng kiểm tra tài khoản.";
@@ -524,12 +535,18 @@ public class LoanService {
             message = "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.";
         } else if (remaining == 0) {
             reason = "LOAN_LIMIT_REACHED";
-            message = "Bạn đọc đã đạt giới hạn mượn của loại thẻ. Vui lòng trả sách trước khi mượn thêm.";
+            message = loanLimitMessage(borrowed, maxBooks);
         }
         boolean eligible = "ELIGIBLE".equals(reason);
         return new ReaderLoanEligibilityResponse(reader.getId(), reader.getFullName(), card.getCardNumber(),
                 type.getName(), card.getStatus(), card.getExpiresAt(), maxBooks, borrowed,
                 eligible ? remaining : 0L, eligible, reason, message);
+    }
+
+    private String loanLimitMessage(long borrowed, int maxBooks) {
+        return "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
+                + " sách, đã " + (borrowed > maxBooks ? "vượt" : "đạt")
+                + " hạn mức của loại thẻ. Không thể mượn thêm; vui lòng trả sách trước.";
     }
 
     @Transactional(readOnly = true)

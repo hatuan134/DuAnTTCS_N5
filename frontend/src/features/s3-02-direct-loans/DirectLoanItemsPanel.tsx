@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
@@ -209,7 +210,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       </div>
       <div aria-live="polite" aria-atomic="true">
         {loading && submitted.current === null && <p role="status" className="text-sm text-blue-700">Đang tìm sách theo mã vạch…</p>}
-        {notice && <p role="status" className="break-words text-sm text-emerald-700">{notice}</p>}
+        {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
       </div>
     </form>
     {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
@@ -259,7 +260,9 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       <Button type="button" className="shrink-0 self-start" loading={loading && submitted.current !== null}
         disabled={!canConfirm} onClick={confirmDraft}>Xác nhận lượt mượn</Button>
     </div>
-    {confirmationError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">{confirmationError}</p>}
+    {confirmationError && (awaitingResult
+      ? <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">{confirmationError}</p>
+      : <FeedbackAlert message={confirmationError} tone="error" onDismiss={() => setConfirmationError('')} className="mt-4" />)}
     <p role="status" className="mt-4 text-xs leading-5 text-slate-500">{loading && submitted.current
       ? 'Đang kiểm tra lại thẻ, giới hạn và toàn bộ sách để ghi lượt mượn…'
       : awaitingResult ? 'Giữ nguyên mã thẻ và danh sách cho đến khi xác định được kết quả.'

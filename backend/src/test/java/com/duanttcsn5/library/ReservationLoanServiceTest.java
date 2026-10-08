@@ -61,7 +61,7 @@ class ReservationLoanServiceTest {
         reservation.setReservedAt(CONFIRMED.minusDays(10));
         reservation.setPickupDeadline(CONFIRMED.plusDays(3));
         card = new LibraryCard(); card.setCardNumber("TV-0012"); card.setUser(reader);
-        CardType type = new CardType(); type.setName("Thẻ sinh viên"); type.setLoanDays(14); card.setCardType(type);
+        CardType type = new CardType(); type.setName("Thẻ sinh viên"); type.setLoanDays(14); type.setMaxBooks(5); card.setCardType(type);
         when(configuration.calculateLoanDates(any(), eq(14), eq("Thẻ sinh viên"))).thenAnswer(call -> {
             OffsetDateTime borrowedAt = call.getArgument(0);
             var day = borrowedAt.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate();
@@ -83,6 +83,19 @@ class ReservationLoanServiceTest {
         verify(loans, never()).insert(any(), any(), any(), any(), any());
         verify(loans, never()).insertItem(any(), any(), any(), any());
         verify(reservations, never()).saveAndFlush(any());
+    }
+
+    @Test void quotaBlocksReservationAtAndAboveCurrentPolicyWithoutWriting() {
+        for (long count : new long[]{5L, 7L}) {
+            when(loans.countUnreturnedBooksForReader(reservation.getReader().getId())).thenReturn(count);
+            assertThatThrownBy(() -> service.createFromReservation(reservation.getId(), 3L, card.getCardNumber()))
+                    .isInstanceOfSatisfying(ApiException.class, error -> {
+                        assertThat(error.getCode()).isEqualTo("LOAN_LIMIT_REACHED");
+                        assertThat(error.getMessage()).contains("đang mượn " + count + "/5");
+                    });
+            verify(loans, never()).insert(any(), any(), any(), any(), any());
+            verify(loans, never()).insertItem(any(), any(), any(), any());
+        }
     }
 
     @Test

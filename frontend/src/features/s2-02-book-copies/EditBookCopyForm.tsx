@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
@@ -109,7 +110,7 @@ export default function EditBookCopyForm({ copy, onSaved, onCancel }: {
             <p className="mt-1 text-sm text-slate-500">{notes.length}/2000 ký tự. Để trống để xóa ghi chú.</p>
           </div>
         </fieldset>
-        {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+        {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
         <div className="mt-6 flex flex-wrap gap-3">
           <Button type="submit" loading={saving} disabled={loading || !!loadError || warehouses.length === 0}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</Button>
           <Button type="button" variant="secondary" disabled={saving} onClick={onCancel}>Hủy</Button>

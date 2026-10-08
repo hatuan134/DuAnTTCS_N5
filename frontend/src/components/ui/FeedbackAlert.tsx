@@ -8,7 +8,6 @@ interface FeedbackAlertProps {
   tone: FeedbackTone
   onDismiss: () => void
   className?: string
-  durationMs?: number
 }
 
 export default function FeedbackAlert({
@@ -16,7 +15,6 @@ export default function FeedbackAlert({
   tone,
   onDismiss,
   className = '',
-  durationMs = 3000,
 }: FeedbackAlertProps) {
   const dismissRef = useRef(onDismiss)
 
@@ -29,10 +27,10 @@ export default function FeedbackAlert({
 
     const timer = window.setTimeout(() => {
       dismissRef.current()
-    }, durationMs)
+    }, 3000)
 
     return () => window.clearTimeout(timer)
-  }, [durationMs, message])
+  }, [message])
 
   if (!message) return null
 

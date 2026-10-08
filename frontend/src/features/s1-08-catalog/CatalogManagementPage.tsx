@@ -9,7 +9,6 @@ import type {
 } from 'react'
 
 import {
-  AlertCircle,
   AlertTriangle,
   BookOpen,
   Pencil,
@@ -129,6 +128,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm)
   const [bookFormError, setBookFormError] = useState('')
+  const [inlineNotice, setInlineNotice] = useState('')
   const [inlineAuthorName, setInlineAuthorName] = useState('')
   const [inlineAuthorSubmitting, setInlineAuthorSubmitting] = useState(false)
   const [inlineCategoryName, setInlineCategoryName] = useState('')
@@ -399,6 +399,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const openCreateBookModal = () => {
     setBookForm(emptyBookForm)
     setBookFormError('')
+    setInlineNotice('')
     setInlineAuthorName('')
     setInlineCategoryName('')
     setInlinePublisherName('')
@@ -496,6 +497,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     if (inlineAuthorSubmitting || bookSubmitting) return
 
     setInlineAuthorSubmitting(true)
+    setInlineNotice('')
     setBookFormError('')
     try {
       const created = await catalogService.createAuthor({ name, note: '' })
@@ -507,6 +509,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
           : [...current.authorIds, created.id],
       }))
       setInlineAuthorName('')
+      setInlineNotice(`Đã tạo và chọn tác giả ${created.name}.`)
     } catch (err: any) {
       setBookFormError(err.response?.data?.message || 'Không thể thêm tác giả mới.')
     } finally {
@@ -523,12 +526,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     if (inlineCategorySubmitting || bookSubmitting) return
 
     setInlineCategorySubmitting(true)
+    setInlineNotice('')
     setBookFormError('')
     try {
       const created = await catalogService.createCategory({ name, description: '', parentId: null })
       setCategories((current) => [created, ...current])
       setBookForm((current) => ({ ...current, categoryId: String(created.id) }))
       setInlineCategoryName('')
+      setInlineNotice(`Đã tạo và chọn thể loại ${created.name}.`)
     } catch (err: any) {
       setBookFormError(err.response?.data?.message || 'Không thể thêm thể loại mới.')
     } finally {
@@ -952,10 +957,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
 
               {authorFormError && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{authorFormError}</span>
-                </div>
+                <FeedbackAlert message={authorFormError} tone="error" onDismiss={() => setAuthorFormError('')} className="sm:col-span-2" />
               )}
 
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
@@ -1062,10 +1064,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
 
               {categoryFormError && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{categoryFormError}</span>
-                </div>
+                <FeedbackAlert message={categoryFormError} tone="error" onDismiss={() => setCategoryFormError('')} className="sm:col-span-2" />
               )}
 
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
@@ -1356,11 +1355,9 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 />
               </div>
 
+              {inlineNotice && <FeedbackAlert message={inlineNotice} tone="success" onDismiss={() => setInlineNotice('')} />}
               {bookFormError && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{bookFormError}</span>
-                </div>
+                <FeedbackAlert message={bookFormError} tone="error" onDismiss={() => setBookFormError('')} className="sm:col-span-2" />
               )}
 
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">

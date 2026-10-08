@@ -96,7 +96,7 @@ export default function DirectLoanPage() {
         <div><dt className="text-sm text-slate-500">Giới hạn của loại thẻ</dt><dd className="mt-1 font-semibold text-slate-900">{result.maxBooks} sách</dd></div>
       </dl>
       <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><dt className="text-sm text-slate-600">Sách đang mượn chưa trả</dt><dd className="mt-2 text-3xl font-bold text-slate-900">{result.borrowedBooks}</dd></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><dt className="text-sm text-slate-600">Sách đang mượn chưa trả</dt><dd className="mt-2 text-3xl font-bold text-slate-900">{result.borrowedBooks}/{result.maxBooks}</dd></div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4"><dt className="text-sm text-blue-800">Sách còn được mượn thêm</dt><dd className="mt-2 text-3xl font-bold text-blue-800">{result.remainingBooks}</dd></div>
       </dl>
       <div role={result.eligible ? 'status' : 'alert'} className={`mt-4 rounded-xl border p-4 text-sm leading-6 ${result.eligible ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
