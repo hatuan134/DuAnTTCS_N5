@@ -24,9 +24,9 @@ const loan = {
 }
 const row = { ...loan, itemCount: 1 }
 const settle = () => new Promise((done) => setImmediate(done))
-async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', created = false } = {}) {
+async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', created = false, userId = 9, request } = {}) {
   const states = [], effects = [], calls = []
-  let cursor = 0
+  let cursor = 0, currentId = id, currentUserId = userId, dismissNotice
   const hooks = {
     ...react,
     useState(initial) {
@@ -36,15 +36,17 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
     },
     useEffect(callback, dependencies) {
       const index = cursor++, previous = states[index]
-      if (!previous || dependencies.some((value, i) => value !== previous[i])) effects.push(callback)
-      states[index] = dependencies
+      if (!previous || dependencies.some((value, i) => !Object.is(value, previous.deps[i]))) {
+        states[index] = { deps: dependencies, cleanup: previous?.cleanup }
+        effects.push(() => { previous?.cleanup?.(); states[index].cleanup = callback() })
+      }
     },
     useMemo(callback) { return callback() },
   }
   const page = load(file, {
     react: hooks,
     'react-router-dom': {
-      useParams: () => ({ loanId: id }), useLocation: () => ({ state: { loanCreated: created } }),
+      useParams: () => ({ loanId: currentId }), useLocation: () => ({ state: { loanCreated: created } }),
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
     },
     '../../components/ui/Button': { __esModule: true, default: ({ children, loading, ...props }) => react.createElement('button', { ...props, disabled: props.disabled || loading }, children) },
@@ -52,15 +54,15 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
     '../../components/ui/LoadingState': { __esModule: true, default: () => react.createElement('p', {}, 'Đang tải') },
     '../../components/ui/EmptyState': { __esModule: true, default: ({ title, description }) => react.createElement('p', {}, title, description) },
     // Page uses the shared 3-second notification; timing itself is covered by feedbackAlert.test.mjs.
-    '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message }) => react.createElement('p', { role: 'status' }, message) },
+    '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message, onDismiss }) => { dismissNotice = onDismiss; return react.createElement('p', { role: 'status' }, message) } },
     '../../components/ui/PageHeader': { __esModule: true, default: ({ title, description, action }) => react.createElement('header', {}, title, description, action) },
     '../../components/ui/TablePagination': { __esModule: true, default: ({ page, totalItems, totalPages }) => react.createElement('p', {}, `Trang ${page}/${totalPages}, tổng ${totalItems}`) },
     '../../components/ui/TableActionButton': { tableActionClassName: () => 'action' },
     '../../hooks/useTablePagination': load('../../hooks/useTablePagination.ts', { react: hooks }),
-    '../../core/auth/authStorage': { getCurrentUser: () => ({ role, id: 9, fullName: 'Người đang xem' }) },
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ role, id: currentUserId, fullName: 'Người đang xem' }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (e) => e.message },
     './loanService': { ...serviceModule, loanService: {
-      async detail(loanId) { calls.push(loanId); if (error) throw error; return data ?? structuredClone(loan) },
+      async detail(loanId) { calls.push(loanId); if (error) throw error; return request ? request(loanId, currentUserId) : data ?? structuredClone(loan) },
       async list() { calls.push('list'); if (error) throw error; return data ?? [row] },
     } },
   }).default
@@ -72,7 +74,13 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
   const before = renderToStaticMarkup(render())
   for (const effect of effects.splice(0)) effect()
   await settle()
-  return { render, calls, before, html: () => renderToStaticMarkup(render()) }
+  async function flush() {
+    for (let i = 0; i < 4; i++) { render(); for (const effect of effects.splice(0)) effect(); await settle() }
+  }
+  return { render, calls, before, flush, html: () => renderToStaticMarkup(render()),
+    dismiss() { dismissNotice() }, changeId(value) { currentId = value }, changeUser(value) { currentUserId = value },
+    unmount() { for (const state of states) state?.cleanup?.() },
+  }
 }
 test('loan client reads list/detail through the existing authenticated API client', async () => {
   const requests = []
@@ -117,8 +125,8 @@ test('missing loan displays retry without fabricated or stale fields', async () 
   assert.match(f.html(), /Không tìm thấy phiếu mượn/); assert.match(f.html(), /Thử lại/)
   assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/)
 })
-test('reader and invalid ids cannot load staff details', async () => {
-  const reader = await pageFixture('LoanDetailPage.tsx', { role: 'READER' })
+test('unsupported roles and invalid ids cannot load details', async () => {
+  const reader = await pageFixture('LoanDetailPage.tsx', { role: 'UNKNOWN' })
   assert.match(reader.html(), /Bạn không có quyền/); assert.deepEqual(reader.calls, [])
   for (const id of ['0', '-1', 'abc', '9007199254740992']) {
     const f = await pageFixture('LoanDetailPage.tsx', { id })
@@ -156,4 +164,54 @@ test('feature registers list/detail routes and staff sidebar roles', () => {
   assert.deepEqual(Array.from(f.appRoutes, (r) => r.path), ['loans', 'loans/:loanId'])
   assert.equal(f.navItems[0].label, 'Phiếu mượn'); assert.equal(f.navItems[0].to, '/loans')
   assert.deepEqual(Array.from(f.navItems[0].roles), ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'])
+})
+
+
+test('reader opens own loan directly with reader navigation and no staff actions', async () => {
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12, created: true })
+  const html = f.html()
+  for (const text of ['PM-SAVED-000081', 'LIB-031', 'Mắt biếc', 'Sách của tôi']) assert.ok(html.includes(text))
+  assert.match(html, /href="\/my-borrowed-books"/); assert.match(html, /href="\/catalog\/books\/7"/)
+  assert.doesNotMatch(html, /href="\/loans"|href="\/book-copies|href="\/reservations\/ready|Đã lập phiếu mượn thành công/)
+  assert.deepEqual(f.calls, [81])
+})
+for (const status of [403, 404]) test(`reader denied ${status} shows safe dismissible feedback without loan data`, async () => {
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12,
+    error: { response: { status }, message: 'SECRET-OTHER-READER' } })
+  assert.match(f.html(), /Phiếu không tồn tại hoặc bạn không có quyền truy cập/)
+  assert.doesNotMatch(f.html(), /SECRET-OTHER-READER|PM-SAVED|LIB-031|Nguyễn Văn An|Thử lại/)
+  f.dismiss(); assert.doesNotMatch(f.html(), /Phiếu không tồn tại hoặc bạn không có quyền truy cập/)
+  assert.match(f.html(), /Không thể mở phiếu mượn này/); assert.match(f.html(), /Sách của tôi/)
+})
+test('changing direct URL hides old content and rejects the next loan', async () => {
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12, request: async (id) => {
+    if (id === 81) return structuredClone(loan)
+    throw { response: { status: 404 } }
+  } })
+  assert.match(f.html(), /PM-SAVED/); f.changeId('82'); assert.doesNotMatch(f.html(), /PM-SAVED/)
+  await f.flush(); assert.match(f.html(), /bạn không có quyền truy cập/)
+  assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/); assert.deepEqual(f.calls, [81, 82])
+})
+test('changing reader hides cached loan before reload and cancels delayed old response', async () => {
+  let finishOld
+  const old = new Promise(resolve => { finishOld = resolve })
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12, request: async (_id, user) => {
+    if (user === 12) return old
+    throw { response: { status: 404 } }
+  } })
+  f.changeUser(13); assert.doesNotMatch(f.html(), /PM-SAVED/); await f.flush()
+  finishOld(structuredClone(loan)); await settle()
+  assert.match(f.html(), /bạn không có quyền truy cập/); assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/)
+})
+test('loaded reader data never renders under a different reader identity', async () => {
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12 })
+  assert.match(f.html(), /PM-SAVED/); f.changeUser(13)
+  assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/)
+})
+test('unmount prevents delayed loan result from becoming visible', async () => {
+  let finish
+  const pending = new Promise(resolve => { finish = resolve })
+  const f = await pageFixture('LoanDetailPage.tsx', { role: 'READER', userId: 12, request: async () => pending })
+  f.unmount(); finish(structuredClone(loan)); await settle()
+  assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/)
 })

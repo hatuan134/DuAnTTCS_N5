@@ -208,6 +208,22 @@ public class LoanRepository {
                 rs.getObject("borrowed_at", OffsetDateTime.class), List.of()), loanId).stream().findFirst();
     }
 
+    /** Reader requests never load a header belonging to another account. */
+    public Optional<LoanDetailResponse> findHeaderForReader(Long loanId, Long readerId) {
+        return jdbc.query("""
+                SELECT l.id, l.loan_number, l.reservation_id, l.borrower_user_id,
+                       reader.full_name AS reader_name, l.created_by,
+                       staff.full_name AS created_by_name, l.borrowed_at
+                FROM loans l
+                JOIN users reader ON reader.id = l.borrower_user_id
+                JOIN users staff ON staff.id = l.created_by
+                WHERE l.id = ? AND l.borrower_user_id = ?
+                """, (rs, index) -> new LoanDetailResponse(rs.getLong("id"), rs.getString("loan_number"),
+                rs.getObject("reservation_id", Long.class), rs.getLong("borrower_user_id"), rs.getString("reader_name"),
+                rs.getLong("created_by"), rs.getString("created_by_name"),
+                rs.getObject("borrowed_at", OffsetDateTime.class), List.of()), loanId, readerId).stream().findFirst();
+    }
+
     public List<LoanDetailResponse.Item> findItemsForStaff(Long loanId) {
         return jdbc.query("""
                 SELECT li.id, li.book_copy_id, c.barcode, c.book_id, b.title,

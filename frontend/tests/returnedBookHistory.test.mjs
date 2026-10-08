@@ -24,7 +24,7 @@ function find(node, predicate) {
 }
 function row(id) { return { id, bookTitle: `BOOK-${id}`, barcode: `BAR-${id}`, loanNumber: `PM-${id}`,
   borrowedAt: '2026-10-01T23:30:00Z', returnedAt: '2026-10-08T10:00:00Z' } }
-function fixture({ role = 'READER', total = 0, request, file = 'MyReturnedBooksPanel.tsx' } = {}) {
+function fixture({ role = 'READER', total = 0, request, borrowedRequest, file = 'MyReturnedBooksPanel.tsx' } = {}) {
   const slots = [], effects = [], calls = []
   let cursor = 0, tree, user = { id: 12, role }
   const hooks = {
@@ -56,7 +56,7 @@ function fixture({ role = 'READER', total = 0, request, file = 'MyReturnedBooksP
         return request ? request(page) : { page, size: 20, total,
           items: Array.from({ length: Math.min(20, Math.max(0, total - page * 20)) }, (_, i) => row(page * 20 + i + 1)) }
       },
-      async list() { calls.push('borrowed'); return [] },
+      async list() { calls.push('borrowed'); return borrowedRequest ? borrowedRequest(user.id) : [] },
     } },
   }
   for (const name of ['Button', 'Card', 'EmptyState', 'LoadingState', 'PageHeader']) imports[`../../components/ui/${name}`] = load(`../../components/ui/${name}.tsx`)
@@ -147,4 +147,22 @@ test('reader change cancels old response and hides previous reader data', async 
   resolveOld({ page: 0, size: 20, total: 1, items: [row(12)] }); await settle()
   assert.match(f.html(), /BOOK-99</); assert.doesNotMatch(f.html(), /BOOK-12</)
   assert.deepEqual(f.calls.map((call) => call.user), [12, 99])
+})
+
+
+test('borrowed tab hides cached previous-reader rows before reload', async () => {
+  const book = id => ({ id, bookTitle: `PRIVATE-BOOK-${id}`, barcode: `BC-${id}`,
+    borrowedAt: '2026-10-01T10:00:00Z', dueAt: null, remainingDays: null })
+  const f = fixture({ file: 'MyBorrowedBooksPage.tsx', borrowedRequest: async id => [book(id)] })
+  await f.flush(); assert.match(f.html(), /PRIVATE-BOOK-12/)
+  f.changeUser(99); assert.doesNotMatch(f.html(), /PRIVATE-BOOK-12/)
+  await f.flush(); assert.match(f.html(), /PRIVATE-BOOK-99/); assert.doesNotMatch(f.html(), /PRIVATE-BOOK-12/)
+})
+test('borrowed tab discards a delayed result from the previous reader', async () => {
+  let finish
+  const old = new Promise(resolve => { finish = resolve })
+  const f = fixture({ file: 'MyBorrowedBooksPage.tsx', borrowedRequest: async id => id === 12 ? old : [] })
+  await f.flush(); f.changeUser(99); await f.flush()
+  finish([{ id: 12, bookTitle: 'PRIVATE-OLD-READER', barcode: 'BC-12', borrowedAt: '2026-10-01T10:00:00Z', dueAt: null, remainingDays: null }])
+  await settle(); assert.doesNotMatch(f.html(), /PRIVATE-OLD-READER/)
 })

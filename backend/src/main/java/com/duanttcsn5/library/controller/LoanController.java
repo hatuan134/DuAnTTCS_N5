@@ -150,6 +150,7 @@ public class LoanController {
     }
 
     @GetMapping("/loans/{loanId}")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanDetailResponse> loanDetail(@PathVariable Long loanId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.loanDetail(loanId, principal == null ? null : principal.id()));
