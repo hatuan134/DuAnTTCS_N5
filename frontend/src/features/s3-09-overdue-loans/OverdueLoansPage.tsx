@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ClockAlert, Phone, RefreshCw } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { ClockAlert, Filter, Phone, RefreshCw, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import { tableActionClassName } from '../../components/ui/TableActionButton'
@@ -12,6 +15,8 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles } from '../s3-01-loans/loanService'
 import { overdueLoanService } from './overdueLoanService'
 import type { OverdueLoanItem } from './overdueLoanService'
+import { countOverdueLoanVouchers, describeOverdueFilter, filterOverdueLoans, validateOverdueFilter } from './overdueFilter'
+import type { OverdueDaysFilter } from './overdueFilter'
 
 export default function OverdueLoansPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
@@ -19,6 +24,43 @@ export default function OverdueLoansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [minimumInput, setMinimumInput] = useState('')
+  const [maximumInput, setMaximumInput] = useState('')
+  const [exclusiveMinimum, setExclusiveMinimum] = useState(false)
+  const [appliedFilter, setAppliedFilter] = useState<OverdueDaysFilter | null>(null)
+  const [filterNotice, setFilterNotice] = useState('')
+
+  const filteredItems = filterOverdueLoans(items, appliedFilter)
+  const matchingLoans = countOverdueLoanVouchers(filteredItems)
+  const totalLoans = countOverdueLoanVouchers(items)
+  const hasFilter = appliedFilter !== null && (appliedFilter.minimum !== null || appliedFilter.maximum !== null)
+
+  function applyFilter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = validateOverdueFilter(minimumInput, maximumInput, exclusiveMinimum)
+    if (result.ok === false) {
+      setFilterNotice(result.message)
+      return
+    }
+    setFilterNotice('')
+    setAppliedFilter(result.filter)
+  }
+
+  function applyQuickFilter(days: number) {
+    setMinimumInput(String(days))
+    setMaximumInput('')
+    setExclusiveMinimum(true)
+    setAppliedFilter({ minimum: days, maximum: null, exclusiveMinimum: true })
+    setFilterNotice('')
+  }
+
+  function clearFilter() {
+    setMinimumInput('')
+    setMaximumInput('')
+    setExclusiveMinimum(false)
+    setAppliedFilter(null)
+    setFilterNotice('')
+  }
 
   useEffect(() => {
     if (!allowed) return
@@ -75,6 +117,68 @@ export default function OverdueLoansPage() {
         )}
       />
 
+      <Card className="p-4 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-900">
+            <Filter size={18} className="text-blue-600" aria-hidden="true" />
+            <h3 className="font-semibold">Lọc theo số ngày trễ</h3>
+          </div>
+          <div className="flex flex-wrap gap-2" aria-label="Các mức lọc nhanh">
+            {[7, 30].map((days) => (
+              <Button
+                key={days}
+                type="button"
+                size="sm"
+                variant={appliedFilter?.minimum === days && appliedFilter.exclusiveMinimum && appliedFilter.maximum === null ? 'primary' : 'secondary'}
+                aria-pressed={appliedFilter?.minimum === days && appliedFilter.exclusiveMinimum && appliedFilter.maximum === null}
+                onClick={() => applyQuickFilter(days)}
+              >
+                Trên {days} ngày
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={applyFilter} noValidate className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              id="overdue-minimum" type="number" min="0" step="1" inputMode="numeric"
+              label="Số ngày trễ tối thiểu" placeholder="Ví dụ: 7"
+              value={minimumInput} onChange={(event) => { setMinimumInput(event.target.value); setFilterNotice('') }}
+            />
+            <Input
+              id="overdue-maximum" type="number" min="0" step="1" inputMode="numeric"
+              label="Số ngày trễ tối đa" placeholder="Ví dụ: 30"
+              value={maximumInput} onChange={(event) => { setMaximumInput(event.target.value); setFilterNotice('') }}
+            />
+          </div>
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-600">
+            <input
+              type="checkbox" checked={exclusiveMinimum}
+              onChange={(event) => { setExclusiveMinimum(event.target.checked); setFilterNotice('') }}
+              className="mt-1 h-4 w-4 shrink-0 accent-blue-600"
+            />
+            Chỉ lấy phiếu trễ <strong className="text-slate-800">trên</strong> số ngày tối thiểu (không bao gồm ngày đó).
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" size="sm"><Filter size={15} />Áp dụng bộ lọc</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={clearFilter}>
+              <X size={15} /> Xóa bộ lọc
+            </Button>
+          </div>
+          <p className="text-xs leading-5 text-slate-500">
+            Khoảng từ 7 đến 30 bao gồm cả ngày 7 và 30. “Trên 7 ngày” bắt đầu từ ngày trễ thứ 8.
+            Số ngày trễ được tính theo ngày thư viện mở cửa.
+          </p>
+        </form>
+        {filterNotice && (
+          <FeedbackAlert
+            className="mt-3" tone="error" message={filterNotice}
+            onDismiss={() => setFilterNotice('')}
+          />
+        )}
+      </Card>
+
       {error && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p>{error}</p>
@@ -92,10 +196,29 @@ export default function OverdueLoansPage() {
       )}
 
       {!loading && !error && items.length > 0 && (
+        <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+          <span className="font-semibold text-slate-900">
+            Tìm thấy {matchingLoans} phiếu phù hợp
+            {filteredItems.length !== matchingLoans && ` (${filteredItems.length} bản sách quá hạn)`}
+          </span>
+          <span className="text-slate-600">
+            {describeOverdueFilter(hasFilter ? appliedFilter : null)} · Tổng cộng {totalLoans} phiếu quá hạn
+          </span>
+        </div>
+      )}
+
+      {!loading && !error && items.length > 0 && filteredItems.length === 0 && (
+        <EmptyState
+          title="Không có phiếu phù hợp"
+          description="Không có phiếu quá hạn nào trong khoảng ngày trễ đang chọn. Hãy thay đổi hoặc xóa bộ lọc để xem toàn bộ danh sách."
+        />
+      )}
+
+      {!loading && !error && filteredItems.length > 0 && (
         <>
           <Card className="overflow-hidden xl:hidden">
             <div className="divide-y divide-slate-100">
-              {items.map((item, index) => (
+              {filteredItems.map((item, index) => (
                 <article key={item.itemId} className="space-y-4 p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -161,7 +284,7 @@ export default function OverdueLoansPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {items.map((item, index) => (
+                  {filteredItems.map((item, index) => (
                     <tr key={item.itemId} className="hover:bg-slate-50/70">
                       <td className="px-4 py-4 font-semibold text-slate-500">{index + 1}</td>
                       <td className="max-w-48 break-all px-4 py-4 font-mono font-semibold text-slate-900">
