@@ -27,6 +27,7 @@ import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchResultResponse;
+import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
@@ -989,20 +990,28 @@ public class LoanService {
                 loans.findReturnedForReader(readerId, size, offset), page, size, total);
     }
 
-    /** S3-08.1: all namespaces participate equally until the PO approves a priority.
-     * Deduplicate by loan ID, never by barcode: one copy can be borrowed many times.
+    /** S3-08.2: stable status-first, newest-first, 20-loan pages. One transaction
+     * gives total and page rows the same database snapshot.
      */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public List<LoanSearchResultResponse> searchLoans(String enteredCode, Long actorId) {
+    public LoanSearchPageResponse searchLoans(String enteredCode, int page, Long actorId) {
         requireStaff(actorId, "tra cứu phiếu mượn");
         String code = enteredCode == null ? "" : enteredCode.trim();
         if (code.isEmpty() || code.length() > 100) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_CODE",
                     "Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.");
         }
+        if (page < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_PAGE",
+                    "Số trang tra cứu phải lớn hơn hoặc bằng 0.");
+        }
+        final int size = 20;
+        long total = loans.countLoansByCode(code);
+        long offset = (long) page * size;
         Map<Long, LoanRepository.LoanSearchRow> headers = new LinkedHashMap<>();
         Map<Long, List<LoanSearchResultResponse.Item>> grouped = new LinkedHashMap<>();
-        for (var row : loans.searchLoansByCode(code)) {
+        for (var row : offset >= total ? List.<LoanRepository.LoanSearchRow>of()
+                : loans.searchLoansByCode(code, size, offset)) {
             headers.putIfAbsent(row.loanId(), row);
             var items = grouped.computeIfAbsent(row.loanId(), ignored -> new ArrayList<>());
             if (row.itemId() != null) {
@@ -1010,7 +1019,7 @@ public class LoanService {
                         row.dueAt(), row.returnedAt() == null ? "BORROWED" : "RETURNED"));
             }
         }
-        return grouped.entrySet().stream().map(entry -> {
+        List<LoanSearchResultResponse> pageItems = grouped.entrySet().stream().map(entry -> {
             var header = headers.get(entry.getKey());
             var items = entry.getValue();
             long returned = items.stream().filter(item -> "RETURNED".equals(item.status())).count();
@@ -1019,6 +1028,7 @@ public class LoanService {
             return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
                     header.readerName(), header.borrowedAt(), status, items);
         }).toList();
+        return new LoanSearchPageResponse(pageItems, page, size, total);
     }
 
     @Transactional(readOnly = true)

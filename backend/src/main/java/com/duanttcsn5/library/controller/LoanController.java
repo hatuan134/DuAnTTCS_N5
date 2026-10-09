@@ -18,7 +18,7 @@ import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
-import com.duanttcsn5.library.dto.loan.LoanSearchResultResponse;
+import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
 import java.util.List;
 import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
@@ -117,10 +117,11 @@ public class LoanController {
 
     @GetMapping("/loans/search")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
-    public ResponseEntity<List<LoanSearchResultResponse>> searchLoans(
+    public ResponseEntity<LoanSearchPageResponse> searchLoans(
             @RequestParam(defaultValue = "") String code,
+            @RequestParam(defaultValue = "0") int page,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(loans.searchLoans(code, principal == null ? null : principal.id()));
+        return ResponseEntity.ok(loans.searchLoans(code, page, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans")

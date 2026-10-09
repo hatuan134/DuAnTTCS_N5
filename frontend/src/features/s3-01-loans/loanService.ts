@@ -55,6 +55,13 @@ export interface LoanSearchResult {
   items: LoanSearchItem[]
 }
 
+export interface LoanSearchPage {
+  items: LoanSearchResult[]
+  page: number // zero-based, matching the backend
+  size: number
+  total: number
+}
+
 export function formatLoanTimestamp(value: string | null, dateOnly = false): string {
   if (!value) return 'Chưa có thông tin'
   const date = new Date(value)
@@ -66,8 +73,8 @@ export function formatLoanTimestamp(value: string | null, dateOnly = false): str
 }
 
 export const loanService = {
-  search: async (code: string): Promise<LoanSearchResult[]> => {
-    const response = await apiClient.get<LoanSearchResult[]>('/loans/search', { params: { code } })
+  search: async (code: string, page = 0): Promise<LoanSearchPage> => {
+    const response = await apiClient.get<LoanSearchPage>('/loans/search', { params: { code, page } })
     return response.data
   },
   list: async (): Promise<LoanSummary[]> => {

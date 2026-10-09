@@ -8,10 +8,11 @@ import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
+import TablePagination from '../../components/ui/TablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles, loanService } from './loanService'
-import type { LoanSearchResult } from './loanService'
+import type { LoanSearchResult, LoanSearchPage } from './loanService'
 
 function loanStatus(status: LoanSearchResult['status']) {
   switch (status) {
@@ -27,31 +28,21 @@ export default function LoanSearchPage() {
   const [code, setCode] = useState('')
   const [inputError, setInputError] = useState('')
   const [requestError, setRequestError] = useState('')
-  const [results, setResults] = useState<LoanSearchResult[]>([])
+  const [response, setResponse] = useState<LoanSearchPage | null>(null)
   const [lastCode, setLastCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const requestSequence = useRef(0)
 
   useEffect(() => () => { requestSequence.current += 1 }, [])
 
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!allowed || loading) return
-    const normalized = code.trim()
-    setInputError('')
-    setRequestError('')
-    setLastCode(null)
-    setResults([])
-    if (!normalized || normalized.length > 100) {
-      setInputError('Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.')
-      return
-    }
+  async function loadPage(normalized: string, page: number) {
     const sequence = ++requestSequence.current
     setLoading(true)
+    setRequestError('')
     try {
-      const data = await loanService.search(normalized)
+      const data = await loanService.search(normalized, page)
       if (sequence === requestSequence.current) {
-        setResults(data)
+        setResponse(data)
         setLastCode(normalized)
       }
     } catch (error: unknown) {
@@ -61,6 +52,21 @@ export default function LoanSearchPage() {
     } finally {
       if (sequence === requestSequence.current) setLoading(false)
     }
+  }
+
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!allowed || loading) return
+    const normalized = code.trim()
+    setInputError('')
+    setRequestError('')
+    setLastCode(null)
+    setResponse(null)
+    if (!normalized || normalized.length > 100) {
+      setInputError('Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.')
+      return
+    }
+    void loadPage(normalized, 0)
   }
 
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -82,7 +88,7 @@ export default function LoanSearchPage() {
               setInputError('')
               setRequestError('')
               setLastCode(null)
-              setResults([])
+              setResponse(null)
               setLoading(false)
             }}
           />
@@ -98,13 +104,13 @@ export default function LoanSearchPage() {
     {!loading && lastCode !== null && <section aria-label="Kết quả tra cứu" className="space-y-4">
       <h2 className="text-base font-semibold text-slate-900">
         Kết quả tra cứu: <span className="break-all font-mono text-blue-700">{lastCode}</span>
-        <span className="ml-2 text-sm font-normal text-slate-500">({results.length} phiếu mượn)</span>
+        <span className="ml-2 text-sm font-normal text-slate-500">({response?.total ?? 0} phiếu mượn)</span>
       </h2>
-      {results.length === 0 && <Card className="p-5 text-sm text-slate-700" >Không tìm thấy phiếu mượn.</Card>}
-      {results.map((loan, index) => <Card key={loan.id} className="overflow-hidden">
+      {response?.total === 0 && <Card className="p-5 text-sm text-slate-700" >Không tìm thấy phiếu mượn.</Card>}
+      {response?.items.map((loan, index) => <Card key={loan.id} className="overflow-hidden">
         <div className="grid items-start gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500">Phiếu {index + 1}</p>
+            <p className="text-xs font-semibold text-slate-500">Phiếu {(response?.page ?? 0) * 20 + index + 1}</p>
             <Link to={`/loans/${loan.id}`} className="mt-1 block w-fit max-w-full break-all font-mono text-base font-bold text-blue-700 hover:underline">
               {loan.loanNumber}
             </Link>
@@ -132,6 +138,15 @@ export default function LoanSearchPage() {
             </ul>}
         </div>
       </Card>)}
+      {response && response.total > 20 && <Card className="overflow-hidden">
+        <TablePagination
+          page={response.page + 1}
+          pageSize={response.size}
+          totalItems={response.total}
+          totalPages={Math.ceil(response.total / response.size)}
+          onPageChange={(nextPage) => { if (!loading && lastCode !== null) void loadPage(lastCode, nextPage - 1) }}
+        />
+      </Card>}
     </section>}
   </div>
 }
