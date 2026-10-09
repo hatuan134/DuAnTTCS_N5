@@ -21,7 +21,7 @@ const serviceModule = evaluate('../src/features/s3-07-returns/returnService.ts',
 
 function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = async () => returnedItem(), accept = true) {
   const slots = [], effects = [], calls = [], confirmations = [], focusEvents = []
-  let cursor = 0, tree
+  let cursor = 0, tree, acceptConfirmation = accept
   const hooks = { ...react,
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
       return [slots[i], value => { slots[i] = typeof value === 'function' ? value(slots[i]) : value }] },
@@ -43,7 +43,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
     lookup: (...args) => { calls.push(args); return lookup(...args) },
     confirm: (...args) => { confirmations.push(args); return confirm(...args) },
   } }
-  const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies, { window: { confirm: () => accept } }).default
+  const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies, { window: { confirm: () => acceptConfirmation } }).default
   function render() {
     cursor = 0; tree = Page()
     const form = find('form')
@@ -57,7 +57,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   function nodes(node) {
     if (!node || typeof node !== 'object') return []
     if (Array.isArray(node)) return node.flatMap(n => nodes(n))
-    return [node, ...nodes(node.props?.children)]
+    return [node, ...nodes(node.props?.children), ...nodes(node.props?.action)]
   }
   function find(name) { return nodes(tree).find(node => typeof node.type === 'function' ? node.type.displayName === name : node.type === name) }
   // Expand the page's presentational Detail components without hooks.
@@ -65,13 +65,19 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
     if (node == null || typeof node === 'boolean') return ''
     if (Array.isArray(node)) return node.map(n => text(n)).join(' ')
     if (typeof node !== 'object') return String(node)
-    if (typeof node.type === 'function' && node.type.name === 'Detail') return text(node.type(node.props))
+    if (typeof node.type === 'function' && ['Detail', 'ReturnDeadline', 'ReturnCopyStatus', 'ReturnReservation'].includes(node.type.name)) return text(node.type(node.props))
     return text(node.props?.children)
   }
   render()
   return {
     calls, confirmations, focusEvents, render, text: () => text(tree).replace(/\s+/g, ' ').trim(), find,
     rows: () => nodes(tree).filter(node => node.props?.['data-return-result']),
+    summaryRows: () => nodes(tree).filter(node => node.props?.['data-return-summary-row']),
+    summaryErrors: () => nodes(tree).filter(node => node.props?.['data-return-summary-error']),
+    finishButton: () => nodes(tree).find(node => node.props?.children === 'Kết thúc lượt'),
+    finish() { nodes(tree).find(node => node.props?.children === 'Kết thúc lượt')?.props.onClick(); render() },
+    restart() { nodes(tree).find(node => node.props?.children === 'Đóng tổng kết và bắt đầu lượt mới')?.props.onClick(); render() },
+    acceptNext(value) { acceptConfirmation = value },
     rowText: row => text(row),
     input(value) { find('Input').props.onChange({ target: { value } }); render() },
     submit() { const promise = find('form').props.onSubmit({ preventDefault() {} }); render(); return promise },
@@ -368,3 +374,149 @@ for (const failure of [{ response: { status: 409, data: { message: 'Phiếu đã
     assert.equal(f.find('Input').props.disabled, false)
   })
 }
+
+// S3-07.5: finishing only reads the successful results already saved in this session.
+test('S3-07.5: empty and error-only sessions cannot be finished', async () => {
+  const f = sequentialFixture()
+  assert.equal(f.finishButton(), undefined)
+  f.input('INVALID'); f.submit(); await flush(); f.render()
+  assert.equal(f.finishButton(), undefined)
+  f.finish(); assert.equal(f.summaryRows().length, 0)
+  assert.equal(f.confirmations.length, 0)
+})
+for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) {
+  test(`S3-07.5: ${role} ends a one-copy session with every required field and no extra API write`, async () => {
+    const f = sequentialFixture(['Nguyễn An'], { role })
+    await receive(f, 'LIB-1'); assert.ok(f.finishButton())
+    f.finish()
+    assert.equal(f.summaryRows().length, 1)
+    const row = f.rowText(f.summaryRows()[0])
+    for (const expected of ['LIB-1', 'Sách 1', 'Nguyễn An', '2026-10-10T00:01:00+07:00',
+      '1 ngày', 'Sẵn sàng', 'Không chuyển hàng đợi']) assert.ok(row.includes(expected), expected)
+    assert.ok(f.text().includes('Tổng số cuốn đã nhận thành công: 1 cuốn'))
+    assert.equal(f.find('Input'), undefined); assert.equal(f.confirmButton(), undefined)
+    assert.equal(f.find('FeedbackAlert'), undefined)
+    assert.equal(f.calls.length, 1); assert.equal(f.confirmations.length, 1)
+    // The summary is page content, so it stays until staff deliberately closes it.
+    f.render(); assert.equal(f.summaryRows().length, 1)
+  })
+}
+test('S3-07.5: mixed on-time/overdue and available/held copies retain independent borrowers and queue orders', async () => {
+  const f = fixture('LIBRARIAN', async code => {
+    if (code === 'INVALID') throw { response: { status: 404, data: { message: 'Mã vạch không tồn tại.' } } }
+    return openItem({ barcode: code,
+      copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12,
+      bookTitle: `Sách ${code}`, readerName: code === 'A' ? 'Nguyễn An' : 'Trần Bình',
+      dueAt: code === 'A' ? '2026-10-09T17:00:00+07:00' : '2026-10-07T17:00:00+07:00',
+    })
+  }, async (code, itemId) => returnedItem({ barcode: code, itemId,
+    copyId: code === 'A' ? 1 : 2, bookTitle: `Sách ${code}`, copyStatus: code === 'A' ? 'AVAILABLE' : 'HELD',
+    nextReservationId: code === 'A' ? null : 30, nextReaderName: code === 'A' ? null : 'Bạn đọc chờ',
+  }))
+  await receive(f, 'A'); f.input('INVALID'); f.submit(); await flush(); f.render(); await receive(f, 'B')
+  f.finish()
+  assert.equal(f.summaryRows().length, 2)
+  const [onTime, held] = f.summaryRows().map(f.rowText)
+  for (const expected of ['A', 'Sách A', 'Nguyễn An', '0 ngày · Đúng hạn', 'Sẵn sàng', 'Không chuyển hàng đợi']) assert.ok(onTime.includes(expected), expected)
+  for (const expected of ['B', 'Sách B', 'Trần Bình', '2 ngày', 'Đang giữ', 'Đơn #', '30', 'Bạn đọc chờ']) assert.ok(held.includes(expected), expected)
+  assert.ok(!onTime.includes('Bạn đọc chờ'))
+  assert.equal(f.summaryErrors().length, 1); assert.ok(f.rowText(f.summaryErrors()[0]).includes('INVALID'))
+  assert.ok(!f.summaryRows().some(row => f.rowText(row).includes('INVALID')))
+  assert.ok(f.text().includes('Tổng số cuốn đã nhận thành công: 2 cuốn'))
+  assert.equal(f.confirmations.length, 2)
+})
+test('S3-07.5: closing summary clears session, preview, errors and duplicate guard; returns remain saved on server', async () => {
+  const f = fixture('LIBRARIAN', async (_code, _signal) => openItem({
+    status: f.confirmations.length ? 'NOT_BORROWED' : 'ON_TIME',
+    itemId: f.confirmations.length ? null : 9,
+  }))
+  await receive(f, 'LIB-001'); f.finish(); f.restart()
+  assert.equal(f.summaryRows().length, 0); assert.equal(f.rows().length, 0)
+  assert.equal(f.find('Input').props.value, ''); assert.equal(f.find('Input').props.error, '')
+  assert.equal(f.finishButton(), undefined); assert.equal(f.find('FeedbackAlert'), undefined)
+  assert.ok(f.text().includes('Đã nhận thành công: 0 cuốn'))
+  assert.ok(f.focusEvents.some(event => event.action === 'focus' && event.disabled === false))
+  await lookup(f)
+  assert.equal(f.calls.length, 2) // A new session must query the server instead of reusing the old guard.
+  assert.equal(f.confirmButton(), undefined); assert.equal(f.confirmations.length, 1)
+  assert.ok(f.text().includes('Đã nhận thành công: 0 cuốn'))
+})
+test('S3-07.5: unconfirmed preview is excluded and shown separately; staff can cancel finishing', async () => {
+  const f = sequentialFixture()
+  await receive(f, 'LIB-1'); f.input('LIB-2'); f.submit(); await flush(); f.render()
+  f.acceptNext(false); f.finish()
+  assert.equal(f.summaryRows().length, 0); assert.ok(f.confirmButton())
+  f.acceptNext(true); f.finish()
+  assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 1)
+  assert.ok(f.rowText(f.summaryErrors()[0]).includes('LIB-2'))
+  assert.ok(f.rowText(f.summaryErrors()[0]).includes('Chưa xác nhận nhận trả khi kết thúc lượt.'))
+  assert.equal(f.confirmations.length, 1)
+})
+for (const pendingAction of ['lookup', 'confirm']) {
+  test(`S3-07.5: finishing cannot race a pending ${pendingAction} or write twice`, async () => {
+    let resolve
+    const f = fixture('LIBRARIAN', code => code === 'B' && pendingAction === 'lookup'
+      ? new Promise(r => { resolve = r }) : Promise.resolve(openItem({ barcode: code, copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12 })),
+    (code, itemId) => code === 'B' && pendingAction === 'confirm'
+      ? new Promise(r => { resolve = r }) : Promise.resolve(returnedItem({ barcode: code, copyId: 1, itemId })))
+    await receive(f, 'A'); f.input('B'); f.submit()
+    if (pendingAction === 'confirm') { await flush(); f.render(); f.confirm() }
+    assert.equal(f.finishButton().props.disabled, true)
+    f.finish(); assert.equal(f.summaryRows().length, 0)
+    resolve(pendingAction === 'lookup' ? openItem({ barcode: 'B', copyId: 2, itemId: 12 })
+      : returnedItem({ barcode: 'B', copyId: 2, itemId: 12 }))
+    await flush(); f.render(); f.finish()
+    assert.equal(f.summaryRows().length, pendingAction === 'lookup' ? 1 : 2)
+    assert.equal(f.confirmations.length, pendingAction === 'lookup' ? 1 : 2)
+  })
+}
+test('S3-07.5: timeout, unborrowed and repeated barcodes never increase the final total', async () => {
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code,
+    copyId: code === 'A' ? 1 : 2, itemId: code === 'IDLE' ? null : code === 'A' ? 11 : 12,
+    status: code === 'IDLE' ? 'NOT_BORROWED' : 'ON_TIME',
+  }), async (code, itemId) => { if (code === 'TIMEOUT') throw new Error('lost response')
+    return returnedItem({ barcode: code, copyId: 1, itemId })
+  })
+  await receive(f, 'A'); await receive(f, 'TIMEOUT')
+  f.input('IDLE'); f.submit(); await flush(); f.render()
+  f.input(' A '); f.submit(); await flush(); f.render()
+  f.finish()
+  assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 2)
+  assert.ok(f.text().includes('Tổng số cuốn đã nhận thành công: 1 cuốn'))
+  assert.equal(f.calls.length, 3); assert.equal(f.confirmations.length, 2)
+})
+test('S3-07.5: successfully retried failure occurs once in summary and no longer appears among errors', async () => {
+  let failed = false
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code,
+    copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12,
+  }), async (code, itemId) => {
+    if (code === 'B' && !failed) { failed = true; throw { response: { status: 500, data: { message: 'Rollback.' } } } }
+    return returnedItem({ barcode: code, copyId: code === 'A' ? 1 : 2, itemId })
+  })
+  await receive(f, 'A'); await receive(f, 'B'); f.confirm(); await flush(); f.render(); f.finish()
+  assert.equal(f.summaryRows().length, 2); assert.equal(f.summaryErrors().length, 0)
+  assert.equal(f.summaryRows().filter(row => row.props['data-return-summary-row'] === 'B').length, 1)
+})
+test('S3-07.5: missing legacy deadline stays unknown, never fabricated as zero days late', async () => {
+  const f = fixture('LIBRARIAN', async () => openItem({ status: 'MISSING_DUE_DATE', dueAt: null, overdueDays: null }))
+  await receive(f, 'LIB-001'); f.finish()
+  assert.ok(f.rowText(f.summaryRows()[0]).includes('Chưa có hạn trả'))
+  assert.ok(!f.rowText(f.summaryRows()[0]).includes('0 ngày'))
+})
+test('S3-07.5: READER has neither finish nor receive actions', () => {
+  const f = fixture('READER')
+  assert.equal(f.finishButton(), undefined); assert.equal(f.find('Input'), undefined)
+  f.finish(); assert.equal(f.summaryRows().length, 0); assert.equal(f.confirmations.length, 0)
+})
+
+test('S3-07.5: finishing retains the original API failure diagnostic for an unconfirmed copy', async () => {
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code,
+    copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12,
+  }), async (code, itemId) => {
+    if (code === 'B') throw { response: { status: 500, data: { message: 'Không thể chuyển hàng đợi. Dữ liệu đã rollback.' } } }
+    return returnedItem({ barcode: code, copyId: 1, itemId })
+  })
+  await receive(f, 'A'); await receive(f, 'B'); f.finish()
+  assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 1)
+  assert.ok(f.rowText(f.summaryErrors()[0]).includes('Không thể chuyển hàng đợi. Dữ liệu đã rollback.'))
+})
