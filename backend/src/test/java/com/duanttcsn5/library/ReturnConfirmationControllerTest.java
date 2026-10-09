@@ -109,14 +109,30 @@ class ReturnConfirmationControllerTest {
         }
         verifyNoInteractions(service);
     }
+    @Test void queueAllocationReturnsHeldCopyAndPickupDetailsForStaff() throws Exception {
+        token("LIBRARIAN");
+        var request = new com.duanttcsn5.library.dto.loan.ConfirmReturnRequest("LIB-001", 9L);
+        var startedAt = java.time.OffsetDateTime.parse("2026-10-09T01:00:00+07:00");
+        when(service.confirmReturn(request, 12L)).thenReturn(new com.duanttcsn5.library.dto.loan.ConfirmReturnResponse(
+                "Nhận trả sách thành công. Bản sao được giữ cho người đầu hàng đợi.",
+                4L, "LIB-001", "Mắt biếc", 8L, "PM-008", 9L, "RETURNED", "RETURNED", "HELD",
+                startedAt, 12L, "Thủ thư An", 30L, "Bạn đọc Bình", startedAt, startedAt.plusDays(3)));
+        mvc.perform(call(BODY).header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.copyStatus").value("HELD"))
+                .andExpect(jsonPath("$.nextReservationId").value(30))
+                .andExpect(jsonPath("$.nextReaderName").value("Bạn đọc Bình"))
+                .andExpect(jsonPath("$.holdStartedAt").exists())
+                .andExpect(jsonPath("$.pickupDeadline").exists());
+    }
     @Test void repeatedReturnUsesConflictAndRollbackErrorUsesExistingErrorResponse() throws Exception {
         token("LIBRARIAN"); var request = new com.duanttcsn5.library.dto.loan.ConfirmReturnRequest("LIB-001", 9L);
         when(service.confirmReturn(request, 12L)).thenThrow(new ApiException(HttpStatus.CONFLICT,
                 "LOAN_ALREADY_RETURNED", "Cuốn sách này đã được nhận trả."));
         mvc.perform(call(BODY).header("Authorization", "Bearer test-token"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LOAN_ALREADY_RETURNED"));
-        when(service.confirmReturn(request, 12L)).thenThrow(new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                "RETURN_SAVE_FAILED", "Dữ liệu được giữ nguyên."));
+        // The mock already throws for this invocation; when(...) would execute that stub.
+        doThrow(new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                "RETURN_SAVE_FAILED", "Dữ liệu được giữ nguyên.")).when(service).confirmReturn(request, 12L);
         mvc.perform(call(BODY).header("Authorization", "Bearer test-token"))
                 .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("RETURN_SAVE_FAILED"));
     }

@@ -174,3 +174,36 @@ for (const initialFailure of [true, false]) test(`old public catalog ${initialFa
   assert.ok(!text(p.tree()).includes('Không tìm thấy đầu sách phù hợp.'))
   assert.equal(p.notice(), undefined)
 })
+
+test('return validation warning expires at 3000ms while the field error stays', async () => {
+  const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
+    '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
+    './returnService': { validateReturnBarcode: () => 'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.', returnService: {} },
+  }, {}, 'default', { AbortController })
+  find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); p.render()
+  assert.equal(p.notice().props.tone, 'warning'); verifyTimer(p)
+  assert.equal(find(p.tree(), n => n.props?.id === 'return-barcode').props.error,
+    'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.')
+})
+
+test('return queue success expires at 3000ms while saved hold details stay', async () => {
+  const returned = { message: 'Bản sao được giữ cho Bạn đọc Bình.', copyStatus: 'HELD',
+    returnedAt: '2026-10-09T01:00:00+07:00', returnedByName: 'Thủ thư An', loanStatus: 'RETURNED',
+    nextReservationId: 30, nextReaderName: 'Bạn đọc Bình', holdStartedAt: '2026-10-09T01:00:00+07:00',
+    pickupDeadline: '2026-10-13T17:00:00+07:00', loanId: 8 }
+  const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
+    '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
+    './returnService': { validateReturnBarcode: () => '', returnService: {
+      lookup: async () => ({ status: 'ON_TIME', bookTitle: 'Mắt biếc', barcode: 'LIB-001', itemId: 9, loanNumber: 'PM-008' }),
+      confirm: async () => returned,
+    } },
+  }, {}, 'default', { AbortController })
+  find(p.tree(), n => n.props?.id === 'return-barcode').props.onChange({ target: { value: 'LIB-001' } }); p.render()
+  find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
+  find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); await settle(); p.render()
+  assert.equal(p.notice().props.tone, 'success'); verifyTimer(p)
+  assert.equal(find(p.tree(), n => n.props?.label === 'Bạn đọc được giữ sách').props.children, returned.nextReaderName)
+  assert.equal(find(p.tree(), n => n.props?.label === 'Hạn cuối đến nhận').props.children, returned.pickupDeadline)
+})

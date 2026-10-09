@@ -27,10 +27,14 @@ export interface ConfirmReturnResult {
   itemId: number
   itemStatus: 'RETURNED'
   loanStatus: 'BORROWED' | 'RETURNED'
-  copyStatus: 'AVAILABLE'
+  copyStatus: 'AVAILABLE' | 'HELD'
   returnedAt: string
   returnedById: number
   returnedByName: string
+  nextReservationId: number | null
+  nextReaderName: string | null
+  holdStartedAt: string | null
+  pickupDeadline: string | null
 }
 
 export function validateReturnBarcode(barcode: string): string {

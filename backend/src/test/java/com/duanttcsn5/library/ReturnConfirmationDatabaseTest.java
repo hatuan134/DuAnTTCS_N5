@@ -125,7 +125,7 @@ class ReturnConfirmationDatabaseTest {
         assertThat(loans.findReturnLookup(f.barcode()).orElseThrow().loanId()).isEqualTo(later);
         assertThat(copyStatus(f)).isEqualTo("BORROWED");
     }
-    @Test void pendingReservationIsNotAllocatedByThisSlice() {
+    @Test void pendingReservationWithoutValidCardIsSkippedAndPreserved() {
         var f = fixture(false); Long book = jdbc.queryForObject("SELECT book_id FROM book_copies WHERE id = ?", Long.class, f.copy());
         Long reservation = jdbc.queryForObject("""
                 INSERT INTO book_reservations(book_id, reader_id, status)

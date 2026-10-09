@@ -41,6 +41,11 @@ public class BookReservation {
     @Column(name = "pickup_deadline")
     private OffsetDateTime pickupDeadline;
 
+    // Separate allocation time from the immutable FIFO ordering timestamp.
+    // Older allocations have no recorded start time; do not invent one for them.
+    @Column(name = "hold_started_at")
+    private OffsetDateTime holdStartedAt;
+
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 
@@ -141,6 +146,10 @@ public class BookReservation {
     public void setPickupDeadline(OffsetDateTime pickupDeadline) {
         this.pickupDeadline = pickupDeadline;
     }
+
+    public OffsetDateTime getHoldStartedAt() { return holdStartedAt; }
+
+    public void setHoldStartedAt(OffsetDateTime holdStartedAt) { this.holdStartedAt = holdStartedAt; }
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "auto_cancellation_run_id")

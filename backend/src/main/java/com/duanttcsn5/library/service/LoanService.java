@@ -150,10 +150,9 @@ public class LoanService {
                 row.borrowedAt(), row.dueAt(), today, overdueDays);
     }
 
-    /** S3-07.2: one item only. Trigger and receiver stamp participate in the same transaction. */
+    /** S3-07.3: return one copy and allocate it to the first eligible FIFO waiter atomically. */
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
-    public ConfirmReturnResponse confirmReturn(
-            ConfirmReturnRequest request, Long actorId) {
+    public ConfirmReturnResponse confirmReturn(ConfirmReturnRequest request, Long actorId) {
         requireStaff(actorId, "nhận trả sách");
         String barcode = request == null || request.barcode() == null ? "" : request.barcode().trim();
         if (barcode.isEmpty() || barcode.length() > 100) {
@@ -164,28 +163,48 @@ public class LoanService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_ITEM_ID",
                     "Vui lòng tra cứu phiếu mượn hợp lệ trước khi xác nhận.");
         }
-        var candidate = loans.lockReturnCandidate(request.itemId(), barcode).orElseThrow(() ->
-                new ApiException(HttpStatus.CONFLICT, "RETURN_PREVIEW_CHANGED",
-                        "Phiếu mượn không còn khớp mã vạch. Vui lòng tra cứu lại trước khi nhận trả."));
-        if (candidate.returnedAt() != null) {
-            throw new ApiException(HttpStatus.CONFLICT, "LOAN_ALREADY_RETURNED",
-                    "Cuốn sách trong phiếu này đã được nhận trả. Không thể xác nhận lại.");
-        }
-        String copyStatus = loans.lockCopyForReturn(candidate.copyId()).orElseThrow(() ->
-                new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_NOT_FOUND",
-                        "Không tìm thấy bản sao cần nhận trả. Vui lòng tra cứu lại."));
-        if (!"BORROWED".equals(copyStatus)) {
-            throw new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_STATUS_MISMATCH",
-                    "Trạng thái bản sao không khớp phiếu đang mượn. Dữ liệu được giữ nguyên.");
-        }
-        // Sample after all lock waits; never trust a browser-supplied return date.
-        OffsetDateTime returnedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE)
-                .truncatedTo(ChronoUnit.MICROS);
-        if (returnedAt.isBefore(candidate.borrowedAt())) {
-            throw new ApiException(HttpStatus.CONFLICT, "RETURN_BEFORE_BORROWED_AT",
-                    "Ngày giờ hệ thống đang trước ngày mượn. Chưa thể ghi nhận trả sách.");
-        }
         try {
+            Long bookId = loans.lockTitleForReturn(request.itemId(), barcode).orElseThrow(() ->
+                    new ApiException(HttpStatus.CONFLICT, "RETURN_PREVIEW_CHANGED",
+                            "Phiếu mượn không còn khớp mã vạch. Vui lòng tra cứu lại trước khi nhận trả."));
+            var candidate = loans.lockReturnCandidate(request.itemId(), barcode).orElseThrow(() ->
+                    new ApiException(HttpStatus.CONFLICT, "RETURN_PREVIEW_CHANGED",
+                            "Phiếu mượn không còn khớp mã vạch. Vui lòng tra cứu lại trước khi nhận trả."));
+            if (candidate.returnedAt() != null) {
+                throw new ApiException(HttpStatus.CONFLICT, "LOAN_ALREADY_RETURNED",
+                        "Cuốn sách trong phiếu này đã được nhận trả. Không thể xác nhận lại.");
+            }
+            // Title -> loan/item -> pending reservations -> copy. Creation/cancellation
+            // share the title lock, so concurrent returns cannot reorder or share a waiter.
+            loans.lockPendingQueueForReturn(bookId);
+            String copyStatus = loans.lockCopyForReturn(candidate.copyId()).orElseThrow(() ->
+                    new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_NOT_FOUND",
+                            "Không tìm thấy bản sao cần nhận trả. Vui lòng tra cứu lại."));
+            if (!"BORROWED".equals(copyStatus)) {
+                throw new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_STATUS_MISMATCH",
+                        "Trạng thái bản sao không khớp phiếu đang mượn. Dữ liệu được giữ nguyên.");
+            }
+            OffsetDateTime returnedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE)
+                    .truncatedTo(ChronoUnit.MICROS);
+            if (returnedAt.isBefore(candidate.borrowedAt())) {
+                throw new ApiException(HttpStatus.CONFLICT, "RETURN_BEFORE_BORROWED_AT",
+                        "Ngày giờ hệ thống đang trước ngày mượn. Chưa thể ghi nhận trả sách.");
+            }
+            var next = loans.findEligiblePendingForReturn(bookId, returnedAt.toLocalDate()).orElse(null);
+            if (next != null) {
+                OffsetDateTime deadline = configuration.calculateReservationPickupDeadline(returnedAt);
+                if (next.reservedAt() == null || next.reservedAt().isAfter(returnedAt)
+                        || deadline == null || !deadline.isAfter(returnedAt)) {
+                    throw new ApiException(HttpStatus.CONFLICT, "INVALID_PICKUP_DEADLINE",
+                            "Không xác định được thời điểm giữ và hạn nhận hợp lệ. Dữ liệu nhận trả được giữ nguyên.");
+                }
+                if (loans.allocateReturnedCopy(next.id(), bookId, candidate.copyId(), returnedAt, deadline) != 1) {
+                    throw new ApiException(HttpStatus.CONFLICT, "RETURN_QUEUE_CHANGED",
+                            "Đơn đầu hàng đợi đã thay đổi. Dữ liệu nhận trả được giữ nguyên, vui lòng tra cứu lại.");
+                }
+            }
+            // V33 chooses HELD when the queue allocation above exists, otherwise AVAILABLE.
+            // There is no intermediate AVAILABLE update for a copy assigned to a waiter.
             if (loans.markReturned(candidate.itemId(), candidate.copyId(), returnedAt, actorId) != 1) {
                 throw new ApiException(HttpStatus.CONFLICT, "RETURN_UPDATE_FAILED",
                         "Phiếu hoặc tài khoản thao tác đã thay đổi. Dữ liệu được giữ nguyên, vui lòng tra cứu lại.");
@@ -193,14 +212,19 @@ public class LoanService {
             var result = loans.findReturnConfirmation(candidate.itemId()).orElseThrow(() ->
                     new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
                             "Không thể ghi nhận đầy đủ kết quả nhận trả. Dữ liệu được giữ nguyên."));
-            if (!"AVAILABLE".equals(result.copyStatus())) {
+            boolean valid = next == null
+                    ? "AVAILABLE".equals(result.copyStatus()) && result.nextReservationId() == null
+                    : "HELD".equals(result.copyStatus()) && next.id().equals(result.nextReservationId())
+                        && result.holdStartedAt() != null && returnedAt.isEqual(result.holdStartedAt())
+                        && result.pickupDeadline() != null;
+            if (!valid) {
                 throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
-                        "Không thể đưa bản sao về Sẵn sàng. Dữ liệu được giữ nguyên.");
+                        "Không thể lưu đúng trạng thái bản sao và đơn đặt giữ. Dữ liệu được giữ nguyên.");
             }
             return result;
         } catch (DataAccessException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
-                    "Không thể nhận trả sách. Dữ liệu được giữ nguyên, vui lòng thử lại.");
+                    "Không thể nhận trả và chuyển hàng đợi. Dữ liệu được giữ nguyên, vui lòng thử lại.");
         }
     }
 

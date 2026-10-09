@@ -54,6 +54,59 @@ public class LoanRepository {
     public record ReturnCandidate(Long itemId, Long loanId, Long copyId,
                                   OffsetDateTime borrowedAt, OffsetDateTime returnedAt) {}
 
+    /** Lock the title before any loan, reservation or copy row, matching reserve/cancel/pickup. */
+    public Optional<Long> lockTitleForReturn(Long itemId, String barcode) {
+        return jdbc.query("""
+                SELECT b.id FROM loan_items li
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE li.id = ? AND c.barcode = ?
+                FOR UPDATE OF b
+                """, (rs, index) -> rs.getLong("id"), itemId, barcode).stream().findFirst();
+    }
+
+    /** Do not use SKIP LOCKED: a busy FIFO head must not lose its turn. */
+    public void lockPendingQueueForReturn(Long bookId) {
+        jdbc.query("""
+                SELECT id FROM book_reservations
+                WHERE book_id = ? AND status = 'PENDING'
+                ORDER BY reserved_at, id FOR UPDATE
+                """, rs -> { }, bookId);
+    }
+
+    public record ReturnReservation(Long id, String readerName, OffsetDateTime reservedAt) {}
+
+    /** Same allocation policy as S3-06.2: skip inactive accounts and missing/locked/expired
+     * cards, but keep their PENDING rows and original FIFO timestamps untouched.
+     * The expiry date itself remains valid. Read eligibility after all return lock waits.
+     */
+    public Optional<ReturnReservation> findEligiblePendingForReturn(Long bookId, LocalDate today) {
+        return jdbc.query("""
+                SELECT r.id, reader.full_name, r.reserved_at
+                FROM book_reservations r JOIN users reader ON reader.id = r.reader_id
+                WHERE r.book_id = ? AND r.status = 'PENDING' AND r.book_copy_id IS NULL
+                  AND reader.status = 'ACTIVE'
+                  AND EXISTS (SELECT 1 FROM library_cards card
+                      WHERE card.user_id = r.reader_id AND card.status = 'ACTIVE'
+                        AND card.expires_at >= ?)
+                  AND NOT EXISTS (SELECT 1 FROM loans l WHERE l.reservation_id = r.id)
+                ORDER BY r.reserved_at, r.id LIMIT 1
+                """, (rs, index) -> new ReturnReservation(rs.getLong("id"), rs.getString("full_name"),
+                rs.getObject("reserved_at", OffsetDateTime.class)), bookId, today).stream().findFirst();
+    }
+
+    /** Assign before the return trigger runs, so the copy goes BORROWED -> HELD directly.
+     * ux_reservations_ready_copy (V20) is the final guard against duplicate allocation.
+     */
+    public int allocateReturnedCopy(Long reservationId, Long bookId, Long copyId,
+                                   OffsetDateTime startedAt, OffsetDateTime deadline) {
+        return jdbc.update("""
+                UPDATE book_reservations SET status = 'READY_FOR_PICKUP', book_copy_id = ?,
+                    hold_started_at = ?, pickup_deadline = ?
+                WHERE id = ? AND book_id = ? AND status = 'PENDING' AND book_copy_id IS NULL
+                """, copyId, startedAt, deadline, reservationId, bookId);
+    }
+
     /** Same loan/item locks as renewal. Read returned rows too, to reject repeated confirmations.
      * The item id and immutable barcode must both match the preview shown to staff.
      */
@@ -75,8 +128,8 @@ public class LoanRepository {
                 (rs, index) -> rs.getString("status"), copyId).stream().findFirst();
     }
 
-    /** V24's existing trigger updates the copy in this same statement/transaction.
-     * Do not duplicate that update or allocate the returned copy to a reservation here.
+    /** V33 extends V24's trigger: the preallocated queue order yields HELD,
+     * otherwise AVAILABLE. Both the receiver stamp and copy update are atomic.
      */
     public int markReturned(Long itemId, Long copyId, OffsetDateTime returnedAt, Long actorId) {
         return jdbc.update("""
@@ -93,7 +146,9 @@ public class LoanRepository {
         return jdbc.query("""
                 SELECT li.id, li.loan_id, li.returned_at, li.returned_by, l.loan_number,
                        c.id AS copy_id, c.barcode, c.status AS copy_status, b.title,
-                       li.returned_by_name,
+                       li.returned_by_name, assigned.id AS next_reservation_id,
+                       waiting_reader.full_name AS next_reader_name,
+                       assigned.hold_started_at, assigned.pickup_deadline,
                        CASE WHEN EXISTS (SELECT 1 FROM loan_items outstanding
                             WHERE outstanding.loan_id = l.id AND outstanding.returned_at IS NULL)
                             THEN 'BORROWED' ELSE 'RETURNED' END AS loan_status
@@ -101,13 +156,23 @@ public class LoanRepository {
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
+                LEFT JOIN book_reservations assigned ON assigned.book_copy_id = c.id
+                    AND assigned.status = 'READY_FOR_PICKUP'
+                    AND assigned.hold_started_at = li.returned_at
+                LEFT JOIN users waiting_reader ON waiting_reader.id = assigned.reader_id
                 WHERE li.id = ? AND li.returned_at IS NOT NULL
                 """, (rs, index) -> new ConfirmReturnResponse(
-                "Nhận trả sách thành công.", rs.getLong("copy_id"), rs.getString("barcode"),
+                "HELD".equals(rs.getString("copy_status"))
+                        ? "Nhận trả sách thành công. Bản sao được giữ cho " + rs.getString("next_reader_name")
+                            + ", đơn #" + rs.getLong("next_reservation_id") + " đang Chờ nhận."
+                        : "Nhận trả sách thành công. Bản sao đã về Sẵn sàng.",
+                rs.getLong("copy_id"), rs.getString("barcode"),
                 rs.getString("title"), rs.getLong("loan_id"), rs.getString("loan_number"),
                 rs.getLong("id"), "RETURNED", rs.getString("loan_status"), rs.getString("copy_status"),
                 rs.getObject("returned_at", OffsetDateTime.class), rs.getLong("returned_by"),
-                rs.getString("returned_by_name")), itemId).stream().findFirst();
+                rs.getString("returned_by_name"), rs.getObject("next_reservation_id", Long.class),
+                rs.getString("next_reader_name"), rs.getObject("hold_started_at", OffsetDateTime.class),
+                rs.getObject("pickup_deadline", OffsetDateTime.class)), itemId).stream().findFirst();
     }
 
     public record DirectRequest(Long loanId, Long actorId, String fingerprint) {}
