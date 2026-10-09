@@ -13,5 +13,15 @@ public record OverdueLoanItemResponse(
         Long bookId,
         String bookTitle,
         OffsetDateTime dueAt,
-        long overdueDays
-) {}
+        long overdueDays,
+        OffsetDateTime lastContactedAt,
+        String lastContactNote,
+        String lastContactStaffName
+) {
+    public OverdueLoanItemResponse(Long loanId, String loanNumber, Long itemId,
+                                   Long readerId, String readerName, String readerPhone,
+                                   Long bookId, String bookTitle, OffsetDateTime dueAt, long overdueDays) {
+        this(loanId, loanNumber, itemId, readerId, readerName, readerPhone,
+                bookId, bookTitle, dueAt, overdueDays, null, null, null);
+    }
+}

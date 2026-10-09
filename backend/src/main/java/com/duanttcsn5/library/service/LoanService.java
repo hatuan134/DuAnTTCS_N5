@@ -1109,7 +1109,7 @@ public class LoanService {
                     long overdueDays = countedOpenDays.get(dueDate);
                     return new OverdueLoanItemResponse(row.loanId(), row.loanNumber(), row.itemId(),
                             row.readerId(), row.readerName(), row.readerPhone(), row.bookId(), row.bookTitle(),
-                            row.dueAt(), overdueDays);
+                            row.dueAt(), overdueDays, row.lastContactedAt(), row.lastContactNote(), row.lastContactStaffName());
                 })
                 .sorted(Comparator.comparingLong(OverdueLoanItemResponse::overdueDays).reversed()
                         .thenComparing(OverdueLoanItemResponse::dueAt)

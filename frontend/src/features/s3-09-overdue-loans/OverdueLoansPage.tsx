@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ClockAlert, Filter, Phone, RefreshCw, X } from 'lucide-react'
+import { ClockAlert, Filter, History, Phone, PhoneCall, RefreshCw, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -14,7 +14,8 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles } from '../s3-01-loans/loanService'
 import { overdueLoanService } from './overdueLoanService'
-import type { OverdueLoanItem } from './overdueLoanService'
+import OverdueContactDialog from './OverdueContactDialog'
+import type { OverdueContact, OverdueLoanItem } from './overdueLoanService'
 import { countOverdueLoanVouchers, describeOverdueFilter, filterOverdueLoans, validateOverdueFilter } from './overdueFilter'
 import type { OverdueDaysFilter } from './overdueFilter'
 
@@ -29,6 +30,29 @@ export default function OverdueLoansPage() {
   const [exclusiveMinimum, setExclusiveMinimum] = useState(false)
   const [appliedFilter, setAppliedFilter] = useState<OverdueDaysFilter | null>(null)
   const [filterNotice, setFilterNotice] = useState('')
+  const [selectedLoan, setSelectedLoan] = useState<{ id: number; number: string } | null>(null)
+  const canRecord = getCurrentUser()?.role === 'LIBRARIAN'
+
+  function onRecorded(contact: OverdueContact) {
+    setItems((previous) => previous.map((item) => item.loanId === contact.loanId ? {
+      ...item,
+      lastContactedAt: contact.contactedAt,
+      lastContactNote: contact.note,
+      lastContactStaffName: contact.staffName,
+    } : item))
+  }
+
+  function contactStatus(item: OverdueLoanItem) {
+    if (!item.lastContactedAt) return <span className="text-slate-500">Chưa liên hệ</span>
+    return <div className="min-w-0 space-y-1">
+      <time className="block font-semibold text-blue-700" dateTime={item.lastContactedAt}>
+        {formatLoanTimestamp(item.lastContactedAt)}
+      </time>
+      <p className="max-w-64 break-words text-xs text-slate-600" title={item.lastContactNote ?? ''}>
+        {item.lastContactNote}
+      </p>
+    </div>
+  }
 
   const filteredItems = filterOverdueLoans(items, appliedFilter)
   const matchingLoans = countOverdueLoanVouchers(filteredItems)
@@ -257,9 +281,18 @@ export default function OverdueLoansPage() {
                     </div>
                   </dl>
 
-                  <Link to={`/loans/${item.loanId}`} className={tableActionClassName('primary')}>
-                    Xem phiếu
-                  </Link>
+                  <div className="min-w-0 rounded-lg bg-slate-50 p-3 text-sm">
+                    <p className="mb-1 text-xs font-semibold text-slate-500">Liên hệ gần nhất</p>
+                    {contactStatus(item)}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary"
+                      onClick={() => setSelectedLoan({ id: item.loanId, number: item.loanNumber })}>
+                      {canRecord ? <PhoneCall size={15} /> : <History size={15} />}
+                      {canRecord ? 'Đánh dấu đã liên hệ' : 'Lịch sử liên hệ'}
+                    </Button>
+                    <Link to={`/loans/${item.loanId}`} className={tableActionClassName('primary')}>Xem phiếu</Link>
+                  </div>
                 </article>
               ))}
             </div>
@@ -280,6 +313,7 @@ export default function OverdueLoansPage() {
                     <th scope="col" className="px-4 py-3">Tên sách</th>
                     <th scope="col" className="px-4 py-3">Hạn trả</th>
                     <th scope="col" className="px-4 py-3 text-center">Ngày trễ (mở cửa)</th>
+                    <th scope="col" className="px-4 py-3">Liên hệ gần nhất</th>
                     <th scope="col" className="px-4 py-3">Thao tác</th>
                   </tr>
                 </thead>
@@ -311,7 +345,14 @@ export default function OverdueLoansPage() {
                           {item.overdueDays} ngày mở cửa
                         </span>
                       </td>
+                      <td className="min-w-44 px-4 py-4 align-top">{contactStatus(item)}</td>
                       <td className="px-4 py-4">
+                        <div className="flex flex-col items-start gap-2">
+                          <Button type="button" size="sm" variant="secondary" className="whitespace-normal text-left"
+                            onClick={() => setSelectedLoan({ id: item.loanId, number: item.loanNumber })}>
+                            {canRecord ? <PhoneCall size={15} /> : <History size={15} />}
+                            {canRecord ? 'Đánh dấu đã liên hệ' : 'Lịch sử liên hệ'}
+                          </Button>
                         <Link
                           to={`/loans/${item.loanId}`}
                           className={tableActionClassName('primary')}
@@ -319,6 +360,7 @@ export default function OverdueLoansPage() {
                         >
                           Xem phiếu
                         </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -327,6 +369,10 @@ export default function OverdueLoansPage() {
             </div>
           </Card>
         </>
+      )}
+      {selectedLoan && (
+        <OverdueContactDialog key={selectedLoan.id} loanId={selectedLoan.id} loanNumber={selectedLoan.number}
+          canRecord={canRecord} onClose={() => setSelectedLoan(null)} onRecorded={onRecorded} />
       )}
     </div>
   )
