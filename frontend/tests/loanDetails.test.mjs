@@ -159,10 +159,11 @@ test('dates keep Vietnam calendar date without inventing missing timestamps', ()
 })
 test('feature registers list/detail routes and staff sidebar roles', () => {
   const f = load('feature.tsx', {
-    './LoanListPage': { __esModule: true, default: () => null }, './LoanDetailPage': { __esModule: true, default: () => null }, './loanService': serviceModule,
+    './LoanListPage': { __esModule: true, default: () => null }, './LoanSearchPage': { __esModule: true, default: () => null }, './LoanDetailPage': { __esModule: true, default: () => null }, './loanService': serviceModule,
   }).default
-  assert.deepEqual(Array.from(f.appRoutes, (r) => r.path), ['loans', 'loans/:loanId'])
+  assert.deepEqual(Array.from(f.appRoutes, (r) => r.path), ['loans', 'loans/search', 'loans/:loanId'])
   assert.equal(f.navItems[0].label, 'Phiếu mượn'); assert.equal(f.navItems[0].to, '/loans')
+  assert.equal(f.navItems[1].label, 'Tra cứu phiếu mượn'); assert.equal(f.navItems[1].to, '/loans/search')
   assert.deepEqual(Array.from(f.navItems[0].roles), ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'])
 })
 

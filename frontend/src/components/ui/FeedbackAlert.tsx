@@ -32,7 +32,7 @@ export default function FeedbackAlert({
     }, FEEDBACK_DURATION_MS)
 
     return () => window.clearTimeout(timer)
-  }, [message])
+  }, [message, tone])
 
   if (!message) return null
 

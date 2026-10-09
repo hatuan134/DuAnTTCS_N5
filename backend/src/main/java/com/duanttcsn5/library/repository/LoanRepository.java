@@ -424,6 +424,43 @@ public class LoanRepository {
                 rs.getObject("returned_at", OffsetDateTime.class)), readerId, limit, offset);
     }
 
+    /** S3-08.1: exact matches for any of the three code namespaces, including historical
+     * loans for a copy. The EXISTS clause prevents duplicate loan rows when codes collide;
+     * a loan's individual items are intentionally returned in full for the result display.
+     */
+    public record LoanSearchRow(Long loanId, String loanNumber, String cardNumber,
+                                String readerName, OffsetDateTime borrowedAt,
+                                Long itemId, String barcode, String bookTitle,
+                                OffsetDateTime dueAt, OffsetDateTime returnedAt) {}
+
+    public List<LoanSearchRow> searchLoansByCode(String code) {
+        return jdbc.query("""
+                SELECT l.id AS loan_id, l.loan_number, card.card_number,
+                       reader.full_name AS reader_name, l.borrowed_at,
+                       li.id AS item_id, c.barcode, b.title AS book_title,
+                       li.due_date, li.returned_at
+                FROM loans l
+                JOIN users reader ON reader.id = l.borrower_user_id
+                LEFT JOIN library_cards card ON card.user_id = l.borrower_user_id
+                LEFT JOIN loan_items li ON li.loan_id = l.id
+                LEFT JOIN book_copies c ON c.id = li.book_copy_id
+                LEFT JOIN books b ON b.id = c.book_id
+                WHERE l.loan_number = ? OR card.card_number = ?
+                   OR EXISTS (
+                       SELECT 1 FROM loan_items matched
+                       JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
+                       WHERE matched.loan_id = l.id AND matched_copy.barcode = ?
+                   )
+                ORDER BY l.borrowed_at DESC, l.id DESC, li.id ASC
+                """, (rs, index) -> new LoanSearchRow(
+                rs.getLong("loan_id"), rs.getString("loan_number"),
+                rs.getString("card_number"), rs.getString("reader_name"),
+                rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("item_id", Long.class), rs.getString("barcode"),
+                rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), code, code, code);
+    }
+
     public List<LoanSummaryResponse> findAllForStaff() {
         return jdbc.query("""
                 SELECT l.id, l.loan_number, l.borrower_user_id, reader.full_name AS reader_name,
