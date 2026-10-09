@@ -29,6 +29,34 @@ public class LoanRepository {
                                   Long readerId, String readerName,
                                   OffsetDateTime borrowedAt, OffsetDateTime dueAt) {}
 
+    public record OverdueLoanRow(Long loanId, String loanNumber, Long itemId,
+                                 Long readerId, String readerName, String readerPhone,
+                                 Long bookId, String bookTitle, OffsetDateTime dueAt) {}
+
+    /** S3-09.1: only open items due before today's Vietnam midnight are overdue.
+     * Returned items and legacy items without a due date are deliberately excluded.
+     */
+    public List<OverdueLoanRow> findOpenOverdue(OffsetDateTime todayStart) {
+        return jdbc.query("""
+                SELECT l.id AS loan_id, l.loan_number, li.id AS item_id,
+                       l.borrower_user_id, reader.full_name AS reader_name, reader.phone AS reader_phone,
+                       b.id AS book_id, b.title AS book_title, li.due_date
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN users reader ON reader.id = l.borrower_user_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE li.returned_at IS NULL
+                  AND li.due_date IS NOT NULL
+                  AND li.due_date < ?
+                ORDER BY li.due_date ASC, l.id ASC, li.id ASC
+                """, (rs, index) -> new OverdueLoanRow(
+                rs.getLong("loan_id"), rs.getString("loan_number"), rs.getLong("item_id"),
+                rs.getLong("borrower_user_id"), rs.getString("reader_name"), rs.getString("reader_phone"),
+                rs.getLong("book_id"), rs.getString("book_title"),
+                rs.getObject("due_date", OffsetDateTime.class)), todayStart);
+    }
+
     /** One statement distinguishes an absent barcode from an existing, unborrowed copy.
      * The partial unique index ux_copy_unreturned_loan guarantees at most one open item.
      * Do not infer the borrower from copy status or from a historical returned item.

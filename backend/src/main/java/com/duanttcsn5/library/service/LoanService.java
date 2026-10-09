@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.HashSet;
@@ -25,6 +26,7 @@ import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
+import com.duanttcsn5.library.dto.loan.OverdueLoanItemResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchResultResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
@@ -1085,6 +1087,27 @@ public class LoanService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_DATE",
                     "Ngày mượn phải có định dạng yyyy-MM-dd hợp lệ.");
         }
+    }
+
+    /** S3-09.1: overdue days are calendar days in Vietnam; closed dates are not excluded. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public List<OverdueLoanItemResponse> overdueLoans(Long actorId) {
+        requireStaff(actorId, "xem danh sách phiếu mượn quá hạn");
+        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        OffsetDateTime todayStart = today.atStartOfDay(LIBRARY_ZONE).toOffsetDateTime();
+        return loans.findOpenOverdue(todayStart).stream()
+                .map(row -> {
+                    LocalDate dueDate = row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
+                    long overdueDays = ChronoUnit.DAYS.between(dueDate, today);
+                    return new OverdueLoanItemResponse(row.loanId(), row.loanNumber(), row.itemId(),
+                            row.readerId(), row.readerName(), row.readerPhone(), row.bookId(), row.bookTitle(),
+                            row.dueAt(), overdueDays);
+                })
+                .sorted(Comparator.comparingLong(OverdueLoanItemResponse::overdueDays).reversed()
+                        .thenComparing(OverdueLoanItemResponse::dueAt)
+                        .thenComparing(OverdueLoanItemResponse::loanId)
+                        .thenComparing(OverdueLoanItemResponse::itemId))
+                .toList();
     }
 
     @Transactional(readOnly = true)
