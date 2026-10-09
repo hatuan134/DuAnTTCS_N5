@@ -295,6 +295,12 @@ public class ReaderRegistrationService {
                 history.totalBorrowCount(), history.lateReturnCount(), filtered);
     }
 
+    /** S3-10.4: same reader and applied date range as the history screen; no pagination. */
+    @Transactional(readOnly = true)
+    public ReaderLoanHistoryCsv.Export exportReaderLoanHistory(Long id, String fromDate, String toDate) {
+        return ReaderLoanHistoryCsv.create(getReaderLoanHistory(id, fromDate, toDate), OffsetDateTime.now());
+    }
+
     private static LocalDate parseReaderHistoryDate(String raw) {
         if (raw == null || raw.isBlank()) return null;
         String normalized = raw.trim();

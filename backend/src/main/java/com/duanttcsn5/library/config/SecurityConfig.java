@@ -53,7 +53,8 @@ public class SecurityConfig {
                                 "/api/v1/books/public/**",
                                 "/error")
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/readers/*/loan-history")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/readers/*/loan-history",
+                                "/api/v1/readers/*/loan-history/export")
                         .hasAnyRole("LIBRARIAN", "LIBRARY_MANAGER")
                         .anyRequest()
                         .authenticated())
@@ -75,7 +76,7 @@ public class SecurityConfig {
                 "http://127.0.0.1:3000"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition", "X-CSV-Row-Count"));
         configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

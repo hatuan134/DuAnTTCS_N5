@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Filter, RefreshCw, X } from 'lucide-react'
+import { ArrowLeft, Download, Filter, RefreshCw, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -14,7 +14,7 @@ import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
-import { readerService, validateReaderHistoryDates } from './readerService'
+import { downloadReaderHistoryCsv, readerService, validateReaderHistoryDates } from './readerService'
 import type { ReaderHistoryDateError, ReaderHistoryFilters, ReaderLoanHistoryResponse } from './readerService'
 
 export default function ReaderProfilePage() {
@@ -44,6 +44,16 @@ export function ReaderProfile({ id }: { id: number }) {
   const [appliedFilters, setAppliedFilters] = useState<ReaderHistoryFilters>({ fromDate: '', toDate: '' })
   const [dateError, setDateError] = useState<ReaderHistoryDateError | null>(null)
   const [filterNotice, setFilterNotice] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportNotice, setExportNotice] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null)
+  const exportPending = useRef(false)
+  const exportGeneration = useRef(0)
+  useEffect(() => {
+    exportGeneration.current++
+    exportPending.current = false
+    setExporting(false); setExportNotice(null)
+    return () => { exportGeneration.current++ }
+  }, [id])
   const requestPending = useRef(true)
   const hasFilter = !!(appliedFilters.fromDate || appliedFilters.toDate)
   const pagination = useTablePagination(data?.loans ?? [], `${id}|${revision}`)
@@ -70,9 +80,30 @@ export function ReaderProfile({ id }: { id: number }) {
     return () => { active = false }
   }, [id, revision, appliedFilters.fromDate, appliedFilters.toDate])
 
+  async function exportHistory() {
+    if (loading || requestPending.current || exportPending.current || failed || !data || data.profile.userId !== id) return
+    exportPending.current = true
+    setExporting(true); setExportNotice(null)
+    const generation = exportGeneration.current
+    try {
+      const result = await readerService.exportLoanHistory(id, appliedFilters)
+      if (exportGeneration.current !== generation) return
+      downloadReaderHistoryCsv(result)
+      setExportNotice(result.rowCount === 0
+        ? { tone: 'info', message: 'Không có dữ liệu phù hợp. Đã tải tệp CSV chỉ có tiêu đề cột.' }
+        : { tone: 'success', message: `Đã tải tệp CSV gồm ${result.rowCount} dòng lịch sử mượn trả.` })
+    } catch (e) {
+      if (exportGeneration.current === generation) {
+        setExportNotice({ tone: 'error', message: getApiErrorMessage(e, 'Không xuất được lịch sử mượn trả. Vui lòng thử lại.') })
+      }
+    } finally {
+      if (exportGeneration.current === generation) { exportPending.current = false; setExporting(false) }
+    }
+  }
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (loading || requestPending.current) return
+    if (loading || requestPending.current || exportPending.current) return
     const invalid = validateReaderHistoryDates(draftFilters)
     setDateError(invalid)
     if (invalid) { setFilterNotice(invalid.message); return }
@@ -83,14 +114,14 @@ export function ReaderProfile({ id }: { id: number }) {
   }
 
   function reloadHistory() {
-    if (loading || requestPending.current) return
+    if (loading || requestPending.current || exportPending.current) return
     requestPending.current = true
     setLoading(true)
     setRevision((value) => value + 1)
   }
 
   function clearFilters() {
-    if (loading || requestPending.current) return
+    if (loading || requestPending.current || exportPending.current) return
     requestPending.current = true
     setLoading(true); setDateError(null); setFilterNotice('')
     setDraftFilters({ fromDate: '', toDate: '' })
@@ -107,23 +138,23 @@ export function ReaderProfile({ id }: { id: number }) {
     <BackLink />
     <PageHeader title="Hồ sơ tổng hợp Bạn đọc"
       description="Thông tin hồ sơ và toàn bộ lịch sử mượn trả. Thời gian hiển thị theo giờ Việt Nam."
-      action={<Button type="button" variant="secondary" loading={loading}
+      action={<Button type="button" variant="secondary" loading={loading} disabled={exporting}
         onClick={reloadHistory}><RefreshCw size={16} /> Làm mới</Button>} />
     {!unavailable && <Card className="p-5 sm:p-6">
       <h3 className="mb-4 font-semibold text-slate-900">Lọc lịch sử mượn trả</h3>
       <form noValidate onSubmit={applyFilters} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <div className="min-w-0"><Input id="reader-history-from-date" label="Từ ngày mượn" type="date"
-          min="0001-01-01" max="9999-12-31" value={draftFilters.fromDate} disabled={loading}
+          min="0001-01-01" max="9999-12-31" value={draftFilters.fromDate} disabled={loading || exporting}
           error={dateError?.field === 'fromDate' ? dateError.message : undefined}
           onChange={(event) => changeDate('fromDate', event.target.value)} /></div>
         <div className="min-w-0"><Input id="reader-history-to-date" label="Đến ngày mượn" type="date"
-          min="0001-01-01" max="9999-12-31" value={draftFilters.toDate} disabled={loading}
+          min="0001-01-01" max="9999-12-31" value={draftFilters.toDate} disabled={loading || exporting}
           error={dateError?.field === 'toDate' ? dateError.message : undefined}
           onChange={(event) => changeDate('toDate', event.target.value)} /></div>
         <div className="flex flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1 xl:pt-7">
-          <Button type="submit" disabled={loading}><Filter size={16} /> Áp dụng bộ lọc</Button>
+          <Button type="submit" disabled={loading || exporting}><Filter size={16} /> Áp dụng bộ lọc</Button>
           <Button type="button" variant="secondary"
-            disabled={loading || (!draftFilters.fromDate && !draftFilters.toDate && !hasFilter)} onClick={clearFilters}>
+            disabled={loading || exporting || (!draftFilters.fromDate && !draftFilters.toDate && !hasFilter)} onClick={clearFilters}>
             <X size={16} /> Xóa bộ lọc
           </Button>
         </div>
@@ -132,6 +163,8 @@ export function ReaderProfile({ id }: { id: number }) {
         Ba chỉ số tổng hợp luôn tính trên toàn bộ lịch sử.</p>
       {filterNotice && <FeedbackAlert message={filterNotice} tone="warning" onDismiss={() => setFilterNotice('')} className="mt-3" />}
     </Card>}
+    {exportNotice && <FeedbackAlert key={`${exportNotice.tone}:${exportNotice.message}`} message={exportNotice.message}
+      tone={exportNotice.tone} onDismiss={() => setExportNotice(null)} />}
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
     {loading && <div role="status"><LoadingState /></div>}
     {!loading && failed && <div role="status"><Card className="p-5">
@@ -164,11 +197,16 @@ export function ReaderProfile({ id }: { id: number }) {
       </section>
       <p className="text-xs text-slate-500">Số liệu tổng hợp của toàn bộ lịch sử, không thay đổi theo khoảng ngày đang lọc.</p>
       <section aria-labelledby="reader-history-heading" className="space-y-4">
-        <div>
-          <h3 id="reader-history-heading" className="text-lg font-semibold text-slate-900">Lịch sử mượn trả</h3>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 id="reader-history-heading" className="text-lg font-semibold text-slate-900">Lịch sử mượn trả</h3>
           <p className="mt-1 text-sm leading-6 text-slate-500">Phiếu mới nhất trước. Mỗi phiếu tính một lượt mượn;
             phiếu có ít nhất một bản sao trả sau ngày đến hạn tính một lượt từng trả trễ.
             Phiếu còn bản sao chưa trả được tính là đang mở.</p>
+            <p className="mt-1 text-xs text-slate-500">CSV gồm tất cả phiếu khớp bộ lọc đã áp dụng, trên mọi trang; mỗi bản sao một dòng.</p>
+          </div>
+          <Button type="button" loading={exporting} disabled={loading || exporting}
+            onClick={() => void exportHistory()}><Download size={16} /> Xuất CSV</Button>
         </div>
         <p role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
           {hasFilter ? `Tìm thấy ${data.loans.length} phiếu mượn` : `Toàn bộ lịch sử: ${data.loans.length} phiếu mượn`}
