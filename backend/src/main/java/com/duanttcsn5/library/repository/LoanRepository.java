@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.time.OffsetDateTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -492,6 +493,92 @@ public class LoanRepository {
                 rs.getObject("item_id", Long.class), rs.getString("barcode"),
                 rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
                 rs.getObject("returned_at", OffsetDateTime.class)), code, code, code, limit, offset);
+    }
+
+    /** The same predicate is used for count and page so totals cannot drift.
+     * Statuses are derived from loan items, not the mutable book-copy status.
+     * Loan dates use inclusive Vietnam calendar dates; the exclusive end boundary
+     * avoids truncating a timestamptz and preserves timestamp index usage.
+     */
+    private static final String FILTERED_LOAN_WHERE = """
+            WHERE (l.loan_number = ?
+                OR EXISTS (SELECT 1 FROM library_cards matched_card
+                           WHERE matched_card.user_id = l.borrower_user_id AND matched_card.card_number = ?)
+                OR EXISTS (SELECT 1 FROM loan_items matched
+                           JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
+                           WHERE matched.loan_id = l.id AND matched_copy.barcode = ?))
+              AND (?::timestamptz IS NULL OR l.borrowed_at >= ?::timestamptz)
+              AND (?::timestamptz IS NULL OR l.borrowed_at < ?::timestamptz)
+              AND (?::text IS NULL OR (CASE
+                  WHEN NOT EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id = l.id) THEN 'EMPTY'
+                  WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id = l.id AND i.returned_at IS NULL)
+                   AND EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id = l.id AND i.returned_at IS NOT NULL)
+                       THEN 'PARTIALLY_RETURNED'
+                  WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id = l.id AND i.returned_at IS NULL)
+                       THEN 'BORROWED'
+                  ELSE 'RETURNED' END) = ?::text)
+            """;
+
+    private static final ZoneId LOAN_SEARCH_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private static Object[] loanSearchFilterArgs(String code, LocalDate fromDate, LocalDate toDate,
+                                                 String status) {
+        OffsetDateTime start = fromDate == null ? null
+                : fromDate.atStartOfDay(LOAN_SEARCH_ZONE).toOffsetDateTime();
+        OffsetDateTime endExclusive = toDate == null ? null
+                : toDate.plusDays(1).atStartOfDay(LOAN_SEARCH_ZONE).toOffsetDateTime();
+        return new Object[]{code, code, code, start, start, endExclusive, endExclusive, status, status};
+    }
+
+    public long countLoansByCode(String code, LocalDate fromDate, LocalDate toDate, String status) {
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM loans l " + FILTERED_LOAN_WHERE,
+                Long.class, loanSearchFilterArgs(code, fromDate, toDate, status));
+        return total == null ? 0L : total;
+    }
+
+    public List<LoanSearchRow> searchLoansByCode(String code, LocalDate fromDate,
+                                                 LocalDate toDate, String status,
+                                                 int limit, long offset) {
+        String sql = """
+                WITH matched_loans AS (
+                    SELECT l.id, l.borrowed_at,
+                           CASE WHEN EXISTS (SELECT 1 FROM loan_items open_item
+                                            WHERE open_item.loan_id = l.id AND open_item.returned_at IS NULL)
+                                  OR NOT EXISTS (SELECT 1 FROM loan_items any_item
+                                                 WHERE any_item.loan_id = l.id)
+                                THEN 0 ELSE 1 END AS status_order
+                    FROM loans l
+                """ + FILTERED_LOAN_WHERE + """
+                ), selected_loans AS (
+                    SELECT id, borrowed_at, status_order FROM matched_loans
+                    ORDER BY status_order ASC, borrowed_at DESC, id DESC
+                    LIMIT ? OFFSET ?
+                )
+                SELECT l.id AS loan_id, l.loan_number, card.card_number,
+                       reader.full_name AS reader_name, l.borrowed_at,
+                       li.id AS item_id, c.barcode, b.title AS book_title,
+                       li.due_date, li.returned_at
+                FROM selected_loans selected
+                JOIN loans l ON l.id = selected.id
+                JOIN users reader ON reader.id = l.borrower_user_id
+                LEFT JOIN library_cards card ON card.user_id = l.borrower_user_id
+                LEFT JOIN loan_items li ON li.loan_id = l.id
+                LEFT JOIN book_copies c ON c.id = li.book_copy_id
+                LEFT JOIN books b ON b.id = c.book_id
+                ORDER BY selected.status_order ASC, selected.borrowed_at DESC,
+                         selected.id DESC, li.id ASC
+                """;
+        Object[] filters = loanSearchFilterArgs(code, fromDate, toDate, status);
+        Object[] args = java.util.Arrays.copyOf(filters, filters.length + 2);
+        args[filters.length] = limit;
+        args[filters.length + 1] = offset;
+        return jdbc.query(sql, (rs, index) -> new LoanSearchRow(
+                rs.getLong("loan_id"), rs.getString("loan_number"),
+                rs.getString("card_number"), rs.getString("reader_name"),
+                rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("item_id", Long.class), rs.getString("barcode"),
+                rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), args);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {

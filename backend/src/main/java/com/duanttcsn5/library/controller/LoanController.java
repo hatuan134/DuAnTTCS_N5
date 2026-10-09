@@ -120,8 +120,15 @@ public class LoanController {
     public ResponseEntity<LoanSearchPageResponse> searchLoans(
             @RequestParam(defaultValue = "") String code,
             @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String status,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(loans.searchLoans(code, page, principal == null ? null : principal.id()));
+        Long actorId = principal == null ? null : principal.id();
+        if (fromDate == null && toDate == null && status == null) {
+            return ResponseEntity.ok(loans.searchLoans(code, page, actorId));
+        }
+        return ResponseEntity.ok(loans.searchLoans(code, page, actorId, fromDate, toDate, status));
     }
 
     @GetMapping("/loans")

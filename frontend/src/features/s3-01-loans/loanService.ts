@@ -55,6 +55,12 @@ export interface LoanSearchResult {
   items: LoanSearchItem[]
 }
 
+export interface LoanSearchFilters {
+  fromDate: string
+  toDate: string
+  status: '' | LoanSearchResult['status']
+}
+
 export interface LoanSearchPage {
   items: LoanSearchResult[]
   page: number // zero-based, matching the backend
@@ -73,8 +79,15 @@ export function formatLoanTimestamp(value: string | null, dateOnly = false): str
 }
 
 export const loanService = {
-  search: async (code: string, page = 0): Promise<LoanSearchPage> => {
-    const response = await apiClient.get<LoanSearchPage>('/loans/search', { params: { code, page } })
+  search: async (code: string, page = 0, filters?: LoanSearchFilters): Promise<LoanSearchPage> => {
+    const response = await apiClient.get<LoanSearchPage>('/loans/search', {
+      params: {
+        code, page,
+        ...(filters?.fromDate ? { fromDate: filters.fromDate } : {}),
+        ...(filters?.toDate ? { toDate: filters.toDate } : {}),
+        ...(filters?.status ? { status: filters.status } : {}),
+      },
+    })
     return response.data
   },
   list: async (): Promise<LoanSummary[]> => {

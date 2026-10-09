@@ -156,4 +156,66 @@ class LoanSearchServiceTest {
         verify(loans, times(2)).countLoansByCode("PM-01");
         verify(loans, never()).searchLoansByCode(anyString(), anyInt(), anyLong());
     }
+
+    @Test
+    void fromDateOnlyFiltersBeforeCountingAndPaginates() {
+        var from = java.time.LocalDate.parse("2026-10-01");
+        when(loans.countLoansByCode("THE-01", from, null, null)).thenReturn(21L);
+        when(loans.searchLoansByCode("THE-01", from, null, null, 20, 20L))
+                .thenReturn(List.of(row(2L, "PM-02", 11L, "BC-11", null)));
+        var response = service.searchLoans("THE-01", 1, 12L, "2026-10-01", null, "ALL");
+        assertThat(response.total()).isEqualTo(21);
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.items()).hasSize(1);
+        verify(loans).searchLoansByCode("THE-01", from, null, null, 20, 20L);
+    }
+
+    @Test
+    void endDateOnlyAndCombinedStatusUseOneSharedFilterForCountAndRows() {
+        var from = java.time.LocalDate.parse("2026-09-01");
+        var to = java.time.LocalDate.parse("2026-10-01");
+        when(loans.countLoansByCode("THE-01", null, to, null)).thenReturn(0L);
+        assertThat(service.searchLoans("THE-01", 0, 12L, null, "2026-10-01", null).total())
+                .isZero();
+        verify(loans, never()).searchLoansByCode(eq("THE-01"), any(), any(), any(), anyInt(), anyLong());
+        when(loans.countLoansByCode("THE-01", from, to, "PARTIALLY_RETURNED"))
+                .thenReturn(1L);
+        when(loans.searchLoansByCode("THE-01", from, to, "PARTIALLY_RETURNED", 20, 0L))
+                .thenReturn(List.of(row(2L, "PM-02", 11L, "BC-11", null),
+                        row(2L, "PM-02", 12L, "BC-12", "2026-10-01T12:00:00+07:00")));
+        var response = service.searchLoans(" THE-01 ", 0, 12L,
+                "2026-09-01", "2026-10-01", "PARTIALLY_RETURNED");
+        assertThat(response.total()).isEqualTo(1);
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).status()).isEqualTo("PARTIALLY_RETURNED");
+        assertThat(response.items().get(0).items()).hasSize(2);
+        verify(loans).searchLoansByCode("THE-01", from, to, "PARTIALLY_RETURNED", 20, 0L);
+    }
+
+    @Test
+    void everySupportedStatusIncludingEmptyIsAccepted() {
+        for (String status : List.of("BORROWED", "RETURNED", "PARTIALLY_RETURNED", "EMPTY")) {
+            when(loans.countLoansByCode("PM-01", null, null, status)).thenReturn(0L);
+            var result = service.searchLoans("PM-01", 0, 12L, null, null, status);
+            assertThat(result.total()).isZero();
+            verify(loans).countLoansByCode("PM-01", null, null, status);
+        }
+    }
+
+    @Test
+    void rejectsInvertedInvalidOrUnknownFiltersWithoutDatabaseReads() {
+        assertThatThrownBy(() -> service.searchLoans("PM-01", 0, 12L,
+                "2026-10-09", "2026-10-01", null))
+                .isInstanceOfSatisfying(ApiException.class, e ->
+                        assertThat(e.getCode()).isEqualTo("INVALID_LOAN_SEARCH_DATE_RANGE"));
+        for (String bad : List.of("09/10/2026", "2026-02-30", "2026-13-01", "0000-01-01")) {
+            assertThatThrownBy(() -> service.searchLoans("PM-01", 0, 12L, bad, null, null))
+                    .isInstanceOfSatisfying(ApiException.class, e ->
+                            assertThat(e.getCode()).isEqualTo("INVALID_LOAN_SEARCH_DATE"));
+        }
+        assertThatThrownBy(() -> service.searchLoans("PM-01", 0, 12L, null, null, "LOST"))
+                .isInstanceOfSatisfying(ApiException.class, e ->
+                        assertThat(e.getCode()).isEqualTo("INVALID_LOAN_SEARCH_STATUS"));
+        verifyNoInteractions(loans);
+    }
 }

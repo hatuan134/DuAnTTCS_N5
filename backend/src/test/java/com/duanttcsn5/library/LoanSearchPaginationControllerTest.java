@@ -132,4 +132,29 @@ class LoanSearchPaginationControllerTest {
                     .andExpect(status().isOk());
         }
     }
+
+    @Test
+    void combinedFiltersReachServiceAndPreservePagination() throws Exception {
+        token("LIBRARIAN");
+        when(service.searchLoans("CARD-01", 2, 12L, "2026-09-01", "2026-10-01", "RETURNED"))
+                .thenReturn(new LoanSearchPageResponse(List.of(), 2, 20, 44));
+        mvc.perform(get("/api/v1/loans/search").param("code", "CARD-01")
+                        .param("page", "2").param("fromDate", "2026-09-01")
+                        .param("toDate", "2026-10-01").param("status", "RETURNED")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(44))
+                .andExpect(jsonPath("$.page").value(2));
+        verify(service).searchLoans("CARD-01", 2, 12L, "2026-09-01", "2026-10-01", "RETURNED");
+    }
+
+    @Test
+    void readerCannotBypassPermissionUsingFilters() throws Exception {
+        token("READER");
+        mvc.perform(get("/api/v1/loans/search")
+                        .param("code", "PM-01").param("status", "RETURNED")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
 }

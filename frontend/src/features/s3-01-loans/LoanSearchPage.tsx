@@ -12,7 +12,7 @@ import TablePagination from '../../components/ui/TablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles, loanService } from './loanService'
-import type { LoanSearchResult, LoanSearchPage } from './loanService'
+import type { LoanSearchResult, LoanSearchPage, LoanSearchFilters } from './loanService'
 
 function loanStatus(status: LoanSearchResult['status']) {
   switch (status) {
@@ -23,6 +23,12 @@ function loanStatus(status: LoanSearchResult['status']) {
   }
 }
 
+const emptyFilters: LoanSearchFilters = { fromDate: '', toDate: '', status: '' }
+
+function invalidDateRange(filters: LoanSearchFilters): boolean {
+  return Boolean(filters.fromDate && filters.toDate && filters.fromDate > filters.toDate)
+}
+
 export default function LoanSearchPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
   const [code, setCode] = useState('')
@@ -31,16 +37,19 @@ export default function LoanSearchPage() {
   const [response, setResponse] = useState<LoanSearchPage | null>(null)
   const [lastCode, setLastCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [filters, setFilters] = useState<LoanSearchFilters>(emptyFilters)
+  const [filterError, setFilterError] = useState('')
   const requestSequence = useRef(0)
 
   useEffect(() => () => { requestSequence.current += 1 }, [])
 
-  async function loadPage(normalized: string, page: number) {
+  async function loadPage(normalized: string, page: number, applied: LoanSearchFilters) {
     const sequence = ++requestSequence.current
     setLoading(true)
+    setResponse(null)
     setRequestError('')
     try {
-      const data = await loanService.search(normalized, page)
+      const data = await loanService.search(normalized, page, applied)
       if (sequence === requestSequence.current) {
         setResponse(data)
         setLastCode(normalized)
@@ -66,7 +75,34 @@ export default function LoanSearchPage() {
       setInputError('Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.')
       return
     }
-    void loadPage(normalized, 0)
+    if (invalidDateRange(filters)) {
+      setFilterError('Từ ngày không được lớn hơn Đến ngày.')
+      return
+    }
+    setFilterError('')
+    void loadPage(normalized, 0, filters)
+  }
+
+  function updateFilter<Key extends keyof LoanSearchFilters>(key: Key, value: LoanSearchFilters[Key]) {
+    const next = { ...filters, [key]: value }
+    setFilters(next)
+    setFilterError('')
+    setRequestError('')
+    if (invalidDateRange(next)) {
+      ++requestSequence.current
+      setLoading(false)
+      setResponse(null)
+      setFilterError('Từ ngày không được lớn hơn Đến ngày.')
+      return
+    }
+    if (lastCode !== null) void loadPage(lastCode, 0, next)
+  }
+
+  function clearFilters() {
+    setFilters(emptyFilters)
+    setFilterError('')
+    setRequestError('')
+    if (lastCode !== null) void loadPage(lastCode, 0, emptyFilters)
   }
 
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -87,6 +123,7 @@ export default function LoanSearchPage() {
               setCode(event.target.value)
               setInputError('')
               setRequestError('')
+              setFilterError('')
               setLastCode(null)
               setResponse(null)
               setLoading(false)
@@ -99,9 +136,38 @@ export default function LoanSearchPage() {
       </form>
       <p className="mt-3 text-xs text-slate-500">Có thể nhập mã có khoảng trắng ở đầu hoặc cuối; hệ thống sẽ tự loại bỏ khoảng trắng đó.</p>
     </Card>
+    {lastCode !== null && <Card className="p-5 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-slate-900">Bộ lọc phiếu mượn</h2>
+        <Button type="button" variant="secondary" disabled={loading || (!filters.fromDate && !filters.toDate && !filters.status)}
+          onClick={clearFilters}>Xóa bộ lọc</Button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Input id="loan-from-date" label="Từ ngày mượn" type="date" value={filters.fromDate}
+          disabled={loading}
+          onChange={(event) => updateFilter('fromDate', event.target.value)} />
+        <Input id="loan-to-date" label="Đến ngày mượn" type="date" value={filters.toDate}
+          disabled={loading}
+          onChange={(event) => updateFilter('toDate', event.target.value)} />
+        <div className="min-w-0">
+          <label htmlFor="loan-status" className="mb-2 block text-sm font-semibold text-slate-700">Trạng thái phiếu</label>
+          <select id="loan-status" value={filters.status} disabled={loading}
+            onChange={(event) => updateFilter('status', event.target.value as LoanSearchFilters['status'])}
+            className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100">
+            <option value="">Tất cả trạng thái</option>
+            <option value="BORROWED">Đang mượn</option>
+            <option value="PARTIALLY_RETURNED">Đang mượn · Đã trả một phần</option>
+            <option value="RETURNED">Đã trả</option>
+            <option value="EMPTY">Chưa có bản sao</option>
+          </select>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">Ngày mượn được tính theo giờ Việt Nam. Thay đổi bộ lọc sẽ tự cập nhật kết quả từ trang đầu.</p>
+    </Card>}
+    {filterError && <FeedbackAlert message={filterError} tone="error" onDismiss={() => setFilterError('')} />}
     {requestError && <FeedbackAlert message={requestError} tone="error" onDismiss={() => setRequestError('')} />}
     {loading && <div role="status"><LoadingState /></div>}
-    {!loading && lastCode !== null && <section aria-label="Kết quả tra cứu" className="space-y-4">
+    {!loading && lastCode !== null && response !== null && <section aria-label="Kết quả tra cứu" className="space-y-4">
       <h2 className="text-base font-semibold text-slate-900">
         Kết quả tra cứu: <span className="break-all font-mono text-blue-700">{lastCode}</span>
         <span className="ml-2 text-sm font-normal text-slate-500">({response?.total ?? 0} phiếu mượn)</span>
@@ -144,7 +210,7 @@ export default function LoanSearchPage() {
           pageSize={response.size}
           totalItems={response.total}
           totalPages={Math.ceil(response.total / response.size)}
-          onPageChange={(nextPage) => { if (!loading && lastCode !== null) void loadPage(lastCode, nextPage - 1) }}
+          onPageChange={(nextPage) => { if (!loading && lastCode !== null) void loadPage(lastCode, nextPage - 1, filters) }}
         />
       </Card>}
     </section>}
