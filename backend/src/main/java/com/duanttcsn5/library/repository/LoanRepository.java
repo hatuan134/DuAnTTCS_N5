@@ -1,5 +1,7 @@
 package com.duanttcsn5.library.repository;
 
+import com.duanttcsn5.library.dto.loan.ConfirmReturnResponse;
+
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBookResponse;
@@ -47,6 +49,65 @@ public class LoanRepository {
                 rs.getObject("borrower_user_id", Long.class), rs.getString("reader_name"),
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("due_date", OffsetDateTime.class)), barcode).stream().findFirst();
+    }
+
+    public record ReturnCandidate(Long itemId, Long loanId, Long copyId,
+                                  OffsetDateTime borrowedAt, OffsetDateTime returnedAt) {}
+
+    /** Same loan/item locks as renewal. Read returned rows too, to reject repeated confirmations.
+     * The item id and immutable barcode must both match the preview shown to staff.
+     */
+    public Optional<ReturnCandidate> lockReturnCandidate(Long itemId, String barcode) {
+        return jdbc.query("""
+                SELECT li.id, li.loan_id, li.book_copy_id, li.borrowed_at, li.returned_at
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                WHERE li.id = ? AND c.barcode = ?
+                FOR UPDATE OF li, l
+                """, (rs, index) -> new ReturnCandidate(rs.getLong("id"), rs.getLong("loan_id"),
+                rs.getLong("book_copy_id"), rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), itemId, barcode).stream().findFirst();
+    }
+
+    public Optional<String> lockCopyForReturn(Long copyId) {
+        return jdbc.query("SELECT status FROM book_copies WHERE id = ? FOR UPDATE",
+                (rs, index) -> rs.getString("status"), copyId).stream().findFirst();
+    }
+
+    /** V24's existing trigger updates the copy in this same statement/transaction.
+     * Do not duplicate that update or allocate the returned copy to a reservation here.
+     */
+    public int markReturned(Long itemId, Long copyId, OffsetDateTime returnedAt, Long actorId) {
+        return jdbc.update("""
+                UPDATE loan_items li
+                SET returned_at = ?, returned_by = staff.id, returned_by_name = staff.full_name
+                FROM users staff JOIN roles r ON r.id = staff.role_id
+                WHERE li.id = ? AND li.book_copy_id = ? AND li.returned_at IS NULL
+                  AND staff.id = ? AND staff.status = 'ACTIVE'
+                  AND r.code IN ('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')
+                """, returnedAt, itemId, copyId, actorId);
+    }
+
+    public Optional<ConfirmReturnResponse> findReturnConfirmation(Long itemId) {
+        return jdbc.query("""
+                SELECT li.id, li.loan_id, li.returned_at, li.returned_by, l.loan_number,
+                       c.id AS copy_id, c.barcode, c.status AS copy_status, b.title,
+                       li.returned_by_name,
+                       CASE WHEN EXISTS (SELECT 1 FROM loan_items outstanding
+                            WHERE outstanding.loan_id = l.id AND outstanding.returned_at IS NULL)
+                            THEN 'BORROWED' ELSE 'RETURNED' END AS loan_status
+                FROM loan_items li
+                JOIN loans l ON l.id = li.loan_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE li.id = ? AND li.returned_at IS NOT NULL
+                """, (rs, index) -> new ConfirmReturnResponse(
+                "Nhận trả sách thành công.", rs.getLong("copy_id"), rs.getString("barcode"),
+                rs.getString("title"), rs.getLong("loan_id"), rs.getString("loan_number"),
+                rs.getLong("id"), "RETURNED", rs.getString("loan_status"), rs.getString("copy_status"),
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getLong("returned_by"),
+                rs.getString("returned_by_name")), itemId).stream().findFirst();
     }
 
     public record DirectRequest(Long loanId, Long actorId, String fingerprint) {}
@@ -348,7 +409,8 @@ public class LoanRepository {
     public List<LoanDetailResponse.Item> findItemsForStaff(Long loanId) {
         return jdbc.query("""
                 SELECT li.id, li.book_copy_id, c.barcode, c.book_id, b.title,
-                       li.borrowed_at, li.due_date
+                       li.borrowed_at, li.due_date, li.returned_at, li.returned_by,
+                       li.returned_by_name
                 FROM loan_items li
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
@@ -356,6 +418,8 @@ public class LoanRepository {
                 ORDER BY li.id ASC
                 """, (rs, index) -> new LoanDetailResponse.Item(rs.getLong("id"), rs.getLong("book_copy_id"),
                 rs.getString("barcode"), rs.getLong("book_id"), rs.getString("title"),
-                rs.getObject("borrowed_at", OffsetDateTime.class), rs.getObject("due_date", OffsetDateTime.class)), loanId);
+                rs.getObject("borrowed_at", OffsetDateTime.class), rs.getObject("due_date", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getObject("returned_by", Long.class),
+                rs.getString("returned_by_name")), loanId);
     }
 }

@@ -36,6 +36,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   const [overrideReason, setOverrideReason] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [actionError, setActionError] = useState('')
   const [loading, setLoading] = useState(false)
   const [confirmationError, setConfirmationError] = useState('')
   const [awaitingResult, setAwaitingResult] = useState(false)
@@ -73,7 +74,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (inFlight.current || awaitingResult || completed) return
-    setError(''); setNotice('')
+    setError(''); setNotice(''); setActionError('')
     const code = barcode.trim()
     if (!code || code.length > 100) {
       setError('Vui lòng nhập mã vạch từ 1 đến 100 ký tự.')
@@ -110,6 +111,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       if (active.current) {
         const message = getApiErrorMessage(e, 'Không kiểm tra được sách. Vui lòng sửa hoặc kiểm tra lại dòng này.')
         setItems((rows) => rows.map((row) => row.id === rowId ? { ...row, error: message, checking: false } : row))
+        setActionError(`Không thêm được mã vạch ${code}. Vui lòng xem lỗi tại dòng sách để sửa hoặc thử lại.`)
       }
     } finally {
       inFlight.current = false
@@ -126,7 +128,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     setConfirmationError('')
     setItems((rows) => rows.filter((item) => item.id !== row.id))
     if (editingId === row.id) { setEditingId(null); setBarcode('') }
-    setError('')
+    setError(''); setActionError('')
     setNotice(`Đã xóa mã vạch ${row.barcode} khỏi lượt mượn.`)
     focusBarcode()
   }
@@ -146,7 +148,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   async function confirmDraft() {
     if (!canConfirm || inFlight.current) return
     inFlight.current = true
-    setLoading(true); setConfirmationError(''); setNotice('')
+    setLoading(true); setConfirmationError(''); setNotice(''); setActionError('')
     onLockChange?.(true)
     let keepLocked = false
     try {
@@ -224,6 +226,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       </div>
       <div aria-live="polite" aria-atomic="true">
         {loading && submitted.current === null && <p role="status" className="text-sm text-blue-700">Đang tìm sách theo mã vạch…</p>}
+        {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} />}
         {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
       </div>
     </form>

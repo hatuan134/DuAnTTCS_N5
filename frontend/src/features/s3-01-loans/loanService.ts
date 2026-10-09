@@ -21,6 +21,9 @@ export interface LoanItem {
   bookTitle: string
   borrowedAt: string
   dueAt: string | null
+  returnedAt?: string | null
+  returnedById?: number | null
+  returnedByName?: string | null
 }
 
 export interface LoanDetail {

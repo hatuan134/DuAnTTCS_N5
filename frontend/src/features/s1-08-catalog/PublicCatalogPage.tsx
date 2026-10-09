@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
@@ -38,6 +39,7 @@ export default function PublicCatalogPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const [dismissedError, setDismissedError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function PublicCatalogPage() {
     let running = false
     setLoading(true)
     setLoadingMore(false)
-    setError('')
+    setError(''); setDismissedError('')
     loadedPageRef.current = 0
 
     const loadBooks = async (background = false) => {
@@ -137,7 +139,7 @@ export default function PublicCatalogPage() {
     if (!result || result.last || loadingMore || loading) return
     const nextPage = result.page + 1
     setLoadingMore(true)
-    setError('')
+    setError(''); setDismissedError('')
     try {
       const data = await catalogService.searchPublicBooks({ ...submittedQuery, page: nextPage })
       setBooks((current) => {
@@ -367,10 +369,11 @@ export default function PublicCatalogPage() {
             <div className="mb-4">{filterActions}</div>
           )}
 
-          {error && (
-            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
+          {error && error !== dismissedError && (
+            <FeedbackAlert message={error} tone="error" onDismiss={() => setDismissedError(error)} />
+          )}
+          {error && error === dismissedError && (
+            <p role="status" className="text-sm text-slate-600">Chưa tải được kết quả mới. Bấm Làm mới để thử lại.</p>
           )}
 
           {hasNoResults && (

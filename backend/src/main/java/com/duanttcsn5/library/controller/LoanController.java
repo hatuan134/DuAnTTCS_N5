@@ -1,5 +1,8 @@
 package com.duanttcsn5.library.controller;
 
+import com.duanttcsn5.library.dto.loan.ConfirmReturnRequest;
+import com.duanttcsn5.library.dto.loan.ConfirmReturnResponse;
+
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.CheckReaderLoanRequest;
 import com.duanttcsn5.library.dto.loan.LoanRejectionResponse;
@@ -173,6 +176,14 @@ public class LoanController {
             @RequestParam(defaultValue = "") String barcode,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.lookupReturn(barcode, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/return-confirmation")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ConfirmReturnResponse> confirmReturn(
+            @Valid @RequestBody ConfirmReturnRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.confirmReturn(request, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/{loanId}")

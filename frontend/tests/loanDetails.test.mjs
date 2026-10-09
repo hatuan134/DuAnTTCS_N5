@@ -215,3 +215,18 @@ test('unmount prevents delayed loan result from becoming visible', async () => {
   f.unmount(); finish(structuredClone(loan)); await settle()
   assert.doesNotMatch(f.html(), /PM-SAVED|LIB-031/)
 })
+
+test('S3-07.2 reopened loan persists returned date, receiver and completed status', async () => {
+  const data = structuredClone(loan)
+  Object.assign(data.items[0], { returnedAt: '2026-10-08T18:00:00Z', returnedById: 3, returnedByName: 'Thủ thư nhận trả' })
+  const f = await pageFixture('LoanDetailPage.tsx', { data })
+  for (const expected of ['Đã trả', 'Ngày trả thực tế', '09/10/2026', '01:00:00', 'Thủ thư nhận trả']) assert.ok(f.html().includes(expected), expected)
+})
+test('S3-07.2 partially returned loan shows separate statuses without closing sibling', async () => {
+  const data = structuredClone(loan)
+  data.items.push({ ...data.items[0], id: 92, copyId: 32, barcode: 'LIB-032' })
+  Object.assign(data.items[0], { returnedAt: '2026-10-08T18:00:00Z', returnedByName: 'Thủ thư nhận trả' })
+  const f = await pageFixture('LoanDetailPage.tsx', { data })
+  assert.ok(f.html().includes('Đang mượn · Đã trả một phần'))
+  assert.ok(f.html().includes('LIB-032'))
+})

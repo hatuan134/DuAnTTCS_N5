@@ -74,6 +74,10 @@ function LoanDetails({ id, viewerId, reader, justCreated }: { id: number; viewer
           <div className="min-w-0"><dt className="text-slate-500">Người lập phiếu</dt><dd className="mt-1 break-words font-semibold text-slate-900">{loan.createdByName}</dd></div>
           <div><dt className="text-slate-500">Ngày mượn</dt><dd className="mt-1 font-semibold text-slate-900">{formatLoanTimestamp(loan.borrowedAt, true)}</dd></div>
           <div><dt className="text-slate-500">Thời điểm mượn</dt><dd className="mt-1 text-slate-900"><time dateTime={loan.borrowedAt}>{formatLoanTimestamp(loan.borrowedAt)}</time></dd></div>
+          <div><dt className="text-slate-500">Trạng thái phiếu</dt><dd className="mt-1 font-semibold text-slate-900">
+            {loan.items.length > 0 && loan.items.every((item) => item.returnedAt) ? 'Đã trả'
+              : loan.items.some((item) => item.returnedAt) ? 'Đang mượn · Đã trả một phần' : 'Đang mượn'}
+          </dd></div>
           {!reader && loan.reservationId && <div><dt className="text-slate-500">Đơn đặt giữ</dt><dd className="mt-1"><Link to={`/reservations/ready-for-pickup/${loan.reservationId}`} className="font-medium text-blue-700 hover:underline">Xem đơn #{loan.reservationId}</Link></dd></div>}
         </dl>
       </Card>
@@ -87,6 +91,11 @@ function LoanDetails({ id, viewerId, reader, justCreated }: { id: number; viewer
                 <div className="min-w-0"><dt className="text-slate-500">Mã vạch bản sao</dt><dd className="mt-1 break-all font-mono font-semibold">{reader ? item.barcode : <Link to={`/book-copies/${item.copyId}`} className="text-blue-700 hover:underline">{item.barcode}</Link>}</dd></div>
                 <div><dt className="text-slate-500">Tên đầu sách</dt><dd className="mt-1 break-words font-medium text-slate-900">{item.bookTitle}</dd></div>
                 <div><dt className="text-slate-500">Ngày mượn bản sao</dt><dd className="mt-1 font-medium text-slate-900">{formatLoanTimestamp(item.borrowedAt, true)}</dd></div>
+                <div><dt className="text-slate-500">Trạng thái cuốn sách</dt><dd className="mt-1 font-semibold text-slate-900">{item.returnedAt ? 'Đã trả' : 'Đang mượn'}</dd></div>
+                {item.returnedAt && <>
+                  <div><dt className="text-slate-500">Ngày trả thực tế</dt><dd className="mt-1 font-semibold text-emerald-800"><time dateTime={item.returnedAt}>{formatLoanTimestamp(item.returnedAt)}</time></dd></div>
+                  <div><dt className="text-slate-500">Nhân viên nhận trả</dt><dd className="mt-1 break-words text-slate-900">{item.returnedByName ?? 'Phiếu cũ chưa ghi nhận người nhận trả.'}</dd></div>
+                </>}
                 <div><dt className="text-slate-500">Hạn trả đã lưu</dt><dd className="mt-1 font-semibold text-blue-900">{item.dueAt ? <time dateTime={item.dueAt}>{formatLoanTimestamp(item.dueAt)}</time> : 'Phiếu cũ chưa có hạn trả được lưu.'}</dd></div>
               </dl>
             </li>)}
