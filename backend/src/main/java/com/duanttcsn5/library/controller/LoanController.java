@@ -17,6 +17,7 @@ import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
 import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
+import com.duanttcsn5.library.dto.loan.OverdueLoanItemResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
 import java.util.List;
@@ -129,6 +130,13 @@ public class LoanController {
             return ResponseEntity.ok(loans.searchLoans(code, page, actorId));
         }
         return ResponseEntity.ok(loans.searchLoans(code, page, actorId, fromDate, toDate, status));
+    }
+
+    @GetMapping("/loans/overdue")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<OverdueLoanItemResponse>> overdueLoans(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.overdueLoans(principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans")
