@@ -53,6 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
@@ -990,11 +991,16 @@ public class LoanService {
                 loans.findReturnedForReader(readerId, size, offset), page, size, total);
     }
 
-    /** S3-08.2: stable status-first, newest-first, 20-loan pages. One transaction
-     * gives total and page rows the same database snapshot.
-     */
+    /** Keep the original lookup API for callers without additional filters. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public LoanSearchPageResponse searchLoans(String enteredCode, int page, Long actorId) {
+        return searchLoans(enteredCode, page, actorId, null, null, null);
+    }
+
+    /** S3-08.3: filter BEFORE counting and paging, retaining S3-08.2's ordering. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public LoanSearchPageResponse searchLoans(String enteredCode, int page, Long actorId,
+                                               String fromDate, String toDate, String status) {
         requireStaff(actorId, "tra cứu phiếu mượn");
         String code = enteredCode == null ? "" : enteredCode.trim();
         if (code.isEmpty() || code.length() > 100) {
@@ -1005,12 +1011,29 @@ public class LoanService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_PAGE",
                     "Số trang tra cứu phải lớn hơn hoặc bằng 0.");
         }
+        LocalDate start = parseLoanSearchDate(fromDate);
+        LocalDate end = parseLoanSearchDate(toDate);
+        if (start != null && end != null && start.isAfter(end)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_DATE_RANGE",
+                    "Từ ngày không được lớn hơn Đến ngày.");
+        }
+        String normalizedStatus = status == null ? "" : status.trim();
+        if (!normalizedStatus.isEmpty() && !"ALL".equals(normalizedStatus)
+                && !Set.of("BORROWED", "PARTIALLY_RETURNED", "RETURNED", "EMPTY").contains(normalizedStatus)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_STATUS",
+                    "Trạng thái phiếu không hợp lệ.");
+        }
+        if ("ALL".equals(normalizedStatus) || normalizedStatus.isEmpty()) normalizedStatus = null;
+        boolean hasFilters = start != null || end != null || normalizedStatus != null;
         final int size = 20;
-        long total = loans.countLoansByCode(code);
+        long total = hasFilters
+                ? loans.countLoansByCode(code, start, end, normalizedStatus)
+                : loans.countLoansByCode(code);
         long offset = (long) page * size;
         Map<Long, LoanRepository.LoanSearchRow> headers = new LinkedHashMap<>();
         Map<Long, List<LoanSearchResultResponse.Item>> grouped = new LinkedHashMap<>();
         for (var row : offset >= total ? List.<LoanRepository.LoanSearchRow>of()
+                : hasFilters ? loans.searchLoansByCode(code, start, end, normalizedStatus, size, offset)
                 : loans.searchLoansByCode(code, size, offset)) {
             headers.putIfAbsent(row.loanId(), row);
             var items = grouped.computeIfAbsent(row.loanId(), ignored -> new ArrayList<>());
@@ -1023,12 +1046,32 @@ public class LoanService {
             var header = headers.get(entry.getKey());
             var items = entry.getValue();
             long returned = items.stream().filter(item -> "RETURNED".equals(item.status())).count();
-            String status = items.isEmpty() ? "EMPTY" : returned == items.size() ? "RETURNED"
+            String loanStatus = items.isEmpty() ? "EMPTY" : returned == items.size() ? "RETURNED"
                     : returned > 0 ? "PARTIALLY_RETURNED" : "BORROWED";
             return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
-                    header.readerName(), header.borrowedAt(), status, items);
+                    header.readerName(), header.borrowedAt(), loanStatus, items);
         }).toList();
         return new LoanSearchPageResponse(pageItems, page, size, total);
+    }
+
+    private static LocalDate parseLoanSearchDate(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String normalized = raw.trim();
+        if (!normalized.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_DATE",
+                    "Ngày mượn phải có định dạng yyyy-MM-dd hợp lệ.");
+        }
+        try {
+            LocalDate parsed = LocalDate.parse(normalized);
+            if (parsed.getYear() < 1) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_DATE",
+                        "Ngày mượn phải có định dạng yyyy-MM-dd hợp lệ.");
+            }
+            return parsed;
+        } catch (DateTimeParseException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_DATE",
+                    "Ngày mượn phải có định dạng yyyy-MM-dd hợp lệ.");
+        }
     }
 
     @Transactional(readOnly = true)
