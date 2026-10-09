@@ -148,3 +148,31 @@ test('cancelling confirmation keeps preview and never writes', async () => {
   assert.equal(f.confirmations.length, 0); assert.ok(f.confirmButton())
   assert.equal(f.find('Input').props.disabled, false)
 })
+
+for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) test(`${role}: returned copy shows queue owner, pickup deadline and persistent hold details`, async () => {
+  const response = returnedItem({
+    message: 'Nhận trả sách thành công. Bản sao được giữ cho Bạn đọc Bình, đơn #30 đang Chờ nhận.',
+    copyStatus: 'HELD', nextReservationId: 30, nextReaderName: 'Bạn đọc Bình',
+    holdStartedAt: '2026-10-09T01:00:00+07:00', pickupDeadline: '2026-10-12T17:00:00+07:00',
+  })
+  const f = fixture(role, undefined, async () => response)
+  await lookup(f); f.confirm(); await flush(); f.render()
+  for (const value of ['Đang giữ cho đặt trước', 'Bạn đọc Bình', 'Đơn #', '30', 'Chờ nhận',
+    'Bắt đầu giữ bản sao', response.holdStartedAt, 'Hạn cuối đến nhận', response.pickupDeadline]) assert.ok(f.text().includes(value), value)
+  assert.ok(!f.text().includes('Sẵn sàng'))
+  assert.equal(f.confirmButton(), undefined)
+  assert.equal(f.find('FeedbackAlert').props.message, response.message)
+  f.dismiss()
+  assert.equal(f.find('FeedbackAlert'), undefined)
+  assert.ok(f.text().includes('Bạn đọc Bình')); assert.ok(f.text().includes(response.pickupDeadline))
+})
+
+test('return without an eligible waiter does not show empty reservation details', async () => {
+  const f = fixture('LIBRARIAN', undefined, async () => returnedItem({
+    nextReservationId: null, nextReaderName: null, holdStartedAt: null, pickupDeadline: null,
+  }))
+  await lookup(f); f.confirm(); await flush(); f.render()
+  assert.ok(f.text().includes('Sẵn sàng'))
+  assert.ok(!f.text().includes('Bạn đọc được giữ sách'))
+  assert.ok(!f.text().includes('Bắt đầu giữ bản sao'))
+})

@@ -30,6 +30,7 @@ class ReturnConfirmationServiceTest {
         when(users.findById(12L)).thenReturn(Optional.of(staff));
     }
     void open() {
+        when(loans.lockTitleForReturn(9L, "LIB-001")).thenReturn(Optional.of(10L));
         when(loans.lockReturnCandidate(9L, "LIB-001")).thenReturn(Optional.of(
                 new LoanRepository.ReturnCandidate(9L, 8L, 4L,
                         returnedAt.minusDays(7), null)));
@@ -56,8 +57,11 @@ class ReturnConfirmationServiceTest {
         assertThat(result.returnedAt().toLocalDate()).isEqualTo(LocalDate.of(2026, 10, 9));
         assertThat(result.returnedById()).isEqualTo(12L);
         var order = inOrder(loans);
+        order.verify(loans).lockTitleForReturn(9L, "LIB-001");
         order.verify(loans).lockReturnCandidate(9L, "LIB-001");
+        order.verify(loans).lockPendingQueueForReturn(10L);
         order.verify(loans).lockCopyForReturn(4L);
+        order.verify(loans).findEligiblePendingForReturn(10L, returnedAt.toLocalDate());
         order.verify(loans).markReturned(9L, 4L, returnedAt, 12L);
         order.verify(loans).findReturnConfirmation(9L);
     }
@@ -95,6 +99,7 @@ class ReturnConfirmationServiceTest {
         verify(loans, never()).markReturned(anyLong(), anyLong(), any(), anyLong());
     }
     @Test void returnedItemIsRejectedBeforeTouchingCopyOrHistory() {
+        when(loans.lockTitleForReturn(9L, "LIB-001")).thenReturn(Optional.of(10L));
         when(loans.lockReturnCandidate(9L, "LIB-001")).thenReturn(Optional.of(
                 new LoanRepository.ReturnCandidate(9L, 8L, 4L, returnedAt.minusDays(7), returnedAt.minusDays(1))));
         code(() -> service.confirmReturn(request, 12L), "LOAN_ALREADY_RETURNED");

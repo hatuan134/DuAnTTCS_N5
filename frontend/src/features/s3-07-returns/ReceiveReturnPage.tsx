@@ -137,8 +137,19 @@ export default function ReceiveReturnPage() {
       {returned && <dl className="mt-4 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
         <Detail label="Ngày trả thực tế"><time dateTime={returned.returnedAt}>{formatLoanTimestamp(returned.returnedAt)}</time></Detail>
         <Detail label="Nhân viên nhận trả">{returned.returnedByName}</Detail>
-        <Detail label="Trạng thái bản sao"><span className="text-emerald-700">Sẵn sàng</span></Detail>
+        <Detail label="Trạng thái bản sao"><span className={returned.copyStatus === 'HELD' ? 'text-amber-800' : 'text-emerald-700'}>
+          {returned.copyStatus === 'HELD' ? 'Đang giữ cho đặt trước' : 'Sẵn sàng'}
+        </span></Detail>
         <Detail label="Trạng thái phiếu">{returned.loanStatus === 'RETURNED' ? 'Đã trả' : 'Đang mượn · Còn cuốn chưa trả'}</Detail>
+        {returned.copyStatus === 'HELD' && <>
+          <Detail label="Bạn đọc được giữ sách">{returned.nextReaderName}</Detail>
+          <Detail label="Đơn đặt giữ">
+            <a href={`/reservations/ready-for-pickup/${returned.nextReservationId}`}
+              className="text-blue-700 hover:underline">Đơn #{returned.nextReservationId} · Chờ nhận</a>
+          </Detail>
+          <Detail label="Bắt đầu giữ bản sao">{formatLoanTimestamp(returned.holdStartedAt)}</Detail>
+          <Detail label="Hạn cuối đến nhận">{formatLoanTimestamp(returned.pickupDeadline)}</Detail>
+        </>}
       </dl>}
       {result.itemId !== null && !returned && <div className="mt-5">
         <Button type="button" loading={confirming} onClick={() => { void confirmReturn() }}>Xác nhận nhận trả</Button>
