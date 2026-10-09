@@ -21,6 +21,10 @@ function hooksFixture() {
         return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] },
       useRef(value) { const i = cursor++; return slots[i] ??= { current: value } },
       useMemo(fn) { cursor++; return fn() },
+      useCallback(fn, deps) { const i = cursor++, old = slots[i]
+        if (!old || deps.some((v, n) => !Object.is(v, old.deps[n]))) slots[i] = { deps, value: fn }
+        return slots[i].value
+      },
       useEffect(fn, deps) { const i = cursor++, old = slots[i]
         if (!old || deps.some((v, n) => !Object.is(v, old.deps[n]))) {
           slots[i] = { deps, cleanup: old?.cleanup }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn() })
@@ -42,7 +46,7 @@ function text(node) {
   if (Array.isArray(node)) return node.map(text).join(' ')
   return typeof node === 'object' ? text(node.props?.children) : String(node)
 }
-function page(path, imports = {}, props = {}, exported = 'default') {
+function page(path, imports = {}, props = {}, exported = 'default', extra = {}) {
   const f = hooksFixture(); let tree
   const Stub = () => null
   const dependencies = {
@@ -50,10 +54,18 @@ function page(path, imports = {}, props = {}, exported = 'default') {
     '../../components/ui/FeedbackAlert': { __esModule: true, default: FeedbackStub },
     '../../components/ui/Button': { __esModule: true, default: Stub },
     '../../components/ui/Card': { __esModule: true, default: Stub },
+    '../../components/ui/EmptyState': { __esModule: true, default: Stub },
+    '../../components/ui/Input': { __esModule: true, default: Stub },
+    '../../components/ui/LoadingState': { __esModule: true, default: Stub },
+    '../../components/ui/PageHeader': { __esModule: true, default: Stub },
+    '../../components/ui/StatusBadge': { __esModule: true, default: Stub },
+    '../../components/ui/TableActionButton': { __esModule: true, default: Stub, TableActions: Stub },
+    '../../components/ui/TablePagination': { __esModule: true, default: Stub },
+    '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: e => e.message },
     './pickupService': { formatPickupDate: v => v, pickupService: {} }, ...imports,
   }
-  const Component = load(path, dependencies, { window: { confirm: () => true } })[exported]
+  const Component = load(path, dependencies, { window: { confirm: () => true }, ...extra })[exported]
   const render = () => { tree = f.render(() => Component(props)); return tree }; render()
   return { render, notice: () => find(tree, n => n.type === FeedbackStub),
     button: needle => find(tree, n => n.type === 'button' && n.props.onClick && text(n).includes(needle)), tree: () => tree }
@@ -98,4 +110,67 @@ test('old staff cancellation notification expires while audit result remains ava
     result: { message: 'Đã huỷ đơn.', cancellation: { cancelledAt: '2026-10-09', cancelledByName: 'Thủ thư', reason: 'Theo yêu cầu' }, copyOutcome: 'NO_COPY' },
   }, 'CancellationNotice')
   verifyTimer(p); assert.ok(find(p.tree(), n => n.type === 'div' && n.props.role === 'status'))
+})
+
+for (const fail of [false, true]) test(`old ADMIN locks account: ${fail ? 'failure' : 'success'} expires at 3000ms`, async () => {
+  const account = { id: 2, fullName: 'Thủ thư mẫu', email: 'staff@example.invalid', role: 'LIBRARIAN', status: 'ACTIVE' }
+  const p = page('../src/features/s1-02-user-management/UserManagementPage.tsx', {
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ id: 1, role: 'ADMIN' }) },
+    './accountService': { getAccounts: async () => [account], getApiErrorMessage: e => e.message,
+      updateAccountStatus: async () => { if (fail) throw new Error('Không khóa được tài khoản.'); return { ...account, status: 'LOCKED' } },
+    },
+  })
+  await settle(); p.render()
+  find(p.tree(), n => n.props?.onClick && text(n).trim() === 'Khóa').props.onClick()
+  await settle(); p.render(); assert.equal(p.notice().props.tone, fail ? 'error' : 'success'); verifyTimer(p)
+})
+for (const fail of [false, true]) test(`old LIBRARY_MANAGER toggles policy: ${fail ? 'failure' : 'success'} expires at 3000ms`, async () => {
+  const card = { id: 2, name: 'Sinh viên', active: true, duration: 12, maxBooks: 5, loanDays: 14, maxRenewals: 2, renewalDays: 7 }
+  const p = page('../src/features/s1-05-borrow-policy/CardTypesPage.tsx', {
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ id: 1, role: 'LIBRARY_MANAGER' }) },
+    axios: { __esModule: true, default: { isAxiosError: () => true } },
+    './cardTypeService': { cardTypeService: { getCardTypes: async () => [card], getHistory: async () => [],
+      toggleStatus: async () => { if (fail) throw { response: { data: { message: 'Không đổi được chính sách.' } } }; return { ...card, active: false } },
+    } },
+  })
+  await settle(); p.render()
+  await find(p.tree(), n => n.props?.onClick && text(n).trim() === 'Ngừng áp dụng').props.onClick()
+  p.render(); assert.equal(p.notice().props.tone, fail ? 'error' : 'success'); verifyTimer(p)
+})
+test('old librarian failed barcode preview now notifies for 3000ms and retains row diagnostics', async () => {
+  const p = page('../src/features/s3-02-direct-loans/DirectLoanItemsPanel.tsx', {
+    '../s3-01-loans/loanService': { formatLoanTimestamp: v => v },
+    './directLoanService': { directLoanService: { previewItem: async () => { throw new Error('Mã vạch không tồn tại.') } } },
+  }, { reader: { eligible: true, remainingBooks: 5, cardNumber: 'TV-1', blockReasons: [] } })
+  find(p.tree(), n => n.props?.id === 'direct-loan-barcode').props.onChange({ target: { value: 'INVALID-1' } })
+  p.render(); await find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+  p.render(); assert.equal(p.notice().props.tone, 'error'); verifyTimer(p)
+  assert.ok(text(p.tree()).includes('Mã vạch không tồn tại.'))
+  assert.ok(find(p.tree(), n => n.props?.['aria-label'] === 'Sửa mã vạch INVALID-1'))
+})
+
+for (const initialFailure of [true, false]) test(`old public catalog ${initialFailure ? 'search' : 'load-more'} API error expires but recovery state stays`, async () => {
+  let calls = 0
+  const p = page('../src/features/s1-08-catalog/PublicCatalogPage.tsx', {
+    'axios': { isAxiosError: () => true },
+    'react-router-dom': { Link: () => null },
+    '../s2-10-book-cover/PublicBookCover': { __esModule: true, default: () => null },
+    './PublicSiteFooter': { __esModule: true, default: () => null },
+    './catalogService': { catalogService: {
+      getPublicFilterOptions: async () => ({ categories: [], publicationYears: [] }),
+      searchPublicBooks: async () => {
+        if (initialFailure || calls++) throw { response: { data: { message: 'Không tải được kết quả.' } } }
+        return { content: [{ id: 1, title: 'Sách mẫu', authorName: 'Tác giả', categoryName: 'Văn học', availableCount: 1 }],
+          page: 0, last: false, totalElements: 2, totalPages: 2 }
+      },
+    } },
+  }, {}, 'default', { AbortController, window: { setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} },
+    document: { hidden: false, addEventListener() {}, removeEventListener() {} },
+  })
+  await settle(); p.render()
+  if (!initialFailure) { p.button('Hiển thị thêm').props.onClick(); await settle(); p.render() }
+  assert.equal(p.notice().props.tone, 'error'); verifyTimer(p)
+  assert.ok(text(p.tree()).includes('Bấm Làm mới để thử lại.'))
+  assert.ok(!text(p.tree()).includes('Không tìm thấy đầu sách phù hợp.'))
+  assert.equal(p.notice(), undefined)
 })

@@ -1,5 +1,8 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.loan.ConfirmReturnRequest;
+import com.duanttcsn5.library.dto.loan.ConfirmReturnResponse;
+
 import com.duanttcsn5.library.dto.loan.ReturnLookupResponse;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.LoanRejectionResponse;
@@ -145,6 +148,60 @@ public class LoanService {
         return new ReturnLookupResponse(status, message, row.copyId(), row.barcode(), row.bookTitle(),
                 row.loanId(), row.loanNumber(), row.itemId(), row.readerId(), row.readerName(),
                 row.borrowedAt(), row.dueAt(), today, overdueDays);
+    }
+
+    /** S3-07.2: one item only. Trigger and receiver stamp participate in the same transaction. */
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
+    public ConfirmReturnResponse confirmReturn(
+            ConfirmReturnRequest request, Long actorId) {
+        requireStaff(actorId, "nhận trả sách");
+        String barcode = request == null || request.barcode() == null ? "" : request.barcode().trim();
+        if (barcode.isEmpty() || barcode.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BARCODE",
+                    "Vui lòng nhập mã vạch từ 1 đến 100 ký tự.");
+        }
+        if (request.itemId() == null || request.itemId() < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_ITEM_ID",
+                    "Vui lòng tra cứu phiếu mượn hợp lệ trước khi xác nhận.");
+        }
+        var candidate = loans.lockReturnCandidate(request.itemId(), barcode).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "RETURN_PREVIEW_CHANGED",
+                        "Phiếu mượn không còn khớp mã vạch. Vui lòng tra cứu lại trước khi nhận trả."));
+        if (candidate.returnedAt() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "LOAN_ALREADY_RETURNED",
+                    "Cuốn sách trong phiếu này đã được nhận trả. Không thể xác nhận lại.");
+        }
+        String copyStatus = loans.lockCopyForReturn(candidate.copyId()).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_NOT_FOUND",
+                        "Không tìm thấy bản sao cần nhận trả. Vui lòng tra cứu lại."));
+        if (!"BORROWED".equals(copyStatus)) {
+            throw new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_STATUS_MISMATCH",
+                    "Trạng thái bản sao không khớp phiếu đang mượn. Dữ liệu được giữ nguyên.");
+        }
+        // Sample after all lock waits; never trust a browser-supplied return date.
+        OffsetDateTime returnedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE)
+                .truncatedTo(ChronoUnit.MICROS);
+        if (returnedAt.isBefore(candidate.borrowedAt())) {
+            throw new ApiException(HttpStatus.CONFLICT, "RETURN_BEFORE_BORROWED_AT",
+                    "Ngày giờ hệ thống đang trước ngày mượn. Chưa thể ghi nhận trả sách.");
+        }
+        try {
+            if (loans.markReturned(candidate.itemId(), candidate.copyId(), returnedAt, actorId) != 1) {
+                throw new ApiException(HttpStatus.CONFLICT, "RETURN_UPDATE_FAILED",
+                        "Phiếu hoặc tài khoản thao tác đã thay đổi. Dữ liệu được giữ nguyên, vui lòng tra cứu lại.");
+            }
+            var result = loans.findReturnConfirmation(candidate.itemId()).orElseThrow(() ->
+                    new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
+                            "Không thể ghi nhận đầy đủ kết quả nhận trả. Dữ liệu được giữ nguyên."));
+            if (!"AVAILABLE".equals(result.copyStatus())) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
+                        "Không thể đưa bản sao về Sẵn sàng. Dữ liệu được giữ nguyên.");
+            }
+            return result;
+        } catch (DataAccessException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
+                    "Không thể nhận trả sách. Dữ liệu được giữ nguyên, vui lòng thử lại.");
+        }
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -419,15 +476,19 @@ public class LoanService {
     }
 
     private void requireStaff(Long actorId) {
+        requireStaff(actorId, "lập phiếu mượn");
+    }
+
+    private void requireStaff(Long actorId, String action) {
         if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
-                "Vui lòng đăng nhập để lập phiếu mượn.");
+                "Vui lòng đăng nhập để " + action + ".");
         var actor = users.findById(actorId).orElseThrow(() ->
                 new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
         if (actor.getRole() == null || actor.getRole().getCode() == null
                 || !Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN").contains(actor.getRole().getCode())
                 || !"ACTIVE".equals(actor.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "STAFF_ROLE_REQUIRED",
-                    "Chỉ nhân viên thư viện đang hoạt động mới được lập phiếu mượn.");
+                    "Chỉ nhân viên thư viện đang hoạt động mới được " + action + ".");
         }
     }
 

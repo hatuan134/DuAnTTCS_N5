@@ -17,12 +17,34 @@ export interface ReturnLookup {
   overdueDays: number | null
 }
 
+export interface ConfirmReturnResult {
+  message: string
+  copyId: number
+  barcode: string
+  bookTitle: string
+  loanId: number
+  loanNumber: string
+  itemId: number
+  itemStatus: 'RETURNED'
+  loanStatus: 'BORROWED' | 'RETURNED'
+  copyStatus: 'AVAILABLE'
+  returnedAt: string
+  returnedById: number
+  returnedByName: string
+}
+
 export function validateReturnBarcode(barcode: string): string {
   const value = barcode.trim()
   return !value || value.length > 100 ? 'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.' : ''
 }
 
 export const returnService = {
+  async confirm(barcode: string, itemId: number): Promise<ConfirmReturnResult> {
+    const response = await apiClient.post<ConfirmReturnResult>('/loans/return-confirmation', {
+      barcode: barcode.trim(), itemId,
+    })
+    return response.data
+  },
   async lookup(barcode: string, signal?: AbortSignal): Promise<ReturnLookup> {
     const response = await apiClient.get<ReturnLookup>('/loans/return-lookup', {
       params: { barcode: barcode.trim() }, signal,

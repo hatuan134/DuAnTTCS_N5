@@ -12,5 +12,12 @@ public record LoanDetailResponse(
     public LoanDetailResponse { items = List.copyOf(items); }
 
     public record Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,
-                       OffsetDateTime borrowedAt, OffsetDateTime dueAt) {}
+                       OffsetDateTime borrowedAt, OffsetDateTime dueAt,
+                       OffsetDateTime returnedAt, Long returnedById, String returnedByName) {
+        /** Preserve the constructors used by existing lending code and tests. */
+        public Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,
+                    OffsetDateTime borrowedAt, OffsetDateTime dueAt) {
+            this(id, copyId, barcode, bookId, bookTitle, borrowedAt, dueAt, null, null, null);
+        }
+    }
 }
