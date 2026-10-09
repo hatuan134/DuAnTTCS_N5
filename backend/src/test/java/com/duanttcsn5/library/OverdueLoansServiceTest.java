@@ -16,9 +16,12 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,7 +73,7 @@ class OverdueLoansServiceTest {
     }
 
     @Test
-    void calculatesCalendarDaysKeepsContactAndBookFieldsAndSortsLongestDelayFirst() {
+    void calculatesConfiguredOpenDaysKeepsContactAndBookFieldsAndSortsLongestDelayFirst() {
         OffsetDateTime todayStart = OffsetDateTime.parse("2026-10-09T00:00:00+07:00");
         when(loans.findOpenOverdue(todayStart)).thenReturn(List.of(
                 row(4L, 44L, "PM-004", "Bạn đọc D", "0904000004", "Sách D", "2026-10-08T10:00:00+07:00"),
@@ -79,29 +82,60 @@ class OverdueLoansServiceTest {
                 row(3L, 33L, "PM-003", "Bạn đọc C", null, "Sách C", "2026-10-07T08:00:00+07:00")
         ));
 
+        when(calendar.calculateOverdueOpenDays(Set.of(
+                LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 7), LocalDate.of(2026, 10, 8)),
+                LocalDate.of(2026, 10, 9)))
+                .thenReturn(Map.of(LocalDate.of(2026, 10, 5), 3L,
+                        LocalDate.of(2026, 10, 7), 1L, LocalDate.of(2026, 10, 8), 0L));
+
         var actual = service.overdueLoans(12L);
 
         assertThat(actual).extracting(item -> item.loanNumber())
                 .containsExactly("PM-001", "PM-003", "PM-002", "PM-004");
         assertThat(actual).extracting(item -> item.overdueDays())
-                .containsExactly(4L, 2L, 2L, 1L);
+                .containsExactly(3L, 1L, 1L, 0L);
         assertThat(actual.get(0).readerName()).isEqualTo("Bạn đọc A");
         assertThat(actual.get(0).readerPhone()).isEqualTo("0901000001");
         assertThat(actual.get(0).bookTitle()).isEqualTo("Sách A");
         assertThat(actual.get(1).readerPhone()).isNull();
-        verifyNoInteractions(calendar);
+        verify(calendar).calculateOverdueOpenDays(Set.of(
+                LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 7), LocalDate.of(2026, 10, 8)),
+                LocalDate.of(2026, 10, 9));
     }
 
     @Test
-    void closedDaysRemainPartOfOverdueDayCount() {
+    void closedDaysAreNotIncludedInReturnedCount() {
         service = serviceAt("2026-10-11T18:00:00Z"); // 01:00 thứ Hai 12/10 tại Việt Nam
         OffsetDateTime todayStart = OffsetDateTime.parse("2026-10-12T00:00:00+07:00");
         when(loans.findOpenOverdue(todayStart)).thenReturn(List.of(
                 row(1L, 11L, "PM-001", "Bạn đọc A", "0901000001", "Sách A", "2026-10-09T10:00:00+07:00")
         ));
 
-        assertThat(service.overdueLoans(12L).get(0).overdueDays()).isEqualTo(3L);
-        verifyNoInteractions(calendar);
+        when(calendar.calculateOverdueOpenDays(Set.of(LocalDate.of(2026, 10, 9)),
+                LocalDate.of(2026, 10, 12)))
+                .thenReturn(Map.of(LocalDate.of(2026, 10, 9), 1L));
+
+        assertThat(service.overdueLoans(12L).get(0).overdueDays()).isEqualTo(1L);
+    }
+
+
+    @Test
+    void everyRequestRecalculatesUsingCurrentVietnamDate() {
+        OffsetDateTime fridayStart = OffsetDateTime.parse("2026-10-09T00:00:00+07:00");
+        OffsetDateTime mondayStart = OffsetDateTime.parse("2026-10-12T00:00:00+07:00");
+        var item = row(1L, 11L, "PM-001", "Bạn đọc A", null, "Sách A", "2026-10-08T10:00:00+07:00");
+        when(loans.findOpenOverdue(fridayStart)).thenReturn(List.of(item));
+        when(loans.findOpenOverdue(mondayStart)).thenReturn(List.of(item));
+        when(calendar.calculateOverdueOpenDays(Set.of(LocalDate.of(2026, 10, 8)),
+                LocalDate.of(2026, 10, 9))).thenReturn(Map.of(LocalDate.of(2026, 10, 8), 1L));
+        when(calendar.calculateOverdueOpenDays(Set.of(LocalDate.of(2026, 10, 8)),
+                LocalDate.of(2026, 10, 12))).thenReturn(Map.of(LocalDate.of(2026, 10, 8), 2L));
+
+        assertThat(service.overdueLoans(12L).get(0).overdueDays()).isEqualTo(1L);
+        service = serviceAt("2026-10-11T18:00:00Z");
+        assertThat(service.overdueLoans(12L).get(0).overdueDays()).isEqualTo(2L);
+        verify(calendar).calculateOverdueOpenDays(Set.of(LocalDate.of(2026, 10, 8)), LocalDate.of(2026, 10, 9));
+        verify(calendar).calculateOverdueOpenDays(Set.of(LocalDate.of(2026, 10, 8)), LocalDate.of(2026, 10, 12));
     }
 
     @Test

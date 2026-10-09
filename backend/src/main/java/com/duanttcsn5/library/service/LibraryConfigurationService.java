@@ -519,6 +519,68 @@ public class LibraryConfigurationService {
                 adjusted.adjustedDate(), dueAt, adjusted.adjusted(), adjusted.skippedClosedDates());
     }
 
+    /**
+     * S3-09.2: count configured open dates in (dueDate, today], in Vietnam local dates.
+     * Use one weekly schedule and one date-ranged closure query for the entire list,
+     * rather than issuing queries for each overdue loan item.
+     *
+     * Provisional policy pending PO: the deadline itself does not count; today counts
+     * when the library is open. Missing/incomplete weekday configuration is an error,
+     * never silently treated as an open or closed date.
+     */
+    @Transactional(readOnly = true)
+    public Map<LocalDate, Long> calculateOverdueOpenDays(Set<LocalDate> dueDates, LocalDate today) {
+        if (today == null || dueDates == null || dueDates.isEmpty()) {
+            return Map.of();
+        }
+        Set<LocalDate> eligibleDates = new HashSet<>();
+        for (LocalDate date : dueDates) {
+            if (date != null && date.isBefore(today)) {
+                eligibleDates.add(date);
+            }
+        }
+        if (eligibleDates.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Integer, LibraryWeeklySchedule> weekly = loadWeeklySchedule();
+        for (LibraryWeeklySchedule day : weekly.values()) {
+            if (day.isOpen() && (day.getOpenTime() == null || day.getCloseTime() == null
+                    || !day.getCloseTime().isAfter(day.getOpenTime()))) {
+                throw new ApiException(HttpStatus.CONFLICT, "WEEKLY_SCHEDULE_INVALID",
+                        "Ngày mở cửa chưa có giờ mở và đóng cửa hợp lệ. Vui lòng kiểm tra lịch thư viện.");
+            }
+        }
+
+        LocalDate firstDueDate = eligibleDates.stream().min(LocalDate::compareTo).orElseThrow();
+        Set<LocalDate> explicitlyClosed = new HashSet<>();
+        for (LibraryClosedDate closed : closedDateRepository
+                .findAllByClosedDateBetweenOrderByClosedDateAsc(firstDueDate.plusDays(1), today)) {
+            explicitlyClosed.add(closed.getClosedDate());
+        }
+
+        // All deadlines are measured against the same today, so subtract the open-day
+        // prefix at each deadline from the total prefix at today.
+        Map<LocalDate, Long> openDaysUntilDue = new HashMap<>();
+        long openDaysUntilToday = 0;
+        for (LocalDate date = firstDueDate; !date.isAfter(today); date = date.plusDays(1)) {
+            // The first date is the earliest due date, so never count it.
+            if (date.isAfter(firstDueDate)
+                    && weekly.get(date.getDayOfWeek().getValue()).isOpen()
+                    && !explicitlyClosed.contains(date)) {
+                openDaysUntilToday++;
+            }
+            if (eligibleDates.contains(date)) {
+                openDaysUntilDue.put(date, openDaysUntilToday);
+            }
+        }
+        Map<LocalDate, Long> results = new HashMap<>();
+        for (LocalDate dueDate : eligibleDates) {
+            results.put(dueDate, openDaysUntilToday - openDaysUntilDue.get(dueDate));
+        }
+        return Map.copyOf(results);
+    }
+
     private Map<Integer, LibraryWeeklySchedule> loadWeeklySchedule() {
         Map<Integer, LibraryWeeklySchedule> byDay = new HashMap<>();
         for (LibraryWeeklySchedule day : weeklyScheduleRepository.findAllByOrderByDayOfWeekAsc()) {
