@@ -82,8 +82,12 @@ export function CancellationAudit({ audit }: { audit: ReservationCancellationAud
 }
 
 export function CancellationNotice({ result }: { result: CancelReservationResult }) {
-  return <div role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-    <p className="font-semibold">{result.message}</p>
+  const [notice, setNotice] = useState(result.message)
+  useEffect(() => { setNotice(result.message) }, [result])
+  return <>
+    {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} className="mb-4" />}
+    <div role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+    <p className="font-semibold">Kết quả xử lý đơn đã huỷ</p>
     <CancellationAudit audit={result.cancellation} />
     {result.copyOutcome === 'TRANSFERRED' && <p className="mt-2">
       Bản sao {result.barcode} đang được giữ cho {result.nextReaderName}, đơn #{result.nextReservationId}.
@@ -91,5 +95,5 @@ export function CancellationNotice({ result }: { result: CancelReservationResult
     </p>}
     {result.copyOutcome === 'AVAILABLE' && <p className="mt-2">Bản sao {result.barcode} đã về trạng thái Sẵn sàng.</p>}
     {result.copyOutcome === 'NO_COPY' && <p className="mt-2">Đơn chưa có bản sao được gán. Hàng đợi đã được cập nhật.</p>}
-  </div>
+  </div></>
 }

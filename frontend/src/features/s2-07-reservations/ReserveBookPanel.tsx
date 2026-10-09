@@ -33,6 +33,7 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
   const [submitting, setSubmitting] = useState(false)
   const [loadingMine, setLoadingMine] = useState(roleAllowed)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [reservation, setReservation] = useState<BookReservation | null>(null)
   const [batch, setBatch] = useState<BookReservationBatch | null>(null)
   const [activeCount, setActiveCount] = useState(0)
@@ -108,16 +109,19 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
     pending.current = true
     setSubmitting(true)
     setError('')
+    setNotice('')
     setReservation(null)
     setBatch(null)
     try {
       if (canChooseQuantity) {
         const result = await reservationService.reserveMany(bookId, quantity)
         setBatch(result)
+        setNotice(result.message)
         setActiveCount(result.activeReservationCount)
       } else {
         const result = await reservationService.reserve(bookId)
         setReservation(result)
+        setNotice(result.message)
         setActiveCount((current) => Math.min(MAX_ACTIVE_RESERVATIONS, current + 1))
       }
       onReserved()
@@ -192,9 +196,11 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
 
       {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} className="mt-4" />}
 
+      {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} className="mt-4" />}
+
       {batch && (
         <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <p className="font-semibold">{batch.message}</p>
+          <p className="font-semibold">Thông tin các đơn vừa tạo</p>
           <p className="mt-1">Đã tạo {batch.createdCount} đơn. Bạn còn {batch.remainingActiveSlots} lượt đặt giữ đang hiệu lực.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {batch.reservations.map((item, index) => (
@@ -211,7 +217,7 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
 
       {reservation && (
         <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <p className="font-semibold">{reservation.message}</p>
+          <p className="font-semibold">Thông tin đơn đặt giữ</p>
           <p className="mt-1">Mã đơn: #{reservation.id} · Trạng thái: {reservation.status === 'READY_FOR_PICKUP' ? 'Sẵn sàng đến nhận' : 'Đang chờ'}</p>
           <p className="mt-1">Thời điểm đặt giữ: {formatDate(reservation.reservedAt)}</p>
           {reservation.status === 'READY_FOR_PICKUP' && reservation.reservedCopy && reservation.pickupDeadline ? (

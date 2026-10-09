@@ -158,6 +158,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
         submitted.current.id, bypassDraft, overrideReason)
       if (!active.current) return
       setCompleted(result); setAwaitingResult(false)
+      setNotice(`Đã ghi toàn bộ ${result.loan.items.length} sách vào phiếu mượn. ${result.message}`)
       onCreated?.(result)
     } catch (e: unknown) {
       if (!active.current) return
@@ -174,10 +175,8 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   }
 
   if (completed) return <Card className="p-4 sm:p-6">
-    <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
-      <p className="font-semibold">Đã ghi toàn bộ {completed.loan.items.length} sách vào phiếu mượn</p>
-      <p>{completed.message}</p>
-    </div>
+    {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
+    <h3 className="font-semibold text-slate-900">Thông tin phiếu mượn · {completed.loan.items.length} sách</h3>
     <dl className="mt-5 grid gap-4 sm:grid-cols-2">
       <div className="min-w-0"><dt className="text-sm text-slate-500">Số phiếu mượn</dt><dd className="mt-1 break-all font-mono text-sm font-semibold text-slate-900">{completed.loan.loanNumber}</dd></div>
       <div className="min-w-0"><dt className="text-sm text-slate-500">Người lập phiếu</dt><dd className="mt-1 break-words font-semibold text-slate-900">{completed.loan.createdByName}</dd></div>

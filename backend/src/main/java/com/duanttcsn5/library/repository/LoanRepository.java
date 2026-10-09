@@ -21,6 +21,34 @@ public class LoanRepository {
 
     public LoanRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    public record ReturnLookupRow(Long copyId, String barcode, String bookTitle,
+                                  Long loanId, String loanNumber, Long itemId,
+                                  Long readerId, String readerName,
+                                  OffsetDateTime borrowedAt, OffsetDateTime dueAt) {}
+
+    /** One statement distinguishes an absent barcode from an existing, unborrowed copy.
+     * The partial unique index ux_copy_unreturned_loan guarantees at most one open item.
+     * Do not infer the borrower from copy status or from a historical returned item.
+     */
+    public Optional<ReturnLookupRow> findReturnLookup(String barcode) {
+        return jdbc.query("""
+                SELECT c.id AS copy_id, c.barcode, b.title, li.id AS item_id,
+                       l.id AS loan_id, l.loan_number, l.borrower_user_id,
+                       reader.full_name AS reader_name, li.borrowed_at, li.due_date
+                FROM book_copies c
+                JOIN books b ON b.id = c.book_id
+                LEFT JOIN loan_items li ON li.book_copy_id = c.id AND li.returned_at IS NULL
+                LEFT JOIN loans l ON l.id = li.loan_id
+                LEFT JOIN users reader ON reader.id = l.borrower_user_id
+                WHERE c.barcode = ?
+                """, (rs, index) -> new ReturnLookupRow(rs.getLong("copy_id"),
+                rs.getString("barcode"), rs.getString("title"), rs.getObject("loan_id", Long.class),
+                rs.getString("loan_number"), rs.getObject("item_id", Long.class),
+                rs.getObject("borrower_user_id", Long.class), rs.getString("reader_name"),
+                rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("due_date", OffsetDateTime.class)), barcode).stream().findFirst();
+    }
+
     public record DirectRequest(Long loanId, Long actorId, String fingerprint) {}
     public record CopyIdentity(Long copyId, Long bookId) {}
 

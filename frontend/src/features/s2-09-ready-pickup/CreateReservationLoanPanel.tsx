@@ -33,6 +33,7 @@ export default function CreateReservationLoanPanel({
   const canOverride = isManager && !!readerCheck && (readerCheck.blockReasons?.length ?? 0) > 0
     && (readerCheck.blockReasons ?? []).every((r) => ALLOWED_OVERRIDES.has(r.code))
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [dismissedError, setDismissedError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<ReservationLoanResult | null>(null)
@@ -136,6 +137,7 @@ export default function CreateReservationLoanPanel({
       const created = await pickupService.createLoan(reservation.id, confirmed, preview,
         requestIdRef.current, overrideRequested, overrideReason)
       setResult(created)
+      setNotice(created.message)
       onSuccess(created)
     } catch (e: unknown) {
       setError(getApiErrorMessage(e, 'Không lập được phiếu mượn. Vui lòng thử lại.'))
@@ -160,8 +162,9 @@ export default function CreateReservationLoanPanel({
       {reservation.cardNumber || 'Chưa có thẻ thư viện'}
     </strong></p>
     {error && error !== dismissedError && <FeedbackAlert message={error} tone="error" onDismiss={() => setDismissedError(error)} className="mt-3" />}
+    {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} className="mt-3" />}
     {result ? <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-      <p className="font-semibold">{result.message}</p>
+      <p className="font-semibold">Thông tin phiếu mượn đã lập</p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <div>Đơn đặt giữ: <StatusBadge status="FULFILLED" label="Đã chuyển thành phiếu mượn" /></div>
         <div>Bản sao: <StatusBadge status="BORROWED" label="Đang mượn" /></div>
