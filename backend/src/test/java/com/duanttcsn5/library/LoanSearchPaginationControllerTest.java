@@ -94,6 +94,21 @@ class LoanSearchPaginationControllerTest {
     }
 
     @Test
+    void aMissingCodeReturnsAnActionableReasonWithoutChangingTheResponseShape() throws Exception {
+        token("LIBRARIAN");
+        when(service.searchLoans("TV-DOES-NOT-EXIST", 0, 12L))
+                .thenReturn(new LoanSearchPageResponse(List.of(), 0, 20, 0,
+                        "CODE_NOT_FOUND"));
+        mvc.perform(get("/api/v1/loans/search").param("code", "TV-DOES-NOT-EXIST")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.emptyReason").value("CODE_NOT_FOUND"));
+    }
+
+    @Test
     void defaultsToFirstPageAndRejectsInvalidPageViaExistingErrors() throws Exception {
         token("ADMIN");
         when(service.searchLoans("TV-0001", 0, 12L))

@@ -61,11 +61,18 @@ export interface LoanSearchFilters {
   status: '' | LoanSearchResult['status']
 }
 
+export type LoanSearchEmptyReason =
+  | 'CODE_NOT_FOUND'
+  | 'NO_LOANS_FOR_CODE'
+  | 'NO_LOANS_MATCH_FILTERS'
+
 export interface LoanSearchPage {
   items: LoanSearchResult[]
   page: number // zero-based, matching the backend
   size: number
   total: number
+  /** Absent for successful searches, or for pages outside the result range. */
+  emptyReason?: LoanSearchEmptyReason | null
 }
 
 export function formatLoanTimestamp(value: string | null, dateOnly = false): string {

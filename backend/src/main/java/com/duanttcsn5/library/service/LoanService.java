@@ -1051,7 +1051,20 @@ public class LoanService {
             return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
                     header.readerName(), header.borrowedAt(), loanStatus, items);
         }).toList();
-        return new LoanSearchPageResponse(pageItems, page, size, total);
+        // Determine the reason only for a genuinely empty search, never for a page beyond
+        // the last result. The existing count/query/order and authorization stay intact.
+        String emptyReason = null;
+        if (total == 0L) {
+            if (hasFilters && loans.countLoansByCode(code) > 0L) {
+                emptyReason = "NO_LOANS_MATCH_FILTERS";
+            } else if (loans.existsByLoanNumber(code)
+                    || cards.existsByCardNumber(code) || copies.existsByBarcode(code)) {
+                emptyReason = "NO_LOANS_FOR_CODE";
+            } else {
+                emptyReason = "CODE_NOT_FOUND";
+            }
+        }
+        return new LoanSearchPageResponse(pageItems, page, size, total, emptyReason);
     }
 
     private static LocalDate parseLoanSearchDate(String raw) {
