@@ -15,6 +15,9 @@ import com.duanttcsn5.library.service.ReaderSelfService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -138,5 +141,20 @@ public class ReaderController {
             return ResponseEntity.ok(readerRegistrationService.getReaderLoanHistory(id));
         }
         return ResponseEntity.ok(readerRegistrationService.getReaderLoanHistory(id, fromDate, toDate));
+    }
+    /** S3-10.4: permissions match the loan-history screen, including direct API calls. */
+    @GetMapping(value = "/{id}/loan-history/export", produces = "text/csv;charset=UTF-8")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER')")
+    public ResponseEntity<byte[]> exportReaderLoanHistory(
+            @PathVariable Long id,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        var export = readerRegistrationService.exportReaderLoanHistory(id, fromDate, toDate);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(export.filename()).build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("X-CSV-Row-Count", Integer.toString(export.rowCount()))
+                .body(export.content());
     }
 }

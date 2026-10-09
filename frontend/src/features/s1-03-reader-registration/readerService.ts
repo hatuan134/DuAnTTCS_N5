@@ -100,7 +100,53 @@ export function validateReaderHistoryDates(filters: ReaderHistoryFilters): Reade
   return null
 }
 
+export interface ReaderHistoryCsvExport {
+  blob: Blob
+  filename: string
+  rowCount: number
+}
+
+export function downloadReaderHistoryCsv(result: ReaderHistoryCsvExport): void {
+  const url = URL.createObjectURL(result.blob)
+  const anchor = document.createElement('a')
+  try {
+    anchor.href = url
+    anchor.download = result.filename
+    document.body.appendChild(anchor)
+    anchor.click()
+  } finally {
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+}
+
 export const readerService = {
+  exportLoanHistory: async (id: number, filters: ReaderHistoryFilters): Promise<ReaderHistoryCsvExport> => {
+    try {
+      const response = await apiClient.get<Blob>(`/readers/${id}/loan-history/export`, {
+        responseType: 'blob',
+        params: {
+          ...(filters.fromDate.trim() ? { fromDate: filters.fromDate.trim() } : {}),
+          ...(filters.toDate.trim() ? { toDate: filters.toDate.trim() } : {}),
+        },
+      })
+      const disposition = String(response.headers['content-disposition'] ?? '')
+      const filename = /filename="?([A-Za-z0-9_.-]+\.csv)"?/i.exec(disposition)?.[1]
+      const rowCount = Number(response.headers['x-csv-row-count'])
+      if (!filename || !Number.isSafeInteger(rowCount) || rowCount < 0) {
+        throw new Error('Không nhận được thông tin tệp CSV hợp lệ. Vui lòng thử lại.')
+      }
+      return { blob: response.data, filename, rowCount }
+    } catch (error) {
+      // Axios receives JSON error responses as a Blob when responseType is blob.
+      const failure = error as { response?: { data?: unknown } }
+      if (failure.response?.data instanceof Blob) {
+        try { failure.response.data = JSON.parse(await failure.response.data.text()) } catch { /* Keep fallback message. */ }
+      }
+      throw error
+    }
+  },
+
   getLoanHistory: async (id: number, filters?: ReaderHistoryFilters): Promise<ReaderLoanHistoryResponse> => {
     const fromDate = filters?.fromDate.trim()
     const toDate = filters?.toDate.trim()

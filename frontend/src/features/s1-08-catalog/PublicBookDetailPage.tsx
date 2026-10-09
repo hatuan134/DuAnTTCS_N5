@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
 import { useEffect, useState } from 'react'
 import {
@@ -56,6 +57,7 @@ export default function PublicBookDetailPage() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
 
   useEffect(() => {
     const id = Number(bookId)
@@ -69,7 +71,7 @@ export default function PublicBookDetailPage() {
     let running = false
     let queued = false
     setLoading(true)
-    setError('')
+    setError(''); setErrorNotice('')
 
     const loadBook = async (background = false) => {
       if (background && document.hidden) return
@@ -89,7 +91,8 @@ export default function PublicBookDetailPage() {
       } catch {
         if (active && !background) {
           setBook(null)
-          setError('Không tìm thấy đầu sách trên trang tra cứu công khai.')
+          const message = 'Không tìm thấy đầu sách trên trang tra cứu công khai.'
+          setError(message); setErrorNotice(message)
         }
       } finally {
         running = false
@@ -159,18 +162,10 @@ export default function PublicBookDetailPage() {
           </div>
         )}
 
-        {!loading && error && (
-          <div
-            role="alert"
-            className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm"
-          >
-            <AlertCircle size={20} className="shrink-0 text-red-500 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-800">Thông báo</p>
-              <p className="mt-1">{error}</p>
-            </div>
-          </div>
-        )}
+        {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mt-6" />}
+        {!loading && error && <div role="status" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
+          {error === 'Mã đầu sách không hợp lệ.' ? error : 'Không thể hiển thị đầu sách này. Quay lại tra cứu để chọn đầu sách khác.'}
+        </div>}
 
         {!loading && !error && book && (
           <article className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

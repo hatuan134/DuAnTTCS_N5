@@ -38,6 +38,7 @@ export default function MyReservationsPage() {
   const [items, setItems] = useState<MyBookReservation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
   const [confirming, setConfirming] = useState<MyBookReservation | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -54,14 +55,15 @@ export default function MyReservationsPage() {
       if (!active || pending || cancellingRef.current) return
       pending = true
       setLoading(true)
-      setError('')
+      setError(''); setErrorNotice('')
       try {
         const data = await reservationService.listMine()
         if (active) setItems(data)
       } catch (e) {
         if (active) {
           setItems([])
-          setError(getApiErrorMessage(e, 'Không tải được đơn đặt giữ. Vui lòng thử lại.'))
+          const message = getApiErrorMessage(e, 'Không tải được đơn đặt giữ. Vui lòng thử lại.')
+          setError(message); setErrorNotice(message)
         }
       } finally {
         pending = false
@@ -124,6 +126,7 @@ export default function MyReservationsPage() {
         Ngày giờ theo Việt Nam (UTC+7). Vị trí được tính trong hàng đợi của từng đầu sách.
         {' '}Nhấn Làm mới hoặc quay lại cửa sổ để cập nhật.
       </p>
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
       {success && <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} className="mb-4" />}
       {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} className="mb-4" />}
       {confirming && <Card className="mb-4 border border-red-200 p-5">
@@ -141,8 +144,8 @@ export default function MyReservationsPage() {
             onClick={() => void cancelConfirmed()}>Xác nhận huỷ</Button>
         </div>
       </Card>}
-      {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-        {error} Nhấn “Làm mới” để thử lại.
+      {error && <div role="status" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+        Chưa tải được đơn đặt giữ. Nhấn “Làm mới” để thử lại.
       </div>}
       {loading && <div role="status"><LoadingState /></div>}
       {!loading && !error && items.length === 0 && <>
