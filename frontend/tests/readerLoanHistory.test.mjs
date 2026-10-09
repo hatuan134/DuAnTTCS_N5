@@ -35,6 +35,7 @@ function hooksFixture() {
     unmount() { for (const slot of slots) slot?.cleanup?.() },
   }
 }
+const permissions = load('../src/features/s1-03-reader-registration/readerPermissions.ts', {})
 const returnHelpers = load('../src/features/s3-07-returns/returnService.ts', {
   '../../core/api/apiClient': { apiClient: {} },
 })
@@ -66,6 +67,7 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
     '../../components/ui/TablePagination': { __esModule: true, default: Stub },
     '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: e => e.message },
+    './readerPermissions': permissions,
     './pickupService': { formatPickupDate: v => v, pickupService: {} }, ...imports,
   }
   const Component = load(path, dependencies, { window: { confirm: () => true }, ...extra })[exported]

@@ -5,6 +5,7 @@ import com.duanttcsn5.library.security.RestAccessDeniedHandler;
 import com.duanttcsn5.library.security.RestAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -52,6 +53,8 @@ public class SecurityConfig {
                                 "/api/v1/books/public/**",
                                 "/error")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/readers/*/loan-history")
+                        .hasAnyRole("LIBRARIAN", "LIBRARY_MANAGER")
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(exceptions -> exceptions

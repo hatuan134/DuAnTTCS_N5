@@ -17,7 +17,9 @@ export default function CreateBookCopyForm({ bookId, bookTitle, onCancel }: {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
   const [shelves, setShelves] = useState<ShelfItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
+  const [loadError, setLoadErrorState] = useState('')
+  const [loadErrorNotice, setLoadErrorNotice] = useState('')
+  const setLoadError = (message: string) => { setLoadErrorState(message); setLoadErrorNotice(message) }
   const [reload, setReload] = useState(0)
   const [barcodeMode, setBarcodeMode] = useState<BarcodeMode>('AUTO')
   const [barcode, setBarcode] = useState('')
@@ -93,7 +95,8 @@ export default function CreateBookCopyForm({ bookId, bookTitle, onCancel }: {
       <p className="mt-2 text-sm text-slate-600">Đầu sách: <strong>{bookTitle}</strong> (#{bookId}). Bản sao sẽ được gắn cố định với đầu sách này.</p>
       <p className="mt-1 text-sm text-slate-500">Các trường có dấu * là bắt buộc. Trạng thái khi tạo: Sẵn sàng.</p>
       {loading && <p role="status" className="mt-4">Đang tải kho và kệ…</p>}
-      {loadError && <div role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">{loadError} <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Tải lại</Button></div>}
+      {loadErrorNotice && <FeedbackAlert message={loadErrorNotice} tone="error" onDismiss={() => setLoadErrorNotice('')} className="mt-4" />}
+      {loadError && <div role="status" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">Chưa tải được kho và kệ. <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Tải lại</Button></div>}
       {!loading && !loadError && warehouses.length === 0 && <p className="mt-4 text-amber-700">Chưa có kho hoạt động. Vui lòng liên hệ quản lý thư viện.</p>}
       <form onSubmit={submit} className="mt-5" noValidate>
         <fieldset disabled={saving || loading || !!loadError}>

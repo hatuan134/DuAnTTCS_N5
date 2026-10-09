@@ -100,10 +100,10 @@ class ReaderLoanHistoryControllerTest {
     }
 
     @Test
-    void existingStaffRolesReceiveSummaryAndHistory() throws Exception {
+    void onlyLibrarianAndManagerReceiveSummaryAndHistory() throws Exception {
         when(service.getReaderLoanHistory(20L)).thenReturn(
                 new ReaderLoanHistoryResponse(null, 1, 2, 1, List.of()));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER"}) {
             token(role);
             mvc.perform(get(URL).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isOk())
@@ -130,10 +130,10 @@ class ReaderLoanHistoryControllerTest {
     }
 
     @Test
-    void acceptsOptionalDateParametersWithoutChangingStaffRolesOrResponseShape() throws Exception {
+    void authorizedRolesReceiveFilteredHistoryWithSameResponseShape() throws Exception {
         when(service.getReaderLoanHistory(20L, "2026-10-01", "2026-10-09"))
                 .thenReturn(new ReaderLoanHistoryResponse(null, 2, 4, 1, List.of()));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER"}) {
             token(role);
             mvc.perform(get(URL).param("fromDate", "2026-10-01").param("toDate", "2026-10-09")
                             .header("Authorization", "Bearer test-token"))
@@ -167,6 +167,55 @@ class ReaderLoanHistoryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_READER_HISTORY_DATE_RANGE"))
                 .andExpect(jsonPath("$.message").value("Từ ngày không được lớn hơn Đến ngày."));
+    }
+
+    @Test
+    void deniedRolesReceiveNoHistoryForAnyFilterOrReaderId() throws Exception {
+        for (String role : new String[]{"READER", "ADMIN", "AUDITOR", "UNKNOWN"}) {
+            token(role);
+            for (String readerId : new String[]{"20", "999", "0", "abc"}) {
+                for (String query : new String[]{"", "?fromDate=2026-10-01", "?toDate=2026-10-09",
+                        "?fromDate=2026-10-01&toDate=2026-10-09", "?fromDate=invalid"}) {
+                    mvc.perform(get("/api/v1/readers/" + readerId + "/loan-history" + query)
+                                    .header("Authorization", "Bearer test-token"))
+                            .andExpect(status().isForbidden())
+                            .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                            .andExpect(jsonPath("$.profile").doesNotExist())
+                            .andExpect(jsonPath("$.openLoanCount").doesNotExist())
+                            .andExpect(jsonPath("$.totalBorrowCount").doesNotExist())
+                            .andExpect(jsonPath("$.lateReturnCount").doesNotExist())
+                            .andExpect(jsonPath("$.loans").doesNotExist())
+                            .andExpect(jsonPath("$.details.*").doesNotExist());
+                }
+            }
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void anonymousReceivesNoHistoryWithOrWithoutFilters() throws Exception {
+        for (String query : new String[]{"", "?fromDate=2026-10-01&toDate=2026-10-09"}) {
+            mvc.perform(get(URL + query)).andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                    .andExpect(jsonPath("$.profile").doesNotExist())
+                    .andExpect(jsonPath("$.openLoanCount").doesNotExist())
+                    .andExpect(jsonPath("$.totalBorrowCount").doesNotExist())
+                    .andExpect(jsonPath("$.lateReturnCount").doesNotExist())
+                    .andExpect(jsonPath("$.loans").doesNotExist());
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void adminCanStillReadBasicProfileAndList() throws Exception {
+        token("ADMIN");
+        when(service.getAllReaders()).thenReturn(List.of());
+        mvc.perform(get("/api/v1/readers").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/readers/20").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(service).getAllReaders();
+        org.mockito.Mockito.verify(service).getReaderById(20L);
     }
 
     @Test

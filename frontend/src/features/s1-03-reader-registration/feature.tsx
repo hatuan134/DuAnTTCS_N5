@@ -9,6 +9,9 @@ import type {
 import RegisterPage from './RegisterPage'
 import ReadersPage from './ReadersPage'
 import ReaderProfilePage from './ReaderProfilePage'
+import ReaderBasicProfilePage from './ReaderBasicProfilePage'
+import ReaderHistoryDenied from './ReaderHistoryDenied'
+import { canViewReaderLoanHistory } from './readerPermissions'
 
 const STAFF_ROLES = [
   'LIBRARIAN',
@@ -16,8 +19,12 @@ const STAFF_ROLES = [
   'ADMIN',
 ]
 
-function StaffReadersPage({ detail = false }: { detail?: boolean }) {
+function StaffReadersPage({ detail = false, basic = false }: { detail?: boolean; basic?: boolean }) {
   const currentUser = getCurrentUser()
+
+  if (detail && !canViewReaderLoanHistory(currentUser?.role)) {
+    return <ReaderHistoryDenied />
+  }
 
   if (
     !currentUser ||
@@ -31,7 +38,7 @@ function StaffReadersPage({ detail = false }: { detail?: boolean }) {
     )
   }
 
-  return detail ? <ReaderProfilePage /> : <ReadersPage />
+  return detail ? <ReaderProfilePage /> : basic ? <ReaderBasicProfilePage /> : <ReadersPage />
 }
 
 const feature: FeatureModule = {
@@ -50,6 +57,10 @@ const feature: FeatureModule = {
     {
       path: 'readers',
       element: <StaffReadersPage />,
+    },
+    {
+      path: 'readers/:readerId/profile',
+      element: <StaffReadersPage basic />,
     },
     {
       path: 'readers/:readerId',
