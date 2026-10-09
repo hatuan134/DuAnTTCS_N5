@@ -29,7 +29,9 @@ export default function BookCopyDetailPage() {
       ? `Đã tạo bản sao thành công. Mã vạch hệ thống cấp: ${createdState.generatedBarcode}.`
       : 'Đã tạo bản sao thành công.'
   })
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [reload, setReload] = useState(0)
   const [editing, setEditing] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -62,7 +64,8 @@ export default function BookCopyDetailPage() {
           className="mb-5"
         />
       )}
-      {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{error} <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Thử lại</Button></div>}
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mt-4" />}
+      {error && <div role="status" className="rounded-lg bg-red-50 p-4 text-red-700">Chưa tải được thông tin bản sao. <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Thử lại</Button></div>}
       {!error && (!copy || copy.id !== id) && <p role="status">Đang tải bản sao…</p>}
       {copy && copy.id === id && <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">

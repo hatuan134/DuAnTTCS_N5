@@ -127,9 +127,9 @@ public class ReaderController {
         return ResponseEntity.ok(readerRegistrationService.getReaderById(id));
     }
 
-    /** S3-10.1: preserve the existing staff profile permissions. */
+    /** S3-10.3: only library managers and librarians may view reader loan history. */
     @GetMapping("/{id}/loan-history")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER')")
     public ResponseEntity<ReaderLoanHistoryResponse> getReaderLoanHistory(
             @PathVariable Long id,
             @RequestParam(required = false) String fromDate,

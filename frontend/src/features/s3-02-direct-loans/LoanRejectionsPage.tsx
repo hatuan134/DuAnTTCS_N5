@@ -32,7 +32,9 @@ export default function LoanRejectionsPage() {
   const [reload, setReload] = useState(0)
   const [data, setData] = useState<LoanRejectionPage | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState('')
+  const [loadError, setLoadErrorState] = useState('')
+  const [loadErrorNotice, setLoadErrorNotice] = useState('')
+  const setLoadError = (message: string) => { setLoadErrorState(message); setLoadErrorNotice(message) }
   const [detail, setDetail] = useState<LoanRejection | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [detailError, setDetailError] = useState('')
@@ -104,7 +106,8 @@ export default function LoanRejectionsPage() {
         <span className="text-sm text-slate-600">{data ? `${data.total} lần` : '—'}</span>
       </div>
       {loading && <p role="status" className="p-5 text-sm text-slate-600">Đang tải nhật ký…</p>}
-      {!loading && loadError && <div className="p-4"><p role="alert" className="text-sm text-red-700">{loadError}</p><Button variant="secondary" type="button" onClick={() => setReload((v) => v + 1)}>Thử lại</Button></div>}
+      {loadErrorNotice && <FeedbackAlert message={loadErrorNotice} tone="error" onDismiss={() => setLoadErrorNotice('')} />}
+      {!loading && loadError && <div className="p-4"><p role="status" className="text-sm text-slate-700">Chưa tải được nhật ký từ chối cho mượn.</p><Button variant="secondary" type="button" onClick={() => setReload((v) => v + 1)}>Thử lại</Button></div>}
       {!loading && data?.items.length === 0 && <p className="p-6 text-sm text-slate-600">Chưa có nhật ký nào phù hợp với bộ lọc hiện tại.</p>}
       {!loading && data && data.items.length > 0 && <div className="divide-y divide-slate-200">
         {data.items.map((item) => <div key={item.id} className="px-4 py-4 sm:px-6">

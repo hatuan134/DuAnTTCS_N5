@@ -20,9 +20,12 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
 import { readerService } from './readerService'
+import { getCurrentUser } from '../../core/auth/authStorage'
+import { canViewReaderLoanHistory } from './readerPermissions'
 import type { ReaderProfileResponse } from './readerService'
 
 export default function ReadersPage() {
+  const canViewHistory = canViewReaderLoanHistory(getCurrentUser()?.role)
   const [readers, setReaders] = useState<ReaderProfileResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setErrorState] = useState('')
@@ -235,8 +238,8 @@ export default function ReadersPage() {
                       {reader.memberCode}
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      <Link to={`/readers/${reader.userId}`} className="text-blue-700 hover:underline"
-                        aria-label={`Xem hồ sơ ${reader.fullName}`}>
+                      <Link to={canViewHistory ? `/readers/${reader.userId}` : `/readers/${reader.userId}/profile`} className="text-blue-700 hover:underline"
+                        aria-label={`${canViewHistory ? 'Xem hồ sơ và lịch sử mượn trả' : 'Xem hồ sơ cơ bản'} ${reader.fullName}`}>
                         {reader.fullName}
                       </Link>
                     </td>

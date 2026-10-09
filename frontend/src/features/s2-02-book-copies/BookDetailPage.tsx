@@ -47,7 +47,9 @@ export default function BookDetailPage() {
   const refreshRef = useRef<() => void>(() => {})
   const copies = summary?.copies ?? []
   const copyPagination = useTablePagination(copies, String(id))
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [showForm, setShowForm] = useState(false)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const [bulkSuccess, setBulkSuccess] = useState<BulkCreateBookCopiesResult | null>(null)
@@ -156,9 +158,10 @@ export default function BookDetailPage() {
         />
       )}
 
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mt-4" />}
       {error && (
-        <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
-          {error}{' '}
+        <div role="status" className="rounded-lg bg-red-50 p-4 text-red-700">
+          Chưa tải được đầu sách và bản sao.{' '}
           <Button
             type="button"
             variant="secondary"

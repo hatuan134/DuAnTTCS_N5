@@ -22,7 +22,9 @@ export default function BulkCreateBookCopiesForm({
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
   const [shelves, setShelves] = useState<ShelfItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
+  const [loadError, setLoadErrorState] = useState('')
+  const [loadErrorNotice, setLoadErrorNotice] = useState('')
+  const setLoadError = (message: string) => { setLoadErrorState(message); setLoadErrorNotice(message) }
   const [reload, setReload] = useState(0)
   const [quantity, setQuantity] = useState('10')
   const [warehouseId, setWarehouseId] = useState('')
@@ -190,9 +192,10 @@ export default function BulkCreateBookCopiesForm({
       </p>
 
       {loading && <p role="status" className="mt-4">Đang tải kho và kệ…</p>}
+      {loadErrorNotice && <FeedbackAlert message={loadErrorNotice} tone="error" onDismiss={() => setLoadErrorNotice('')} className="mt-4" />}
       {loadError && (
-        <div role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">
-          {loadError}{' '}
+        <div role="status" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">
+          Chưa tải được kho và kệ.{' '}
           <Button type="button" variant="secondary" onClick={() => setReload((value) => value + 1)}>
             Tải lại
           </Button>

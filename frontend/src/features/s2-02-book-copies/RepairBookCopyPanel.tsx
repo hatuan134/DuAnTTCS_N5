@@ -12,7 +12,9 @@ export default function RepairBookCopyPanel({ copy, onSaved }: { copy: BookCopy;
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [history, setHistory] = useState<CopyStatusHistory[]>([])
-  const [historyError, setHistoryError] = useState('')
+  const [historyError, setHistoryErrorState] = useState('')
+  const [historyErrorNotice, setHistoryErrorNotice] = useState('')
+  const setHistoryError = (message: string) => { setHistoryErrorState(message); setHistoryErrorNotice(message) }
   const [loading, setLoading] = useState(true)
   const [reload, setReload] = useState(0)
   useEffect(() => {
@@ -51,7 +53,8 @@ export default function RepairBookCopyPanel({ copy, onSaved }: { copy: BookCopy;
     </form> : <p className="mt-3 text-sm text-slate-500">Trạng thái hiện tại không cho phép chuyển sang sửa chữa.</p>}
     <h3 className="mt-6 text-lg font-semibold">Lịch sử thay đổi trạng thái</h3>
     {loading && <p role="status" className="mt-3">Đang tải lịch sử…</p>}
-    {historyError && <div role="alert" className="mt-3 text-red-700">{historyError} <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Tải lại lịch sử</Button></div>}
+    {historyErrorNotice && <FeedbackAlert message={historyErrorNotice} tone="error" onDismiss={() => setHistoryErrorNotice('')} className="mt-4" />}
+      {historyError && <div role="status" className="mt-3 text-red-700">Chưa tải được lịch sử thay đổi trạng thái. <Button type="button" variant="secondary" onClick={() => setReload(v => v + 1)}>Tải lại lịch sử</Button></div>}
     {!loading && !historyError && history.length === 0 && <p className="mt-3 text-sm text-slate-500">Chưa có lịch sử thay đổi trạng thái.</p>}
     {!loading && !historyError && <ol className="mt-3 space-y-3">{history.map(item => <li key={item.id} className="rounded-lg border border-slate-200 p-4 text-sm">
       <p className="font-semibold">{labels[item.previousStatus] || item.previousStatus} → {labels[item.newStatus] || item.newStatus}</p>
