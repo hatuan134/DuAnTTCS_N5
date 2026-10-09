@@ -35,6 +35,9 @@ function hooksFixture() {
     unmount() { for (const slot of slots) slot?.cleanup?.() },
   }
 }
+const returnHelpers = load('../src/features/s3-07-returns/returnService.ts', {
+  '../../core/api/apiClient': { apiClient: {} },
+})
 const FeedbackStub = Object.assign(() => null, { displayName: 'FeedbackAlert' })
 function find(node, predicate) {
   if (!node || typeof node !== 'object') return undefined
@@ -179,7 +182,7 @@ test('return validation warning expires at 3000ms while the field error stays', 
   const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
-    './returnService': { validateReturnBarcode: () => 'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.', returnService: {} },
+    './returnService': { ...returnHelpers, validateReturnBarcode: () => 'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.', returnService: {} },
   }, {}, 'default', { AbortController })
   find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); p.render()
   assert.equal(p.notice().props.tone, 'warning'); verifyTimer(p)
@@ -189,13 +192,14 @@ test('return validation warning expires at 3000ms while the field error stays', 
 
 test('return queue success expires at 3000ms while saved hold details stay', async () => {
   const returned = { message: 'Bản sao được giữ cho Bạn đọc Bình.', copyStatus: 'HELD',
+    copyId: 4, barcode: 'LIB-001', bookTitle: 'Mắt biếc', itemId: 9, loanNumber: 'PM-008',
     returnedAt: '2026-10-09T01:00:00+07:00', returnedByName: 'Thủ thư An', loanStatus: 'RETURNED',
     nextReservationId: 30, nextReaderName: 'Bạn đọc Bình', holdStartedAt: '2026-10-09T01:00:00+07:00',
     pickupDeadline: '2026-10-13T17:00:00+07:00', loanId: 8 }
   const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
-    './returnService': { validateReturnBarcode: () => '', returnService: {
+    './returnService': { ...returnHelpers, validateReturnBarcode: () => '', returnService: {
       lookup: async () => ({ status: 'ON_TIME', bookTitle: 'Mắt biếc', barcode: 'LIB-001', itemId: 9, loanNumber: 'PM-008' }),
       confirm: async () => returned,
     } },
@@ -207,3 +211,49 @@ test('return queue success expires at 3000ms while saved hold details stay', asy
   assert.equal(find(p.tree(), n => n.props?.label === 'Bạn đọc được giữ sách').props.children, returned.nextReaderName)
   assert.equal(find(p.tree(), n => n.props?.label === 'Hạn cuối đến nhận').props.children, returned.pickupDeadline)
 })
+
+for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-error']) {
+  test(`S3-07.4 ${scenario}: 3000ms notice dismissal preserves previous session results`, async () => {
+    const lookups = [], writes = []
+    const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
+      '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
+      '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
+      './returnService': { ...returnHelpers, returnService: {
+        lookup: async code => {
+          lookups.push(code)
+          if (code === 'BAD') throw new Error('Mã vạch không tồn tại.')
+          return { status: 'ON_TIME', bookTitle: `Sách ${code}`, barcode: code,
+            copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12,
+            loanNumber: 'PM-008', readerName: 'Bạn đọc An', dueAt: '2026-10-09T17:00:00+07:00' }
+        },
+        confirm: async (code, itemId) => {
+          writes.push(code)
+          if (code === 'B' && scenario === 'confirmation-error') {
+            const error = new Error('Chưa ghi nhận trả. Dữ liệu giữ nguyên.')
+            error.response = { status: 500 }; throw error
+          }
+          return { message: `Nhận trả ${code} thành công.`, copyStatus: 'AVAILABLE',
+            copyId: code === 'A' ? 1 : 2, itemId, barcode: code, bookTitle: `Sách ${code}`,
+            returnedAt: '2026-10-09T12:00:00+07:00', returnedByName: 'Thủ thư An',
+            loanStatus: 'RETURNED', loanNumber: 'PM-008', loanId: 8 }
+        },
+      } },
+    }, {}, 'default', { AbortController })
+    async function lookupCode(code) {
+      find(p.tree(), n => n.props?.id === 'return-barcode').props.onChange({ target: { value: code } }); p.render()
+      find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
+    }
+    async function confirmCode() {
+      find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); await settle(); p.render()
+    }
+    await lookupCode('A'); await confirmCode()
+    await lookupCode(scenario === 'duplicate' ? 'A' : scenario === 'lookup-error' ? 'BAD' : 'B')
+    if (scenario === 'success' || scenario === 'confirmation-error') await confirmCode()
+    assert.equal(p.notice().props.tone, scenario === 'success' ? 'success' : scenario === 'duplicate' ? 'warning' : 'error')
+    verifyTimer(p)
+    const first = find(p.tree(), n => n.props?.['data-return-result'] === 'SUCCESS')
+    assert.ok(first); assert.ok(text(first).includes('Sách A'))
+    assert.equal(find(p.tree(), n => n.props?.id === 'return-barcode').props.disabled, false)
+    if (scenario === 'duplicate') { assert.equal(lookups.length, 1); assert.equal(writes.length, 1) }
+  })
+}
