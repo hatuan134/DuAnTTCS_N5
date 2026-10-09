@@ -424,41 +424,74 @@ public class LoanRepository {
                 rs.getObject("returned_at", OffsetDateTime.class)), readerId, limit, offset);
     }
 
-    /** S3-08.1: exact matches for any of the three code namespaces, including historical
-     * loans for a copy. The EXISTS clause prevents duplicate loan rows when codes collide;
-     * a loan's individual items are intentionally returned in full for the result display.
+    /** A result is a loan, not an item. Repeated historical barcodes and overlapping
+     * card/loan/barcode matches never multiply the count.
      */
+    public long countLoansByCode(String code) {
+        Long total = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM loans l
+                WHERE l.loan_number = ?
+                   OR EXISTS (SELECT 1 FROM library_cards card
+                              WHERE card.user_id = l.borrower_user_id AND card.card_number = ?)
+                   OR EXISTS (SELECT 1 FROM loan_items matched
+                              JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
+                              WHERE matched.loan_id = l.id AND matched_copy.barcode = ?)
+                """, Long.class, code, code, code);
+        return total == null ? 0L : total;
+    }
+
     public record LoanSearchRow(Long loanId, String loanNumber, String cardNumber,
                                 String readerName, OffsetDateTime borrowedAt,
                                 Long itemId, String barcode, String bookTitle,
                                 OffsetDateTime dueAt, OffsetDateTime returnedAt) {}
 
-    public List<LoanSearchRow> searchLoansByCode(String code) {
+    /** Page over distinct loans BEFORE joining their full item history. Sorting uses the
+     * same returned_at rule as the service's status mapping: partially returned = open.
+     * id DESC is mandatory for a stable boundary when borrowed_at timestamps tie.
+     * A legacy empty loan is not classified as returned.
+     */
+    public List<LoanSearchRow> searchLoansByCode(String code, int limit, long offset) {
         return jdbc.query("""
+                WITH matched_loans AS (
+                    SELECT l.id, l.borrowed_at,
+                           CASE WHEN EXISTS (SELECT 1 FROM loan_items open_item
+                                            WHERE open_item.loan_id = l.id AND open_item.returned_at IS NULL)
+                                  OR NOT EXISTS (SELECT 1 FROM loan_items any_item
+                                                 WHERE any_item.loan_id = l.id)
+                                THEN 0 ELSE 1 END AS status_order
+                    FROM loans l
+                    WHERE l.loan_number = ?
+                       OR EXISTS (SELECT 1 FROM library_cards matched_card
+                                  WHERE matched_card.user_id = l.borrower_user_id
+                                    AND matched_card.card_number = ?)
+                       OR EXISTS (SELECT 1 FROM loan_items matched
+                                  JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
+                                  WHERE matched.loan_id = l.id AND matched_copy.barcode = ?)
+                ), selected_loans AS (
+                    SELECT id, borrowed_at, status_order FROM matched_loans
+                    ORDER BY status_order ASC, borrowed_at DESC, id DESC
+                    LIMIT ? OFFSET ?
+                )
                 SELECT l.id AS loan_id, l.loan_number, card.card_number,
                        reader.full_name AS reader_name, l.borrowed_at,
                        li.id AS item_id, c.barcode, b.title AS book_title,
                        li.due_date, li.returned_at
-                FROM loans l
+                FROM selected_loans selected
+                JOIN loans l ON l.id = selected.id
                 JOIN users reader ON reader.id = l.borrower_user_id
                 LEFT JOIN library_cards card ON card.user_id = l.borrower_user_id
                 LEFT JOIN loan_items li ON li.loan_id = l.id
                 LEFT JOIN book_copies c ON c.id = li.book_copy_id
                 LEFT JOIN books b ON b.id = c.book_id
-                WHERE l.loan_number = ? OR card.card_number = ?
-                   OR EXISTS (
-                       SELECT 1 FROM loan_items matched
-                       JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
-                       WHERE matched.loan_id = l.id AND matched_copy.barcode = ?
-                   )
-                ORDER BY l.borrowed_at DESC, l.id DESC, li.id ASC
+                ORDER BY selected.status_order ASC, selected.borrowed_at DESC,
+                         selected.id DESC, li.id ASC
                 """, (rs, index) -> new LoanSearchRow(
                 rs.getLong("loan_id"), rs.getString("loan_number"),
                 rs.getString("card_number"), rs.getString("reader_name"),
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("item_id", Long.class), rs.getString("barcode"),
                 rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class)), code, code, code);
+                rs.getObject("returned_at", OffsetDateTime.class)), code, code, code, limit, offset);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {
