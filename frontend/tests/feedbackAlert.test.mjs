@@ -36,7 +36,7 @@ function fixture() {
     timerCount: () => timers.size,
   }
 }
-for (const tone of ['success', 'error']) test(`${tone}: remains at 2999ms and dismisses at 3000ms`, () => {
+for (const tone of ['success', 'error', 'warning', 'info']) test(`${tone}: remains at 2999ms and dismisses at 3000ms`, () => {
   const f = fixture(); let calls = 0
   f.render({ message: 'Kết quả thao tác', tone, onDismiss: () => calls++ })
   f.advance(2999); assert.equal(calls, 0)

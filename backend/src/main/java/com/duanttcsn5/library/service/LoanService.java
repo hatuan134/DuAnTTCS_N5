@@ -1,5 +1,6 @@
 package com.duanttcsn5.library.service;
 
+import com.duanttcsn5.library.dto.loan.ReturnLookupResponse;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
 import com.duanttcsn5.library.dto.loan.LoanRejectionResponse;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse.BlockReason;
@@ -108,6 +109,42 @@ public class LoanService {
         this.configuration = configuration;
         this.clock = clock;
         this.rejectionLogs = rejectionLogs;
+    }
+
+    /** S3-07.1. PO policy: calendar days in Vietnam, including closed dates.
+     * Keep the stored deadline; creation/renewal already owns deadline adjustment.
+     * Today equal to the deadline is on time, even after its stored closing hour.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ReturnLookupResponse lookupReturn(String barcode, Long actorId) {
+        requireStaff(actorId);
+        String normalized = barcode == null ? "" : barcode.trim();
+        if (normalized.isEmpty() || normalized.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BARCODE",
+                    "Vui lòng nhập mã vạch từ 1 đến 100 ký tự.");
+        }
+        var row = loans.findReturnLookup(normalized).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "COPY_BARCODE_NOT_FOUND",
+                        "Mã vạch này không tồn tại trong thư viện."));
+        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        String status;
+        String message;
+        Long overdueDays = null;
+        if (row.itemId() == null) {
+            status = "NOT_BORROWED";
+            message = "Bản sao này hiện không có ai mượn.";
+        } else if (row.dueAt() == null) {
+            status = "MISSING_DUE_DATE";
+            message = "Phiếu mượn chưa có hạn trả; chưa thể xác định số ngày trễ.";
+        } else {
+            LocalDate dueDate = row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
+            overdueDays = Math.max(0L, ChronoUnit.DAYS.between(dueDate, today));
+            status = overdueDays > 0 ? "OVERDUE" : "ON_TIME";
+            message = overdueDays > 0 ? "Sách quá hạn " + overdueDays + " ngày." : "Sách đang trong hạn trả.";
+        }
+        return new ReturnLookupResponse(status, message, row.copyId(), row.barcode(), row.bookTitle(),
+                row.loanId(), row.loanNumber(), row.itemId(), row.readerId(), row.readerName(),
+                row.borrowedAt(), row.dueAt(), today, overdueDays);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)

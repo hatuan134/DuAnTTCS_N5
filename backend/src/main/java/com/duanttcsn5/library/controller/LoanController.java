@@ -167,6 +167,14 @@ public class LoanController {
                 request, principal == null ? null : principal.id()));
     }
 
+    @GetMapping("/loans/return-lookup")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<com.duanttcsn5.library.dto.loan.ReturnLookupResponse> lookupReturn(
+            @RequestParam(defaultValue = "") String barcode,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.lookupReturn(barcode, principal == null ? null : principal.id()));
+    }
+
     @GetMapping("/loans/{loanId}")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanDetailResponse> loanDetail(@PathVariable Long loanId,

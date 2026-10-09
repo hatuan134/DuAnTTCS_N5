@@ -1,9 +1,9 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useState, useMemo } from 'react'
 import {
   RefreshCw,
   Search,
   CheckCircle2,
-  AlertCircle,
   Play,
   RotateCcw,
   Sparkles,
@@ -155,28 +155,8 @@ export default function AutoCancelledReservationsPage() {
       </div>
 
       {/* Thông báo thông tin kết quả quét / lỗi */}
-      {triggerSuccessMsg && (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            <span>{triggerSuccessMsg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setTriggerSuccessMsg(null)}
-            className="text-emerald-700 hover:underline text-xs font-semibold"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-5 w-5 text-red-600" />
-          <span>{error}</span>
-        </div>
-      )}
+      {triggerSuccessMsg && <FeedbackAlert message={triggerSuccessMsg} tone="success" onDismiss={() => setTriggerSuccessMsg(null)} />}
+      {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError(null)} />}
 
       {/* 4 Thẻ thống kê chuẩn giao diện dự án: Nền trắng, viền mỏng, chữ đen to rõ nét */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
