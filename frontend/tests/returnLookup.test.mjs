@@ -39,7 +39,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
   dependencies['../../core/auth/authStorage'] = { getCurrentUser: () => ({ role }) }
   dependencies['../s1-02-user-management/accountService'] = { getApiErrorMessage: (e, fallback) => e?.response?.data?.message ?? fallback }
   dependencies['../s3-01-loans/loanService'] = { loanRoles: ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'], formatLoanTimestamp: value => value ?? 'Chưa có thông tin' }
-  dependencies['./returnService'] = { validateReturnBarcode: serviceModule.validateReturnBarcode, returnService: {
+  dependencies['./returnService'] = { ...serviceModule, returnService: {
     lookup: (...args) => { calls.push(args); return lookup(...args) },
   } }
   const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies).default

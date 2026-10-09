@@ -20,7 +20,7 @@ const serviceModule = evaluate('../src/features/s3-07-returns/returnService.ts',
 })
 
 function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = async () => returnedItem(), accept = true) {
-  const slots = [], effects = [], calls = [], confirmations = []
+  const slots = [], effects = [], calls = [], confirmations = [], focusEvents = []
   let cursor = 0, tree
   const hooks = { ...react,
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
@@ -39,12 +39,21 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   dependencies['../../core/auth/authStorage'] = { getCurrentUser: () => ({ role }) }
   dependencies['../s1-02-user-management/accountService'] = { getApiErrorMessage: (e, fallback) => e?.response?.data?.message ?? fallback }
   dependencies['../s3-01-loans/loanService'] = { loanRoles: ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'], formatLoanTimestamp: value => value ?? 'Chưa có thông tin' }
-  dependencies['./returnService'] = { validateReturnBarcode: serviceModule.validateReturnBarcode, returnService: {
+  dependencies['./returnService'] = { ...serviceModule, returnService: {
     lookup: (...args) => { calls.push(args); return lookup(...args) },
     confirm: (...args) => { confirmations.push(args); return confirm(...args) },
   } }
   const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies, { window: { confirm: () => accept } }).default
-  function render() { cursor = 0; tree = Page(); for (const effect of effects.splice(0)) effect(); return tree }
+  function render() {
+    cursor = 0; tree = Page()
+    const form = find('form')
+    if (form?.ref) form.ref.current = { querySelector: () => ({
+      focus() { focusEvents.push({ action: 'focus', disabled: find('Input').props.disabled }) },
+      select() { focusEvents.push({ action: 'select' }) },
+    }) }
+    for (const effect of effects.splice(0)) effect()
+    return tree
+  }
   function nodes(node) {
     if (!node || typeof node !== 'object') return []
     if (Array.isArray(node)) return node.flatMap(n => nodes(n))
@@ -61,7 +70,9 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   }
   render()
   return {
-    calls, confirmations, render, text: () => text(tree), find,
+    calls, confirmations, focusEvents, render, text: () => text(tree).replace(/\s+/g, ' ').trim(), find,
+    rows: () => nodes(tree).filter(node => node.props?.['data-return-result']),
+    rowText: row => text(row),
     input(value) { find('Input').props.onChange({ target: { value } }); render() },
     submit() { const promise = find('form').props.onSubmit({ preventDefault() {} }); render(); return promise },
     dismiss() { find('FeedbackAlert').props.onDismiss(); render() },
@@ -176,3 +187,184 @@ test('return without an eligible waiter does not show empty reservation details'
   assert.ok(!f.text().includes('Bạn đọc được giữ sách'))
   assert.ok(!f.text().includes('Bắt đầu giữ bản sao'))
 })
+
+// S3-07.4: each barcode is independent; rows and counts belong to the open page.
+async function receive(f, code) {
+  f.input(code); f.submit(); await flush(); f.render()
+  f.confirm(); await flush(); f.render()
+}
+function sequentialFixture(readers = ['Nguyễn An', 'Nguyễn An'], options = {}) {
+  const previews = new Map(readers.map((readerName, i) => {
+    const code = `LIB-${i + 1}`
+    return [code, openItem({ barcode: code, copyId: i + 1, itemId: i + 11,
+      loanId: i + 21, loanNumber: `PM-${i + 21}`, readerId: i + 31, readerName,
+      bookTitle: `Sách ${i + 1}`, dueAt: '2026-10-08T17:00:00Z' })]
+  }))
+  return fixture(options.role ?? 'LIBRARIAN', async code => {
+    const preview = previews.get(code)
+    if (!preview) throw { response: { status: 404, data: { message: 'Mã vạch không tồn tại.' } } }
+    return preview
+  }, async (code, itemId) => {
+    const preview = previews.get(code)
+    return returnedItem({ barcode: code, itemId, copyId: preview.copyId,
+      bookTitle: preview.bookTitle, loanId: preview.loanId, loanNumber: preview.loanNumber,
+      returnedAt: '2026-10-10T00:01:00+07:00', ...options.returned })
+  })
+}
+for (const readers of [['Nguyễn An', 'Nguyễn An'], ['Nguyễn An', 'Trần Bình']]) {
+  test(`two consecutive returns preserve independent borrower rows: ${readers.join(', ')}`, async () => {
+    const f = sequentialFixture(readers)
+    await receive(f, 'LIB-1')
+    assert.equal(f.find('Input').props.value, '')
+    assert.equal(f.find('Input').props.disabled, false)
+    assert.equal(f.confirmButton(), undefined)
+    await receive(f, 'LIB-2')
+    assert.equal(f.rows().length, 2)
+    assert.deepEqual(f.confirmations, [['LIB-1', 11], ['LIB-2', 12]])
+    for (const [i, row] of f.rows().entries()) {
+      const value = f.rowText(row)
+      for (const expected of [`LIB-${i + 1}`, `Sách ${i + 1}`, readers[i], '2026-10-08T17:00:00Z',
+        '2026-10-10T00:01:00+07:00', 'Số ngày trễ', '1', 'Sẵn sàng']) assert.ok(value.includes(expected), expected)
+    }
+    assert.ok(f.text().includes('Đã nhận thành công: 2 cuốn'))
+    f.dismiss(); assert.equal(f.rows().length, 2)
+  })
+}
+test('an invalid barcode between two valid copies leaves successes intact and does not count as received', async () => {
+  const f = sequentialFixture(['Nguyễn An', 'Trần Bình'])
+  await receive(f, 'LIB-1')
+  const first = f.rowText(f.rows()[0])
+  f.input('INVALID'); f.submit(); await flush(); f.render()
+  assert.equal(f.find('FeedbackAlert').props.tone, 'error')
+  assert.equal(f.rows().length, 2)
+  assert.equal(f.rowText(f.rows()[0]), first)
+  assert.ok(f.rowText(f.rows()[1]).includes('INVALID'))
+  assert.ok(f.rowText(f.rows()[1]).includes('Chưa ghi nhận thành công'))
+  assert.ok(!f.rowText(f.rows()[1]).includes('Ngày trả thực tế'))
+  assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+  f.dismiss(); assert.equal(f.rows().length, 2)
+  await receive(f, 'LIB-2')
+  assert.equal(f.rows().length, 3)
+  assert.equal(f.rowText(f.rows()[0]), first)
+  assert.ok(f.text().includes('Đã nhận thành công: 2 cuốn'))
+})
+test('a previously received barcode with spaces is rejected before lookup or write; no duplicate row or count', async () => {
+  const f = sequentialFixture()
+  await receive(f, 'LIB-1')
+  f.input('  LIB-1  '); f.submit(); await flush(); f.render(); f.confirm()
+  assert.equal(f.calls.length, 1); assert.equal(f.confirmations.length, 1)
+  assert.equal(f.rows().length, 1)
+  assert.equal(f.find('FeedbackAlert').props.tone, 'warning')
+  assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+  await receive(f, 'LIB-2'); assert.equal(f.rows().length, 2)
+})
+test('canonical copy identity guards against a second barcode resolving to the same returned copy', async () => {
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code }), async () => returnedItem())
+  await receive(f, 'LIB-001')
+  f.input('ALIAS'); f.submit(); await flush(); f.render(); f.confirm()
+  assert.equal(f.confirmations.length, 1); assert.equal(f.rows().length, 1)
+  assert.equal(f.confirmButton(), undefined)
+  assert.equal(f.find('FeedbackAlert').props.tone, 'warning')
+})
+test('retrying a rolled-back return replaces its error row and preserves other successful copies', async () => {
+  let fail = true
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code, copyId: code === 'A' ? 1 : 2,
+    itemId: code === 'A' ? 11 : 12, bookTitle: `Sách ${code}` }), async (code, itemId) => {
+    if (code === 'B' && fail) { fail = false; throw { response: { status: 500, data: { message: 'Đã rollback.' } } } }
+    return returnedItem({ barcode: code, itemId, copyId: code === 'A' ? 1 : 2, bookTitle: `Sách ${code}` })
+  })
+  await receive(f, 'A'); const first = f.rowText(f.rows()[0])
+  await receive(f, 'B')
+  assert.ok(f.confirmButton()); assert.equal(f.rows()[1].props['data-return-result'], 'ERROR')
+  assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+  f.confirm(); await flush(); f.render()
+  assert.equal(f.rows().length, 2); assert.equal(f.rows()[1].props['data-return-result'], 'SUCCESS')
+  assert.equal(f.rowText(f.rows()[0]), first)
+  assert.ok(f.text().includes('Đã nhận thành công: 2 cuốn'))
+})
+test('a repeated invalid barcode updates its own result and retains the original success', async () => {
+  const f = sequentialFixture()
+  await receive(f, 'LIB-1')
+  for (let i = 0; i < 2; i++) { f.input('INVALID'); f.submit(); await flush(); f.render() }
+  assert.equal(f.rows().length, 2); assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+})
+test('changing input while a lookup is pending discards a late response without deleting session rows', async () => {
+  let resolve
+  const f = fixture('LIBRARIAN', code => code === 'LATE' ? new Promise(r => { resolve = r }) : Promise.resolve(openItem()),
+    async () => returnedItem())
+  await receive(f, 'LIB-001')
+  f.input('LATE'); f.submit(); const signal = f.calls.at(-1)[1]
+  f.input('NEXT'); assert.equal(signal.aborted, true)
+  resolve(openItem({ barcode: 'LATE', readerName: 'Dữ liệu lỗi thời' })); await flush(); f.render()
+  assert.equal(f.rows().length, 1); assert.ok(!f.text().includes('Dữ liệu lỗi thời'))
+  assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+})
+test('each completed copy retains its own queue outcome when the next copy becomes available', async () => {
+  const f = fixture('LIBRARIAN', async code => openItem({ barcode: code, copyId: code === 'A' ? 1 : 2,
+    itemId: code === 'A' ? 11 : 12 }), async (code, itemId) => returnedItem({ barcode: code, itemId,
+      copyId: code === 'A' ? 1 : 2, copyStatus: code === 'A' ? 'HELD' : 'AVAILABLE',
+      nextReservationId: code === 'A' ? 30 : null, nextReaderName: code === 'A' ? 'Bạn đọc chờ' : null,
+      holdStartedAt: code === 'A' ? '2026-10-09T01:00:00+07:00' : null,
+      pickupDeadline: code === 'A' ? '2026-10-12T17:00:00+07:00' : null }))
+  await receive(f, 'A'); await receive(f, 'B')
+  assert.ok(f.rowText(f.rows()[0]).includes('Đang giữ cho đặt trước'))
+  assert.ok(f.rowText(f.rows()[0]).includes('Bạn đọc chờ'))
+  assert.ok(f.rowText(f.rows()[1]).includes('Sẵn sàng'))
+  assert.ok(!f.rowText(f.rows()[1]).includes('Bạn đọc chờ'))
+})
+test('newly opened page starts a new empty session', async () => {
+  const first = sequentialFixture(); await receive(first, 'LIB-1'); first.unmount()
+  const next = sequentialFixture(); assert.equal(next.rows().length, 0)
+  assert.ok(next.text().includes('Đã nhận thành công: 0 cuốn'))
+})
+test('return day is derived from server time in Vietnam, including a midnight after preview', () => {
+  const days = serviceModule.returnOverdueDays
+  assert.equal(days('2026-10-08T17:00:00Z', '2026-10-09T16:59:59Z'), 0)
+  assert.equal(days('2026-10-08T17:00:00Z', '2026-10-09T17:00:00Z'), 1)
+  assert.equal(days('2026-10-09T23:00:00+07:00', '2026-10-09T23:59:59+07:00'), 0)
+  assert.equal(days('2026-10-10T17:00:00+07:00', '2026-10-09T23:59:59+07:00'), 0)
+  assert.equal(days(null, '2026-10-09T17:00:00Z'), null)
+  assert.equal(days('invalid', '2026-10-09T17:00:00Z'), null)
+  assert.equal(days('2026-10-09T17:00:00Z', 'invalid'), null)
+})
+test('returned row snapshots metadata instead of holding references to a mutable preview', () => {
+  const preview = openItem(), result = returnedItem()
+  const row = serviceModule.returnSessionSuccess(preview, result)
+  preview.readerName = 'Khác'; preview.dueAt = null; result.bookTitle = 'Khác'
+  assert.equal(row.readerName, 'Nguyễn An'); assert.equal(row.dueAt, '2026-10-09T10:00:00Z')
+  assert.equal(row.bookTitle, 'Mắt biếc')
+})
+
+
+test('success returns focus to the enabled barcode input; invalid input remains selected for replacement', async () => {
+  const f = sequentialFixture()
+  await receive(f, 'LIB-1')
+  assert.equal(f.focusEvents.at(-1).action, 'focus')
+  assert.equal(f.focusEvents.at(-1).disabled, false)
+  assert.equal(f.find('Input').props.value, '')
+  f.input('INVALID'); f.submit(); await flush(); f.render()
+  assert.equal(f.focusEvents.at(-1).action, 'select')
+  assert.ok(f.focusEvents.every(event => event.disabled !== true))
+})
+
+for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) test(`${role}: four books of one reader stay in the same session`, async () => {
+  const f = sequentialFixture(Array(4).fill('Nguyễn An'), { role })
+  for (let i = 1; i <= 4; i++) await receive(f, `LIB-${i}`)
+  assert.equal(f.rows().length, 4); assert.equal(f.confirmations.length, 4)
+  assert.ok(f.rows().every(row => f.rowText(row).includes('Nguyễn An')))
+  assert.ok(f.text().includes('Đã nhận thành công: 4 cuốn'))
+})
+for (const failure of [{ response: { status: 409, data: { message: 'Phiếu đã đổi.' } } }, new Error('timeout')]) {
+  test(`uncertain or conflicting second return keeps earlier success: ${failure.response?.status ?? 'timeout'}`, async () => {
+    const f = fixture('LIBRARIAN', async code => openItem({ barcode: code, copyId: code === 'A' ? 1 : 2,
+      itemId: code === 'A' ? 11 : 12 }), async (code, itemId) => {
+        if (code === 'B') throw failure
+        return returnedItem({ barcode: code, itemId, copyId: 1 })
+      })
+    await receive(f, 'A'); const first = f.rowText(f.rows()[0])
+    await receive(f, 'B')
+    assert.equal(f.rowText(f.rows()[0]), first); assert.equal(f.rows()[1].props['data-return-result'], 'ERROR')
+    assert.equal(f.confirmButton(), undefined); assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+    assert.equal(f.find('Input').props.disabled, false)
+  })
+}
