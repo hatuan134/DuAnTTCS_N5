@@ -110,4 +110,95 @@ class ReaderLoanHistoryServiceTest {
                 .satisfies(e -> assertThat(((ApiException) e).getCode()).isEqualTo("READER_NOT_FOUND"));
         verifyNoInteractions(loans);
     }
+
+    private void fullHistoryForFilters() {
+        when(loans.findReaderHistory(20L)).thenReturn(List.of(
+                row(4, 41L, "2026-10-07T09:00:00+07:00", null),
+                row(4, 42L, "2026-10-07T09:00:00+07:00", "2026-10-08T09:00:00+07:00"),
+                row(3, 31L, "2026-10-07T09:00:00+07:00", "2026-10-07T23:59:00+07:00"),
+                row(2, 21L, null, "2026-10-09T09:00:00+07:00"),
+                row(1, 11L, "2026-10-07T09:00:00+07:00", null)));
+    }
+
+    @Test
+    void fromDateOnlyKeepsNewestOrderAndFullHistoryCounts() {
+        fullHistoryForFilters();
+        var result = service.getReaderLoanHistory(20L, "2026-10-03", null);
+        assertThat(result.loans()).extracting(loan -> loan.id()).containsExactly(4L, 3L);
+        assertThat(result.loans().get(0).items()).hasSize(2); // filter whole loans, not individual items
+        assertThat(result.openLoanCount()).isEqualTo(2);
+        assertThat(result.totalBorrowCount()).isEqualTo(4);
+        assertThat(result.lateReturnCount()).isEqualTo(1);
+        verify(loans, times(1)).findReaderHistory(20L);
+    }
+
+    @Test
+    void toDateOnlyIncludesEndDateAndRetainsGlobalCounts() {
+        fullHistoryForFilters();
+        var result = service.getReaderLoanHistory(20L, null, "2026-10-02");
+        assertThat(result.loans()).extracting(loan -> loan.id()).containsExactly(2L, 1L);
+        assertThat(result.totalBorrowCount()).isEqualTo(4);
+        assertThat(result.lateReturnCount()).isEqualTo(1); // late loan lies outside this range
+    }
+
+    @Test
+    void bothDatesAndEqualDatesAreInclusiveAndBlankDatesRestoreAll() {
+        fullHistoryForFilters();
+        assertThat(service.getReaderLoanHistory(20L, "2026-10-02", "2026-10-03").loans())
+                .extracting(loan -> loan.id()).containsExactly(3L, 2L);
+        assertThat(service.getReaderLoanHistory(20L, "2026-10-03", "2026-10-03").loans())
+                .extracting(loan -> loan.id()).containsExactly(3L);
+        assertThat(service.getReaderLoanHistory(20L, " ", "").loans())
+                .extracting(loan -> loan.id()).containsExactly(4L, 3L, 2L, 1L);
+        assertThat(service.getReaderLoanHistory(20L, " 2026-10-03 ", "2026-10-03").loans())
+                .extracting(loan -> loan.id()).containsExactly(3L);
+    }
+
+    @Test
+    void noMatchingLoansDoesNotZeroTheGlobalSummary() {
+        fullHistoryForFilters();
+        var result = service.getReaderLoanHistory(20L, "2027-01-01", "2027-12-31");
+        assertThat(result.loans()).isEmpty();
+        assertThat(result.openLoanCount()).isEqualTo(2);
+        assertThat(result.totalBorrowCount()).isEqualTo(4);
+        assertThat(result.lateReturnCount()).isEqualTo(1);
+    }
+
+    private LoanRepository.ReaderHistoryRow at(long id, String instant) {
+        return new LoanRepository.ReaderHistoryRow(id, "PM-" + id, OffsetDateTime.parse(instant),
+                null, null, null, null, null, null);
+    }
+
+    @Test
+    void usesVietnamMidnightRatherThanUtcDateAndIncludesWholeEndDay() {
+        when(loans.findReaderHistory(20L)).thenReturn(List.of(
+                at(4, "2026-10-02T17:00:00Z"),
+                at(3, "2026-10-02T16:59:59.999999Z"),
+                at(2, "2026-10-01T17:00:00Z"),
+                at(1, "2026-10-01T16:59:59.999999Z")));
+        var result = service.getReaderLoanHistory(20L, "2026-10-02", "2026-10-02");
+        assertThat(result.loans()).extracting(loan -> loan.id()).containsExactly(3L, 2L);
+        assertThat(result.totalBorrowCount()).isEqualTo(4);
+    }
+
+    @Test
+    void invalidCalendarDatesAndReversedRangesAreRejectedBeforeLendingQuery() {
+        for (String invalid : new String[]{"2026-02-29", "2026-02-30", "09/10/2026", "2026-13-01", "0000-01-01", "10000-01-01", "2026-1-01"}) {
+            assertThatThrownBy(() -> service.getReaderLoanHistory(20L, invalid, null))
+                    .isInstanceOf(ApiException.class)
+                    .satisfies(e -> assertThat(((ApiException) e).getCode()).isEqualTo("INVALID_READER_HISTORY_DATE"));
+            assertThatThrownBy(() -> service.getReaderLoanHistory(20L, null, invalid))
+                    .isInstanceOf(ApiException.class);
+        }
+        assertThatThrownBy(() -> service.getReaderLoanHistory(20L, "2026-10-09", "2026-10-01"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getCode()).isEqualTo("INVALID_READER_HISTORY_DATE_RANGE"));
+        verifyNoInteractions(loans);
+    }
+
+    @Test
+    void validLeapDayAndLargestSupportedYearDoNotOverflow() {
+        fullHistoryForFilters();
+        assertThat(service.getReaderLoanHistory(20L, "2024-02-29", "9999-12-31").loans()).hasSize(4);
+    }
 }

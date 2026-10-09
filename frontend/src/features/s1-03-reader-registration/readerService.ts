@@ -74,9 +74,42 @@ export interface ReaderLoanHistoryResponse {
   loans: ReaderHistoryLoan[]
 }
 
+export interface ReaderHistoryFilters {
+  fromDate: string
+  toDate: string
+}
+
+export interface ReaderHistoryDateError {
+  field: keyof ReaderHistoryFilters
+  message: string
+}
+
+export function validateReaderHistoryDates(filters: ReaderHistoryFilters): ReaderHistoryDateError | null {
+  for (const [field, label] of [['fromDate', 'Từ ngày'], ['toDate', 'Đến ngày']] as const) {
+    const value = filters[field].trim()
+    if (!value) continue
+    const date = new Date(`${value}T00:00:00Z`)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.slice(0, 4) === '0000'
+      || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+      return { field, message: `${label} phải là ngày hợp lệ, định dạng yyyy-MM-dd, năm từ 0001 đến 9999.` }
+    }
+  }
+  if (filters.fromDate.trim() && filters.toDate.trim() && filters.fromDate.trim() > filters.toDate.trim()) {
+    return { field: 'toDate', message: 'Từ ngày không được lớn hơn Đến ngày.' }
+  }
+  return null
+}
+
 export const readerService = {
-  getLoanHistory: async (id: number): Promise<ReaderLoanHistoryResponse> => {
-    const response = await apiClient.get<ReaderLoanHistoryResponse>(`/readers/${id}/loan-history`)
+  getLoanHistory: async (id: number, filters?: ReaderHistoryFilters): Promise<ReaderLoanHistoryResponse> => {
+    const fromDate = filters?.fromDate.trim()
+    const toDate = filters?.toDate.trim()
+    const response = await apiClient.get<ReaderLoanHistoryResponse>(`/readers/${id}/loan-history`, {
+      params: {
+        ...(fromDate ? { fromDate } : {}),
+        ...(toDate ? { toDate } : {}),
+      },
+    })
     return response.data
   },
 

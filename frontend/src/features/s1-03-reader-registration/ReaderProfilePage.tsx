@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Filter, RefreshCw, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -12,8 +14,8 @@ import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
-import { readerService } from './readerService'
-import type { ReaderLoanHistoryResponse } from './readerService'
+import { readerService, validateReaderHistoryDates } from './readerService'
+import type { ReaderHistoryDateError, ReaderHistoryFilters, ReaderLoanHistoryResponse } from './readerService'
 
 export default function ReaderProfilePage() {
   const { readerId } = useParams()
@@ -38,12 +40,19 @@ export function ReaderProfile({ id }: { id: number }) {
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [draftFilters, setDraftFilters] = useState<ReaderHistoryFilters>({ fromDate: '', toDate: '' })
+  const [appliedFilters, setAppliedFilters] = useState<ReaderHistoryFilters>({ fromDate: '', toDate: '' })
+  const [dateError, setDateError] = useState<ReaderHistoryDateError | null>(null)
+  const [filterNotice, setFilterNotice] = useState('')
+  const requestPending = useRef(true)
+  const hasFilter = !!(appliedFilters.fromDate || appliedFilters.toDate)
   const pagination = useTablePagination(data?.loans ?? [], `${id}|${revision}`)
 
   useEffect(() => {
     let active = true
+    requestPending.current = true
     setLoading(true); setData(null); setFailed(false); setUnavailable(false); setError('')
-    readerService.getLoanHistory(id)
+    readerService.getLoanHistory(id, appliedFilters)
       .then((result) => {
         if (!active) return
         if (result.profile.userId !== id) throw new Error('Hồ sơ trả về không khớp Bạn đọc đang xem.')
@@ -57,22 +66,78 @@ export function ReaderProfile({ id }: { id: number }) {
         setError(denied ? 'Hồ sơ không tồn tại hoặc bạn không có quyền truy cập.'
           : getApiErrorMessage(e, 'Không tải được hồ sơ Bạn đọc. Vui lòng thử lại.'))
       })
-      .finally(() => { if (active) setLoading(false) })
+      .finally(() => { if (active) { requestPending.current = false; setLoading(false) } })
     return () => { active = false }
-  }, [id, revision])
+  }, [id, revision, appliedFilters.fromDate, appliedFilters.toDate])
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (loading || requestPending.current) return
+    const invalid = validateReaderHistoryDates(draftFilters)
+    setDateError(invalid)
+    if (invalid) { setFilterNotice(invalid.message); return }
+    requestPending.current = true
+    setLoading(true); setFilterNotice('')
+    setAppliedFilters({ fromDate: draftFilters.fromDate.trim(), toDate: draftFilters.toDate.trim() })
+    setRevision((value) => value + 1)
+  }
+
+  function reloadHistory() {
+    if (loading || requestPending.current) return
+    requestPending.current = true
+    setLoading(true)
+    setRevision((value) => value + 1)
+  }
+
+  function clearFilters() {
+    if (loading || requestPending.current) return
+    requestPending.current = true
+    setLoading(true); setDateError(null); setFilterNotice('')
+    setDraftFilters({ fromDate: '', toDate: '' })
+    setAppliedFilters({ fromDate: '', toDate: '' })
+    setRevision((value) => value + 1)
+  }
+
+  function changeDate(field: keyof ReaderHistoryFilters, value: string) {
+    setDraftFilters((current) => ({ ...current, [field]: value }))
+    setDateError(null); setFilterNotice('')
+  }
 
   return <div className="space-y-5">
     <BackLink />
     <PageHeader title="Hồ sơ tổng hợp Bạn đọc"
       description="Thông tin hồ sơ và toàn bộ lịch sử mượn trả. Thời gian hiển thị theo giờ Việt Nam."
       action={<Button type="button" variant="secondary" loading={loading}
-        onClick={() => setRevision((value) => value + 1)}><RefreshCw size={16} /> Làm mới</Button>} />
+        onClick={reloadHistory}><RefreshCw size={16} /> Làm mới</Button>} />
+    {!unavailable && <Card className="p-5 sm:p-6">
+      <h3 className="mb-4 font-semibold text-slate-900">Lọc lịch sử mượn trả</h3>
+      <form noValidate onSubmit={applyFilters} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="min-w-0"><Input id="reader-history-from-date" label="Từ ngày mượn" type="date"
+          min="0001-01-01" max="9999-12-31" value={draftFilters.fromDate} disabled={loading}
+          error={dateError?.field === 'fromDate' ? dateError.message : undefined}
+          onChange={(event) => changeDate('fromDate', event.target.value)} /></div>
+        <div className="min-w-0"><Input id="reader-history-to-date" label="Đến ngày mượn" type="date"
+          min="0001-01-01" max="9999-12-31" value={draftFilters.toDate} disabled={loading}
+          error={dateError?.field === 'toDate' ? dateError.message : undefined}
+          onChange={(event) => changeDate('toDate', event.target.value)} /></div>
+        <div className="flex flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1 xl:pt-7">
+          <Button type="submit" disabled={loading}><Filter size={16} /> Áp dụng bộ lọc</Button>
+          <Button type="button" variant="secondary"
+            disabled={loading || (!draftFilters.fromDate && !draftFilters.toDate && !hasFilter)} onClick={clearFilters}>
+            <X size={16} /> Xóa bộ lọc
+          </Button>
+        </div>
+      </form>
+      <p className="mt-3 text-xs leading-5 text-slate-500">Có thể để trống một hoặc cả hai ngày. Khoảng lọc bao gồm cả ngày đầu và ngày cuối theo giờ Việt Nam.
+        Ba chỉ số tổng hợp luôn tính trên toàn bộ lịch sử.</p>
+      {filterNotice && <FeedbackAlert message={filterNotice} tone="warning" onDismiss={() => setFilterNotice('')} className="mt-3" />}
+    </Card>}
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
     {loading && <div role="status"><LoadingState /></div>}
     {!loading && failed && <div role="status"><Card className="p-5">
       <p className="text-sm text-slate-700">{unavailable ? 'Không thể mở hồ sơ này.' : 'Chưa tải được hồ sơ và lịch sử mượn trả.'}</p>
       {!unavailable && <Button type="button" variant="secondary" className="mt-3"
-        onClick={() => setRevision((value) => value + 1)}>Thử lại</Button>}
+        onClick={reloadHistory}>Thử lại</Button>}
     </Card></div>}
     {!loading && !failed && data && <>
       <Card className="p-5 sm:p-6">
@@ -97,6 +162,7 @@ export function ReaderProfile({ id }: { id: number }) {
         <Summary label="Tổng lượt đã mượn" value={data.totalBorrowCount} />
         <Summary label="Lượt từng trả trễ" value={data.lateReturnCount} />
       </section>
+      <p className="text-xs text-slate-500">Số liệu tổng hợp của toàn bộ lịch sử, không thay đổi theo khoảng ngày đang lọc.</p>
       <section aria-labelledby="reader-history-heading" className="space-y-4">
         <div>
           <h3 id="reader-history-heading" className="text-lg font-semibold text-slate-900">Lịch sử mượn trả</h3>
@@ -104,8 +170,18 @@ export function ReaderProfile({ id }: { id: number }) {
             phiếu có ít nhất một bản sao trả sau ngày đến hạn tính một lượt từng trả trễ.
             Phiếu còn bản sao chưa trả được tính là đang mở.</p>
         </div>
-        {data.loans.length === 0 ? <EmptyState title="Bạn đọc chưa từng mượn sách"
-          description="Lịch sử sẽ xuất hiện khi Bạn đọc có phiếu mượn." /> : <>
+        <p role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          {hasFilter ? `Tìm thấy ${data.loans.length} phiếu mượn` : `Toàn bộ lịch sử: ${data.loans.length} phiếu mượn`}
+          {hasFilter && <span className="mt-1 block text-xs text-slate-500">
+            {appliedFilters.fromDate ? `Từ ${formatProfileDate(appliedFilters.fromDate)}` : 'Không giới hạn ngày bắt đầu'}
+            {' · '}{appliedFilters.toDate ? `Đến ${formatProfileDate(appliedFilters.toDate)}` : 'Không giới hạn ngày kết thúc'}
+          </span>}
+        </p>
+        {data.loans.length === 0 ? <EmptyState
+          title={hasFilter && data.totalBorrowCount > 0 ? 'Không có phiếu mượn trong khoảng ngày đã chọn' : 'Bạn đọc chưa từng mượn sách'}
+          description={hasFilter && data.totalBorrowCount > 0
+            ? 'Thử khoảng ngày khác hoặc xóa bộ lọc để xem toàn bộ lịch sử.'
+            : 'Lịch sử sẽ xuất hiện khi Bạn đọc có phiếu mượn.'} /> : <>
           <ol className="space-y-4" aria-label="Danh sách phiếu mượn mới nhất trước">
             {pagination.pageItems.map((loan) => <li key={loan.id}>
               <Card className={`overflow-hidden ${loan.returnedLate ? 'border-amber-300' : ''}`}>
