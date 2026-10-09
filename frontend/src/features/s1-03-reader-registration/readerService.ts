@@ -45,7 +45,41 @@ export interface ReaderProfileResponse {
   reviewedBy?: number | null
 }
 
+
+export interface ReaderHistoryItem {
+  id: number
+  bookTitle: string
+  barcode: string
+  borrowedAt: string
+  dueAt: string | null
+  returnedAt: string | null
+  status: 'BORROWED' | 'RETURNED'
+  returnedLate: boolean
+}
+
+export interface ReaderHistoryLoan {
+  id: number
+  loanNumber: string
+  borrowedAt: string
+  status: 'EMPTY' | 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED'
+  returnedLate: boolean
+  items: ReaderHistoryItem[]
+}
+
+export interface ReaderLoanHistoryResponse {
+  profile: ReaderProfileResponse
+  openLoanCount: number
+  totalBorrowCount: number
+  lateReturnCount: number
+  loans: ReaderHistoryLoan[]
+}
+
 export const readerService = {
+  getLoanHistory: async (id: number): Promise<ReaderLoanHistoryResponse> => {
+    const response = await apiClient.get<ReaderLoanHistoryResponse>(`/readers/${id}/loan-history`)
+    return response.data
+  },
+
   checkDuplicate: async (
     email?: string,
     memberCode?: string,

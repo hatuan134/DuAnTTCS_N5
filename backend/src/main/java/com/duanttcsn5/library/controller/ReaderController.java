@@ -2,6 +2,7 @@ package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.reader.DuplicateCheckResponse;
 import com.duanttcsn5.library.dto.reader.ReaderProfileResponse;
+import com.duanttcsn5.library.dto.reader.ReaderLoanHistoryResponse;
 import com.duanttcsn5.library.dto.reader.ReaderRegistrationRequest;
 import com.duanttcsn5.library.dto.reader.ReaderRegistrationResponse;
 import com.duanttcsn5.library.dto.profile.ChangeReaderPasswordRequest;
@@ -124,5 +125,12 @@ public class ReaderController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReaderProfileResponse> getReaderById(@PathVariable Long id) {
         return ResponseEntity.ok(readerRegistrationService.getReaderById(id));
+    }
+
+    /** S3-10.1: preserve the existing staff profile permissions. */
+    @GetMapping("/{id}/loan-history")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReaderLoanHistoryResponse> getReaderLoanHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(readerRegistrationService.getReaderLoanHistory(id));
     }
 }

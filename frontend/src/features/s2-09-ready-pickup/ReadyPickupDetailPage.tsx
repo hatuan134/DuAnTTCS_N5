@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -30,7 +31,9 @@ function ReadyPickupDetail({ id }: { id: number }) {
   const navigate = useNavigate()
   const [item, setItem] = useState<ReadyPickupReservation | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
   const [reload, setReload] = useState(0)
@@ -64,8 +67,9 @@ function ReadyPickupDetail({ id }: { id: number }) {
       {cancelOpen && item && <CancelReservationPanel reservation={item}
         onDismiss={() => { setCancelOpen(false); setItem(null); setError(''); setLoading(true); setReload((value) => value + 1) }}
         onSuccess={(result) => { setCancellation(result); setCancelOpen(false); setItem(null); setError('') }} />}
-      {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">
-        <p>{error}</p>
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
+      {error && <div className="rounded-lg bg-slate-50 p-4 text-slate-700">
+        <p role="status">Chưa tải được chi tiết đơn đặt giữ.</p>
         <Button type="button" variant="secondary" className="mt-3"
           onClick={() => {
             setItem(null)

@@ -699,4 +699,33 @@ public class LoanRepository {
                 rs.getObject("returned_at", OffsetDateTime.class), rs.getObject("returned_by", Long.class),
                 rs.getString("returned_by_name")), loanId);
     }
+
+    /** S3-10.1: all loans for exactly one reader; no page limit or date filter.
+     * LEFT JOIN preserves legacy loans without items. Item state comes from
+     * returned_at, never the current status of a copy borrowed again later.
+     */
+    public record ReaderHistoryRow(Long loanId, String loanNumber, OffsetDateTime loanBorrowedAt,
+                                   Long itemId, String bookTitle, String barcode,
+                                   OffsetDateTime borrowedAt, OffsetDateTime dueAt,
+                                   OffsetDateTime returnedAt) {}
+
+    public List<ReaderHistoryRow> findReaderHistory(Long readerId) {
+        return jdbc.query("""
+                SELECT l.id AS loan_id, l.loan_number, l.borrowed_at AS loan_borrowed_at,
+                       li.id AS item_id, b.title AS book_title, c.barcode,
+                       li.borrowed_at, li.due_date, li.returned_at
+                FROM loans l
+                LEFT JOIN loan_items li ON li.loan_id = l.id
+                LEFT JOIN book_copies c ON c.id = li.book_copy_id
+                LEFT JOIN books b ON b.id = c.book_id
+                WHERE l.borrower_user_id = ?
+                ORDER BY l.borrowed_at DESC, l.id DESC, li.id ASC
+                """, (rs, index) -> new ReaderHistoryRow(
+                rs.getLong("loan_id"), rs.getString("loan_number"),
+                rs.getObject("loan_borrowed_at", OffsetDateTime.class),
+                rs.getObject("item_id", Long.class), rs.getString("book_title"), rs.getString("barcode"),
+                rs.getObject("borrowed_at", OffsetDateTime.class),
+                rs.getObject("due_date", OffsetDateTime.class),
+                rs.getObject("returned_at", OffsetDateTime.class)), readerId);
+    }
 }

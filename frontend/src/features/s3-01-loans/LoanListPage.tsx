@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -17,7 +18,9 @@ export default function LoanListPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
   const [items, setItems] = useState<LoanSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     if (!allowed) return
@@ -37,7 +40,8 @@ export default function LoanListPage() {
         <Link to="/loans/search" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700">Tra cứu phiếu mượn</Link>
         <Button type="button" variant="secondary" loading={loading} onClick={() => setRevision((value) => value + 1)}>Làm mới</Button>
       </div>} />
-    {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">{error} Nhấn “Làm mới” để thử lại.</p>}
+    {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
+      {error && <p role="status" className="mb-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Chưa tải được danh sách phiếu mượn. Nhấn “Làm mới” để thử lại.</p>}
     {loading && <div role="status"><LoadingState /></div>}
     {!loading && !error && items.length === 0 && <EmptyState title="Chưa có phiếu mượn" description="Phiếu sẽ xuất hiện sau khi Thủ thư xác nhận nhận sách thành công." />}
     {!loading && !error && items.length > 0 && <Card className="overflow-hidden">
