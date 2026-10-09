@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -32,7 +33,9 @@ export default function BookReservationQueuePage() {
 function ReservationQueue({ bookId }: { bookId: number }) {
   const [queue, setQueue] = useState<BookReservationQueue | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [status, setStatus] = useState<ReservationStatusFilter>('')
   const [cancelTarget, setCancelTarget] = useState<ReservationQueueEntry | null>(null)
   const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
@@ -147,9 +150,8 @@ function ReservationQueue({ bookId }: { bookId: number }) {
       {cancellation && <CancellationNotice result={cancellation} />}
       {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
         onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}
-      {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-        {error} Nhấn “Làm mới” để thử lại.
-      </div>}
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
+      {error && <p role="status" className="mb-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Chưa tải được hàng đợi đặt giữ. Nhấn “Làm mới” để thử lại.</p>}
       {loading && <div role="status"><LoadingState /></div>}
       {!loading && !error && queue && items.length === 0 && <EmptyState
         title={status ? 'Không có đơn ở trạng thái đã chọn' : 'Đầu sách chưa có đơn đặt giữ'}

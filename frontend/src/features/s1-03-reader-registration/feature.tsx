@@ -8,6 +8,7 @@ import type {
 
 import RegisterPage from './RegisterPage'
 import ReadersPage from './ReadersPage'
+import ReaderProfilePage from './ReaderProfilePage'
 
 const STAFF_ROLES = [
   'LIBRARIAN',
@@ -15,7 +16,7 @@ const STAFF_ROLES = [
   'ADMIN',
 ]
 
-function StaffReadersPage() {
+function StaffReadersPage({ detail = false }: { detail?: boolean }) {
   const currentUser = getCurrentUser()
 
   if (
@@ -30,7 +31,7 @@ function StaffReadersPage() {
     )
   }
 
-  return <ReadersPage />
+  return detail ? <ReaderProfilePage /> : <ReadersPage />
 }
 
 const feature: FeatureModule = {
@@ -49,6 +50,10 @@ const feature: FeatureModule = {
     {
       path: 'readers',
       element: <StaffReadersPage />,
+    },
+    {
+      path: 'readers/:readerId',
+      element: <StaffReadersPage detail />,
     },
   ],
 

@@ -1,3 +1,4 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -18,7 +19,9 @@ export default function ReadyPickupPage() {
   const allowed = pickupRoles.includes(getCurrentUser()?.role ?? '')
   const [items, setItems] = useState<ReadyPickupReservation[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [cancelTarget, setCancelTarget] = useState<ReadyPickupReservation | null>(null)
   const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
   const [revision, setRevision] = useState(0)
@@ -96,9 +99,8 @@ export default function ReadyPickupPage() {
       {cancellation && <CancellationNotice result={cancellation} />}
       {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
         onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}
-      {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-        {error} Nhấn “Làm mới” để thử lại.
-      </div>}
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
+      {error && <p role="status" className="mb-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Chưa tải được sách đang chờ nhận. Nhấn “Làm mới” để thử lại.</p>}
       {loading && <div role="status"><LoadingState /></div>}
       {!loading && !error && items.length === 0 && <EmptyState
         title="Không có sách đang chờ nhận"

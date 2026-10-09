@@ -1,6 +1,6 @@
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useState } from 'react'
 import {
-  AlertCircle,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -25,7 +25,9 @@ import type { ReaderProfileResponse } from './readerService'
 export default function ReadersPage() {
   const [readers, setReaders] = useState<ReaderProfileResponse[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
 
@@ -96,6 +98,8 @@ export default function ReadersPage() {
           </>
         )}
       />
+
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} />}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -193,10 +197,7 @@ export default function ReadersPage() {
             <p className="mt-3 text-sm font-medium">Đang tải danh sách hồ sơ...</p>
           </div>
         ) : error ? (
-          <div className="flex items-center gap-3 p-6 text-red-600">
-            <AlertCircle size={20} />
-            <span className="text-sm">{error}</span>
-          </div>
+<div role="status" className="p-6 text-sm text-slate-600">Không tải được danh sách hồ sơ. Nhấn “Làm mới” để thử lại.</div>
         ) : filteredReaders.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             <IdCard size={40} className="mx-auto text-slate-300" />
@@ -234,7 +235,10 @@ export default function ReadersPage() {
                       {reader.memberCode}
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      {reader.fullName}
+                      <Link to={`/readers/${reader.userId}`} className="text-blue-700 hover:underline"
+                        aria-label={`Xem hồ sơ ${reader.fullName}`}>
+                        {reader.fullName}
+                      </Link>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
                       {reader.cardTypeName || (

@@ -23,7 +23,9 @@ export default function OverdueLoansPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
   const [items, setItems] = useState<OverdueLoanItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const setError = (message: string) => { setErrorState(message); setErrorNotice(message) }
   const [revision, setRevision] = useState(0)
   const [minimumInput, setMinimumInput] = useState('')
   const [maximumInput, setMaximumInput] = useState('')
@@ -203,12 +205,8 @@ export default function OverdueLoansPage() {
         )}
       </Card>
 
-      {error && (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{error}</p>
-          <p className="mt-1 text-xs text-red-600">Nhấn “Làm mới” để tải lại danh sách.</p>
-        </div>
-      )}
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} />}
+      {error && <p role="status" className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">Chưa tải được danh sách quá hạn. Nhấn “Làm mới” để thử lại.</p>}
 
       {loading && <LoadingState />}
 

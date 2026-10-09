@@ -9,6 +9,7 @@ import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.LibraryCardRepository;
+import com.duanttcsn5.library.repository.LoanRepository;
 import com.duanttcsn5.library.repository.ReaderProfileRepository;
 import com.duanttcsn5.library.repository.RoleRepository;
 import com.duanttcsn5.library.repository.UserRepository;
@@ -56,6 +57,9 @@ class ReaderRegistrationServiceTest {
     @Mock
     private LibraryCardRepository libraryCardRepository;
 
+    @Mock
+    private LoanRepository loanRepository;
+
     private ReaderRegistrationService service;
 
     @BeforeEach
@@ -66,7 +70,8 @@ class ReaderRegistrationServiceTest {
                 roleRepository,
                 passwordEncoder,
                 auditLogRepository,
-                libraryCardRepository
+                libraryCardRepository,
+                loanRepository
         );
     }
 

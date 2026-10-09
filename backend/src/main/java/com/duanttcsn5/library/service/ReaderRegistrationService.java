@@ -2,6 +2,7 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.reader.DuplicateCheckResponse;
 import com.duanttcsn5.library.dto.reader.ReaderProfileResponse;
+import com.duanttcsn5.library.dto.reader.ReaderLoanHistoryResponse;
 import com.duanttcsn5.library.dto.reader.ReaderRegistrationRequest;
 import com.duanttcsn5.library.dto.reader.ReaderRegistrationResponse;
 import com.duanttcsn5.library.entity.ReaderProfile;
@@ -10,6 +11,7 @@ import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.LibraryCardRepository;
+import com.duanttcsn5.library.repository.LoanRepository;
 import com.duanttcsn5.library.repository.ReaderProfileRepository;
 import com.duanttcsn5.library.repository.RoleRepository;
 import com.duanttcsn5.library.repository.UserRepository;
@@ -23,6 +25,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,19 +40,22 @@ public class ReaderRegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final AuditLogRepository auditLogRepository;
     private final LibraryCardRepository libraryCardRepository;
+    private final LoanRepository loanRepository;
 
     public ReaderRegistrationService(UserRepository userRepository,
                                      ReaderProfileRepository readerProfileRepository,
                                      RoleRepository roleRepository,
                                      PasswordEncoder passwordEncoder,
                                      AuditLogRepository auditLogRepository,
-                                     LibraryCardRepository libraryCardRepository) {
+                                     LibraryCardRepository libraryCardRepository,
+                                     LoanRepository loanRepository) {
         this.userRepository = userRepository;
         this.readerProfileRepository = readerProfileRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogRepository = auditLogRepository;
         this.libraryCardRepository = libraryCardRepository;
+        this.loanRepository = loanRepository;
     }
 
     /**
@@ -221,5 +228,46 @@ public class ReaderRegistrationService {
                 .map(card -> card.getCardType().getName())
                 .orElse(null);
         return ReaderProfileResponse.fromEntity(profile, cardTypeName);
+    }
+
+    /** S3-10.1: one loan counts once; any returned-late item marks that loan late.
+     * Open overdue items do not count as historical late returns. Legacy items
+     * without due dates remain visible but cannot be classified as returned late.
+     */
+    @Transactional(readOnly = true)
+    public ReaderLoanHistoryResponse getReaderLoanHistory(Long id) {
+        if (id == null || id < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_READER_ID",
+                    "Mã bạn đọc phải là số nguyên dương.");
+        }
+        ReaderProfileResponse profile = getReaderById(id);
+        Map<Long, List<LoanRepository.ReaderHistoryRow>> grouped = loanRepository.findReaderHistory(id)
+                .stream().collect(Collectors.groupingBy(LoanRepository.ReaderHistoryRow::loanId,
+                        LinkedHashMap::new, Collectors.toList()));
+        ZoneId vietnam = ZoneId.of("Asia/Ho_Chi_Minh");
+        List<ReaderLoanHistoryResponse.Loan> loans = grouped.values().stream().map(rows -> {
+            var header = rows.get(0);
+            List<ReaderLoanHistoryResponse.Item> items = rows.stream()
+                    .filter(row -> row.itemId() != null)
+                    .map(row -> {
+                        boolean late = row.returnedAt() != null && row.dueAt() != null
+                                && row.returnedAt().atZoneSameInstant(vietnam).toLocalDate()
+                                .isAfter(row.dueAt().atZoneSameInstant(vietnam).toLocalDate());
+                        return new ReaderLoanHistoryResponse.Item(row.itemId(), row.bookTitle(), row.barcode(),
+                                row.borrowedAt(), row.dueAt(), row.returnedAt(),
+                                row.returnedAt() == null ? "BORROWED" : "RETURNED", late);
+                    }).toList();
+            boolean open = items.stream().anyMatch(item -> item.returnedAt() == null);
+            boolean returned = items.stream().anyMatch(item -> item.returnedAt() != null);
+            String status = items.isEmpty() ? "EMPTY"
+                    : open ? (returned ? "PARTIALLY_RETURNED" : "BORROWED") : "RETURNED";
+            return new ReaderLoanHistoryResponse.Loan(header.loanId(), header.loanNumber(),
+                    header.loanBorrowedAt(), status,
+                    items.stream().anyMatch(ReaderLoanHistoryResponse.Item::returnedLate), items);
+        }).toList();
+        return new ReaderLoanHistoryResponse(profile,
+                loans.stream().filter(loan -> "BORROWED".equals(loan.status())
+                        || "PARTIALLY_RETURNED".equals(loan.status())).count(),
+                loans.size(), loans.stream().filter(ReaderLoanHistoryResponse.Loan::returnedLate).count(), loans);
     }
 }

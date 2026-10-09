@@ -12,6 +12,7 @@ import {
 
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
 
 import {
@@ -33,13 +34,17 @@ export default function DashboardPage() {
     data: null,
   })
 
+  const [errorNotice, setErrorNotice] = useState('')
+
   const loadStats = async () => {
+    setErrorNotice('')
     setState({ status: 'loading', data: null })
 
     try {
       const data = await getDashboardStats()
       setState({ status: 'success', data })
     } catch {
+      setErrorNotice('Không thể tải số liệu tổng quan từ hệ thống. Vui lòng thử lại.')
       setState({ status: 'error', data: null })
     }
   }
@@ -97,11 +102,10 @@ export default function DashboardPage() {
         )}
       />
 
-      {state.status === 'error' && (
-        <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          Không thể tải số liệu tổng quan từ hệ thống. Vui lòng thử lại.
-        </div>
-      )}
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-5" />}
+      {state.status === 'error' && <p role="status" className="mb-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+        Chưa tải được số liệu tổng quan. Nhấn “Làm mới” để thử lại.
+      </p>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => {
