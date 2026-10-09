@@ -270,4 +270,43 @@ public class ReaderRegistrationService {
                         || "PARTIALLY_RETURNED".equals(loan.status())).count(),
                 loans.size(), loans.stream().filter(ReaderLoanHistoryResponse.Loan::returnedLate).count(), loans);
     }
+
+    /** S3-10.2: filter loan headers by inclusive Vietnam calendar dates.
+     * Summary counts always cover the full history, as agreed with the PO.
+     * Reuse the existing complete snapshot; do not query/group items a second time.
+     */
+    @Transactional(readOnly = true)
+    public ReaderLoanHistoryResponse getReaderLoanHistory(Long id, String fromDate, String toDate) {
+        LocalDate start = parseReaderHistoryDate(fromDate);
+        LocalDate end = parseReaderHistoryDate(toDate);
+        if (start != null && end != null && start.isAfter(end)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_READER_HISTORY_DATE_RANGE",
+                    "Từ ngày không được lớn hơn Đến ngày.");
+        }
+        ReaderLoanHistoryResponse history = getReaderLoanHistory(id);
+        if (start == null && end == null) return history;
+        ZoneId vietnam = ZoneId.of("Asia/Ho_Chi_Minh");
+        List<ReaderLoanHistoryResponse.Loan> filtered = history.loans().stream().filter(loan -> {
+            LocalDate borrowedDate = loan.borrowedAt().atZoneSameInstant(vietnam).toLocalDate();
+            return (start == null || !borrowedDate.isBefore(start))
+                    && (end == null || !borrowedDate.isAfter(end));
+        }).toList();
+        return new ReaderLoanHistoryResponse(history.profile(), history.openLoanCount(),
+                history.totalBorrowCount(), history.lateReturnCount(), filtered);
+    }
+
+    private static LocalDate parseReaderHistoryDate(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String normalized = raw.trim();
+        if (normalized.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            try {
+                LocalDate parsed = LocalDate.parse(normalized);
+                if (parsed.getYear() >= 1) return parsed;
+            } catch (java.time.format.DateTimeParseException ignored) {
+                // Report the same Vietnamese validation response for invalid calendar dates.
+            }
+        }
+        throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_READER_HISTORY_DATE",
+                "Ngày mượn phải có định dạng yyyy-MM-dd hợp lệ, năm từ 0001 đến 9999.");
+    }
 }

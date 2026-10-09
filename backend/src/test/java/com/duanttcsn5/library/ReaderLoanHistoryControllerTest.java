@@ -128,4 +128,52 @@ class ReaderLoanHistoryControllerTest {
         mvc.perform(get("/api/v1/readers/abc/loan-history").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
+
+    @Test
+    void acceptsOptionalDateParametersWithoutChangingStaffRolesOrResponseShape() throws Exception {
+        when(service.getReaderLoanHistory(20L, "2026-10-01", "2026-10-09"))
+                .thenReturn(new ReaderLoanHistoryResponse(null, 2, 4, 1, List.of()));
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+            token(role);
+            mvc.perform(get(URL).param("fromDate", "2026-10-01").param("toDate", "2026-10-09")
+                            .header("Authorization", "Bearer test-token"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalBorrowCount").value(4))
+                    .andExpect(jsonPath("$.openLoanCount").value(2))
+                    .andExpect(jsonPath("$.lateReturnCount").value(1)).andExpect(jsonPath("$.loans").isArray());
+        }
+    }
+
+    @Test
+    void acceptsStartOnlyAndEndOnly() throws Exception {
+        token("LIBRARIAN");
+        when(service.getReaderLoanHistory(20L, "2026-10-01", null))
+                .thenReturn(new ReaderLoanHistoryResponse(null, 1, 2, 0, List.of()));
+        when(service.getReaderLoanHistory(20L, null, "2026-10-09"))
+                .thenReturn(new ReaderLoanHistoryResponse(null, 1, 2, 0, List.of()));
+        mvc.perform(get(URL).param("fromDate", "2026-10-01").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk());
+        mvc.perform(get(URL).param("toDate", "2026-10-09").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void invalidDateFilterReturnsVietnameseApiError() throws Exception {
+        token("LIBRARIAN");
+        when(service.getReaderLoanHistory(20L, "2026-10-09", "2026-10-01"))
+                .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "INVALID_READER_HISTORY_DATE_RANGE",
+                        "Từ ngày không được lớn hơn Đến ngày."));
+        mvc.perform(get(URL).param("fromDate", "2026-10-09").param("toDate", "2026-10-01")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_READER_HISTORY_DATE_RANGE"))
+                .andExpect(jsonPath("$.message").value("Từ ngày không được lớn hơn Đến ngày."));
+    }
+
+    @Test
+    void readerCannotBypassStaffAuthorizationWithDateParameters() throws Exception {
+        token("READER");
+        mvc.perform(get(URL).param("fromDate", "2026-10-01").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
 }
