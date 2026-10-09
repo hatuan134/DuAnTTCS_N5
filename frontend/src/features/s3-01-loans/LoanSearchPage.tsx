@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, SearchX } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
@@ -115,7 +115,7 @@ export default function LoanSearchPage() {
       <form noValidate onSubmit={(event) => { void search(event) }} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <Input
-            label="Mã cần tra cứu" required value={code} maxLength={101}
+            id="loan-search-code" label="Mã cần tra cứu" required value={code} maxLength={101}
             placeholder="Nhập mã thẻ, mã vạch hoặc mã phiếu mượn"
             startIcon={<Search size={18} />} error={inputError}
             onChange={(event) => {
@@ -172,7 +172,34 @@ export default function LoanSearchPage() {
         Kết quả tra cứu: <span className="break-all font-mono text-blue-700">{lastCode}</span>
         <span className="ml-2 text-sm font-normal text-slate-500">({response?.total ?? 0} phiếu mượn)</span>
       </h2>
-      {response?.total === 0 && <Card className="p-5 text-sm text-slate-700" >Không tìm thấy phiếu mượn.</Card>}
+      {response.total === 0 && <Card className="border border-amber-200 bg-amber-50/50 p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+            <SearchX size={20} aria-hidden="true" />
+          </div>
+          <div className="min-w-0 space-y-3 text-sm leading-6 text-slate-700">
+            <h3 className="text-base font-semibold text-slate-900">Không tìm thấy phiếu phù hợp</h3>
+            {response.emptyReason === 'CODE_NOT_FOUND' ? (
+              <p>Mã <strong className="break-all font-mono">{lastCode}</strong> không tồn tại trong danh sách mã thẻ, mã vạch hoặc mã phiếu mượn của thư viện.</p>
+            ) : response.emptyReason === 'NO_LOANS_FOR_CODE' ? (
+              <p>Mã <strong className="break-all font-mono">{lastCode}</strong> có tồn tại trong thư viện, nhưng hiện chưa có phiếu mượn nào liên quan đến mã này.</p>
+            ) : response.emptyReason === 'NO_LOANS_MATCH_FILTERS' ? (
+              <p>Mã <strong className="break-all font-mono">{lastCode}</strong> có phiếu mượn, nhưng không có phiếu nào đáp ứng bộ lọc ngày hoặc trạng thái đang chọn.</p>
+            ) : (
+              <p>Không có phiếu mượn nào phù hợp với mã hoặc bộ lọc đang chọn.</p>
+            )}
+            <div>
+              <p className="font-semibold text-slate-800">Gợi ý kiểm tra lại</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>Kiểm tra các ký tự và chữ số trong mã vừa nhập; chú ý ký tự dễ nhầm hoặc bị thiếu.</li>
+                <li>Xác định đúng loại mã cần tra cứu: <strong>mã thẻ thư viện</strong>, <strong>mã vạch bản sao sách</strong> hay <strong>mã phiếu mượn</strong>.</li>
+                <li>Giá trị trong ô tìm kiếm vẫn được giữ lại. Sửa mã ở phía trên rồi nhấn <strong>Tra cứu</strong> để tìm lại ngay.</li>
+                {response.emptyReason === 'NO_LOANS_MATCH_FILTERS' && <li>Thử điều chỉnh hoặc xóa bộ lọc để xem các phiếu mượn khác của mã này.</li>}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </Card>}
       {response?.items.map((loan, index) => <Card key={loan.id} className="overflow-hidden">
         <div className="grid items-start gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-5">
           <div className="min-w-0">

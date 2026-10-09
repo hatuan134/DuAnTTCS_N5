@@ -47,7 +47,7 @@ function CardStub({ children, className }) { return react.createElement('div', {
 function AlertStub({ message, tone }) { return react.createElement('p', { 'data-tone': tone }, message) }
 function PaginationStub() { return null }
 
-function pageFixture({ role = 'LIBRARIAN', reject = false, initialTotal = 2 } = {}) {
+function pageFixture({ role = 'LIBRARIAN', reject = false, initialTotal = 2, emptyReasons = {} } = {}) {
   const hooks = { ...react }
   const slots = [], effects = [], calls = []
   let cursor = 0
@@ -82,6 +82,9 @@ function pageFixture({ role = 'LIBRARIAN', reject = false, initialTotal = 2 } = 
     './loanService': { ...serviceModule, loanService: { search: async (code, page = 0, filters) => {
       calls.push({ code, page, filters: { ...filters } })
       if (reject) throw new Error('Không thể tra cứu')
+      if (Object.hasOwn(emptyReasons, code)) return {
+        items: [], page, size: 20, total: 0, emptyReason: emptyReasons[code],
+      }
       const filtered = items.filter(loan =>
         (!filters?.fromDate || loan.borrowedAt.slice(0, 10) >= filters.fromDate)
         && (!filters?.toDate || loan.borrowedAt.slice(0, 10) <= filters.toDate)
@@ -208,4 +211,51 @@ test('validation errors, API failures, and reader access', async () => {
   const reader = pageFixture({ role: 'READER' }); assert.match(reader.html(), /không có quyền/)
   assert.equal(reader.calls.length, 0)
   reader.unmount()
+})
+
+for (const [code, reason, explanation] of [
+  ['UNKNOWN-01', 'CODE_NOT_FOUND', 'không tồn tại'],
+  ['CARD-0X', 'CODE_NOT_FOUND', 'không tồn tại'],
+  ['CARD-WITHOUT-LOANS', 'NO_LOANS_FOR_CODE', 'có tồn tại'],
+  ['COPY-WITHOUT-HISTORY', 'NO_LOANS_FOR_CODE', 'có tồn tại'],
+  ['CARD-FILTERED', 'NO_LOANS_MATCH_FILTERS', 'không có phiếu nào đáp ứng bộ lọc'],
+]) {
+  test(`S3-08.4 ${reason} (${code}): clear corrective guidance without hiding search`, async () => {
+    const p = pageFixture({ emptyReasons: { [code]: reason } })
+    p.enterCode(code); p.search(); await settle()
+    assert.match(p.html(), /Không tìm thấy phiếu phù hợp/)
+    assert.ok(p.html().includes(explanation), p.html())
+    assert.match(p.html(), /mã thẻ thư viện/)
+    assert.match(p.html(), /mã vạch bản sao sách/)
+    assert.match(p.html(), /mã phiếu mượn/)
+    assert.match(p.html(), /Sửa mã ở phía trên rồi nhấn/)
+    assert.ok(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code'))
+    assert.match(p.html(), /Tra cứu/)
+    assert.doesNotMatch(p.html(), /PM-0011/)
+    p.unmount()
+  })
+}
+
+test('S3-08.4: typo can be edited in place and searched again without losing input', async () => {
+  const p = pageFixture({ emptyReasons: { 'CARD-0X': 'CODE_NOT_FOUND' } })
+  p.enterCode('CARD-0X'); p.search(); await settle()
+  assert.equal(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code').props.value, 'CARD-0X')
+  p.enterCode('CARD-01')
+  assert.equal(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code').props.value, 'CARD-01')
+  p.search(); await settle()
+  assert.deepEqual(p.calls.map(call => call.code), ['CARD-0X', 'CARD-01'])
+  assert.doesNotMatch(p.html(), /Không tìm thấy phiếu phù hợp/)
+  assert.match(p.html(), /PM-0010/)
+  p.unmount()
+})
+
+test('S3-08.4: filtered-out results explain filters and preserve a way to clear them', async () => {
+  const p = pageFixture()
+  p.enterCode('CARD-01'); p.search(); await settle()
+  p.filter('loan-status', 'EMPTY'); await settle()
+  assert.match(p.html(), /Không tìm thấy phiếu phù hợp/)
+  assert.match(p.html(), /Không có phiếu mượn nào phù hợp với mã hoặc bộ lọc/)
+  p.clear(); await settle()
+  assert.match(p.html(), /PM-0010/)
+  p.unmount()
 })

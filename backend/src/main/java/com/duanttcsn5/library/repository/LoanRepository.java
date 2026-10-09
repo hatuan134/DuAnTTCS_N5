@@ -441,6 +441,14 @@ public class LoanRepository {
         return total == null ? 0L : total;
     }
 
+    /** A loan number can exist even when additional search filters exclude its loan. */
+    public boolean existsByLoanNumber(String loanNumber) {
+        Boolean exists = jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM loans WHERE loan_number = ?)",
+                Boolean.class, loanNumber);
+        return Boolean.TRUE.equals(exists);
+    }
+
     public record LoanSearchRow(Long loanId, String loanNumber, String cardNumber,
                                 String readerName, OffsetDateTime borrowedAt,
                                 Long itemId, String barcode, String bookTitle,
