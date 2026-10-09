@@ -57,6 +57,15 @@ test('new message gets a full 3000ms and previous timer is cancelled', () => {
   f.render({ ...props, message: 'Lỗi B' }); f.advance(1000)
   assert.equal(calls, 0); f.advance(2000); assert.equal(calls, 1)
 })
+test('a new notification tone with the same text restarts the 3000ms timer', () => {
+  const f = fixture(); let calls = 0
+  f.render({ message: 'Luu du lieu', tone: 'error', onDismiss: () => calls++ })
+  f.advance(2200)
+  f.render({ message: 'Luu du lieu', tone: 'success', onDismiss: () => calls++ })
+  f.advance(800); assert.equal(calls, 0)
+  f.advance(2199); assert.equal(calls, 0)
+  f.advance(1); assert.equal(calls, 1)
+})
 test('early close and unmount cancel pending work', () => {
   const f = fixture(); let calls = 0
   f.render({ message: 'Đã lưu', tone: 'success', onDismiss: () => calls++ })

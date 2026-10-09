@@ -38,6 +38,23 @@ export interface LoanDetail {
   items: LoanItem[]
 }
 
+export interface LoanSearchItem {
+  barcode: string
+  bookTitle: string
+  dueAt: string | null
+  status: 'BORROWED' | 'RETURNED'
+}
+
+export interface LoanSearchResult {
+  id: number
+  loanNumber: string
+  cardNumber: string | null
+  readerName: string
+  borrowedAt: string
+  status: 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED' | 'EMPTY'
+  items: LoanSearchItem[]
+}
+
 export function formatLoanTimestamp(value: string | null, dateOnly = false): string {
   if (!value) return 'Chưa có thông tin'
   const date = new Date(value)
@@ -49,6 +66,10 @@ export function formatLoanTimestamp(value: string | null, dateOnly = false): str
 }
 
 export const loanService = {
+  search: async (code: string): Promise<LoanSearchResult[]> => {
+    const response = await apiClient.get<LoanSearchResult[]>('/loans/search', { params: { code } })
+    return response.data
+  },
   list: async (): Promise<LoanSummary[]> => {
     const response = await apiClient.get<LoanSummary[]>('/loans')
     return response.data

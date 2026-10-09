@@ -33,7 +33,10 @@ export default function LoanListPage() {
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Bạn không có quyền xem danh sách phiếu mượn.</p>
   return <div>
     <PageHeader title="Phiếu mượn" description="Mở lại phiếu để kiểm tra bản sao, hạn trả và người lập. Phiếu mới nhất hiển thị trước."
-      action={<Button type="button" variant="secondary" loading={loading} onClick={() => setRevision((value) => value + 1)}>Làm mới</Button>} />
+      action={<div className="flex flex-wrap items-center gap-2">
+        <Link to="/loans/search" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700">Tra cứu phiếu mượn</Link>
+        <Button type="button" variant="secondary" loading={loading} onClick={() => setRevision((value) => value + 1)}>Làm mới</Button>
+      </div>} />
     {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">{error} Nhấn “Làm mới” để thử lại.</p>}
     {loading && <div role="status"><LoadingState /></div>}
     {!loading && !error && items.length === 0 && <EmptyState title="Chưa có phiếu mượn" description="Phiếu sẽ xuất hiện sau khi Thủ thư xác nhận nhận sách thành công." />}

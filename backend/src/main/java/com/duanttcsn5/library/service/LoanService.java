@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.HashSet;
 import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
@@ -25,6 +26,7 @@ import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
 import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
 import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
 import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
+import com.duanttcsn5.library.dto.loan.LoanSearchResultResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
@@ -985,6 +987,38 @@ public class LoanService {
         long offset = (long) page * size;
         return new MyReturnedBooksPageResponse(offset >= total ? List.of() :
                 loans.findReturnedForReader(readerId, size, offset), page, size, total);
+    }
+
+    /** S3-08.1: all namespaces participate equally until the PO approves a priority.
+     * Deduplicate by loan ID, never by barcode: one copy can be borrowed many times.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public List<LoanSearchResultResponse> searchLoans(String enteredCode, Long actorId) {
+        requireStaff(actorId, "tra cứu phiếu mượn");
+        String code = enteredCode == null ? "" : enteredCode.trim();
+        if (code.isEmpty() || code.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_CODE",
+                    "Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.");
+        }
+        Map<Long, LoanRepository.LoanSearchRow> headers = new LinkedHashMap<>();
+        Map<Long, List<LoanSearchResultResponse.Item>> grouped = new LinkedHashMap<>();
+        for (var row : loans.searchLoansByCode(code)) {
+            headers.putIfAbsent(row.loanId(), row);
+            var items = grouped.computeIfAbsent(row.loanId(), ignored -> new ArrayList<>());
+            if (row.itemId() != null) {
+                items.add(new LoanSearchResultResponse.Item(row.barcode(), row.bookTitle(),
+                        row.dueAt(), row.returnedAt() == null ? "BORROWED" : "RETURNED"));
+            }
+        }
+        return grouped.entrySet().stream().map(entry -> {
+            var header = headers.get(entry.getKey());
+            var items = entry.getValue();
+            long returned = items.stream().filter(item -> "RETURNED".equals(item.status())).count();
+            String status = items.isEmpty() ? "EMPTY" : returned == items.size() ? "RETURNED"
+                    : returned > 0 ? "PARTIALLY_RETURNED" : "BORROWED";
+            return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
+                    header.readerName(), header.borrowedAt(), status, items);
+        }).toList();
     }
 
     @Transactional(readOnly = true)
