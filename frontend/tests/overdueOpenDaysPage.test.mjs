@@ -39,16 +39,20 @@ function fixture(list) {
     '../../components/ui/Button': { __esModule: true, default: Stub },
     '../../components/ui/Card': { __esModule: true, default: Stub },
     '../../components/ui/Input': { __esModule: true, default: Stub },
-    '../../components/ui/FeedbackAlert': { __esModule: true, default: Stub },
+    '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message }) => ({ type: 'span', props: { children: message } }) },
     '../../components/ui/EmptyState': { __esModule: true, default: Stub },
     '../../components/ui/LoadingState': { __esModule: true, default: Stub },
     '../../components/ui/PageHeader': { __esModule: true, default: Stub },
-    '../../components/ui/TableActionButton': { tableActionClassName: () => 'action' },
+    '../../components/ui/TableActionButton': { tableActionClassName: () => 'action', TableActions: Stub, __esModule: true, default: Stub },
+    '../../components/ui/TablePagination': { __esModule: true, default: Stub },
+    '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
+
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: error => error.message },
     '../s3-01-loans/loanService': { formatLoanTimestamp: value => value, loanRoles: ['LIBRARIAN'] },
     './overdueLoanService': { overdueLoanService: { list } },
     './overdueFilter': filterHelpers,
+    './OverdueContactDialog': { __esModule: true, default: Stub },
   }
   const source = readFileSync(new URL('../src/features/s3-09-overdue-loans/OverdueLoansPage.tsx', import.meta.url), 'utf8')
   const context = { exports: {}, require: name => imports[name] ?? require(name) }
@@ -114,7 +118,7 @@ test('failed refresh shows actionable error state and clears old loan rows', asy
   refresh.props.onClick()
   f.render()
   await tick(); f.render()
-  assert.match(text(f.tree()), /Không tải được lịch thư viện/)
+  assert.ok(find(f.tree(), node => node.props?.message?.includes('Không tải được lịch thư viện.')), 'Lỗi tải dữ liệu phải được truyền cho FeedbackAlert')
   assert.doesNotMatch(text(f.tree()).replace(/\s+/g, ' '), /Trễ 1 ngày mở cửa/)
 })
 

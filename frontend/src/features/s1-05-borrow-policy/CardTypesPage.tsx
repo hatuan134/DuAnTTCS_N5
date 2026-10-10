@@ -14,6 +14,7 @@ import {
 
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusBadge from '../../components/ui/StatusBadge'
 import LoadingState from '../../components/ui/LoadingState'
@@ -82,6 +83,7 @@ export default function CardTypesPage() {
   const user = getCurrentUser()
   const canRead = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(user?.role ?? '')
   const canManage = user?.role === 'LIBRARY_MANAGER' || user?.role === 'ADMIN'
+  const [pendingDelete, setPendingDelete] = useState<CardType | null>(null)
 
   const [cardTypes, setCardTypes] = useState<CardType[]>([])
   const [history, setHistory] = useState<PolicyHistory[]>([])
@@ -191,14 +193,11 @@ export default function CardTypesPage() {
       return
     }
 
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa loại thẻ "${cardType.name}" không? Thao tác này không thể hoàn tác.`
-      )
-    ) {
-      return
-    }
+    setPendingDelete(cardType)
+  }
 
+  const confirmDelete = async (cardType: CardType) => {
+    setPendingDelete(null)
     try {
       setActionLoadingId(cardType.id)
       setGlobalError('')
@@ -341,6 +340,11 @@ export default function CardTypesPage() {
           )}
         </div>
       </div>
+
+      {pendingDelete && <ConfirmActionDialog
+        title="Xóa loại thẻ" description={`Bạn có chắc muốn xóa loại thẻ “${pendingDelete.name}”? Thao tác này không thể hoàn tác.`}
+        confirmLabel="Xóa loại thẻ" onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete(pendingDelete)} />}
 
       {/* THÔNG BÁO GLOBAL */}
       {globalError && (

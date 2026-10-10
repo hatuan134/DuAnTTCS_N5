@@ -427,6 +427,15 @@ textarea:focus-visible {
 .data-table td {
   vertical-align: middle;
   text-align: center;
+  line-height: 1.5;
+}
+
+.data-table tbody > tr > th {
+  vertical-align: middle;
+}
+
+.data-table .table-actions > * {
+  vertical-align: middle;
 }
 
 .data-table thead th {

@@ -33,6 +33,7 @@ function fixture({ role = 'READER', total = 0, request, borrowedRequest, file = 
       const i = cursor++; if (!(i in slots)) slots[i] = initial
       return [slots[i], (value) => { slots[i] = typeof value === 'function' ? value(slots[i]) : value }]
     },
+    useRef(value) { const i = cursor++; return slots[i] ??= { current: value } },
     useEffect(callback, deps) {
       const i = cursor++, previous = slots[i]
       if (!previous || deps.some((value, n) => !Object.is(value, previous.deps[n]))) {
@@ -50,6 +51,8 @@ function fixture({ role = 'READER', total = 0, request, borrowedRequest, file = 
     '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message }) => react.createElement('p', { role: 'alert' }, message) },
     './BorrowedBookDueWarning': { __esModule: true, default: () => null },
     './MyReturnedBooksPanel': { __esModule: true, default: () => react.createElement('p', {}, 'HISTORY PANEL') },
+    '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
+    '../../components/ui/TableActionButton': { __esModule: true, default: ({ children, ...props }) => react.createElement('button', props, children) },
     './myBorrowedBooksService': { myBorrowedBooksService: {
       async history(page) {
         calls.push({ page, user: user.id })

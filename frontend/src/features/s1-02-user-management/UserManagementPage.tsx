@@ -22,6 +22,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
@@ -107,6 +108,7 @@ export default function UserManagementPage() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [changingId, setChangingId] = useState<number | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ account: Account; kind: 'delete' | 'lock' | 'unlock' } | null>(null)
 
   const loadAccounts = useCallback(async () => {
     setLoading(true)
@@ -257,7 +259,11 @@ export default function UserManagementPage() {
     }
   }
 
-  const handleStatusChange = async (
+  const handleStatusChange = (account: Account) => {
+    setPendingAction({ account, kind: account.status === 'ACTIVE' ? 'lock' : 'unlock' })
+  }
+
+  const performStatusChange = async (
     account: Account,
   ) => {
     const targetStatus: AccountStatus =
@@ -269,14 +275,6 @@ export default function UserManagementPage() {
       targetStatus === 'LOCKED'
         ? 'khóa'
         : 'mở khóa'
-
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn ${action} tài khoản ${account.email}?`,
-    )
-
-    if (!confirmed) {
-      return
-    }
 
     setChangingId(account.id)
     setError('')
@@ -326,13 +324,13 @@ export default function UserManagementPage() {
     setShowCreate(false)
   }
 
-  const handleDelete = async (account: Account) => {
+  const handleDelete = (account: Account) => {
     if (currentUser?.id === account.id) return
+    setPendingAction({ account, kind: 'delete' })
+  }
 
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa vĩnh viễn tài khoản ${account.email}? Dữ liệu đăng nhập của tài khoản sẽ bị xóa và email này có thể được dùng để tạo tài khoản mới.`,
-    )
-    if (!confirmed) return
+  const performDelete = async (account: Account) => {
+    if (currentUser?.id === account.id) return
 
     setChangingId(account.id)
     setError('')
@@ -483,7 +481,7 @@ export default function UserManagementPage() {
                   <th className="px-5 py-3">Liên hệ</th>
                   <th className="px-5 py-3">Vai trò</th>
                   <th className="px-5 py-3">Trạng thái</th>
-                  {canManage && <th className="px-5 py-3 text-right">Thao tác</th>}
+                  {canManage && <th className="px-5 py-3 text-center">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -507,16 +505,18 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <div className="text-slate-700">{account.email}</div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {account.phone || 'Chưa có số điện thoại'}
+                        <div className="flex flex-col items-center gap-1 text-center">
+                          <span className="max-w-full break-all text-slate-700">{account.email}</span>
+                          <span className="text-xs text-slate-500">
+                            {account.phone || 'Chưa có số điện thoại'}
+                          </span>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-slate-700">
                         {account.roleName}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex flex-col items-start gap-1">
+                        <div className="flex flex-col items-center gap-1 text-center">
                           <StatusBadge status={account.status} />
                           <span className="text-xs text-slate-500">
                             {statusLabel(account.status)}
@@ -576,6 +576,24 @@ export default function UserManagementPage() {
         )}
       </Card>
 
+      {pendingAction && (
+        <ConfirmActionDialog
+          title={pendingAction.kind === 'delete' ? 'Xóa tài khoản' : pendingAction.kind === 'lock' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+          description={pendingAction.kind === 'delete'
+            ? `Bạn có chắc muốn xóa tài khoản ${pendingAction.account.email}? Thông tin đăng nhập sẽ bị xóa, email có thể đăng ký lại và lịch sử hoạt động vẫn được lưu.`
+            : `Bạn có chắc muốn ${pendingAction.kind === 'lock' ? 'khóa' : 'mở khóa'} tài khoản ${pendingAction.account.email}?`}
+          confirmLabel={pendingAction.kind === 'delete' ? 'Xóa tài khoản' : pendingAction.kind === 'lock' ? 'Khóa tài khoản' : 'Mở khóa'}
+          danger={pendingAction.kind !== 'unlock'}
+          busy={changingId !== null}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => {
+            const action = pendingAction
+            setPendingAction(null)
+            if (action.kind === 'delete') void performDelete(action.account)
+            else void performStatusChange(action.account)
+          }}
+        />
+      )}
       {canManage && (showCreate || editingAccount) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl">

@@ -61,7 +61,8 @@ export default function MyReturnedBooksPanel() {
     {!loading && !failed && current?.total === 0 && <EmptyState title="Bạn chưa có lịch sử trả sách" description="Những bản sách đã được ghi nhận trả sẽ xuất hiện ở đây." />}
     {!loading && !failed && current && current.items.length > 0 && <Card className="overflow-hidden">
       <div className="divide-y divide-slate-200 md:hidden">
-        {current.items.map((item) => <article key={item.id} className="space-y-3 p-4">
+        {current.items.map((item, index) => <article key={item.id} className="space-y-3 p-4">
+          <p className="text-xs font-semibold text-slate-500">STT {page * current.size + index + 1}</p>
           <h4 className="break-words font-semibold text-slate-900">{item.bookTitle}</h4>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div><dt className="text-slate-500">Mã vạch bản sao</dt><dd className="break-all font-mono">{item.barcode}</dd></div>
@@ -75,10 +76,11 @@ export default function MyReturnedBooksPanel() {
         <table className="data-table w-full table-fixed text-sm">
           <caption className="sr-only">Các giao dịch trả sách của bạn, thời điểm trả gần nhất trước</caption>
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr>
-            <th scope="col" className="w-1/4 px-4 py-3">Tên sách</th><th scope="col" className="px-4 py-3">Mã vạch bản sao</th>
+            <th scope="col" className="w-14 px-3 py-3">STT</th><th scope="col" className="w-1/4 px-4 py-3">Tên sách</th><th scope="col" className="px-4 py-3">Mã vạch bản sao</th>
             <th scope="col" className="px-4 py-3">Mã phiếu mượn</th><th scope="col" className="px-4 py-3">Ngày mượn</th><th scope="col" className="px-4 py-3">Thời điểm trả</th>
           </tr></thead>
-          <tbody className="divide-y divide-slate-100">{current.items.map((item) => <tr key={item.id} className="hover:bg-slate-50">
+          <tbody className="divide-y divide-slate-100">{current.items.map((item, index) => <tr key={item.id} className="hover:bg-slate-50">
+            <td className="px-3 py-4 text-slate-500">{page * current.size + index + 1}</td>
             <td className="break-words px-4 py-4 font-medium">{item.bookTitle}</td>
             <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
             <td className="break-all px-4 py-4 font-mono">{item.loanNumber}</td>

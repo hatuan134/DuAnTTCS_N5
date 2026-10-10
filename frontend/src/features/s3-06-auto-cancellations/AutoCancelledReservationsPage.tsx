@@ -1,4 +1,6 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { useEffect, useState, useMemo } from 'react'
 import {
   RefreshCw,
@@ -117,6 +119,8 @@ export default function AutoCancelledReservationsPage() {
       return matchId || matchReader || matchBook || matchBarcode || matchNextReader
     })
   }, [items, searchQuery, outcomeFilter])
+
+  const pagination = useTablePagination(filteredItems, `${searchQuery}:${outcomeFilter}`)
 
   return (
     <div className="space-y-6">
@@ -262,9 +266,10 @@ export default function AutoCancelledReservationsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-700">
+            <table className="data-table min-w-full text-sm text-slate-700">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
+                  <th className="px-3 py-3.5">STT</th>
                   <th className="px-5 py-3.5">Mã đơn</th>
                   <th className="px-5 py-3.5">Bạn đọc</th>
                   <th className="px-5 py-3.5">Đầu sách & Bản sao</th>
@@ -274,8 +279,9 @@ export default function AutoCancelledReservationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredItems.map((row) => (
+                {pagination.pageItems.map((row, index) => (
                   <tr key={row.id} className="transition hover:bg-slate-50/70">
+                    <td className="px-3 py-4 text-slate-500">{pagination.startIndex + index + 1}</td>
                     {/* Cột 1: Mã đơn */}
                     <td className="px-5 py-4 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
                       #{row.id}
@@ -372,6 +378,7 @@ export default function AutoCancelledReservationsPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination page={pagination.page} totalItems={pagination.totalItems} totalPages={pagination.totalPages} pageSize={pagination.pageSize} onPageChange={pagination.goToPage} />
           </div>
         )}
 

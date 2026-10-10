@@ -136,6 +136,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const [inlineCategoryName, setInlineCategoryName] = useState('')
   const [inlineCategorySubmitting, setInlineCategorySubmitting] = useState(false)
   const [inlinePublisherName, setInlinePublisherName] = useState('')
+  const [inlinePublisherSubmitting, setInlinePublisherSubmitting] = useState(false)
   const [bookSubmitting, setBookSubmitting] = useState(false)
   const [duplicateTitleWarning, setDuplicateTitleWarning] = useState<DuplicateTitleWarningState | null>(null)
 
@@ -543,19 +544,29 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
     }
   }
 
-  const handleInlinePublisherCreate = () => {
+  const handleInlinePublisherCreate = async () => {
     const name = inlinePublisherName.trim()
     if (!name) {
       setBookFormError('Vui lòng nhập tên nhà xuất bản mới.')
       return
     }
-    if (bookSubmitting) return
+    if (inlinePublisherSubmitting || bookSubmitting) return
 
-    const existing = publisherOptions.find((publisher) => publisher.toLocaleLowerCase('vi-VN') === name.toLocaleLowerCase('vi-VN'))
-    const selected = existing ?? name
-    setBookForm((current) => ({ ...current, publisher: selected }))
-    setInlinePublisherName('')
+    setInlinePublisherSubmitting(true)
+    setInlineNotice('')
     setBookFormError('')
+    try {
+      const created = await catalogService.createPublisher(name)
+      setPublisherOptions((current) => current.some((publisher) => publisher.toLocaleLowerCase('vi-VN') === created.name.toLocaleLowerCase('vi-VN'))
+        ? current : [...current, created.name].sort((a, b) => a.localeCompare(b, 'vi-VN')))
+      setBookForm((current) => ({ ...current, publisher: created.name }))
+      setInlinePublisherName('')
+      setInlineNotice(`Đã tạo và chọn nhà xuất bản ${created.name}.`)
+    } catch (err: any) {
+      setBookFormError(err.response?.data?.message || 'Không thể thêm nhà xuất bản mới.')
+    } finally {
+      setInlinePublisherSubmitting(false)
+    }
   }
 
   const handleBookSubmit = async (e: FormEvent) => {
@@ -1296,13 +1307,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                       setInlinePublisherName(value)
                       setBookFormError('')
                     }}
-                    onCreate={handleInlinePublisherCreate}
+                    onCreate={() => void handleInlinePublisherCreate()}
                     placeholder="Chưa có nhà xuất bản? Nhập tên mới"
                     buttonLabel="Thêm nhà xuất bản mới"
+                    busy={inlinePublisherSubmitting}
                     disabled={bookSubmitting}
                   />
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Nhà xuất bản mới sẽ được ghi vào cơ sở dữ liệu khi bạn lưu đầu sách.
+                    Nhà xuất bản được lưu ngay và tự động chọn để biên mục đầu sách.
                   </p>
                 </div>
 
@@ -1369,14 +1381,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setIsBookModalOpen(false)}
-                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting || inlinePublisherSubmitting}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Huỷ
                 </button>
                 <button
                   type="submit"
-                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting}
+                  disabled={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting || inlinePublisherSubmitting}
                   className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {bookSubmitting ? 'Đang lưu...' : 'Lưu đầu sách'}

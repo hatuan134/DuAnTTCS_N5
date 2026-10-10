@@ -6,6 +6,8 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import Input from '../../components/ui/Input'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
@@ -156,11 +158,12 @@ export default function ReceiveReturnPage() {
     setShowSummary(false)
   }
 
+  const received = entries.filter((entry): entry is ReturnSessionSuccess => entry.status === 'SUCCESS')
+  const successCount = received.length
+  const summaryPagination = useTablePagination(received, String(showSummary))
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
     Bạn không có quyền tra cứu nhận trả sách.
   </p>
-  const received = entries.filter((entry): entry is ReturnSessionSuccess => entry.status === 'SUCCESS')
-  const successCount = received.length
 
   if (showSummary) return <div className="space-y-5">
     <PageHeader title="Nhận trả sách" description="Lượt nhận trả đã kết thúc. Kiểm tra tổng kết trước khi bắt đầu lượt tiếp theo." />
@@ -174,10 +177,11 @@ export default function ReceiveReturnPage() {
         <Button type="button" onClick={startNewSession} className="w-full sm:w-auto sm:shrink-0 sm:self-start">Đóng tổng kết và bắt đầu lượt mới</Button>
       </div>
       <div className="hidden lg:block">
-        <table className="w-full table-fixed text-left text-sm">
+        <table className="data-table w-full table-fixed text-sm">
           <caption className="sr-only">Các cuốn đã nhận thành công trong lượt</caption>
           <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
             <tr>
+              <th scope="col" className="w-[6%] px-2 py-3">STT</th>
               <th scope="col" className="w-[14%] px-4 py-3">Mã vạch</th>
               <th scope="col" className="w-[18%] px-4 py-3">Tên sách</th>
               <th scope="col" className="w-[14%] px-4 py-3">Bạn đọc đã trả</th>
@@ -188,7 +192,8 @@ export default function ReceiveReturnPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {received.map(entry => <tr key={entry.itemId} data-return-summary-row={entry.barcode} className="align-top">
+            {summaryPagination.pageItems.map((entry, index) => <tr key={entry.itemId} data-return-summary-row={entry.barcode}>
+              <td className="px-2 py-4 text-slate-500">{summaryPagination.startIndex + index + 1}</td>
               <th scope="row" className="break-all px-4 py-4 font-mono font-medium text-slate-700">{entry.barcode}</th>
               <td className="break-words px-4 py-4 font-semibold text-slate-900">{entry.bookTitle}</td>
               <td className="break-words px-4 py-4 text-slate-700">{entry.readerName ?? 'Chưa có thông tin'}</td>
@@ -201,8 +206,8 @@ export default function ReceiveReturnPage() {
         </table>
       </div>
       <ol className="divide-y divide-slate-200 lg:hidden" aria-label="Các cuốn đã nhận thành công trong lượt">
-        {received.map((entry, index) => <li key={entry.itemId} data-return-summary-card={entry.barcode} className="p-5">
-          <p className="break-words font-semibold text-slate-900">{index + 1}. {entry.bookTitle}</p>
+        {summaryPagination.pageItems.map((entry, index) => <li key={entry.itemId} data-return-summary-card={entry.barcode} className="p-5">
+          <p className="break-words font-semibold text-slate-900">{summaryPagination.startIndex + index + 1}. {entry.bookTitle}</p>
           <dl className="mt-4 grid gap-4 sm:grid-cols-2">
             <Detail label="Mã vạch"><span className="break-all font-mono text-sm">{entry.barcode}</span></Detail>
             <Detail label="Bạn đọc đã trả">{entry.readerName ?? 'Chưa có thông tin'}</Detail>
@@ -213,6 +218,9 @@ export default function ReceiveReturnPage() {
           </dl>
         </li>)}
       </ol>
+      <TablePagination page={summaryPagination.page} totalItems={summaryPagination.totalItems}
+        totalPages={summaryPagination.totalPages} pageSize={summaryPagination.pageSize}
+        onPageChange={summaryPagination.goToPage} />
     </Card>
     <Card className="p-5">
       <h2 className="text-base font-semibold text-slate-900">Mã vạch chưa ghi nhận thành công</h2>
