@@ -91,10 +91,10 @@ class AuditLogServiceTest {
 
     @Test
     @DisplayName("Xóa tài khoản dọn dữ liệu nhận diện khỏi audit log")
-    void deleteUserPersonalData_DelegatesToRepository() {
-        service.deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+    void anonymizeDeletedUser_PreservesAuditRows() {
+        service.anonymizeDeletedUser(70L, "deleted@libra.edu.vn");
 
-        verify(auditLogRepository).deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+        verify(auditLogRepository).anonymizeDeletedUser(70L, "deleted@libra.edu.vn");
     }
 
     @Test

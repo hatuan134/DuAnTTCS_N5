@@ -22,7 +22,7 @@ public class BookCoverController {
     public BookCoverController(BookCoverService service) { this.service = service; }
 
     @PostMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<Void> upload(@PathVariable Long id,
                                        @RequestParam(value = "file", required = false) MultipartFile file) {
         service.upload(id, file);

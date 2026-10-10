@@ -12,10 +12,10 @@ import type {
 import InitialPasswordPage from './InitialPasswordPage'
 import UserManagementPage from './UserManagementPage'
 
-function AdminOnlyUserManagement() {
+function StaffUserManagement() {
   const currentUser = getCurrentUser()
 
-  if (currentUser?.role !== 'ADMIN') {
+  if (!['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'].includes(currentUser?.role ?? '')) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -37,7 +37,7 @@ const feature: FeatureModule = {
   appRoutes: [
     {
       path: 'users',
-      element: <AdminOnlyUserManagement />,
+      element: <StaffUserManagement />,
     },
   ],
 
@@ -47,7 +47,7 @@ const feature: FeatureModule = {
       to: '/users',
       icon: Users,
       order: 20,
-      roles: ['ADMIN'],
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }

@@ -49,7 +49,7 @@ public class AuthorController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<AuthorResponse> createAuthor(
             @Valid @RequestBody CreateAuthorRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -61,7 +61,7 @@ public class AuthorController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<AuthorResponse> updateAuthor(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAuthorRequest request,
@@ -74,7 +74,7 @@ public class AuthorController {
     }
 
     @PatchMapping("/{id}/toggle-status")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<AuthorResponse> toggleStatus(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -86,7 +86,7 @@ public class AuthorController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<Void> deleteAuthor(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal,

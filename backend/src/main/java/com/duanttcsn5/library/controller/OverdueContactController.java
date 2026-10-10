@@ -35,7 +35,7 @@ public class OverdueContactController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<OverdueContactResponse> record(
             @PathVariable Long loanId, @Valid @RequestBody CreateOverdueContactRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {

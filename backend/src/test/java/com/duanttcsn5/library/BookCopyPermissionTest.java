@@ -60,8 +60,8 @@ class BookCopyPermissionTest {
         assertThrows(AccessDeniedException.class, () -> locations.getShelves(null));
         verifyNoInteractions(context.getBean(BookCopyService.class));
     }
-    @Test void staffCanCreateAndReadCopiesAndReadLocations() {
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+    @Test void catalogWritersCanCreateAndReadCopiesAndReadLocations() {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             role(role);
             assertDoesNotThrow(() -> copies.repair(1L,
                     new com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest("Bong gáy"), null));
@@ -75,7 +75,16 @@ class BookCopyPermissionTest {
             assertDoesNotThrow(() -> locations.getShelves(null));
         }
     }
-    @Test void librarianDoesNotGainWarehouseWritePermission() {
+    @Test void managerMayReadButMayNotWriteCopies() {
+        role("LIBRARY_MANAGER");
+        assertDoesNotThrow(() -> copies.history(1L));
+        assertDoesNotThrow(() -> copies.getByBookId(1L));
+        assertThrows(AccessDeniedException.class, () -> copies.create(1L, request()));
+        assertThrows(AccessDeniedException.class, () -> copies.repair(1L,
+                new com.duanttcsn5.library.dto.bookcopy.RepairBookCopyRequest("Bong gáy"), null));
+        assertThrows(AccessDeniedException.class, () -> copies.update(1L, updateRequest()));
+    }
+        @Test void librarianDoesNotGainWarehouseWritePermission() {
         role("LIBRARIAN");
         assertThrows(AccessDeniedException.class, () -> locations.createWarehouse(
                 new WarehouseRequest("TEST", "Kho thử", ""), null, null));

@@ -27,7 +27,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/accounts")
-@PreAuthorize("hasRole('ADMIN')")
 public class UserManagementController {
 
     private final UserManagementService userManagementService;
@@ -37,6 +36,8 @@ public class UserManagementController {
     }
 
     @PostMapping
+
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AccountResponse> createAccount(
             @Valid @RequestBody CreateAccountRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -48,6 +49,7 @@ public class UserManagementController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<AccountResponse>> getAccounts(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String role,
@@ -56,6 +58,7 @@ public class UserManagementController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AccountResponse> updateAccount(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAccountRequest request,
@@ -68,6 +71,7 @@ public class UserManagementController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteAccount(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -79,6 +83,7 @@ public class UserManagementController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AccountResponse> updateAccountStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAccountStatusRequest request,

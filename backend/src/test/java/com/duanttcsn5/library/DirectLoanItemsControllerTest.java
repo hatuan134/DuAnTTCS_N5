@@ -93,7 +93,7 @@ class DirectLoanItemsControllerTest {
         var request = new AddDirectLoanItemRequest("TV-0012", "BC-1", List.of());
         when(service.previewDirectLoanItem(request, 12L))
                 .thenReturn(new DirectLoanItemResponse(1L, 50L, "BC-1", "Lập trình Java", 3L));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             token(role);
             mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
                     .header("Authorization", "Bearer test-token"))
@@ -104,6 +104,20 @@ class DirectLoanItemsControllerTest {
                     .andExpect(jsonPath("$.passwordHash").doesNotExist());
         }
     }
+    @Test void managerMayPreviewOnlyExplicitLoanOverride() throws Exception {
+        token("LIBRARY_MANAGER");
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("MANAGER_OVERRIDE_ONLY"));
+        verifyNoInteractions(service);
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cardNumber\":\"TV-0012\",\"barcode\":\"BC-1\",\"selectedBarcodes\":[],\"overridePreview\":true}")
+                .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk());
+        verify(service).previewDirectLoanItem(any(), eq(12L));
+    }
+
     @Test void invalidBodyIsRejectedBeforeService() throws Exception {
         token("LIBRARIAN");
         for (String body : new String[]{
@@ -153,7 +167,7 @@ class DirectLoanItemsControllerTest {
                 "LOAN_DRAFT_COPY_HELD_FOR_OTHER_READER", message,
                 Map.of("reservationId", 42L, "readerName", "Trần Thị Bình",
                         "pickupDeadline", "2026-10-10T00:00+07:00", "ownReservation", false)));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             token(role);
             mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
                     .header("Authorization", "Bearer test-token"))

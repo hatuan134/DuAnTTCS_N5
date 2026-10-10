@@ -25,6 +25,7 @@ import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
+import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.service.LoanService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -77,6 +78,7 @@ public class LoanController {
             @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         Long actorId = principal == null ? null : principal.id();
+        requireManagerOverrideWhenApplicable(principal, request.overrideRequested());
         // Keep the old service API path for clients that do not yet send a request key.
         if (request.overrideRequested()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
@@ -154,7 +156,7 @@ public class LoanController {
     }
 
     @PostMapping("/loans/reader-eligibility/check")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<ReaderLoanEligibilityResponse> checkReaderAndLog(
             @Valid @RequestBody CheckReaderLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -162,7 +164,6 @@ public class LoanController {
                 request.cardNumber(), principal == null ? null : principal.id(), request.requestId()));
     }
 
-    /** Viewer scope is provisional until PO decides permitted audit audiences. */
     @GetMapping("/loans/rejections")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanRejectionPageResponse> rejections(
@@ -183,6 +184,11 @@ public class LoanController {
     public ResponseEntity<DirectLoanItemResponse> previewDirectLoanItem(
             @Valid @RequestBody AddDirectLoanItemRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
+        // S3-03: the Manager can preview a direct-loan item only in an explicit override flow.
+        if (principal != null && "LIBRARY_MANAGER".equals(principal.role()) && !request.overridePreview()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_ONLY",
+                    "Quản lý thư viện chỉ được kiểm tra bản sách khi xử lý ngoại lệ mượn.");
+        }
         return ResponseEntity.ok(loans.previewDirectLoanItem(request, principal == null ? null : principal.id()));
     }
 
@@ -191,6 +197,7 @@ public class LoanController {
     public ResponseEntity<DirectLoanResponse> createDirectLoan(
             @Valid @RequestBody CreateDirectLoanRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
+        requireManagerOverrideWhenApplicable(principal, request.overrideRequested());
         return ResponseEntity.status(HttpStatus.CREATED).body(loans.createDirectLoan(
                 request, principal == null ? null : principal.id()));
     }
@@ -204,7 +211,7 @@ public class LoanController {
     }
 
     @PostMapping("/loans/return-confirmation")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<ConfirmReturnResponse> confirmReturn(
             @Valid @RequestBody ConfirmReturnRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -216,5 +223,16 @@ public class LoanController {
     public ResponseEntity<LoanDetailResponse> loanDetail(@PathVariable Long loanId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(loans.loanDetail(loanId, principal == null ? null : principal.id()));
+    }
+    /**
+     * Library Manager has R access to loans; S3-03 grants a narrow exception for
+     * an explicitly requested override. Validation of the override reason and
+     * eligible violations remains in LoanService.
+     */
+    private void requireManagerOverrideWhenApplicable(UserPrincipal principal, boolean overrideRequested) {
+        if (principal != null && "LIBRARY_MANAGER".equals(principal.role()) && !overrideRequested) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_ONLY",
+                    "Quản lý thư viện chỉ có thể xác nhận phiếu mượn khi thực hiện ngoại lệ có lý do.");
+        }
     }
 }

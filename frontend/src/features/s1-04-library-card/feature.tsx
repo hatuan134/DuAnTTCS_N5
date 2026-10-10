@@ -20,7 +20,7 @@ const feature: FeatureModule = {
       to: '/library-cards',
       icon: CreditCard,
       order: 40,
-      roles: ['LIBRARIAN', 'ADMIN'],
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }

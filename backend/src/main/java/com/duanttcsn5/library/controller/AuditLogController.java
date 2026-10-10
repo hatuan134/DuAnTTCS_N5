@@ -22,7 +22,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
-@PreAuthorize("hasRole('ADMIN')")
 public class AuditLogController {
 
     private final AuditLogService auditLogService;
@@ -32,6 +31,7 @@ public class AuditLogController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<AuditLogResponse>> search(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -44,26 +44,31 @@ public class AuditLogController {
     }
 
     @GetMapping("/filter-options")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<AuditFilterOptionsResponse> filterOptions() {
         return ResponseEntity.ok(auditLogService.getFilterOptions());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<AuditLogResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(auditLogService.getById(id));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> rejectPut(@PathVariable Long id) {
         throw immutableLogException();
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> rejectPatch(@PathVariable Long id) {
         throw immutableLogException();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> rejectDelete(@PathVariable Long id) {
         throw immutableLogException();
     }

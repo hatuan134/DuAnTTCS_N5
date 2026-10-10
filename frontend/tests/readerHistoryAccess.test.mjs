@@ -104,7 +104,7 @@ for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN', 'READER', 'AUDITOR'
     }).default
     const route = feature.appRoutes.find(r => r.path === 'readers/:readerId')
     const result = route.element.type(route.element.props)
-    const allowed = role === 'LIBRARIAN' || role === 'LIBRARY_MANAGER'
+    const allowed = role === 'LIBRARIAN' || role === 'LIBRARY_MANAGER' || role === 'ADMIN'
     assert.equal(result.type, allowed ? History : Denied)
     result.type(result.props)
     assert.equal(mounts, allowed ? 1 : 0, 'denied role must not mount/request history')
@@ -117,7 +117,7 @@ for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN', 'READER', 'AUDITOR'
     }
   })
 }
-for (const role of ['ADMIN', 'READER', 'UNKNOWN']) test(`denied ${role} notice expires at 3000ms, recovery stays`, () => {
+for (const role of ['READER', 'UNKNOWN']) test(`denied ${role} notice expires at 3000ms, recovery stays`, () => {
   const p = page('../src/features/s1-03-reader-registration/ReaderHistoryDenied.tsx', {
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role }) },
     'react-router-dom': { Link: () => null },
@@ -137,8 +137,7 @@ for (const role of ['ADMIN', 'LIBRARIAN', 'LIBRARY_MANAGER']) test(`reader list 
     'react-router-dom': { Link: () => null },
   })
   await settle(); p.render()
-  assert.ok(find(p.tree(), n => n.props?.to === (role === 'ADMIN' ? '/readers/20/profile' : '/readers/20')))
-  if (role === 'ADMIN') assert.equal(find(p.tree(), n => n.props?.to === '/readers/20'), undefined)
+  assert.ok(find(p.tree(), n => n.props?.to === '/readers/20'))
 })
 test('ADMIN basic profile uses only basic API and exposes no history fields or actions', async () => {
   const calls = []

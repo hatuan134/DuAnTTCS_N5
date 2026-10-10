@@ -115,7 +115,7 @@ class ReservationLoanControllerTest {
                 7L, "Mắt biếc", 31L, "LIB-031", OffsetDateTime.now(), "Đã lập phiếu mượn thành công.");
         when(service.createFromReservation(21L, 12L, "TV-0012", null, null, null)).thenReturn(result);
         when(service.pickupContext(21L)).thenReturn(new ReservationLoanContextResponse("TV-0012", false, null));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             token(role);
             mvc.perform(submit("{\"cardNumber\":\"TV-0012\"}"))
                     .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(81))

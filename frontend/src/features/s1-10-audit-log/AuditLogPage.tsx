@@ -99,7 +99,7 @@ function getActionStyle(action: AuditActionGroup) {
 
 export default function AuditLogPage() {
   const currentUser = getCurrentUser()
-  const allowed = currentUser?.role === 'ADMIN'
+  const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
 
   if (!allowed) {
     return <AccessDenied />

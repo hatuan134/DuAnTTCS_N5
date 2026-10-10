@@ -189,8 +189,8 @@ public class AuditLogService {
                 ipAddress);
     }
 
-    public void deleteUserPersonalData(Long userId, String email) {
-        auditLogRepository.deleteUserPersonalData(userId, email);
+    public void anonymizeDeletedUser(Long userId, String email) {
+        auditLogRepository.anonymizeDeletedUser(userId, email);
     }
 
     public void logUserDeleted(Long actorAdminId, Long targetUserId, String oldStatus, String ipAddress) {

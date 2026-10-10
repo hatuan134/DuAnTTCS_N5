@@ -76,12 +76,17 @@ class DirectLoanConfirmationControllerTest {
                 new LoanDetailResponse.Item(2L, 2L, "BC-2", 51L, "Sách React", at, at.plusDays(14))));
         when(service.createDirectLoan(new CreateDirectLoanRequest(KEY, "TV-12", List.of("BC-1", "BC-2")), 12L))
                 .thenReturn(new DirectLoanResponse(loan, null, "Đã ghi toàn bộ lượt mượn thành công."));
-        for (String code : List.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN")) {
+        for (String code : List.of("LIBRARIAN", "ADMIN")) {
             token(code); mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
                     .header("Authorization", "Bearer test-token")).andExpect(status().isCreated())
                     .andExpect(jsonPath("$.loan.id").value(80)).andExpect(jsonPath("$.loan.items.length()").value(2))
                     .andExpect(jsonPath("$.loan.createdById").value(12));
         }
+    }
+    @Test void managerCannotCreateOrdinaryLoanWithoutOverride() throws Exception {
+        token("LIBRARY_MANAGER");
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(BODY)
+                .header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
     }
     @Test void invalidBodiesNeverReachService() throws Exception {
         token("LIBRARIAN");

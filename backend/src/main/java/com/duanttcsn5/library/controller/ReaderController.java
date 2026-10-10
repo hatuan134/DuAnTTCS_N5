@@ -137,7 +137,7 @@ public class ReaderController {
 
     /** S3-10.3: only library managers and librarians may view reader loan history. */
     @GetMapping("/{id}/loan-history")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ReaderLoanHistoryResponse> getReaderLoanHistory(
             @PathVariable Long id,
             @RequestParam(required = false) String fromDate,
@@ -149,7 +149,7 @@ public class ReaderController {
     }
     /** S3-10.4: permissions match the loan-history screen, including direct API calls. */
     @GetMapping(value = "/{id}/loan-history/export", produces = "text/csv;charset=UTF-8")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<byte[]> exportReaderLoanHistory(
             @PathVariable Long id,
             @RequestParam(required = false) String fromDate,

@@ -36,6 +36,7 @@ public class BookCopyController {
     }
 
     @PostMapping("/book-copies/{id}/repair")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<BookCopyResponse> repair(@PathVariable Long id,
             @Valid @RequestBody RepairBookCopyRequest request,
             @org.springframework.security.core.annotation.AuthenticationPrincipal UserPrincipal actor) {
@@ -48,6 +49,7 @@ public class BookCopyController {
     }
 
     @PostMapping("/books/{bookId}/copies")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<BookCopyResponse> create(
             @PathVariable Long bookId,
             @Valid @RequestBody CreateBookCopyRequest request) {
@@ -65,6 +67,7 @@ public class BookCopyController {
     }
 
     @PostMapping("/books/{bookId}/copies/bulk")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<BulkCreateBookCopiesResponse> createBulk(
             @PathVariable Long bookId,
             @Valid @RequestBody BulkCreateBookCopiesRequest request) {
@@ -87,6 +90,7 @@ public class BookCopyController {
     }
 
     @RequestMapping(value = "/book-copies/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<BookCopyResponse> update(@PathVariable Long id,
             @Valid @RequestBody UpdateBookCopyRequest request) {
         return ResponseEntity.ok(service.update(id, request));

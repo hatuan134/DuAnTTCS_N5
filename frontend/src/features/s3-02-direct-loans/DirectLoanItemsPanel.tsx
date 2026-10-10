@@ -20,9 +20,10 @@ interface DraftRow {
 const ALLOWED_OVERRIDES = new Set(['LOAN_LIMIT_REACHED', 'LOAN_DRAFT_LIMIT_EXCEEDED',
   'LOAN_OVERDUE_UNRETURNED', 'LOAN_UNPAID_FEES'])
 
-export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, onNewLoan, isManager = false }: {
+export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, onNewLoan, isManager = false, requireOverride = false }: {
   reader: ReaderLoanEligibility
   isManager?: boolean
+  requireOverride?: boolean
   onCreated?: (result: DirectLoanResult) => void
   onLockChange?: (locked: boolean) => void
   onNewLoan?: () => void
@@ -55,7 +56,8 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     || validItems.length >= 10
   const unresolved = items.filter((row) => row.item === null).length
   const hasViolation = !reader.eligible || validItems.length > limit
-  const canConfirm = (overrideRequested ? bypassDraft && hasViolation : reader.eligible && validItems.length <= limit)
+  const canConfirm = (requireOverride ? overrideRequested && bypassDraft && hasViolation :
+    (overrideRequested ? bypassDraft && hasViolation : reader.eligible && validItems.length <= limit))
     && (!bypassDraft || !!overrideReason.trim())
     && validItems.length > 0 && unresolved === 0 && !loading
     && editingId === null && !barcode.trim() && !completed

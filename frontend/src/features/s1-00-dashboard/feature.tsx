@@ -21,6 +21,7 @@ const feature: FeatureModule = {
       to: '/dashboard',
       icon: LayoutDashboard,
       order: 0,
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }

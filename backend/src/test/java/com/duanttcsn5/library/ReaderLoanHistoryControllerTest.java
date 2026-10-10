@@ -103,7 +103,7 @@ class ReaderLoanHistoryControllerTest {
     void onlyLibrarianAndManagerReceiveSummaryAndHistory() throws Exception {
         when(service.getReaderLoanHistory(20L)).thenReturn(
                 new ReaderLoanHistoryResponse(null, 1, 2, 1, List.of()));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER"}) {
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             token(role);
             mvc.perform(get(URL).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isOk())
@@ -133,7 +133,7 @@ class ReaderLoanHistoryControllerTest {
     void authorizedRolesReceiveFilteredHistoryWithSameResponseShape() throws Exception {
         when(service.getReaderLoanHistory(20L, "2026-10-01", "2026-10-09"))
                 .thenReturn(new ReaderLoanHistoryResponse(null, 2, 4, 1, List.of()));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER"}) {
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             token(role);
             mvc.perform(get(URL).param("fromDate", "2026-10-01").param("toDate", "2026-10-09")
                             .header("Authorization", "Bearer test-token"))
@@ -171,7 +171,7 @@ class ReaderLoanHistoryControllerTest {
 
     @Test
     void deniedRolesReceiveNoHistoryForAnyFilterOrReaderId() throws Exception {
-        for (String role : new String[]{"READER", "ADMIN", "AUDITOR", "UNKNOWN"}) {
+        for (String role : new String[]{"READER", "AUDITOR", "UNKNOWN"}) {
             token(role);
             for (String readerId : new String[]{"20", "999", "0", "abc"}) {
                 for (String query : new String[]{"", "?fromDate=2026-10-01", "?toDate=2026-10-09",

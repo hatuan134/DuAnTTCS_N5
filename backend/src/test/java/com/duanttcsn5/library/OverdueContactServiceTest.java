@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -72,14 +73,14 @@ class OverdueContactServiceTest {
         verifyNoInteractions(contacts);
     }
 
-    @Test void managerAndReaderCannotRecordContacts() {
+    @Test void managerMayRecordContactsButReaderCannot() {
         staff(10, "Quản lý", "LIBRARY_MANAGER");
         staff(11, "Bạn đọc", "READER");
-        assertThatThrownBy(() -> service.record(5L, new CreateOverdueContactRequest("Đã gọi"), 10L))
-                .isInstanceOf(ApiException.class).satisfies(error ->
-                    assertThat(((ApiException) error).getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        when(contacts.lockOpenOverdueLoan(eq(5L), any())).thenReturn(true);
+        assertThatCode(() -> service.record(5L, new CreateOverdueContactRequest("Đã gọi"), 10L))
+                .doesNotThrowAnyException();
         assertThatThrownBy(() -> service.history(5L, 11L)).isInstanceOf(ApiException.class);
-        verifyNoInteractions(contacts);
+        verify(contacts).insert(eq(5L), eq(10L), any(), any(), any());
     }
 
     @Test void cannotCreateContactForLoanThatIsNoLongerOverdue() {

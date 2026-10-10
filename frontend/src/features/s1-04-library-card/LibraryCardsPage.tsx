@@ -60,7 +60,7 @@ function getApiMessage(error: unknown) {
 
 export default function LibraryCardsPage() {
   const currentUser = getCurrentUser()
-  const allowed = currentUser?.role === 'LIBRARIAN' || currentUser?.role === 'ADMIN'
+  const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
 
   const [pending, setPending] = useState<PendingReaderApplication[]>([])
   const [issued, setIssued] = useState<LibraryCard[]>([])

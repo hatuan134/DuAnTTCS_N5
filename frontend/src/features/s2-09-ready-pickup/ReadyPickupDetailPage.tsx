@@ -116,7 +116,8 @@ function ReadyPickupDetail({ id }: { id: number }) {
             <dd className="mt-1"><StatusBadge status={item.copyStatus} /></dd></div>}
         </dl>
         <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
-          isManager={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
+          isManager={['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')}
+          requireOverride={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
           onBusyChange={setCreatingLoan}
           onExpired={(context) => setItem((current) => current ? { ...current, ...context, status: 'EXPIRED' } : current)}
           onSuccess={(result) => {

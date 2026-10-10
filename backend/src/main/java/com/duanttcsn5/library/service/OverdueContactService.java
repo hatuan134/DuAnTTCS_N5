@@ -79,11 +79,11 @@ public class OverdueContactService {
         User actor = users.findById(actorId).orElseThrow(() -> new ApiException(
                 HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
         String role = actor.getRole() == null ? null : actor.getRole().getCode();
-        boolean authorized = write ? "LIBRARIAN".equals(role)
-                : (role != null && Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN").contains(role));
+        boolean authorized = role != null
+                && Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN").contains(role);
         if (!authorized || !"ACTIVE".equals(actor.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "STAFF_ROLE_REQUIRED", write
-                    ? "Chỉ Thủ thư đang hoạt động mới được ghi nhận liên hệ."
+                    ? "Chỉ nhân viên thư viện có quyền mới được ghi nhận liên hệ."
                     : "Bạn không có quyền xem lịch sử liên hệ.");
         }
         return actor;

@@ -12,6 +12,7 @@ import type { LoanDatePreview, ReadyPickupReservation, ReservationLoanResult, Re
 interface Props {
   reservation: ReadyPickupReservation
   isManager?: boolean
+  requireOverride?: boolean
   disabled: boolean
   onBusyChange: (busy: boolean) => void
   onSuccess: (result: ReservationLoanResult) => void
@@ -23,7 +24,7 @@ const ALLOWED_OVERRIDES = new Set(['LOAN_LIMIT_REACHED', 'LOAN_DRAFT_LIMIT_EXCEE
   'LOAN_OVERDUE_UNRETURNED', 'LOAN_UNPAID_FEES'])
 
 export default function CreateReservationLoanPanel({
-  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted, onExpired, isManager = false,
+  reservation, disabled, onBusyChange, onSuccess, onAlreadyConverted, onExpired, isManager = false, requireOverride = false,
 }: Props) {
   const [cardNumber, setCardNumber] = useState('')
   const [readerCheck, setReaderCheck] = useState<ReaderLoanEligibility | null>(null)
@@ -120,6 +121,9 @@ export default function CreateReservationLoanPanel({
     if (!confirmed || confirmed.length > 100) {
       setError('Vui lòng nhập mã thẻ hợp lệ, tối đa 100 ký tự.')
       return
+    }
+    if (requireOverride && !overrideRequested) {
+      setError('Quản lý thư viện chỉ được lập phiếu khi bỏ qua một lần chặn có lý do.'); return
     }
     if (overrideRequested && (!canOverride || !overrideReason.trim())) {
       setError('Chỉ được bỏ qua vi phạm chính sách được phép và phải nhập lý do.'); return
@@ -245,6 +249,7 @@ export default function CreateReservationLoanPanel({
       </section>}
       <Button type="submit" loading={submitting}
         disabled={disabled || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage
+          || (requireOverride && !overrideRequested)
           || (overrideRequested && (!canOverride || !overrideReason.trim()))}>
         Xác nhận và lập phiếu mượn
       </Button>

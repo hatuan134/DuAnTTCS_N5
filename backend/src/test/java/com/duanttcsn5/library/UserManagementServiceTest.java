@@ -248,7 +248,7 @@ class UserManagementServiceTest {
         assertDoesNotThrow(() ->
                 userManagementService.deleteAccount(70L, 1L, "127.0.0.1"));
 
-        verify(auditLogService).deleteUserPersonalData(70L, "deleted@libra.edu.vn");
+        verify(auditLogService).anonymizeDeletedUser(70L, "deleted@libra.edu.vn");
         verify(userRepository).delete(user);
         verify(userRepository).flush();
         verify(auditLogService).logUserDeleted(1L, 70L, "ACTIVE", "127.0.0.1");

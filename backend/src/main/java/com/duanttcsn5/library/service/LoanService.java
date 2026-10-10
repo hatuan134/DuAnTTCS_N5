@@ -459,9 +459,9 @@ public class LoanService {
         if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập.");
         var manager = users.findById(actorId).orElseThrow(() -> new ApiException(
                 HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
-        if (manager.getRole() == null || !"LIBRARY_MANAGER".equals(manager.getRole().getCode())
+        if (manager.getRole() == null || !Set.of("LIBRARY_MANAGER", "ADMIN").contains(manager.getRole().getCode())
                 || !"ACTIVE".equals(manager.getStatus())) throw new ApiException(
-                HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện được bỏ qua lần chặn.");
+                HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện hoặc Quản trị hệ thống được bỏ qua lần chặn.");
         String normalized = reason == null ? "" : reason.strip();
         if (normalized.isBlank() || normalized.length() > 500) throw new ApiException(
                 HttpStatus.BAD_REQUEST, "OVERRIDE_REASON_REQUIRED",
@@ -473,9 +473,9 @@ public class LoanService {
         if (actorId == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập.");
         var user = users.findById(actorId).orElseThrow(() -> new ApiException(
                 HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
-        if (user.getRole() == null || !"LIBRARY_MANAGER".equals(user.getRole().getCode())
+        if (user.getRole() == null || !Set.of("LIBRARY_MANAGER", "ADMIN").contains(user.getRole().getCode())
                 || !"ACTIVE".equals(user.getStatus())) throw new ApiException(HttpStatus.FORBIDDEN,
-                "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện được kiểm tra sách cho lượt bỏ qua.");
+                "MANAGER_OVERRIDE_REQUIRED", "Chỉ Quản lý thư viện hoặc Quản trị hệ thống được kiểm tra sách cho lượt bỏ qua.");
     }
 
     private boolean canOverride(List<BlockReason> reasons) {

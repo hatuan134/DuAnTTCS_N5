@@ -34,7 +34,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/library-settings")
-@PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
 public class LibraryConfigurationController {
 
     private final LibraryConfigurationService service;
@@ -50,6 +49,7 @@ public class LibraryConfigurationController {
     }
 
     @PostMapping("/warehouses")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<WarehouseResponse> createWarehouse(
             @Valid @RequestBody WarehouseRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -59,6 +59,7 @@ public class LibraryConfigurationController {
     }
 
     @PutMapping("/warehouses/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<WarehouseResponse> updateWarehouse(
             @PathVariable Long id,
             @Valid @RequestBody WarehouseRequest request,
@@ -75,6 +76,7 @@ public class LibraryConfigurationController {
     }
 
     @PostMapping("/shelves")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ShelfResponse> createShelf(
             @Valid @RequestBody ShelfRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -84,6 +86,7 @@ public class LibraryConfigurationController {
     }
 
     @PutMapping("/shelves/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ShelfResponse> updateShelf(
             @PathVariable Long id,
             @Valid @RequestBody ShelfRequest request,
@@ -93,6 +96,7 @@ public class LibraryConfigurationController {
     }
 
     @DeleteMapping("/shelves/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<Void> deleteShelf(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -102,11 +106,13 @@ public class LibraryConfigurationController {
     }
 
     @GetMapping("/weekly-schedule")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<WeeklyScheduleResponse>> getWeeklySchedule() {
         return ResponseEntity.ok(service.getWeeklySchedule());
     }
 
     @PutMapping("/weekly-schedule")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<WeeklyScheduleResponse>> updateWeeklySchedule(
             @Valid @RequestBody WeeklyScheduleUpdateRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -115,12 +121,14 @@ public class LibraryConfigurationController {
     }
 
     @GetMapping("/closed-dates")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<ClosedDateResponse>> getClosedDates(
             @RequestParam(required = false) Integer year) {
         return ResponseEntity.ok(service.getClosedDates(year));
     }
 
     @PostMapping("/closed-dates")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ClosedDateResponse> createClosedDate(
             @Valid @RequestBody ClosedDateRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -130,6 +138,7 @@ public class LibraryConfigurationController {
     }
 
     @PostMapping("/closed-dates/bulk")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<ClosedDateResponse>> createClosedDatesBulk(
             @Valid @RequestBody BulkClosedDatesRequest request,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -139,6 +148,7 @@ public class LibraryConfigurationController {
     }
 
     @PutMapping("/closed-dates/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<ClosedDateResponse> updateClosedDate(
             @PathVariable Long id,
             @Valid @RequestBody ClosedDateRequest request,
@@ -148,6 +158,7 @@ public class LibraryConfigurationController {
     }
 
     @DeleteMapping("/closed-dates/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<Void> deleteClosedDate(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal,
@@ -157,6 +168,7 @@ public class LibraryConfigurationController {
     }
 
     @GetMapping("/adjust-due-date")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<DueDateAdjustmentResponse> adjustDueDate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(service.adjustDueDate(date));
