@@ -105,6 +105,11 @@ export interface PublicCatalogFilterOptions {
   publicationYears: number[]
 }
 
+export interface Publisher {
+  id: number
+  name: string
+}
+
 export interface AuthorForm {
   name: string
   note: string
@@ -129,6 +134,11 @@ export interface CatalogBookForm {
 }
 
 export const catalogService = {
+  createPublisher: async (name: string): Promise<Publisher> => {
+    const response = await apiClient.post<Publisher>('/publishers', { name })
+    return response.data
+  },
+
   // --- AUTHORS ---
   getAuthors: async (): Promise<Author[]> => {
     const res = await apiClient.get<Author[]>('/authors')

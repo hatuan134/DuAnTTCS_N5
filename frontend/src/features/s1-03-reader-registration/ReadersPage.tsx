@@ -214,7 +214,7 @@ export default function ReadersPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-            <table className="data-table w-full border-collapse text-sm">
+            <table className="data-table w-full min-w-[1360px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-4">STT</th>
@@ -225,7 +225,7 @@ export default function ReadersPage() {
                   <th className="py-3.5 px-4">Số điện thoại</th>
                   <th className="py-3.5 px-4">Ngày nộp</th>
                   <th className="py-3.5 px-4">Trạng thái hồ sơ</th>
-                  <th className="py-3.5 px-4 text-right">Tài khoản</th>
+                  <th className="py-3.5 px-4 text-center">Tài khoản</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -248,18 +248,18 @@ export default function ReadersPage() {
                         <span className="text-slate-400 italic">Chưa cấp thẻ</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <Mail size={14} className="text-slate-400" />
-                        {reader.email}
-                      </div>
+                    <td className="py-3.5 px-4 text-center text-slate-600">
+                      <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap align-middle">
+                        <Mail size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+                        <span>{reader.email}</span>
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">
+                    <td className="py-3.5 px-4 text-center text-slate-600">
                       {reader.phone ? (
-                        <div className="flex items-center gap-1.5">
-                          <Phone size={14} className="text-slate-400" />
-                          {reader.phone}
-                        </div>
+                        <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap align-middle">
+                          <Phone size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+                          <span>{reader.phone}</span>
+                        </span>
                       ) : (
                         <span className="text-slate-300 italic">Chưa có</span>
                       )}
@@ -267,20 +267,24 @@ export default function ReadersPage() {
                     <td className="py-3.5 px-4 text-slate-500 text-xs">
                       {new Date(reader.submittedAt).toLocaleDateString('vi-VN')}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <StatusBadge
-                        status={reader.registrationStatus}
-                        label={reader.registrationStatus === 'PENDING'
-                          ? 'Chờ duyệt'
-                          : reader.registrationStatus === 'APPROVED'
-                            ? 'Đã duyệt'
-                            : reader.registrationStatus === 'REJECTED'
-                              ? 'Bị từ chối'
-                              : reader.registrationStatus}
-                      />
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center">
+                        <StatusBadge
+                          status={reader.registrationStatus}
+                          label={reader.registrationStatus === 'PENDING'
+                            ? 'Chờ duyệt'
+                            : reader.registrationStatus === 'APPROVED'
+                              ? 'Đã duyệt'
+                              : reader.registrationStatus === 'REJECTED'
+                                ? 'Bị từ chối'
+                                : reader.registrationStatus}
+                        />
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <StatusBadge status={reader.userStatus} />
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center">
+                        <StatusBadge status={reader.userStatus} />
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -64,6 +64,7 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
     '../../components/ui/StatusBadge': { __esModule: true, default: Stub },
     '../../components/ui/TableActionButton': { __esModule: true, default: Stub, TableActions: Stub },
     '../../components/ui/TablePagination': { __esModule: true, default: Stub },
+    '../../components/ui/ConfirmActionDialog': { __esModule: true, default: Stub },
     '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: e => e.message },
     './pickupService': { formatPickupDate: v => v, pickupService: {} }, ...imports,
@@ -125,6 +126,10 @@ for (const fail of [false, true]) test(`old ADMIN locks account: ${fail ? 'failu
   })
   await settle(); p.render()
   find(p.tree(), n => n.props?.onClick && text(n).trim() === 'Khóa').props.onClick()
+  p.render()
+  const dialog = find(p.tree(), n => n.props?.confirmLabel === 'Khóa tài khoản')
+  assert.ok(dialog, 'Phải xuất hiện hộp thoại xác nhận trước khi khóa')
+  dialog.props.onConfirm()
   await settle(); p.render(); assert.equal(p.notice().props.tone, fail ? 'error' : 'success'); verifyTimer(p)
 })
 for (const fail of [false, true]) test(`old LIBRARY_MANAGER toggles policy: ${fail ? 'failure' : 'success'} expires at 3000ms`, async () => {

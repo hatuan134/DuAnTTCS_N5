@@ -240,7 +240,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     {items.length === 0
       ? <p className="mt-5 rounded-xl border border-dashed border-slate-300 p-5 text-sm leading-6 text-slate-500">Chưa có sách trong lượt mượn. {reader.eligible ? 'Nhập mã vạch để thêm sách đầu tiên.' : 'Bạn đọc cần đủ điều kiện mượn trước khi thêm sách.'}</p>
       : <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-        <table className="w-full table-fixed text-left text-sm">
+        <table className="data-table w-full table-fixed text-sm">
           <thead className="bg-slate-50 text-slate-600"><tr>
             <th scope="col" className="w-10 px-2 py-3 text-center sm:w-14">STT</th>
             <th scope="col" className="w-[27%] px-2 py-3 sm:px-3">Mã vạch</th>

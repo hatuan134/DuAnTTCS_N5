@@ -9,7 +9,9 @@ import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Input from '../../components/ui/Input'
 import LoadingState from '../../components/ui/LoadingState'
 import PageHeader from '../../components/ui/PageHeader'
-import { tableActionClassName } from '../../components/ui/TableActionButton'
+import TableActionButton, { TableActions, tableActionClassName } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles } from '../s3-01-loans/loanService'
@@ -59,6 +61,7 @@ export default function OverdueLoansPage() {
   const filteredItems = filterOverdueLoans(items, appliedFilter)
   const matchingLoans = countOverdueLoanVouchers(filteredItems)
   const totalLoans = countOverdueLoanVouchers(items)
+  const pagination = useTablePagination(filteredItems, JSON.stringify(appliedFilter))
   const hasFilter = appliedFilter !== null && (appliedFilter.minimum !== null || appliedFilter.maximum !== null)
 
   function applyFilter(event: FormEvent<HTMLFormElement>) {
@@ -240,12 +243,12 @@ export default function OverdueLoansPage() {
         <>
           <Card className="overflow-hidden xl:hidden">
             <div className="divide-y divide-slate-100">
-              {filteredItems.map((item, index) => (
+              {pagination.pageItems.map((item, index) => (
                 <article key={item.itemId} className="space-y-4 p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        STT {index + 1} · {item.loanNumber}
+                        STT {pagination.startIndex + index + 1} · {item.loanNumber}
                       </p>
                       <p className="mt-1 break-words text-base font-semibold text-slate-950">
                         {item.readerName}
@@ -316,9 +319,9 @@ export default function OverdueLoansPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {filteredItems.map((item, index) => (
+                  {pagination.pageItems.map((item, index) => (
                     <tr key={item.itemId} className="hover:bg-slate-50/70">
-                      <td className="px-4 py-4 font-semibold text-slate-500">{index + 1}</td>
+                      <td className="px-4 py-4 font-semibold text-slate-500">{pagination.startIndex + index + 1}</td>
                       <td className="max-w-48 break-all px-4 py-4 font-mono font-semibold text-slate-900">
                         {item.loanNumber}
                       </td>
@@ -345,12 +348,12 @@ export default function OverdueLoansPage() {
                       </td>
                       <td className="min-w-44 px-4 py-4 align-top">{contactStatus(item)}</td>
                       <td className="px-4 py-4">
-                        <div className="flex flex-col items-start gap-2">
-                          <Button type="button" size="sm" variant="secondary" className="whitespace-normal text-left"
+                        <TableActions>
+                          <TableActionButton tone="neutral"
                             onClick={() => setSelectedLoan({ id: item.loanId, number: item.loanNumber })}>
                             {canRecord ? <PhoneCall size={15} /> : <History size={15} />}
                             {canRecord ? 'Đánh dấu đã liên hệ' : 'Lịch sử liên hệ'}
-                          </Button>
+                          </TableActionButton>
                         <Link
                           to={`/loans/${item.loanId}`}
                           className={tableActionClassName('primary')}
@@ -358,13 +361,16 @@ export default function OverdueLoansPage() {
                         >
                           Xem phiếu
                         </Link>
-                        </div>
+                        </TableActions>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </Card>
+          <Card className="overflow-hidden">
+            <TablePagination page={pagination.page} totalItems={pagination.totalItems} totalPages={pagination.totalPages} pageSize={pagination.pageSize} onPageChange={pagination.goToPage} />
           </Card>
         </>
       )}

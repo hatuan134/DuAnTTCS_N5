@@ -161,7 +161,7 @@ export function ReaderProfile({ id }: { id: number }) {
       </form>
       <p className="mt-3 text-xs leading-5 text-slate-500">Có thể để trống một hoặc cả hai ngày. Khoảng lọc bao gồm cả ngày đầu và ngày cuối theo giờ Việt Nam.
         Ba chỉ số tổng hợp luôn tính trên toàn bộ lịch sử.</p>
-      {filterNotice && <FeedbackAlert message={filterNotice} tone="warning" onDismiss={() => setFilterNotice('')} className="mt-3" />}
+      {filterNotice && <FeedbackAlert message={filterNotice} tone="error" onDismiss={() => setFilterNotice('')} className="mt-3" />}
     </Card>}
     {exportNotice && <FeedbackAlert key={`${exportNotice.tone}:${exportNotice.message}`} message={exportNotice.message}
       tone={exportNotice.tone} onDismiss={() => setExportNotice(null)} />}

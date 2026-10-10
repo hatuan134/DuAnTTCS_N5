@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
+import TableActionButton from '../../components/ui/TableActionButton'
 import axios from 'axios'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -36,6 +39,7 @@ export default function MyBorrowedBooksPage() {
   const [checking, setChecking] = useState(false)
   const checkingRef = useRef(false)
   const [revision, setRevision] = useState(0)
+  const pagination = useTablePagination(items, String(dataReaderId ?? ''))
 
   useEffect(() => {
     if (!allowed || tab !== 'borrowed') return
@@ -96,10 +100,10 @@ export default function MyBorrowedBooksPage() {
   const quotaReached = (item: MyBorrowedBook) => item.maxRenewals !== null
     && item.maxRenewals > 0 && item.renewalsUsed >= item.maxRenewals
   const renewButton = (item: MyBorrowedBook) => canRequestRenewal(item) ? (
-    <Button type="button" size="sm" variant="secondary" disabled={checking || loading}
+    <TableActionButton disabled={checking || loading} tone="primary"
       onClick={() => { setNotice(''); setActionError(''); setQueueRejection(null); setConfirming(item) }}>
       Gia hạn
-    </Button>
+    </TableActionButton>
   ) : null
   const renewalUsage = (item: MyBorrowedBook) => (
     <span className={quotaReached(item) ? 'font-semibold text-amber-700' : 'text-slate-700'}>
@@ -148,7 +152,8 @@ export default function MyBorrowedBooksPage() {
       <p className="text-sm text-slate-600">Bạn đang mượn {currentItems.length} bản sách. Còn dưới 3 ngày được gắn nhãn Sắp đến hạn, kể cả hạn hôm nay (0 ngày). Sách đã quá hạn hiển thị số ngày trễ. Chỉ sách chưa quá hạn mới có nút Gia hạn. Khi hết lượt, hệ thống sẽ từ chối và nêu rõ số lần đã dùng.</p>
       <Card className="overflow-hidden">
         <div className="divide-y divide-slate-200 md:hidden">
-          {currentItems.map((item) => <article key={item.id} className="space-y-3 p-4">
+          {pagination.pageItems.map((item, index) => <article key={item.id} className="space-y-3 p-4">
+            <p className="text-xs font-semibold text-slate-500">STT {pagination.startIndex + index + 1}</p>
             <h3 className="break-words font-semibold text-slate-900">{item.bookTitle}</h3>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div><dt className="text-slate-500">Mã vạch bản sao</dt><dd className="break-all font-mono text-slate-900">{item.barcode}</dd></div>
@@ -165,11 +170,12 @@ export default function MyBorrowedBooksPage() {
           <table className="data-table w-full table-fixed text-sm">
             <caption className="sr-only">Danh sách đầy đủ các bản sách bạn đang mượn</caption>
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr>
-              <th scope="col" className="w-1/4 px-4 py-3">Tên sách</th><th scope="col" className="px-4 py-3">Mã vạch bản sao</th>
+              <th scope="col" className="w-14 px-3 py-3">STT</th><th scope="col" className="w-1/4 px-4 py-3">Tên sách</th><th scope="col" className="px-4 py-3">Mã vạch bản sao</th>
               <th scope="col" className="px-4 py-3">Ngày mượn</th><th scope="col" className="px-4 py-3">Hạn trả</th><th scope="col" className="px-4 py-3">Số ngày còn lại</th>
               <th scope="col" className="w-28 px-3 py-3 text-right">Thao tác</th>
             </tr></thead>
-            <tbody className="divide-y divide-slate-100">{currentItems.map((item) => <Fragment key={item.id}><tr className="hover:bg-slate-50">
+            <tbody className="divide-y divide-slate-100">{pagination.pageItems.map((item, index) => <Fragment key={item.id}><tr className="hover:bg-slate-50">
+              <td className="px-3 py-4 text-slate-500">{pagination.startIndex + index + 1}</td>
               <td className="break-words px-4 py-4 font-medium">{item.bookTitle}</td>
               <td className="break-all px-4 py-4 font-mono">{item.barcode}</td>
               <td className="px-4 py-4">{formatLoanTimestamp(item.borrowedAt, true)}</td>
@@ -177,10 +183,11 @@ export default function MyBorrowedBooksPage() {
               <td className="px-4 py-4"><div className="space-y-2"><p className="font-semibold">{remaining(item)}</p><BorrowedBookDueWarning remainingDays={item.remainingDays} /><p className="text-xs">Gia hạn: {renewalUsage(item)}</p></div></td>
               <td className="px-3 py-4 text-right">{renewButton(item)}</td>
             </tr>
-            {queueRejection?.itemId === item.id && <tr><td colSpan={6} className="px-4 pb-4">{queueRejectionAlert(item)}</td></tr>}
+            {queueRejection?.itemId === item.id && <tr><td colSpan={7} className="px-4 pb-4">{queueRejectionAlert(item)}</td></tr>}
             </Fragment>)}</tbody>
           </table>
         </div>
+        <TablePagination page={pagination.page} totalItems={currentItems.length} totalPages={pagination.totalPages} pageSize={pagination.pageSize} onPageChange={pagination.goToPage} />
       </Card>
     </>}
     </section>}

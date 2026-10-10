@@ -143,11 +143,11 @@ test('no matches has a filtered empty state and does not zero totals', async () 
   assert.deepEqual(p.counts(), [2, 4, 1]); assert.ok(text(p.tree()).includes('Tìm thấy 0 phiếu mượn'))
 })
 
-test('reversed range sends no request, retains old results, and expires warning without erasing field error', async () => {
+test('reversed range sends no request, retains old results, and expires error notice without erasing field error', async () => {
   const p = fixture(async () => response(full)); await ready(p)
   p.edit('from', '2026-10-09'); p.edit('to', '2026-10-01'); await p.apply()
   assert.equal(p.calls.length, 1); assert.deepEqual(p.ids(), full.map(loan => `/loans/${loan.id}`))
-  assert.equal(p.notice().props.tone, 'warning'); verifyTimer(p)
+  assert.equal(p.notice().props.tone, 'error'); verifyTimer(p)
   assert.equal(p.input('to').props.error, 'Từ ngày không được lớn hơn Đến ngày.')
   p.edit('to', '2026-10-10'); assert.equal(p.input('to').props.error, undefined)
 })

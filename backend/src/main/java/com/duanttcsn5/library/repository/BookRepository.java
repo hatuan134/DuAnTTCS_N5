@@ -62,11 +62,16 @@ public interface BookRepository extends JpaRepository<Book, Long> {
     Optional<Book> findPublicByIdWithAuthorAndCategory(@Param("id") Long id);
 
     @Query(value = """
-            SELECT DISTINCT BTRIM(publisher)
-            FROM books
-            WHERE publisher IS NOT NULL
-              AND BTRIM(publisher) <> ''
-            ORDER BY 1
+            SELECT MIN(name) AS name
+            FROM (
+                SELECT BTRIM(publisher) AS name
+                FROM books
+                WHERE publisher IS NOT NULL AND BTRIM(publisher) <> ''
+                UNION ALL
+                SELECT name FROM library_publishers
+            ) available_publishers
+            GROUP BY LOWER(BTRIM(name))
+            ORDER BY name
             """, nativeQuery = true)
     List<String> findDistinctPublishers();
 

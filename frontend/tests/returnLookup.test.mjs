@@ -35,6 +35,8 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
   }
   const names = ['Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
   const dependencies = Object.fromEntries(names.map(n => [`../../components/ui/${n}`, { __esModule: true, default: Object.assign(() => null, { displayName: n }) }]))
+  dependencies['../../components/ui/TablePagination'] = { __esModule: true, default: Object.assign(() => null, { displayName: 'TablePagination' }) }
+  dependencies['../../hooks/useTablePagination'] = { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) }
   dependencies.react = hooks
   dependencies['../../core/auth/authStorage'] = { getCurrentUser: () => ({ role }) }
   dependencies['../s1-02-user-management/accountService'] = { getApiErrorMessage: (e, fallback) => e?.response?.data?.message ?? fallback }

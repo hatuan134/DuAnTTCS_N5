@@ -43,11 +43,14 @@ async function pageFixture(file, { data, error, role = 'READER', id = '81', crea
       states[index] = dependencies
     },
     useMemo(callback) { return callback() },
+    useRef(value) { const index = cursor++; if (!(index in states)) states[index] = { current: value }; return states[index] },
   }
   const page = load(file, {
     react: hooks,
     './BorrowedBookDueWarning': dueWarningModule,
     './MyReturnedBooksPanel': { __esModule: true, default: () => null },
+    '../../hooks/useTablePagination': { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) },
+    '../../components/ui/TableActionButton': { __esModule: true, default: ({ children, ...props }) => react.createElement('button', props, children) },
     'react-router-dom': {
       useParams: () => ({ loanId: id }), useLocation: () => ({ state: { loanCreated: created } }),
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
@@ -60,7 +63,7 @@ async function pageFixture(file, { data, error, role = 'READER', id = '81', crea
     '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message }) => react.createElement('p', { role: 'status' }, message) },
     '../../components/ui/PageHeader': { __esModule: true, default: ({ title, description, action }) => react.createElement('header', {}, title, description, action) },
     '../../components/ui/TablePagination': { __esModule: true, default: ({ page, totalItems, totalPages }) => react.createElement('p', {}, `Trang ${page}/${totalPages}, tổng ${totalItems}`) },
-    '../../components/ui/TableActionButton': { tableActionClassName: () => 'action' },
+    '../../components/ui/TableActionButton': { __esModule: true, default: ({ children, ...props }) => react.createElement('button', props, children), tableActionClassName: () => 'action' },
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role, id: 9, fullName: 'Người đang xem' }) },
     '../s1-02-user-management/accountService': { getApiErrorMessage: (e) => e.message },
     './myBorrowedBooksService': { myBorrowedBooksService: { async list() { calls.push('list'); if (error) throw error; return data ?? [] } } },

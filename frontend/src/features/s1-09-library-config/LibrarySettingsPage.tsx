@@ -15,6 +15,7 @@ import {
 
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import PageHeader from '../../components/ui/PageHeader'
 import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
 import TablePagination from '../../components/ui/TablePagination'
@@ -102,6 +103,7 @@ function WarehouseShelfPage() {
   const [shelfModal, setShelfModal] = useState(false)
   const [editingWarehouse, setEditingWarehouse] = useState<WarehouseItem | null>(null)
   const [editingShelf, setEditingShelf] = useState<ShelfItem | null>(null)
+  const [shelfToDelete, setShelfToDelete] = useState<ShelfItem | null>(null)
   const [warehouseForm, setWarehouseForm] = useState<WarehouseForm>(emptyWarehouseForm)
   const [shelfForm, setShelfForm] = useState<ShelfForm>(emptyShelfForm)
 
@@ -233,10 +235,11 @@ function WarehouseShelfPage() {
       return
     }
 
-    if (!window.confirm(`Bạn có chắc muốn xoá kệ ${item.code}?`)) {
-      return
-    }
+    setShelfToDelete(item)
+  }
 
+  const confirmDeleteShelf = async (item: ShelfItem) => {
+    setShelfToDelete(null)
     setError('')
     setNotice('')
     try {
@@ -393,6 +396,8 @@ function WarehouseShelfPage() {
         />
       </Card>
 
+      {shelfToDelete && <ConfirmActionDialog title="Xóa kệ" description={`Bạn có chắc muốn xóa kệ ${shelfToDelete.code}?`} confirmLabel="Xóa kệ" onCancel={() => setShelfToDelete(null)} onConfirm={() => void confirmDeleteShelf(shelfToDelete)} />}
+
       {warehouseModal && (
         <Modal title={editingWarehouse ? 'Chỉnh sửa kho' : 'Thêm kho'} onClose={() => setWarehouseModal(false)}>
           <form onSubmit={submitWarehouse} className="space-y-5">
@@ -432,6 +437,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
   const [holidayModal, setHolidayModal] = useState(false)
   const [bulkModal, setBulkModal] = useState(false)
   const [editingHoliday, setEditingHoliday] = useState<ClosedDateItem | null>(null)
+  const [dateToDelete, setDateToDelete] = useState<ClosedDateItem | null>(null)
   const [holidayForm, setHolidayForm] = useState<ClosedDateForm>(emptyClosedDateForm)
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
   const [bulkText, setBulkText] = useState('01-01 | Tết Dương lịch\n09-02 | Quốc khánh')
@@ -529,8 +535,12 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
     }
   }
 
-  const deleteHoliday = async (item: ClosedDateItem) => {
-    if (!window.confirm(`Xoá ngày đóng cửa ${formatDateVi(item.closedDate)} — ${item.reason}?`)) return
+  const deleteHoliday = (item: ClosedDateItem) => {
+    setDateToDelete(item)
+  }
+
+  const confirmDeleteHoliday = async (item: ClosedDateItem) => {
+    setDateToDelete(null)
     setError('')
     setNotice('')
     try {
@@ -592,6 +602,10 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <div className="space-y-6">
+      {dateToDelete && <ConfirmActionDialog title="Xóa ngày đóng cửa"
+        description={`Xóa ngày đóng cửa ${formatDateVi(dateToDelete.closedDate)} — ${dateToDelete.reason}?`}
+        confirmLabel="Xóa ngày" onCancel={() => setDateToDelete(null)}
+        onConfirm={() => void confirmDeleteHoliday(dateToDelete)} />}
       <PageHeader
         title="Lịch đóng cửa"
         description="Khai báo lịch làm việc theo tuần, ngày nghỉ cụ thể và kiểm tra hạn trả tự động."
