@@ -11,6 +11,7 @@ import com.duanttcsn5.library.dto.profile.ReaderSelfProfileResponse;
 import com.duanttcsn5.library.dto.profile.UpdateReaderContactRequest;
 import com.duanttcsn5.library.security.UserPrincipal;
 import com.duanttcsn5.library.service.ReaderRegistrationService;
+import com.duanttcsn5.library.service.ReaderRegistrationRateLimitService;
 import com.duanttcsn5.library.service.ReaderSelfService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -38,11 +39,14 @@ public class ReaderController {
 
     private final ReaderRegistrationService readerRegistrationService;
     private final ReaderSelfService readerSelfService;
+    private final ReaderRegistrationRateLimitService registrationRateLimitService;
 
     public ReaderController(ReaderRegistrationService readerRegistrationService,
-                            ReaderSelfService readerSelfService) {
+                            ReaderSelfService readerSelfService,
+                            ReaderRegistrationRateLimitService registrationRateLimitService) {
         this.readerRegistrationService = readerRegistrationService;
         this.readerSelfService = readerSelfService;
+        this.registrationRateLimitService = registrationRateLimitService;
     }
 
     /**
@@ -64,6 +68,7 @@ public class ReaderController {
     public ResponseEntity<ReaderRegistrationResponse> register(
             @Valid @RequestBody ReaderRegistrationRequest request,
             HttpServletRequest httpRequest) {
+        registrationRateLimitService.checkAndRecord(httpRequest.getRemoteAddr());
         ReaderRegistrationResponse response = readerRegistrationService.registerReader(
                 request,
                 httpRequest.getRemoteAddr()

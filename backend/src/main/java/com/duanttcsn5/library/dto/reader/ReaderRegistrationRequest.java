@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
@@ -33,7 +34,8 @@ public record ReaderRegistrationRequest(
         String address,
 
         @NotBlank(message = "Mật khẩu không được để trống")
-        @Size(min = 6, max = 100, message = "Mật khẩu phải từ 6 đến 100 ký tự")
+        @Size(min = 8, message = "Mật khẩu phải có tối thiểu 8 ký tự")
+        @Pattern(regexp = "(?s)^(?=.*\\p{L})(?=.*\\p{N}).+$", message = "Mật khẩu phải có ít nhất một chữ cái và một chữ số")
         String password
 ) {
 }
