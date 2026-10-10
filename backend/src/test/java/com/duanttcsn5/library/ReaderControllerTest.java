@@ -7,6 +7,7 @@ import com.duanttcsn5.library.dto.reader.ReaderRegistrationResponse;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.exception.GlobalExceptionHandler;
 import com.duanttcsn5.library.service.ReaderRegistrationService;
+import com.duanttcsn5.library.service.ReaderRegistrationRateLimitService;
 import com.duanttcsn5.library.service.ReaderSelfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +28,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +46,9 @@ class ReaderControllerTest {
 
     @Mock
     private ReaderSelfService readerSelfService;
+
+    @Mock
+    private ReaderRegistrationRateLimitService registrationRateLimitService;
 
     @InjectMocks
     private ReaderController readerController;
@@ -149,6 +156,25 @@ class ReaderControllerTest {
                 .andExpect(jsonPath("$.email").value("levanc@ictu.edu.vn"))
                 .andExpect(jsonPath("$.memberCode").value("B21DCCN123"))
                 .andExpect(jsonPath("$.registrationStatus").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("S1-03 HTTP: quá 3 lượt đăng ký/IP/giờ trả 429 và không tạo tài khoản")
+    void testRegister_RateLimit_Returns429() throws Exception {
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "REGISTRATION_RATE_LIMITED",
+                "Mỗi địa chỉ IP chỉ được gửi tối đa 3 lượt đăng ký trong 1 giờ."))
+                .when(registrationRateLimitService).checkAndRecord("127.0.0.1");
+
+        String requestJson = """
+                {"fullName":"Nguyen Van A","email":"valid@example.com",
+                 "dateOfBirth":"2002-08-20","password":"Password123"}
+                """;
+        mockMvc.perform(post("/api/v1/readers/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("REGISTRATION_RATE_LIMITED"));
+        verify(readerRegistrationService, never()).registerReader(any(), anyString());
     }
 
     @Test

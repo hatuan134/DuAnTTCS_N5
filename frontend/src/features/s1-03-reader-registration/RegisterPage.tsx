@@ -23,6 +23,7 @@ import {
 import { Link } from 'react-router-dom'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { readerService } from './readerService'
+import { validateRegistrationPassword } from './passwordPolicy'
 import type { ReaderRegistrationResponse } from './readerService'
 
 type ApiErrorResponse = {
@@ -108,8 +109,9 @@ export default function RegisterPage() {
       setGeneralError('Ngày sinh không hợp lệ và không được vượt quá ngày hiện tại.')
       return
     }
-    if (password.length < 6) {
-      setGeneralError('Mật khẩu phải có tối thiểu 6 ký tự.')
+    const passwordError = validateRegistrationPassword(password)
+    if (passwordError) {
+      setGeneralError(passwordError)
       return
     }
     if (password !== confirmPassword) {
@@ -548,7 +550,7 @@ export default function RegisterPage() {
                           required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Tối thiểu 6 ký tự"
+                          placeholder="Tối thiểu 8 ký tự, có chữ và số"
                           className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                         />
                         <button
@@ -563,6 +565,7 @@ export default function RegisterPage() {
                           )}
                         </button>
                       </div>
+                      <p className="mt-1 text-xs text-slate-500">Mật khẩu phải có ít nhất 8 ký tự, bao gồm ít nhất một chữ cái và một chữ số.</p>
                     </div>
 
                     {/* Nhập lại mật khẩu */}
