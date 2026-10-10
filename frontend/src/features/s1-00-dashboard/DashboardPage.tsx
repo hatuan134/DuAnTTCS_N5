@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import Button from '../../components/ui/Button'
+import { getCurrentUser } from '../../core/auth/authStorage'
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
@@ -29,6 +30,7 @@ type DashboardState =
   | { status: 'error'; data: null }
 
 export default function DashboardPage() {
+  const allowed = ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'].includes(getCurrentUser()?.role ?? '')
   const [state, setState] = useState<DashboardState>({
     status: 'loading',
     data: null,
@@ -40,6 +42,7 @@ export default function DashboardPage() {
     setErrorNotice('')
     setState({ status: 'loading', data: null })
 
+    if (!allowed) return
     try {
       const data = await getDashboardStats()
       setState({ status: 'success', data })
@@ -83,6 +86,8 @@ export default function DashboardPage() {
       iconClass: 'bg-amber-50 text-amber-600',
     },
   ]
+
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Bạn không có quyền xem thống kê quản trị.</p>
 
   return (
     <div>

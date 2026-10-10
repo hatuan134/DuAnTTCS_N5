@@ -96,7 +96,7 @@ class StaffReservationCancellationControllerTest {
         when(service.cancelByStaff(21L, 12L, "Không đến nhận")).thenReturn(new CancelBookReservationResponse(
                 21L, 7L, "CANCELLED", new ReservationCancellationAuditResponse(12L, "Thủ thư An", at, "Không đến nhận"),
                 101L, "LIB-101", "TRANSFERRED", 23L, "Bạn đọc Chi", at.plusDays(3), "Đã huỷ đơn #21."));
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             token(role);
             mvc.perform(request("\"Không đến nhận\"").header("Authorization", "Bearer test-token"))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"))
@@ -109,7 +109,7 @@ class StaffReservationCancellationControllerTest {
                     .andExpect(jsonPath("$.barcode").value("LIB-101"))
                     .andExpect(jsonPath("$.email").doesNotExist());
         }
-        verify(service, times(3)).cancelByStaff(21L, 12L, "Không đến nhận");
+        verify(service, times(2)).cancelByStaff(21L, 12L, "Không đến nhận");
     }
 
     @Test

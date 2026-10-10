@@ -213,8 +213,8 @@ public class UserManagementService {
         String deletedEmail = user.getEmail();
         String oldStatus = user.getStatus();
 
-        // Xóa các nhật ký chứa dữ liệu nhận diện của tài khoản trước khi xóa user.
-        auditLogService.deleteUserPersonalData(userId, deletedEmail);
+        // Giữ nguyên các sự kiện audit; chỉ ẩn email nhạy cảm trước khi xóa tài khoản.
+        auditLogService.anonymizeDeletedUser(userId, deletedEmail);
 
         // Xóa vật lý để tổng số tài khoản giảm thật và email có thể được sử dụng lại.
         // Các dữ liệu xác thực phụ thuộc user được DB cascade; các tham chiếu lịch sử

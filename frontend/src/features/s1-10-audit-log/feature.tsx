@@ -20,7 +20,7 @@ const feature: FeatureModule = {
       to: '/audit-log',
       icon: ScrollText,
       order: 100,
-      roles: ['ADMIN'],
+      roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }

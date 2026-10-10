@@ -91,7 +91,7 @@ public class BookReservationController {
     }
 
     @PostMapping("/reservations/{reservationId}/cancel")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<CancelBookReservationResponse> cancelByStaff(
             @PathVariable Long reservationId, @Valid @RequestBody CancelBookReservationRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {

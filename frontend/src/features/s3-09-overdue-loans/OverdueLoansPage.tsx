@@ -33,7 +33,7 @@ export default function OverdueLoansPage() {
   const [appliedFilter, setAppliedFilter] = useState<OverdueDaysFilter | null>(null)
   const [filterNotice, setFilterNotice] = useState('')
   const [selectedLoan, setSelectedLoan] = useState<{ id: number; number: string } | null>(null)
-  const canRecord = getCurrentUser()?.role === 'LIBRARIAN'
+  const canRecord = loanRoles.includes(getCurrentUser()?.role ?? '')
 
   function onRecorded(contact: OverdueContact) {
     setItems((previous) => previous.map((item) => item.loanId === contact.loanId ? {

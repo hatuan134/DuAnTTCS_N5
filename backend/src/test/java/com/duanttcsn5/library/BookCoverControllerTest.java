@@ -67,11 +67,15 @@ class BookCoverControllerTest {
         verifyNoInteractions(service);
     }
     @Test void staffUploadIsAllowed() throws Exception {
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             mvc.perform(multipart("/api/v1/books/7/cover").file(file()).with(user("staff").roles(role)))
                     .andExpect(status().isNoContent());
         }
-        verify(service, times(3)).upload(eq(7L), any());
+        verify(service, times(2)).upload(eq(7L), any());
+    }
+    @Test void managerCannotUploadCover() throws Exception {
+        mvc.perform(multipart("/api/v1/books/7/cover").file(file()).with(user("manager").roles("LIBRARY_MANAGER")))
+                .andExpect(status().isForbidden());
     }
     @Test void readerCannotReadUnpublishedStaffCover() throws Exception {
         mvc.perform(get("/api/v1/books/7/cover").with(user("reader").roles("READER")))

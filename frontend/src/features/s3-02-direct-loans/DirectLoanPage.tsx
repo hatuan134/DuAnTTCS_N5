@@ -14,6 +14,7 @@ import DirectLoanItemsPanel from './DirectLoanItemsPanel'
 
 export default function DirectLoanPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
+  const isManager = getCurrentUser()?.role === 'LIBRARY_MANAGER'
   const [cardNumber, setCardNumber] = useState('')
   const [result, setResult] = useState<ReaderLoanEligibility | null>(null)
   const [error, setError] = useState('')
@@ -67,7 +68,7 @@ export default function DirectLoanPage() {
       return
     }
     immediate.current = true
-    explicitRequest.current = crypto.randomUUID()
+    explicitRequest.current = isManager ? null : crypto.randomUUID()
     setRevision((value) => value + 1)
   }
 
@@ -88,7 +89,7 @@ export default function DirectLoanPage() {
                 setCardNumber(event.target.value); setResult(null); setError(''); setApiError(''); setLoading(false)
               }} />
           </div>
-          <Button type="submit" variant="secondary" loading={loading} disabled={confirmationLocked} className="sm:mt-7">Kiểm tra thẻ</Button>
+          <Button type="submit" variant="secondary" loading={loading} disabled={confirmationLocked || isManager} className="sm:mt-7">Kiểm tra thẻ</Button>
         </div>
         <p className="text-xs leading-5 text-slate-500">Thông tin tự cập nhật sau khi ngừng nhập mã thẻ. Có thể nhấn Enter để kiểm tra ngay.</p>
       </form>
@@ -120,7 +121,8 @@ export default function DirectLoanPage() {
       </div>
     </Card>}
     {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result}
-      isManager={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
+      isManager={['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')}
+      requireOverride={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
       onLockChange={setConfirmationLocked} onCreated={(data) => setResult(data.reader)}
       onNewLoan={() => { setConfirmationLocked(false); immediate.current = true; setRevision((value) => value + 1) }} />}
     <p className="text-sm leading-6 text-slate-500">{confirmationLocked

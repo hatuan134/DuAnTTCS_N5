@@ -91,7 +91,7 @@ class ReturnConfirmationControllerTest {
                 "Nhận trả sách thành công.", 4L, "LIB-001", "Mắt biếc", 8L, "PM-008", 9L,
                 "RETURNED", "RETURNED", "AVAILABLE", java.time.OffsetDateTime.parse("2026-10-09T01:00:00+07:00"),
                 12L, "Thủ thư An"));
-        for (String role : new String[]{"ADMIN", "LIBRARIAN", "LIBRARY_MANAGER"}) {
+        for (String role : new String[]{"ADMIN", "LIBRARIAN"}) {
             token(role); mvc.perform(call(BODY).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.itemStatus").value("RETURNED"))
                     .andExpect(jsonPath("$.loanStatus").value("RETURNED"))

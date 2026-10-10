@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 
 import { Link, useNavigate } from 'react-router-dom'
+import { getCurrentUser } from '../../core/auth/authStorage'
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import PageHeader from '../../components/ui/PageHeader'
@@ -98,6 +99,7 @@ const emptyBookForm: BookFormState = {
 
 export default function CatalogManagementPage({ mode: initialMode }: Props) {
   const navigate = useNavigate()
+  const canEditCatalog = ['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [currentTab, setCurrentTab] = useState<PageMode>(initialMode)
   const [authors, setAuthors] = useState<Author[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -826,7 +828,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 />
               </div>
 
-              {currentTab === 'authors' && (
+              {canEditCatalog && currentTab === 'authors' && (
                 <button
                   type="button"
                   onClick={openCreateAuthorModal}
@@ -837,7 +839,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 </button>
               )}
 
-              {currentTab === 'categories' && (
+              {canEditCatalog && currentTab === 'categories' && (
                 <button
                   type="button"
                   onClick={openCreateCategoryModal}
@@ -848,7 +850,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
                 </button>
               )}
 
-              {currentTab === 'books' && (
+              {canEditCatalog && currentTab === 'books' && (
                 <button
                   type="button"
                   onClick={openCreateBookModal}
@@ -887,6 +889,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
             onEdit={openEditAuthorModal}
             onToggle={handleToggleAuthor}
             onDelete={handleDeleteAuthorClick}
+            canEdit={canEditCatalog}
           />
         )}
 
@@ -896,6 +899,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
             onEdit={openEditCategoryModal}
             onToggle={handleToggleCategory}
             onDelete={handleDeleteCategoryClick}
+            canEdit={canEditCatalog}
           />
         )}
 
@@ -904,12 +908,13 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
             items={filteredBooks}
             onOpenCatalogModal={openCreateBookModal}
             onEditCover={setCoverBook}
+            canEdit={canEditCatalog}
           />
         )}
       </Card>
 
       {/* MODAL: Thêm / Sửa Tác giả */}
-      {isAuthorModalOpen && (
+      {canEditCatalog && isAuthorModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -981,7 +986,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       )}
 
       {/* MODAL: Thêm / Sửa Thể loại */}
-      {isCategoryModalOpen && (
+      {canEditCatalog && isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -1088,7 +1093,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       )}
 
       {/* MODAL: Tạo hồ sơ đầu sách cơ bản - S2-01.1 */}
-      {isBookModalOpen && (
+      {canEditCatalog && isBookModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
@@ -1463,7 +1468,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
         </div>
       )}
 
-      {coverBook && (
+      {canEditCatalog && coverBook && (
         <BookCoverEditorDialog
           book={coverBook}
           onClose={() => setCoverBook(null)}
@@ -1476,7 +1481,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
       )}
 
       {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
-      {deleteDialog.open && deleteDialog.item && (
+      {canEditCatalog && deleteDialog.open && deleteDialog.item && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             {deleteDialog.cannotDeleteReason ? (
@@ -1545,13 +1550,14 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 // TABLE: Authors Table
 // ==========================================
 interface AuthorsTableProps {
+  canEdit: boolean
   items: Author[]
   onEdit: (author: Author) => void
   onToggle: (author: Author) => void
   onDelete: (author: Author) => void
 }
 
-function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) {
+function AuthorsTable({ items, onEdit, onToggle, onDelete, canEdit }: AuthorsTableProps) {
   const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
 
   if (items.length === 0) {
@@ -1572,7 +1578,7 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
             <th className="table-cell-left px-4 py-3.5">Tác giả</th>
             <th className="px-3 py-3.5 text-center">Số đầu sách</th>
             <th className="px-3 py-3.5 text-center">Trạng thái</th>
-            <th className="px-3 py-3.5 text-center">Thao tác</th>
+            {canEdit && <th className="px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1614,7 +1620,7 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                 </span>
               </td>
 
-              <td className="table-action-cell px-3 py-4">
+              {canEdit && <td className="table-action-cell px-3 py-4">
                 <TableActions>
                   <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(author)}>
                     Chỉnh sửa
@@ -1631,7 +1637,7 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
                     Xóa
                   </TableActionButton>
                 </TableActions>
-              </td>
+              </td>}
             </tr>
           ))}
         </tbody>
@@ -1651,13 +1657,14 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete }: AuthorsTableProps) 
 // TABLE: Categories Table
 // ==========================================
 interface CategoriesTableProps {
+  canEdit: boolean
   items: Category[]
   onEdit: (category: Category) => void
   onToggle: (category: Category) => void
   onDelete: (category: Category) => void
 }
 
-function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableProps) {
+function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: CategoriesTableProps) {
   const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
 
   if (items.length === 0) {
@@ -1680,7 +1687,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
             <th className="px-2 py-3.5 text-center">Cấp</th>
             <th className="px-2 py-3.5 text-center">Số đầu sách</th>
             <th className="px-2 py-3.5 text-center">Trạng thái</th>
-            <th className="px-3 py-3.5 text-center">Thao tác</th>
+            {canEdit && <th className="px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1742,7 +1749,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                 </span>
               </td>
 
-              <td className="table-action-cell px-3 py-4">
+              {canEdit && <td className="table-action-cell px-3 py-4">
                 <TableActions>
                   <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
                     Chỉnh sửa
@@ -1759,7 +1766,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
                     Xóa
                   </TableActionButton>
                 </TableActions>
-              </td>
+              </td>}
             </tr>
           ))}
         </tbody>
@@ -1779,12 +1786,13 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete }: CategoriesTableP
 // TABLE: Books Table (Kiểm chứng biên mục)
 // ==========================================
 interface BooksTableProps {
+  canEdit: boolean
   items: Book[]
   onOpenCatalogModal: () => void
   onEditCover: (book: Book) => void
 }
 
-function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps) {
+function BooksTable({ items, onOpenCatalogModal, onEditCover, canEdit }: BooksTableProps) {
   const pagination = useTablePagination(items, items.map((item) => item.id).join(','))
 
   if (items.length === 0) {
@@ -1792,14 +1800,14 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps)
       <div className="py-12 text-center">
         <BookOpen size={36} className="mx-auto text-slate-300" />
         <p className="mt-2 text-sm font-medium text-slate-600">Chưa có đầu sách nào được biên mục</p>
-        <button
+        {canEdit && <button
           type="button"
           onClick={onOpenCatalogModal}
           className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
         >
           <Plus size={15} />
           <span>Biên mục cuốn sách đầu tiên</span>
-        </button>
+        </button>}
       </div>
     )
   }
@@ -1898,9 +1906,9 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover }: BooksTableProps)
                   >
                     Xem chi tiết
                   </Link>
-                  <TableActionButton tone="neutral" title="Chỉnh sửa ảnh bìa đầu sách" onClick={() => onEditCover(book)}>
+                  {canEdit && <TableActionButton tone="neutral" title="Chỉnh sửa ảnh bìa đầu sách" onClick={() => onEditCover(book)}>
                     Chỉnh sửa ảnh bìa
-                  </TableActionButton>
+                  </TableActionButton>}
                 </TableActions>
               </td>
             </tr>

@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/readers/*/loan-history",
                                 "/api/v1/readers/*/loan-history/export")
-                        .hasAnyRole("LIBRARIAN", "LIBRARY_MANAGER")
+                        .hasAnyRole("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN")
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(exceptions -> exceptions

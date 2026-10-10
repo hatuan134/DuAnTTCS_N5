@@ -55,14 +55,19 @@ class BookCopyBulkPermissionTest {
     }
 
     @Test
-    void librarianManagerAndAdminCanAccessBulkEndpoint() {
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
+    void librarianAndAdminCanWriteBulkEndpoint() {
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
             role(role);
             assertDoesNotThrow(() -> controller.createBulk(1L, request()));
             assertDoesNotThrow(() -> controller.previewBulk(1L, BigDecimal.TEN, 10L, 20L));
         }
     }
 
+    @Test void managerCanPreviewButNotCreateBulkCopies() {
+        role("LIBRARY_MANAGER");
+        assertDoesNotThrow(() -> controller.previewBulk(1L, BigDecimal.TEN, 10L, 20L));
+        assertThrows(AccessDeniedException.class, () -> controller.createBulk(1L, request()));
+    }
     private void role(String role) {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "test-user", "unused", AuthorityUtils.createAuthorityList("ROLE_" + role)));

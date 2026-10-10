@@ -71,7 +71,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export default function LibrarySettingsPage({ mode }: Props) {
   const user = getCurrentUser()
-  const allowed = user?.role === 'LIBRARY_MANAGER' || user?.role === 'ADMIN'
+  const allowed = user?.role === 'LIBRARY_MANAGER' || user?.role === 'ADMIN' || (mode === 'calendar' && user?.role === 'LIBRARIAN')
 
   if (!allowed) {
     return (
@@ -87,7 +87,7 @@ export default function LibrarySettingsPage({ mode }: Props) {
     )
   }
 
-  return mode === 'warehouse' ? <WarehouseShelfPage /> : <LibraryCalendarPage />
+  return mode === 'warehouse' ? <WarehouseShelfPage /> : <LibraryCalendarPage readOnly={user?.role === 'LIBRARIAN'} />
 }
 
 function WarehouseShelfPage() {
@@ -421,7 +421,7 @@ function WarehouseShelfPage() {
   )
 }
 
-function LibraryCalendarPage() {
+function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
   const [schedule, setSchedule] = useState<WeeklyScheduleItem[]>([])
   const [closedDates, setClosedDates] = useState<ClosedDateItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -632,7 +632,7 @@ function LibraryCalendarPage() {
               <button
                 type="button"
                 onClick={() => void saveSchedule()}
-                disabled={saving || loading}
+                disabled={readOnly || saving || loading}
                 title="Lưu toàn bộ lịch làm việc theo tuần"
                 className="primary-button shrink-0 px-3 py-2 text-sm disabled:opacity-50"
               >
@@ -679,6 +679,7 @@ function LibraryCalendarPage() {
                             <input
                               type="checkbox"
                               checked={item.open}
+                              disabled={readOnly}
                               onChange={(event) => updateSchedule(item.dayOfWeek, { open: event.target.checked })}
                               className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600"
                             />
@@ -690,7 +691,7 @@ function LibraryCalendarPage() {
                             type="time"
                             aria-label={`Giờ mở cửa ${item.dayLabel}`}
                             title={item.open ? `Chọn giờ mở cửa cho ${item.dayLabel}` : 'Bật trạng thái Mở cửa để chọn giờ'}
-                            disabled={!item.open}
+                            disabled={readOnly || !item.open}
                             value={item.openTime ?? ''}
                             onChange={(event) => updateSchedule(item.dayOfWeek, { openTime: event.target.value })}
                             className="time-input mx-auto h-9 w-[116px] px-2 text-sm"
@@ -701,7 +702,7 @@ function LibraryCalendarPage() {
                             type="time"
                             aria-label={`Giờ đóng cửa ${item.dayLabel}`}
                             title={item.open ? `Chọn giờ đóng cửa cho ${item.dayLabel}` : 'Bật trạng thái Mở cửa để chọn giờ'}
-                            disabled={!item.open}
+                            disabled={readOnly || !item.open}
                             value={item.closeTime ?? ''}
                             onChange={(event) => updateSchedule(item.dayOfWeek, { closeTime: event.target.value })}
                             className="time-input mx-auto h-9 w-[116px] px-2 text-sm"
@@ -726,7 +727,7 @@ function LibraryCalendarPage() {
               <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setBulkModal(true)}
+                  onClick={() => setBulkModal(true)} disabled={readOnly}
                   title="Nhập nhanh nhiều ngày nghỉ cho cả năm"
                   className="secondary-button px-3 py-2 text-sm whitespace-nowrap"
                 >
@@ -734,7 +735,7 @@ function LibraryCalendarPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={openCreateHoliday}
+                  onClick={openCreateHoliday} disabled={readOnly}
                   title="Thêm một ngày nghỉ hoặc ngày đóng cửa"
                   className="primary-button px-3 py-2 text-sm whitespace-nowrap"
                 >
@@ -778,7 +779,7 @@ function LibraryCalendarPage() {
                                 icon={<Pencil size={15} />}
                                 tone="primary"
                                 title="Chỉnh sửa ngày nghỉ"
-                                onClick={() => openEditHoliday(item)}
+                                onClick={() => openEditHoliday(item)} disabled={readOnly}
                               >
                                 Chỉnh sửa
                               </TableActionButton>
@@ -786,7 +787,7 @@ function LibraryCalendarPage() {
                                 icon={<Trash2 size={15} />}
                                 tone="danger"
                                 title="Xóa ngày nghỉ"
-                                onClick={() => void deleteHoliday(item)}
+                                onClick={() => void deleteHoliday(item)} disabled={readOnly}
                               >
                                 Xóa
                               </TableActionButton>

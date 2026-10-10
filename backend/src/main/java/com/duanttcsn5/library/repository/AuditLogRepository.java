@@ -43,18 +43,30 @@ public class AuditLogRepository {
                 normalizeIp(ipAddress));
     }
 
-    public int deleteUserPersonalData(Long userId, String email) {
+    /**
+     * Preserve every audit event when staff accounts are hard-deleted.
+     * Anonymize payloads that mention the deleted email rather than DELETEing rows.
+     * The original event ID, action, timestamps and IP are retained;
+     * user FK becomes NULL on deletion. Sensitive JSON payload is replaced
+     * only for events which contain the deleted account email.
+     */
+    public int anonymizeDeletedUser(Long userId, String email) {
         return jdbcTemplate.update("""
-                DELETE FROM audit_logs
-                WHERE (entity_type = 'USER' AND entity_id = ?)
-                   OR LOWER(COALESCE(entity_id, '')) = LOWER(?)
-                   OR LOWER(COALESCE(before_data::text, '')) LIKE '%' || LOWER(?) || '%'
-                   OR LOWER(COALESCE(after_data::text, '')) LIKE '%' || LOWER(?) || '%'
-                """,
-                userId.toString(),
-                email,
-                email,
-                email);
+                UPDATE audit_logs AS al
+                SET entity_id = CASE
+                        WHEN lower(coalesce(al.entity_id, '')) = lower(?)
+                        THEN '[REDACTED]' ELSE al.entity_id END,
+                    before_data = CASE
+                        WHEN position(lower(?) in lower(coalesce(al.before_data::text, ''))) > 0
+                        THEN '{"personalDataRemoved":true}'::jsonb ELSE al.before_data END,
+                    after_data = CASE
+                        WHEN position(lower(?) in lower(coalesce(al.after_data::text, ''))) > 0
+                        THEN '{"personalDataRemoved":true}'::jsonb ELSE al.after_data END
+                WHERE (al.entity_type = 'USER' AND al.entity_id = ?)
+                   OR lower(coalesce(al.entity_id, '')) = lower(?)
+                   OR position(lower(?) in lower(coalesce(al.before_data::text, ''))) > 0
+                   OR position(lower(?) in lower(coalesce(al.after_data::text, ''))) > 0
+                """, email, email, email, userId.toString(), email, email, email);
     }
 
     public List<AuditLogRow> findByFilters(OffsetDateTime fromInclusive,

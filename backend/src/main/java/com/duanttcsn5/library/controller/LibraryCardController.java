@@ -36,7 +36,7 @@ public class LibraryCardController {
     }
 
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<PendingReaderApplicationResponse>> getPendingApplications(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -45,13 +45,13 @@ public class LibraryCardController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<LibraryCardResponse>> getIssuedCards() {
         return ResponseEntity.ok(libraryCardService.getIssuedCards());
     }
 
     @PostMapping("/{readerUserId}/approve")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LibraryCardResponse> approve(
             @PathVariable Long readerUserId,
             @Valid @RequestBody ApproveLibraryCardRequest request,
@@ -66,7 +66,7 @@ public class LibraryCardController {
     }
 
     @PostMapping("/{readerUserId}/reject")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<Void> reject(
             @PathVariable Long readerUserId,
             @Valid @RequestBody RejectReaderApplicationRequest request,

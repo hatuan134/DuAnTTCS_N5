@@ -38,6 +38,7 @@ export default function BookDetailPage() {
   const routeState = location.state as { successMessage?: string; openCoverEditor?: boolean } | null
   const id = Number(bookId)
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
+  const canEditCopies = ['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [book, setBook] = useState<Book | null>(null)
   const [notice, setNotice] = useState(routeState?.successMessage ?? '')
   const [coverEditorOpen, setCoverEditorOpen] = useState(Boolean(routeState?.openCoverEditor))
@@ -200,7 +201,7 @@ export default function BookDetailPage() {
                     </div>
                   )}
                 </div>
-                {allowed && (
+                {canEditCopies && (
                   <Button
                     type="button"
                     variant="secondary"
@@ -251,7 +252,7 @@ export default function BookDetailPage() {
                   >
                     Xem hàng đợi đặt giữ
                   </Link>
-                  {!showForm && !showBulkForm && (
+                  {canEditCopies && !showForm && !showBulkForm && (
                     <>
                       <Button
                         type="button"
@@ -273,7 +274,7 @@ export default function BookDetailPage() {
             </div>
           </Card>
 
-          {showForm && (
+          {canEditCopies && showForm && (
             <CreateBookCopyForm
               key={book.id}
               bookId={book.id}
@@ -282,7 +283,7 @@ export default function BookDetailPage() {
             />
           )}
 
-          {showBulkForm && (
+          {canEditCopies && showBulkForm && (
             <BulkCreateBookCopiesForm
               key={`bulk-${book.id}`}
               bookId={book.id}

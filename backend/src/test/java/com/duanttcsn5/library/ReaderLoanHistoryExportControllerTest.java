@@ -91,7 +91,7 @@ class ReaderLoanHistoryExportControllerTest {
     @Test
     void exportIsDeniedBeforeBindingForOtherRolesAndMalformedIds() throws Exception {
         mvc.perform(get(URL)).andExpect(status().isUnauthorized());
-        for (String role : new String[]{"READER", "ADMIN", "AUDITOR", "UNKNOWN"}) {
+        for (String role : new String[]{"READER", "AUDITOR", "UNKNOWN"}) {
             token(role);
             for (String id : new String[]{"20", "999", "0", "abc"}) {
                 mvc.perform(get("/api/v1/readers/" + id + "/loan-history/export")
@@ -107,7 +107,7 @@ class ReaderLoanHistoryExportControllerTest {
         var csv = new com.duanttcsn5.library.service.ReaderLoanHistoryCsv.Export(
                 "history_BD20.csv", "\uFEFFMã phiếu\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8), 0);
         when(service.exportReaderLoanHistory(20L, "2026-10-01", "2026-10-09")).thenReturn(csv);
-        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER"}) {
+        for (String role : new String[]{"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"}) {
             token(role);
             mvc.perform(get(URL).param("fromDate", "2026-10-01").param("toDate", "2026-10-09")
                     .header("Authorization", "Bearer test-token"))

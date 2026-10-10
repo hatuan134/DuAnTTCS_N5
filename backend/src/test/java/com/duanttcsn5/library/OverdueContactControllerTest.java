@@ -105,7 +105,7 @@ class OverdueContactControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test void managerCanViewButCannotRecord() throws Exception {
+    @Test void managerCanViewAndRecordAccordingToPermissionMatrix() throws Exception {
         login("LIBRARY_MANAGER");
         when(service.history(5L, 12L)).thenReturn(List.of());
         mvc.perform(get("/api/v1/loans/5/overdue-contacts")
@@ -114,6 +114,6 @@ class OverdueContactControllerTest {
         mvc.perform(post("/api/v1/loans/5/overdue-contacts")
                 .header("Authorization", "Bearer contact-token")
                 .contentType("application/json").content("{\"note\":\"Đã gọi\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated());
     }
 }

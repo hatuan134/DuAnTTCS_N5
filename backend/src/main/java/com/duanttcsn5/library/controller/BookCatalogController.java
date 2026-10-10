@@ -95,7 +95,7 @@ public class BookCatalogController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<BookResponse> catalogBook(
             @Valid @RequestBody CatalogBookRequest request,
             @AuthenticationPrincipal UserPrincipal principal,

@@ -90,6 +90,7 @@ function statusLabel(status: string) {
 
 export default function UserManagementPage() {
   const currentUser = getCurrentUser()
+  const canManage = currentUser?.role === 'ADMIN'
 
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
@@ -360,9 +361,9 @@ export default function UserManagementPage() {
   return (
     <div>
       <PageHeader
-        title="Quản lý tài khoản"
-        description="Tạo tài khoản nhân viên, gán một vai trò và quản lý trạng thái truy cập."
-        action={(
+        title={canManage ? "Quản lý tài khoản" : "Danh sách tài khoản (chỉ xem)"}
+        description={canManage ? "Tạo tài khoản nhân viên, gán một vai trò và quản lý trạng thái truy cập." : "Xem tài khoản nhân sự, không có quyền thay đổi."}
+        action={canManage ? (
           <Button
             type="button"
             onClick={() => {
@@ -375,7 +376,7 @@ export default function UserManagementPage() {
             <Plus size={17} />
             Tạo tài khoản
           </Button>
-        )}
+        ) : undefined}
       />
 
       {success && (
@@ -482,7 +483,7 @@ export default function UserManagementPage() {
                   <th className="px-5 py-3">Liên hệ</th>
                   <th className="px-5 py-3">Vai trò</th>
                   <th className="px-5 py-3">Trạng thái</th>
-                  <th className="px-5 py-3 text-right">Thao tác</th>
+                  {canManage && <th className="px-5 py-3 text-right">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -522,7 +523,7 @@ export default function UserManagementPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-4">
+                      {canManage && <td className="px-5 py-4">
                         <TableActions>
                           <TableActionButton
                             icon={<Pencil size={15} />}
@@ -557,7 +558,7 @@ export default function UserManagementPage() {
                             Xóa
                           </TableActionButton>
                         </TableActions>
-                      </td>
+                      </td>}
                     </tr>
                   )
                 })}
@@ -575,7 +576,7 @@ export default function UserManagementPage() {
         )}
       </Card>
 
-      {(showCreate || editingAccount) && (
+      {canManage && (showCreate || editingAccount) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">

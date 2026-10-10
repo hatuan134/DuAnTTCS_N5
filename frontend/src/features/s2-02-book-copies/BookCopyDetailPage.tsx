@@ -22,6 +22,7 @@ export default function BookCopyDetailPage() {
   const location = useLocation()
   const createdState = location.state as CreatedCopyState | null
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
+  const canEditCopies = ['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [copy, setCopy] = useState<BookCopy | null>(null)
   const [createdNotice, setCreatedNotice] = useState(() => {
     if (!createdState?.created) return ''
@@ -88,11 +89,11 @@ export default function BookCopyDetailPage() {
           ].map(([label, value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-900">{value}</dd></div>)}
         </dl>
         <div className="mt-5 text-sm"><p className="text-slate-500">Ghi chú</p><p className="mt-1 whitespace-pre-wrap break-words text-slate-900">{copy.notes || 'Chưa ghi nhận'}</p></div>
-        {!editing && <div className="mt-6"><Button type="button" onClick={() => { setEditing(true); setSaved(false) }}>Sửa thông tin và vị trí</Button></div>}
-        {editing && <EditBookCopyForm key={copy.id} copy={copy} onCancel={() => setEditing(false)} onSaved={updated => {
+        {canEditCopies && !editing && <div className="mt-6"><Button type="button" onClick={() => { setEditing(true); setSaved(false) }}>Sửa thông tin và vị trí</Button></div>}
+        {canEditCopies && editing && <EditBookCopyForm key={copy.id} copy={copy} onCancel={() => setEditing(false)} onSaved={updated => {
           setCopy(updated); setEditing(false); setSaved(true)
         }} />}
-        {!editing && <RepairBookCopyPanel key={copy.id} copy={copy} onSaved={updated => { setCopy(updated); setSaved(false) }} />}
+        {canEditCopies && !editing && <RepairBookCopyPanel key={copy.id} copy={copy} onSaved={updated => { setCopy(updated); setSaved(false) }} />}
         <p className="mt-6 text-sm text-slate-500">Bản sao được gắn cố định với đầu sách. Không hỗ trợ chuyển sang đầu sách khác.</p>
         <Link to={`/books/${copy.bookId}`} className="mt-5 inline-block font-medium text-blue-600 hover:underline">← Về chi tiết đầu sách</Link>
       </Card>}

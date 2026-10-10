@@ -174,7 +174,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(
+      const session = await login(
         normalizedEmail,
         password,
       )
@@ -192,7 +192,7 @@ export default function LoginPage() {
 
       navigate(
         state?.from ||
-          '/dashboard',
+          (session.user.role === 'READER' ? '/catalog' : '/dashboard'),
         {
           replace: true,
         },

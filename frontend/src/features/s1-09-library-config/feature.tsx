@@ -4,6 +4,7 @@ import LibrarySettingsPage from './LibrarySettingsPage'
 import type { FeatureModule } from '../../types/feature'
 
 const managerRoles = ['LIBRARY_MANAGER', 'ADMIN']
+const calendarReadRoles = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']
 
 const feature: FeatureModule = {
   id: 's1-09-library-settings',
@@ -33,7 +34,7 @@ const feature: FeatureModule = {
       to: '/library-calendar',
       icon: CalendarDays,
       order: 91,
-      roles: managerRoles,
+      roles: calendarReadRoles,
     },
   ],
 }
