@@ -76,6 +76,15 @@ public class LoanService {
     private final Clock clock;
     private final LoanRejectionLogService rejectionLogs;
     private static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /**
+     * Shared S3-07/S3-09 policy: calendar days in Vietnam, including weekends and
+     * library closures. The due date itself counts as on time.
+     * Loan creation/renewal is responsible for choosing/adjusting the stored due date.
+     */
+    private static long calendarOverdueDays(LocalDate dueDate, LocalDate today) {
+        return Math.max(0L, ChronoUnit.DAYS.between(dueDate, today));
+    }
     // Provisional policy pending PO approval: only borrowing/fee/overdue policy blocks.
     // Identity, account/card validity, configuration and physical-copy constraints NEVER bypass.
     private static final Set<String> OVERRIDABLE = Set.of(
@@ -147,7 +156,7 @@ public class LoanService {
             message = "Phiếu mượn chưa có hạn trả; chưa thể xác định số ngày trễ.";
         } else {
             LocalDate dueDate = row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
-            overdueDays = Math.max(0L, ChronoUnit.DAYS.between(dueDate, today));
+            overdueDays = calendarOverdueDays(dueDate, today);
             status = overdueDays > 0 ? "OVERDUE" : "ON_TIME";
             message = overdueDays > 0 ? "Sách quá hạn " + overdueDays + " ngày." : "Sách đang trong hạn trả.";
         }
@@ -1089,7 +1098,7 @@ public class LoanService {
         }
     }
 
-    /** S3-09.2: overdue days are configured open days, excluding the deadline itself. */
+    /** S3-09.2: use the same Vietnam calendar-day rule as return lookup (S3-07). */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<OverdueLoanItemResponse> overdueLoans(Long actorId) {
         requireStaff(actorId, "xem danh sách phiếu mượn quá hạn");
@@ -1099,14 +1108,10 @@ public class LoanService {
         if (rows.isEmpty()) {
             return List.of();
         }
-        Set<LocalDate> dueDates = rows.stream()
-                .map(row -> row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate())
-                .collect(java.util.stream.Collectors.toSet());
-        Map<LocalDate, Long> countedOpenDays = configuration.calculateOverdueOpenDays(dueDates, today);
         return rows.stream()
                 .map(row -> {
                     LocalDate dueDate = row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
-                    long overdueDays = countedOpenDays.get(dueDate);
+                    long overdueDays = calendarOverdueDays(dueDate, today);
                     return new OverdueLoanItemResponse(row.loanId(), row.loanNumber(), row.itemId(),
                             row.readerId(), row.readerName(), row.readerPhone(), row.bookId(), row.bookTitle(),
                             row.dueAt(), overdueDays, row.lastContactedAt(), row.lastContactNote(), row.lastContactStaffName());

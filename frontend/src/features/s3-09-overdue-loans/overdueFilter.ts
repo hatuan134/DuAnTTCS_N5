@@ -1,6 +1,6 @@
 import type { OverdueLoanItem } from './overdueLoanService'
 
-/** Bộ lọc áp dụng trên số NGÀY MỞ CỬA do backend đã tính, không tự tính ngày lịch. */
+/** Bộ lọc dùng số ngày lịch đã được backend tính; frontend không tự tính lại. */
 export interface OverdueDaysFilter {
   minimum: number | null
   maximum: number | null
@@ -67,10 +67,10 @@ export function countOverdueLoanVouchers(items: OverdueLoanItem[]): number {
 export function describeOverdueFilter(filter: OverdueDaysFilter | null): string {
   if (!filter || (filter.minimum === null && filter.maximum === null)) return 'Tất cả mức quá hạn'
   if (filter.minimum !== null && filter.maximum !== null) {
-    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} đến ${filter.maximum} ngày mở cửa`
+    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} đến ${filter.maximum} ngày lịch`
   }
   if (filter.minimum !== null) {
-    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} ngày mở cửa`
+    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} ngày lịch`
   }
-  return `Tối đa ${filter.maximum} ngày mở cửa`
+  return `Tối đa ${filter.maximum} ngày lịch`
 }

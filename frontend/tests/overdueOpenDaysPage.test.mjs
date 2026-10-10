@@ -86,28 +86,28 @@ const item = days => ({ loanId: 5, loanNumber: 'PM-05', itemId: 9, readerId: 12,
   readerName: 'Bạn đọc mẫu', readerPhone: '0900000000', bookId: 1, bookTitle: 'Sách mẫu',
   dueAt: '2026-10-09T17:00:00+07:00', overdueDays: days })
 
-test('opening the list displays server-calculated open days, including zero after a closure', async () => {
+test('opening the list displays server-calculated calendar days, including zero on the due date', async () => {
   let requests = 0
   const f = fixture(async () => { requests++; return [item(0)] })
   await tick(); f.render()
   assert.equal(requests, 1)
-  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 0 ngày mở cửa/)
-  assert.match(find(f.tree(), n => n.props?.title === 'Phiếu mượn quá hạn').props.description, /Chỉ tính các ngày thư viện mở cửa/i)
-  assert.match(text(f.tree()), /Ngày trễ \(mở cửa\)/)
+  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 0 ngày lịch/)
+  assert.match(find(f.tree(), n => n.props?.title === 'Phiếu mượn quá hạn').props.description, /Tính theo ngày lịch/i)
+  assert.match(text(f.tree()), /Ngày trễ \(ngày lịch\)/)
 })
 
 test('refresh requests a newly calculated overdue count instead of reusing a cached number', async () => {
   let requests = 0
   const f = fixture(async () => [item(++requests)])
   await tick(); f.render()
-  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 1 ngày mở cửa/)
+  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 1 ngày lịch/)
   const refresh = find(f.tree(), node => typeof node.props?.onClick === 'function' && /Làm mới/.test(text(node)))
   assert.ok(refresh)
   refresh.props.onClick()
   f.render()
   await tick(); f.render()
   assert.equal(requests, 2)
-  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 2 ngày mở cửa/)
+  assert.match(text(f.tree()).replace(/\s+/g, ' '), /Trễ 2 ngày lịch/)
 })
 
 test('failed refresh shows actionable error state and clears old loan rows', async () => {
@@ -119,7 +119,7 @@ test('failed refresh shows actionable error state and clears old loan rows', asy
   f.render()
   await tick(); f.render()
   assert.ok(find(f.tree(), node => node.props?.message?.includes('Không tải được lịch thư viện.')), 'Lỗi tải dữ liệu phải được truyền cho FeedbackAlert')
-  assert.doesNotMatch(text(f.tree()).replace(/\s+/g, ' '), /Trễ 1 ngày mở cửa/)
+  assert.doesNotMatch(text(f.tree()).replace(/\s+/g, ' '), /Trễ 1 ngày lịch/)
 })
 
 function collect(tree, predicate, result = []) {
@@ -131,7 +131,7 @@ function collect(tree, predicate, result = []) {
 }
 function visibleDays(tree) {
   return collect(tree, node => node.type === 'article').map(node =>
-    Number(text(node).replace(/\s+/g, ' ').match(/Trễ (\d+) ngày mở cửa/)?.[1]))
+    Number(text(node).replace(/\s+/g, ' ').match(/Trễ (\d+) ngày lịch/)?.[1]))
 }
 function changeInput(f, id, value) {
   find(f.tree(), node => node.props?.id === id).props.onChange({ target: { value } })

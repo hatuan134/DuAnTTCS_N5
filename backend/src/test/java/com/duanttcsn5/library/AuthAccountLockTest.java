@@ -162,4 +162,34 @@ class AuthAccountLockTest {
         assertNotNull(ex.getDetails().get("lockedUntil"));
     }
 
+
+    @Test
+    @DisplayName("Đăng nhập sai liên tiếp: còn 4,3,2,1 lượt; lần 5 khóa tài khoản")
+    void testFiveConsecutiveFailuresProduceCountdownAndLock() {
+        User user = new User();
+        user.setId(15L);
+        user.setEmail("countdown@libra.edu.vn");
+        user.setPasswordHash("encoded-pwd");
+        user.setStatus("ACTIVE");
+        user.setFailedLoginAttempts(0);
+        when(userRepository.findForLogin("countdown@libra.edu.vn")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "encoded-pwd")).thenReturn(false);
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            ApiException ex = assertThrows(ApiException.class, () -> authService.login(
+                    new LoginRequest("countdown@libra.edu.vn", "wrong-password"), "127.0.0.1"));
+            assertEquals(attempt, ex.getDetails().get("failedLoginAttempts"));
+            assertEquals(5 - attempt, ex.getDetails().get("remainingAttempts"));
+            if (attempt < 5) {
+                assertEquals("INVALID_CREDENTIALS", ex.getCode());
+                assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+            } else {
+                assertEquals("ACCOUNT_TEMPORARILY_LOCKED", ex.getCode());
+                assertEquals(HttpStatus.LOCKED, ex.getStatus());
+                assertNotNull(ex.getDetails().get("lockedUntil"));
+            }
+        }
+        assertNotNull(user.getLockedUntil());
+    }
+
 }
