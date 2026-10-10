@@ -132,7 +132,7 @@ export default function OverdueLoansPage() {
     <div className="space-y-5">
       <PageHeader
         title="Phiếu mượn quá hạn"
-        description="Chỉ tính các ngày thư viện mở cửa từ sau hạn trả đến hôm nay, kể cả ngày hôm nay nếu mở cửa. Số ngày trễ nhiều nhất được ưu tiên trước."
+        description="Tính theo ngày lịch tại Việt Nam, bao gồm ngày nghỉ và ngày thư viện đóng cửa. Ngày đến hạn chưa bị tính trễ; sắp xếp số ngày trễ giảm dần."
         action={(
           <Button
             type="button"
@@ -197,7 +197,7 @@ export default function OverdueLoansPage() {
           </div>
           <p className="text-xs leading-5 text-slate-500">
             Khoảng từ 7 đến 30 bao gồm cả ngày 7 và 30. “Trên 7 ngày” bắt đầu từ ngày trễ thứ 8.
-            Số ngày trễ được tính theo ngày thư viện mở cửa.
+            Số ngày trễ tính theo ngày lịch, bao gồm ngày thư viện đóng cửa.
           </p>
         </form>
         {filterNotice && (
@@ -256,7 +256,7 @@ export default function OverdueLoansPage() {
                     </div>
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">
                       <ClockAlert size={15} />
-                      Trễ {item.overdueDays} ngày mở cửa
+                      Trễ {item.overdueDays} ngày lịch
                     </span>
                   </div>
 
@@ -313,7 +313,7 @@ export default function OverdueLoansPage() {
                     <th scope="col" className="px-4 py-3">Số điện thoại</th>
                     <th scope="col" className="px-4 py-3">Tên sách</th>
                     <th scope="col" className="px-4 py-3">Hạn trả</th>
-                    <th scope="col" className="px-4 py-3 text-center">Ngày trễ (mở cửa)</th>
+                    <th scope="col" className="px-4 py-3 text-center">Ngày trễ (ngày lịch)</th>
                     <th scope="col" className="px-4 py-3">Liên hệ gần nhất</th>
                     <th scope="col" className="px-4 py-3">Thao tác</th>
                   </tr>
@@ -343,7 +343,7 @@ export default function OverdueLoansPage() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className="inline-flex min-w-20 justify-center rounded-full border border-red-200 bg-red-50 px-3 py-1 font-semibold text-red-700">
-                          {item.overdueDays} ngày mở cửa
+                          {item.overdueDays} ngày lịch
                         </span>
                       </td>
                       <td className="min-w-44 px-4 py-4 align-top">{contactStatus(item)}</td>

@@ -42,7 +42,7 @@ test('Khoảng từ 7 đến 30 bao gồm hai đầu mút và vẫn giảm dần
 test('Không có kết quả nếu mức quá hạn quá lớn', () => {
   assert.deepEqual(days(apply('99', '')), [])
 })
-test('Chỉ có mức tối đa và từ ngày 0 hỗ trợ phiếu trễ 0 ngày mở cửa', () => {
+test('Chỉ có mức tối đa và từ ngày 0 hỗ trợ phiếu trễ 0 ngày lịch', () => {
   assert.deepEqual(days(apply('', '7')), [7, 0])
   assert.deepEqual(days(apply('0', '0')), [0])
 })
@@ -66,6 +66,6 @@ test('Không chọn điều kiện trả lại toàn bộ danh sách, không là
   assert.deepEqual(days(loans), before)
 })
 test('Mô tả điều kiện đúng ngữ nghĩa lọc', () => {
-  assert.match(describeOverdueFilter({ minimum: 7, maximum: 30, exclusiveMinimum: false }), /Từ 7 đến 30/)
+  assert.match(describeOverdueFilter({ minimum: 7, maximum: 30, exclusiveMinimum: false }), /Từ 7 đến 30 ngày lịch/)
   assert.match(describeOverdueFilter({ minimum: 30, maximum: null, exclusiveMinimum: true }), /Trên 30/)
 })
