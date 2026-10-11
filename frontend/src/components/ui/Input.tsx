@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type {
   InputHTMLAttributes,
   ReactNode,
@@ -21,7 +22,8 @@ export default function Input({
   required,
   ...props
 }: InputProps) {
-  const inputId = id ?? props.name ?? props.type ?? 'input'
+  const generatedId = useId()
+  const inputId = id ?? props.name ?? generatedId
 
   return (
     <div className="w-full">

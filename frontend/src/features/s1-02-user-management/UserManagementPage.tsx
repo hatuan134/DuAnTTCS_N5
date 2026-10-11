@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import {
   useCallback,
   useEffect,
@@ -595,7 +596,7 @@ export default function UserManagementPage() {
         />
       )}
       {canManage && (showCreate || editingAccount) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8">
+        <AccessibleModal onClose={closeCreate} busy={submitting} label="Thông tin tài khoản nhân viên">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div className="flex gap-3">
@@ -737,7 +738,7 @@ export default function UserManagementPage() {
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleModal>
       )}
     </div>
   )

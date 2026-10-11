@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ImagePlus, Upload, X } from 'lucide-react'
@@ -31,14 +32,6 @@ export default function BookCoverEditorDialog({ book, onClose, onSaved }: Props)
     setPreviewUrl(objectUrl)
     return () => URL.revokeObjectURL(objectUrl)
   }, [file])
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving) onClose()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, saving])
 
   function chooseFile(selected: File | null, input: HTMLInputElement) {
     setError('')
@@ -77,15 +70,7 @@ export default function BookCoverEditorDialog({ book, onClose, onSaved }: Props)
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="book-cover-editor-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) onClose()
-      }}
-    >
+    <AccessibleModal onClose={onClose} busy={saving} labelledBy="book-cover-editor-title">
       <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5">
           <div>
@@ -186,6 +171,6 @@ export default function BookCoverEditorDialog({ book, onClose, onSaved }: Props)
           </div>
         </form>
       </div>
-    </div>
+    </AccessibleModal>
   )
 }

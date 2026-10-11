@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
@@ -700,7 +701,7 @@ export default function CardTypesPage() {
 
       {/* MODAL THÊM / SỬA LOẠI THẺ */}
       {canManage && isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={closeModal} busy={isSubmitting} label="Chính sách loại thẻ">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
@@ -712,7 +713,7 @@ export default function CardTypesPage() {
                 </p>
               </div>
 
-              <button
+              <button aria-label="Đóng hộp thoại"
                 type="button"
                 onClick={closeModal}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
@@ -843,7 +844,7 @@ export default function CardTypesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleModal>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import axios from 'axios'
@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  KeyRound,
   LockKeyhole,
   Mail,
   ShieldCheck,
@@ -78,6 +77,7 @@ function storeLoginState(email: string, state: LoginLockState | null) {
 }
 
 export default function LoginPage() {
+  const pending = useRef(false)
   const navigate =
     useNavigate()
 
@@ -154,6 +154,7 @@ export default function LoginPage() {
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
+    if (pending.current) return
     setError('')
 
     if (isTemporarilyLocked) {
@@ -171,6 +172,7 @@ export default function LoginPage() {
       return
     }
 
+    pending.current = true
     setLoading(true)
 
     try {
@@ -191,7 +193,7 @@ export default function LoginPage() {
           | null
 
       navigate(
-        state?.from ||
+        (state?.from?.startsWith('/') && !state.from.startsWith('//') && !state.from.includes('\\') ? state.from : undefined) ||
           (session.user.role === 'READER' ? '/catalog' : '/dashboard'),
         {
           replace: true,
@@ -246,6 +248,7 @@ export default function LoginPage() {
         )
       }
     } finally {
+      pending.current = false
       setLoading(false)
     }
   }
@@ -327,7 +330,7 @@ export default function LoginPage() {
             </span>
 
             <span>
-              Giai đoạn 1
+              Không gian tri thức
             </span>
           </div>
 
@@ -363,6 +366,7 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <Link to="/" className="auth-home-link">← Về trang chủ LIBRA</Link>
             {/* Heading */}
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
@@ -374,8 +378,8 @@ export default function LoginPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Sử dụng tài khoản được cấp để
-                truy cập hệ thống quản lý thư viện.
+                Đăng nhập để đặt giữ, theo dõi sách đang mượn
+                hoặc làm việc tại thư viện.
               </p>
             </div>
 
@@ -385,7 +389,7 @@ export default function LoginPage() {
               className="mt-8 space-y-5"
             >
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                <label htmlFor="login-email" className="mb-2 block text-sm font-semibold text-slate-700">
                   Email
                 </label>
 
@@ -396,6 +400,10 @@ export default function LoginPage() {
                   />
 
                   <input
+                    id="login-email"
+                    autoComplete="username"
+                    required
+                    disabled={loading}
                     type="email"
                     value={email}
                     onChange={(event) => {
@@ -413,7 +421,7 @@ export default function LoginPage() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-700">
+                  <label htmlFor="login-password" className="text-sm font-semibold text-slate-700">
                     Mật khẩu
                   </label>
 
@@ -432,6 +440,10 @@ export default function LoginPage() {
                   />
 
                   <input
+                    id="login-password"
+                    autoComplete="current-password"
+                    required
+                    disabled={loading}
                     type={
                       showPassword
                         ? 'text'
@@ -470,6 +482,8 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              {isTemporarilyLocked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Tài khoản tạm khóa đến {lockedUntilLabel}. Vui lòng quay lại sau thời điểm này.</p>}
 
               {error && (
                 <FeedbackAlert
@@ -527,42 +541,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Demo account */}
-            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-              <div className="flex items-center gap-2">
-                <KeyRound
-                  size={17}
-                  className="text-blue-600"
-                />
-
-                <p className="text-sm font-semibold text-blue-900">
-                  Tài khoản kiểm thử
-                </p>
-              </div>
-
-              <div className="mt-3 grid gap-2 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-blue-700">
-                    Email
-                  </span>
-
-                  <strong className="text-blue-950">
-                    admin@libra.edu.vn
-                  </strong>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-blue-700">
-                    Mật khẩu
-                  </span>
-
-                  <strong className="text-right text-blue-950">
-                    Admin123
-                  </strong>
-                </div>
-              </div>
-            </div>
-
             {/* Link to reader registration */}
             <div className="mt-5 text-center text-sm text-slate-600">
               Chưa có tài khoản bạn đọc?{' '}
@@ -574,14 +552,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <div className="mt-3 text-center text-sm">
-              <Link
-                to="/catalog"
-                className="font-semibold text-emerald-700 transition hover:text-emerald-800"
-              >
-                Tra cứu đầu sách công khai
-              </Link>
-            </div>
 
             <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
               <CheckCircle2

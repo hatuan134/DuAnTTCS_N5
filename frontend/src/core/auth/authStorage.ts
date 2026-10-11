@@ -64,9 +64,11 @@ export function saveAuthSession(
     CURRENT_USER_KEY,
     JSON.stringify(session.user),
   )
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('libra-session-changed'))
 }
 
 export function clearAuthSession() {
+  const hadSession = Boolean(getAccessToken() || getCurrentUser())
   localStorage.removeItem(
     ACCESS_TOKEN_KEY,
   )
@@ -82,6 +84,7 @@ export function clearAuthSession() {
   localStorage.removeItem(
     CURRENT_USER_KEY,
   )
+  if (hadSession && typeof window !== 'undefined') window.dispatchEvent(new Event('libra-session-changed'))
 }
 
 export function getAccessToken() {

@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import axios from 'axios'
@@ -371,7 +372,7 @@ export default function LibraryCardsPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+        <AccessibleModal onClose={() => setModal(null)} busy={submitting} label="Duyệt hồ sơ và cấp thẻ">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
             <div className="border-b border-slate-200 p-5">
               <h2 className="text-lg font-bold text-slate-900">
@@ -421,7 +422,7 @@ export default function LibraryCardsPage() {
               )}
             </div>
           </div>
-        </div>
+        </AccessibleModal>
       )}
     </div>
   )

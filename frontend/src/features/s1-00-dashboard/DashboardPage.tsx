@@ -1,3 +1,7 @@
+import { Link, Navigate } from 'react-router-dom'
+import { ArrowRight, BookOpen, Clock3 } from 'lucide-react'
+import { navItems } from '../../app/featureRegistry'
+import { visibleNavigation } from '../../app/navigation'
 import {
   useEffect,
   useState,
@@ -30,6 +34,8 @@ type DashboardState =
   | { status: 'error'; data: null }
 
 export default function DashboardPage() {
+  const currentUser = getCurrentUser()
+  const quickActions = visibleNavigation(navItems, currentUser?.role).filter(item => ['/loans/direct', '/loans/receive-return', '/readers', '/cataloging', '/reservations/ready-for-pickup', '/library-cards'].includes(item.to))
   const allowed = ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'].includes(getCurrentUser()?.role ?? '')
   const [state, setState] = useState<DashboardState>({
     status: 'loading',
@@ -87,10 +93,12 @@ export default function DashboardPage() {
     },
   ]
 
+  if (currentUser?.role === 'READER') return <Navigate to="/catalog" replace />
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Bạn không có quyền xem thống kê quản trị.</p>
 
   return (
     <div>
+      <div className="dashboard-welcome"><div><p className="eyebrow">KHÔNG GIAN LÀM VIỆC</p><h2>Chào {currentUser?.fullName || 'bạn'},<br />một ngày làm việc hiệu quả.</h2><p>Tra cứu nhanh, xử lý rõ ràng, kết nối bạn đọc với thư viện.</p></div><BookOpen size={100} strokeWidth={1} aria-hidden="true" /></div>
       <PageHeader
         title="Tổng quan"
         description="Theo dõi nhanh các số liệu quan trọng của hệ thống thư viện."
@@ -116,7 +124,7 @@ export default function DashboardPage() {
         {stats.map((item) => {
           const Icon = item.icon
           return (
-            <Card key={item.title} className="p-5">
+            <Card key={item.title} className="stat-card p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-600">
@@ -124,9 +132,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
                     {state.status === 'loading'
-                      ? '...'
+                      ? <span className="stat-skeleton" aria-label="Đang tải chỉ số" />
                       : state.status === 'success'
-                        ? item.value ?? 0
+                        ? item.value?.toLocaleString('vi-VN') ?? '—'
                         : '—'}
                   </div>
                 </div>
@@ -142,17 +150,12 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <Card className="mt-6 overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4">
-          <h3 className="font-bold text-slate-900">Phạm vi hệ thống</h3>
-        </div>
-        <div className="p-5">
-          <p className="text-sm leading-6 text-slate-600">
-            Quản lý tài khoản, bạn đọc, thẻ thư viện, chính sách mượn, danh mục sách,
-            bản sao và các nghiệp vụ đặt giữ trong một giao diện thống nhất.
-          </p>
-        </div>
-      </Card>
+      <div className="dashboard-detail-grid">
+        <Card className="p-5 sm:p-6"><h2 className="text-lg font-bold text-slate-900">Tác vụ nhanh</h2><p className="mt-1 text-sm text-slate-500">Đi thẳng đến công việc cần xử lý.</p><div className="quick-actions">{quickActions.map(item => { const Icon = item.icon; return <Link to={item.to} key={item.to}><span><Icon size={20} /></span><strong>{item.label}</strong><ArrowRight size={16} /></Link> })}</div></Card>
+        <Card className="p-5 sm:p-6"><div className="flex items-center gap-2"><Clock3 size={20} className="text-blue-600" /><h2 className="text-lg font-bold text-slate-900">Hồ sơ cần xử lý</h2></div>
+          {state.status === 'success' ? <><p className="pending-count">{state.data.pendingReaderRequests.toLocaleString('vi-VN')}<span> hồ sơ chờ duyệt</span></p><p className="text-sm leading-6 text-slate-600">{state.data.pendingReaderRequests > 0 ? 'Kiểm tra thông tin bạn đọc và giấy tờ tại quầy trước khi cấp thẻ.' : 'Hiện không có hồ sơ bạn đọc đang chờ duyệt.'}</p><Link className="text-link mt-5" to="/readers">Xem danh sách bạn đọc <ArrowRight size={16} /></Link></> : <p className="mt-5 text-sm text-slate-500">{state.status === 'loading' ? 'Đang tải hồ sơ chờ…' : 'Chưa có dữ liệu. Nhấn Làm mới để thử lại.'}</p>}
+        </Card>
+      </div>
     </div>
   )
 }

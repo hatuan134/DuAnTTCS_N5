@@ -20,7 +20,9 @@ function hooksFixture() {
       useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
         return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] },
       useRef(value) { const i = cursor++; return slots[i] ??= { current: value } },
-      useMemo(fn) { cursor++; return fn() },
+      useMemo(fn, deps) { const i = cursor++, old = slots[i]
+        if (!old || deps.some((v, n) => !Object.is(v, old.deps[n]))) slots[i] = { deps, value: fn() }
+        return slots[i].value },
       useCallback(fn, deps) { const i = cursor++, old = slots[i]
         if (!old || deps.some((v, n) => !Object.is(v, old.deps[n]))) slots[i] = { deps, value: fn }
         return slots[i].value
@@ -54,6 +56,9 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
   const Stub = () => null
   const dependencies = {
     react: f.hooks,
+    '../../components/ui/Modal': { __esModule: true, default: Stub },
+    '../../components/public/BookCard': { __esModule: true, default: Stub },
+    './catalogQuery': load('../src/features/s1-08-catalog/catalogQuery.ts', {}, { URLSearchParams }),
     '../../components/ui/FeedbackAlert': { __esModule: true, default: FeedbackStub },
     '../../components/ui/Button': { __esModule: true, default: Stub },
     '../../components/ui/Card': { __esModule: true, default: Stub },
@@ -94,7 +99,8 @@ for (const fail of [false, true]) test(`old auto-cancellation manual scan ${fail
         return { totalIdentified: 2, totalCancelled: 2, totalTransferred: 0, totalReleased: 2 } },
     } },
   })
-  await settle(); p.render(); await p.button('Quét thủ công').props.onClick(); p.render()
+  await settle(); p.render(); await p.button('Quét thủ công').props.onClick(); p.render();
+  find(p.tree(), n => n.props?.confirmLabel === 'Xác nhận quét').props.onConfirm(); await settle(); await settle(); p.render()
   assert.equal(p.notice().props.tone, fail ? 'error' : 'success'); verifyTimer(p)
 })
 for (const fail of [false, true]) test(`old reader reservation ${fail ? 'failure' : 'success'} uses 3000ms notification`, async () => {
@@ -159,9 +165,10 @@ test('old librarian failed barcode preview now notifies for 3000ms and retains r
 
 for (const initialFailure of [true, false]) test(`old public catalog ${initialFailure ? 'search' : 'load-more'} API error expires but recovery state stays`, async () => {
   let calls = 0
+  const params = new URLSearchParams()
   const p = page('../src/features/s1-08-catalog/PublicCatalogPage.tsx', {
     'axios': { isAxiosError: () => true },
-    'react-router-dom': { Link: () => null },
+    'react-router-dom': { Link: () => null, useSearchParams: () => [params, () => {}] },
     '../s2-10-book-cover/PublicBookCover': { __esModule: true, default: () => null },
     './PublicSiteFooter': { __esModule: true, default: () => null },
     './catalogService': { catalogService: {
@@ -211,7 +218,7 @@ test('return queue success expires at 3000ms while saved hold details stay', asy
   }, {}, 'default', { AbortController })
   find(p.tree(), n => n.props?.id === 'return-barcode').props.onChange({ target: { value: 'LIB-001' } }); p.render()
   find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
-  find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); await settle(); p.render()
+  find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); p.render(); find(p.tree(), n => n.props?.confirmLabel === 'Xác nhận').props.onConfirm(); await settle(); p.render()
   assert.equal(p.notice().props.tone, 'success'); verifyTimer(p)
   assert.equal(find(p.tree(), n => n.props?.label === 'Bạn đọc được giữ sách').props.children, returned.nextReaderName)
   assert.equal(find(p.tree(), n => n.props?.label === 'Hạn cuối đến nhận').props.children, returned.pickupDeadline)
@@ -249,7 +256,7 @@ for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-er
       find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
     }
     async function confirmCode() {
-      find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); await settle(); p.render()
+      find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); p.render(); find(p.tree(), n => n.props?.confirmLabel === 'Xác nhận').props.onConfirm(); await settle(); p.render()
     }
     await lookupCode('A'); await confirmCode()
     await lookupCode(scenario === 'duplicate' ? 'A' : scenario === 'lookup-error' ? 'BAD' : 'B')

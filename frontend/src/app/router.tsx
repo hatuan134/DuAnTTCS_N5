@@ -1,5 +1,8 @@
+import PublicLayout from '../components/public/PublicLayout'
+import PageTransition from '../components/ui/PageTransition'
 import {
-  Navigate,
+  Outlet,
+  Link,
   createBrowserRouter,
 } from 'react-router-dom'
 
@@ -26,12 +29,12 @@ function NotFoundPage() {
           Không tìm thấy trang.
         </p>
 
-        <a
-          href="/"
+        <Link
+          to="/"
           className="mt-5 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
         >
           Quay lại trang chủ
-        </a>
+        </Link>
       </div>
     </div>
   )
@@ -39,22 +42,8 @@ function NotFoundPage() {
 
 export const router =
   createBrowserRouter([
-    // Mở localhost:5173/
-    // thì vào màn hình đăng nhập
-    {
-      path: '/',
-      element: (
-        <Navigate
-          to="/login"
-          replace
-        />
-      ),
-    },
-
-    // Các route public:
-    // login, forgot-password,
-    // reset-password...
-    ...publicRoutes,
+    { element: <PublicLayout />, children: publicRoutes.filter(route => route.path === '/' || route.path?.startsWith('/catalog')) },
+    { element: <PageTransition><Outlet /></PageTransition>, children: publicRoutes.filter(route => route.path !== '/' && !route.path?.startsWith('/catalog')) },
 
     // Các trang nghiệp vụ
     // đều phải đăng nhập

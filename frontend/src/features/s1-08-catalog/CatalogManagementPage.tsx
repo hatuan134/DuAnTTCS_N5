@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import {
   useEffect,
   useMemo,
@@ -926,13 +927,13 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
       {/* MODAL: Thêm / Sửa Tác giả */}
       {canEditCatalog && isAuthorModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={() => setIsAuthorModalOpen(false)} label="Thông tin tác giả">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-slate-900">
                 {editingAuthorId !== null ? 'Chỉnh sửa tác giả' : 'Thêm tác giả mới'}
               </h3>
-              <button
+              <button aria-label="Đóng hộp thoại"
                 type="button"
                 onClick={() => setIsAuthorModalOpen(false)}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -993,18 +994,18 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleModal>
       )}
 
       {/* MODAL: Thêm / Sửa Thể loại */}
       {canEditCatalog && isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={() => setIsCategoryModalOpen(false)} label="Thông tin thể loại">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-slate-900">
                 {editingCategoryId !== null ? 'Chỉnh sửa thể loại' : 'Thêm thể loại mới'}
               </h3>
-              <button
+              <button aria-label="Đóng hộp thoại"
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -1100,12 +1101,12 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleModal>
       )}
 
       {/* MODAL: Tạo hồ sơ đầu sách cơ bản - S2-01.1 */}
       {canEditCatalog && isBookModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={() => setIsBookModalOpen(false)} busy={bookSubmitting || inlineAuthorSubmitting || inlineCategorySubmitting || inlinePublisherSubmitting} label="Tạo hồ sơ đầu sách">
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
@@ -1396,12 +1397,12 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleModal>
       )}
 
       {/* S2-01.4: Cảnh báo nhan đề trùng. Không lưu cho tới khi thủ thư xác nhận. */}
       {duplicateTitleWarning && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={() => setDuplicateTitleWarning(null)} busy={bookSubmitting} label="Nhan đề đã tồn tại" alert>
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start gap-4 border-b border-amber-200 bg-amber-50 px-6 py-5">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
@@ -1477,7 +1478,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleModal>
       )}
 
       {canEditCatalog && coverBook && (
@@ -1494,7 +1495,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
 
       {/* DIALOG: Xác nhận xoá / Cảnh báo ràng buộc không cho xoá */}
       {canEditCatalog && deleteDialog.open && deleteDialog.item && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <AccessibleModal onClose={() => setDeleteDialog({ open: false, type: 'author', item: null })} label="Xác nhận xóa danh mục" alert>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             {deleteDialog.cannotDeleteReason ? (
               // Không cho xoá - Cảnh báo ràng buộc
@@ -1552,7 +1553,7 @@ export default function CatalogManagementPage({ mode: initialMode }: Props) {
               </div>
             )}
           </div>
-        </div>
+        </AccessibleModal>
       )}
     </div>
   )

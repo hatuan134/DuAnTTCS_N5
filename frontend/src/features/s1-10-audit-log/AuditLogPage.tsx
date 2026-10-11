@@ -1,3 +1,5 @@
+import { auditActionLabel, auditEntityLabel, auditTargetLabel, auditDetailLabel } from './auditLabels'
+import AccessibleModal from '../../components/ui/Modal'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -273,7 +275,7 @@ function AuditLogContent() {
                 <option value="ALL">Tất cả hành động</option>
                 {options.actions.map((action) => (
                   <option key={action.value} value={action.value}>
-                    {action.label}
+                    {auditActionLabel(action.value, action.label)}
                   </option>
                 ))}
               </select>
@@ -386,12 +388,12 @@ function AuditLogContent() {
                       <td className="px-5 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${style.className}`}>
                           <Icon size={14} />
-                          {item.actionLabel}
+                          {auditActionLabel(item.action, item.actionLabel)}
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="font-medium text-slate-800">{item.target}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{item.targetType}</p>
+                        <p className="font-medium text-slate-800">{auditTargetLabel(item)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{auditEntityLabel(item.targetType)}</p>
                       </td>
                       <td className="min-w-[180px] px-5 py-4">
                         <IpAddress value={item.ipAddress} />
@@ -435,14 +437,14 @@ function AuditLogContent() {
       </div>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+        <AccessibleModal onClose={() => setSelectedLog(null)} label="Chi tiết nhật ký">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Chi tiết nhật ký</h2>
                 <p className="mt-1 text-sm text-slate-500">Mã nhật ký #{selectedLog.id}</p>
               </div>
-              <button
+              <button aria-label="Đóng hộp thoại"
                 type="button"
                 onClick={() => setSelectedLog(null)}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
@@ -455,9 +457,9 @@ function AuditLogContent() {
               {detailError && <FeedbackAlert message={detailError} tone="error" onDismiss={() => setDetailError('')} className="sm:col-span-2" />}
               <DetailItem label="Thời điểm" value={formatDateTime(selectedLog.timestamp)} />
               <DetailItem label="Người thực hiện" value={`${selectedLog.actor} — ${selectedLog.actorRole}`} />
-              <DetailItem label="Hành động" value={selectedLog.actionLabel} />
+              <DetailItem label="Hành động" value={auditActionLabel(selectedLog.action, selectedLog.actionLabel)} />
               <DetailItem label="Mã hành động" value={selectedLog.action} />
-              <DetailItem label="Đối tượng tác động" value={`${selectedLog.target} — ${selectedLog.targetType}`} />
+              <DetailItem label="Đối tượng tác động" value={`${auditTargetLabel(selectedLog)} — ${auditEntityLabel(selectedLog.targetType)}`} />
               <div className="grid min-w-0 gap-1 sm:grid-cols-[170px_1fr] sm:gap-4">
                 <p className="text-sm font-medium text-slate-500">Địa chỉ IP</p>
                 <IpAddress value={selectedLog.ipAddress} wrap />
@@ -465,7 +467,7 @@ function AuditLogContent() {
               <div>
                 <p className="text-sm font-medium text-slate-500">Nội dung chi tiết</p>
                 <div className="mt-2 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                  {selectedLog.detail}
+                  {auditDetailLabel(selectedLog)}
                 </div>
               </div>
             </div>
@@ -480,7 +482,7 @@ function AuditLogContent() {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleModal>
       )}
     </div>
   )

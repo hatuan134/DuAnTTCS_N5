@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
@@ -33,6 +33,10 @@ type ApiErrorResponse = {
 }
 
 export default function RegisterPage() {
+  const pending = useRef(false)
+  const emailRequest = useRef(0)
+  const [passwordTouched, setPasswordTouched] = useState(false)
+  const [confirmTouched, setConfirmTouched] = useState(false)
   const now = new Date()
   const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   // Form states
@@ -60,11 +64,13 @@ export default function RegisterPage() {
 
   // Real-time blur checks for early detection
   const handleEmailBlur = async () => {
+    const version = ++emailRequest.current
     const trimmed = email.trim()
     if (!trimmed || !trimmed.includes('@')) return
 
     try {
       const res = await readerService.checkDuplicate(trimmed, undefined)
+      if (version !== emailRequest.current) return
       if (res.emailExists) {
         setEmailError(
           res.emailMessage ||
@@ -86,6 +92,9 @@ export default function RegisterPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (pending.current) return
+    setPasswordTouched(true)
+    setConfirmTouched(true)
     setGeneralError('')
     setEmailError('')
     setDuplicateType(null)
@@ -119,6 +128,7 @@ export default function RegisterPage() {
       return
     }
 
+    pending.current = true
     setLoading(true)
 
     try {
@@ -152,6 +162,7 @@ export default function RegisterPage() {
         setGeneralError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.')
       }
     } finally {
+      pending.current = false
       setLoading(false)
     }
   }
@@ -164,7 +175,7 @@ export default function RegisterPage() {
         ========================= */}
         <section className="relative hidden overflow-hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
           <div className="relative z-10">
-            <Link to="/login" className="inline-flex items-center gap-3">
+            <Link to="/" className="inline-flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
                 <BookOpen size={25} />
               </div>
@@ -225,7 +236,7 @@ export default function RegisterPage() {
 
           <div className="relative z-10 flex items-center justify-between text-sm text-slate-500">
             <span>LIBRA © 2026</span>
-            <span>Giai đoạn 1 · S1-03</span>
+            <span>Không gian tri thức</span>
           </div>
 
           {/* Trang trí background */}
@@ -241,16 +252,16 @@ export default function RegisterPage() {
             {/* Header / Mobile Logo */}
             <div className="mb-6 flex items-center justify-between">
               <Link
-                to="/login"
+                to="/"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-800"
               >
                 <ArrowLeft size={16} />
-                Quay lại đăng nhập
+                Về trang chủ LIBRA
               </Link>
 
               <div className="lg:hidden">
                 <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                  LIBRA SPRINT 1
+                  LIBRA
                 </span>
               </div>
             </div>
@@ -331,13 +342,13 @@ export default function RegisterPage() {
                 {/* Form Title */}
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
-                    S1-03 · Tiếp nhận hồ sơ
+                    BẮT ĐẦU HÀNH TRÌNH ĐỌC
                   </p>
                   <h2 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
                     Đăng ký tài khoản bạn đọc
                   </h2>
                   <p className="mt-1.5 text-sm text-slate-500">
-                    Điền đầy đủ thông tin để kích hoạt thẻ thư viện và tài khoản
+                    Điền đầy đủ thông tin để gửi hồ sơ duyệt thẻ thư viện và tài khoản
                     mượn trả sách.
                   </p>
                 </div>
@@ -396,8 +407,7 @@ export default function RegisterPage() {
                 <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                   {/* Họ và tên */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Họ và tên <span className="text-red-500">*</span>
+                    <label htmlFor="register-fullName" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Họ và tên <span aria-hidden="true" className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <User
@@ -407,6 +417,9 @@ export default function RegisterPage() {
                       <input
                         type="text"
                         required
+                        id="register-fullName"
+                        autoComplete="name"
+                        disabled={loading}
                         value={fullName}
                         onChange={(e) => {
                           setFullName(e.target.value)
@@ -421,8 +434,7 @@ export default function RegisterPage() {
                   {/* Email */}
                   <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                        Email <span className="text-red-500">*</span>
+                      <label htmlFor="register-email" className="block text-xs font-semibold uppercase tracking-wider text-slate-700">Email <span aria-hidden="true" className="text-red-500">*</span>
                       </label>
                     </div>
                     <div className="relative">
@@ -435,9 +447,15 @@ export default function RegisterPage() {
                       <input
                         type="email"
                         required
+                        id="register-email"
+                        autoComplete="email"
+                        disabled={loading}
                         value={email}
+                        aria-invalid={Boolean(emailError)}
+                        aria-describedby={emailError ? "register-email-error" : undefined}
                         onBlur={handleEmailBlur}
                         onChange={(e) => {
+                          emailRequest.current += 1
                           setEmail(e.target.value)
                           setEmailError('')
                           setGeneralError('')
@@ -452,7 +470,7 @@ export default function RegisterPage() {
                       />
                     </div>
                     {emailError && (
-                      <p className="mt-1 text-xs text-red-600 font-medium">
+                      <p id="register-email-error" role="alert" className="mt-1 text-xs text-red-600 font-medium">
                         {emailError}
                       </p>
                     )}
@@ -465,8 +483,7 @@ export default function RegisterPage() {
                   <div className="grid sm:grid-cols-2 gap-4">
                     {/* Ngày sinh */}
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                        Ngày sinh <span className="text-red-500">*</span>
+                      <label htmlFor="register-dateOfBirth" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Ngày sinh <span aria-hidden="true" className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <Calendar
@@ -477,6 +494,9 @@ export default function RegisterPage() {
                           type="date"
                           required
                           max={todayDate}
+                          id="register-dateOfBirth"
+                          autoComplete="bday"
+                          disabled={loading}
                           value={dateOfBirth}
                           onChange={(e) => {
                             const value = e.target.value
@@ -494,8 +514,7 @@ export default function RegisterPage() {
 
                     {/* Số điện thoại */}
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                        Số điện thoại
+                      <label htmlFor="register-phone" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Số điện thoại
                       </label>
                       <div className="relative">
                         <Phone
@@ -504,6 +523,9 @@ export default function RegisterPage() {
                         />
                         <input
                           type="tel"
+                          id="register-phone"
+                          autoComplete="tel"
+                          disabled={loading}
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="0987654321"
@@ -515,8 +537,7 @@ export default function RegisterPage() {
 
                   {/* Địa chỉ */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Địa chỉ / Khoa / Đơn vị
+                    <label htmlFor="register-address" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Địa chỉ / Khoa / Đơn vị
                     </label>
                     <div className="relative">
                       <MapPin
@@ -525,6 +546,9 @@ export default function RegisterPage() {
                       />
                       <input
                         type="text"
+                        id="register-address"
+                        autoComplete="street-address"
+                        disabled={loading}
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         placeholder="Khoa Công nghệ thông tin, Ký túc xá K1..."
@@ -537,8 +561,7 @@ export default function RegisterPage() {
                   <div className="grid sm:grid-cols-2 gap-4">
                     {/* Mật khẩu */}
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                        Mật khẩu <span className="text-red-500">*</span>
+                      <label htmlFor="register-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Mật khẩu <span aria-hidden="true" className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <LockKeyhole
@@ -548,15 +571,23 @@ export default function RegisterPage() {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
+                          id="register-password"
+                          autoComplete="new-password"
+                          disabled={loading}
                           value={password}
+                          onBlur={() => setPasswordTouched(true)}
+                          aria-invalid={passwordTouched && Boolean(validateRegistrationPassword(password))}
+                          aria-describedby="register-password-hint"
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Tối thiểu 8 ký tự, có chữ và số"
-                          className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          placeholder="Nhập mật khẩu"
+                          className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                         />
                         <button
                           type="button"
+                          aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                          aria-pressed={showPassword}
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                         >
                           {showPassword ? (
                             <EyeOff size={16} />
@@ -565,13 +596,13 @@ export default function RegisterPage() {
                           )}
                         </button>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">Mật khẩu phải có ít nhất 8 ký tự, bao gồm ít nhất một chữ cái và một chữ số.</p>
+                      {passwordTouched && validateRegistrationPassword(password) && <p role="alert" className="mt-1 text-xs text-red-700">{validateRegistrationPassword(password)}</p>}
+                      <p id="register-password-hint" className="mt-1 text-xs text-slate-500">Mật khẩu phải có ít nhất 8 ký tự, bao gồm ít nhất một chữ cái và một chữ số.</p>
                     </div>
 
                     {/* Nhập lại mật khẩu */}
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                        Xác nhận mật khẩu <span className="text-red-500">*</span>
+                      <label htmlFor="register-confirmPassword" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Xác nhận mật khẩu <span aria-hidden="true" className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <LockKeyhole
@@ -581,17 +612,25 @@ export default function RegisterPage() {
                         <input
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
+                          id="register-confirmPassword"
+                          autoComplete="new-password"
+                          disabled={loading}
                           value={confirmPassword}
+                          onBlur={() => setConfirmTouched(true)}
+                          aria-invalid={confirmTouched && password !== confirmPassword}
+                          aria-describedby="register-confirm-error"
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Khớp với mật khẩu trên"
-                          className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          placeholder="Nhập lại mật khẩu"
+                          className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                         />
                         <button
                           type="button"
+                          aria-label={showConfirmPassword ? "Ẩn xác nhận mật khẩu" : "Hiện xác nhận mật khẩu"}
+                          aria-pressed={showConfirmPassword}
                           onClick={() =>
                             setShowConfirmPassword(!showConfirmPassword)
                           }
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                         >
                           {showConfirmPassword ? (
                             <EyeOff size={16} />
@@ -603,6 +642,7 @@ export default function RegisterPage() {
                     </div>
                   </div>
 
+                  {confirmTouched && password !== confirmPassword && <p id="register-confirm-error" role="alert" className="text-xs text-red-700">Mật khẩu xác nhận không khớp.</p>}
                   {/* Nút gửi */}
                   <button
                     type="submit"

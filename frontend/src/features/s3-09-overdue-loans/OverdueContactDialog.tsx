@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { History, PhoneCall, X } from 'lucide-react'
@@ -74,9 +75,8 @@ export default function OverdueContactDialog({ loanId, loanNumber, canRecord, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6"
-      role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="overdue-contact-heading"
+    <AccessibleModal onClose={onClose} busy={saving} labelledBy="overdue-contact-heading">
+      <section
         className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
@@ -137,6 +137,6 @@ export default function OverdueContactDialog({ loanId, loanNumber, canRecord, on
           <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Đóng</Button>
         </div>
       </section>
-    </div>
+    </AccessibleModal>
   )
 }

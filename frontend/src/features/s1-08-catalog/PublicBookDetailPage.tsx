@@ -13,7 +13,6 @@ import {
   Info,
   Layers,
   Library,
-  LogIn,
   MapPin,
   Tag,
   User,
@@ -23,7 +22,6 @@ import {
 import { Link, useParams } from 'react-router-dom'
 
 import ReserveBookPanel from '../s2-07-reservations/ReserveBookPanel'
-import PublicSiteFooter from './PublicSiteFooter'
 import { catalogService } from './catalogService'
 import type { Book } from './catalogService'
 
@@ -123,30 +121,10 @@ export default function PublicBookDetailPage() {
   return (
     <div className="public-page min-h-screen bg-slate-50 text-slate-800">
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
-          <Link to="/catalog" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-200">
-              <BookOpen size={22} />
-            </div>
-            <div>
-              <p className="font-bold tracking-tight text-slate-900">LIBRA</p>
-              <p className="text-xs text-slate-500">Chi tiết đầu sách công khai</p>
-            </div>
-          </Link>
 
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-400"
-          >
-            <LogIn size={17} />
-            Đăng nhập
-          </Link>
-        </div>
-      </header>
 
       {/* Main Container */}
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <Link
           to="/catalog"
           className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
@@ -481,8 +459,7 @@ export default function PublicBookDetailPage() {
             </div>
           </article>
         )}
-      </main>
-      <PublicSiteFooter />
+      </section>
     </div>
   )
 }

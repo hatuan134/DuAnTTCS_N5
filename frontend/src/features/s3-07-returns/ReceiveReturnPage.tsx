@@ -1,3 +1,4 @@
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Barcode } from 'lucide-react'
@@ -20,6 +21,12 @@ type Notice = { message: string; tone: 'success' | 'error' | 'warning' | 'info' 
 
 export default function ReceiveReturnPage() {
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
+  const [decision, setDecision] = useState<{ description: string; resolve: (accepted: boolean) => void } | null>(null)
+  const decisionRef = useRef<((accepted: boolean) => void) | null>(null)
+  function ask(description: string) {
+    return new Promise<boolean>(resolve => { decisionRef.current = resolve; setDecision({ description, resolve }) })
+  }
+  function decide(accepted: boolean) { decisionRef.current?.(accepted); decisionRef.current = null; setDecision(null) }
   const [barcode, setBarcode] = useState('')
   const [fieldError, setFieldError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -37,7 +44,7 @@ export default function ReceiveReturnPage() {
   const request = useRef<AbortController | null>(null)
   useEffect(() => {
     mounted.current = true
-    return () => { mounted.current = false; request.current?.abort(); request.current = null }
+    return () => { decisionRef.current?.(false); decisionRef.current = null; mounted.current = false; request.current?.abort(); request.current = null }
   }, [])
 
   function focusBarcode(select = false) {
@@ -67,7 +74,7 @@ export default function ReceiveReturnPage() {
     return true
   }
   function changeBarcode(value: string) {
-    if (confirmation.current || finished.current) return
+    if (confirmation.current || decisionRef.current || finished.current) return
     request.current?.abort()
     request.current = null
     setBarcode(value); setResult(null); setNotice(null); setFieldError(''); setBusy(false)
@@ -75,7 +82,7 @@ export default function ReceiveReturnPage() {
 
   async function lookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!allowed || finished.current || request.current || confirmation.current) return
+    if (!allowed || finished.current || request.current || confirmation.current || decisionRef.current) return
     setResult(null); setNotice(null)
     const code = barcode.trim()
     const error = validateReturnBarcode(code)
@@ -110,10 +117,10 @@ export default function ReceiveReturnPage() {
   }
 
   async function confirmReturn() {
-    if (!allowed || finished.current || confirmation.current || request.current || !result?.itemId) return
+    if (!allowed || finished.current || confirmation.current || decisionRef.current || request.current || !result?.itemId) return
     const preview = result
     if (duplicate(preview.barcode, preview.copyId)) return
-    if (!window.confirm(`Xác nhận đã nhận cuốn “${preview.bookTitle}” có mã vạch ${preview.barcode}?`)) return
+    if (!await ask(`Xác nhận đã nhận cuốn “${preview.bookTitle}” có mã vạch ${preview.barcode}?`) || !mounted.current) return
     confirmation.current = true
     setConfirming(true); setNotice(null)
     try {
@@ -138,11 +145,11 @@ export default function ReceiveReturnPage() {
     }
   }
 
-  function finishSession() {
-    if (!allowed || finished.current || confirmation.current || request.current
+  async function finishSession() {
+    if (!allowed || finished.current || confirmation.current || decisionRef.current || request.current
       || !session.current.some(entry => entry.status === 'SUCCESS')) return
     // A looked-up copy is not a successful return until confirmation has completed.
-    if (result?.itemId && !window.confirm(`Mã vạch ${result.barcode} chưa được xác nhận nhận trả. Kết thúc lượt và không tính cuốn này vào tổng số đã nhận?`)) return
+    if (result?.itemId && (!await ask(`Mã vạch ${result.barcode} chưa được xác nhận nhận trả. Kết thúc lượt và không tính cuốn này vào tổng số đã nhận?`) || !mounted.current)) return
     if (result?.itemId && !session.current.some(entry => entry.status === 'ERROR' && entry.barcode === result.barcode)) {
       recordFailure(result.barcode, 'Chưa xác nhận nhận trả khi kết thúc lượt.', result)
     }
@@ -237,6 +244,7 @@ export default function ReceiveReturnPage() {
   </div>
 
   return <div className="space-y-5">
+    {decision && <ConfirmActionDialog title="Xác nhận nhận trả" description={decision.description} confirmLabel="Xác nhận" danger={false} onCancel={() => decide(false)} onConfirm={() => decide(true)} />}
     <PageHeader title="Nhận trả sách" description="Tra cứu và xác nhận từng cuốn. Chọn Kết thúc lượt để xem bảng tổng kết sau khi nhận đủ sách."
       action={successCount > 0 && <Button type="button" disabled={busy || confirming} onClick={finishSession}>Kết thúc lượt</Button>} />
     <Card className="p-5">

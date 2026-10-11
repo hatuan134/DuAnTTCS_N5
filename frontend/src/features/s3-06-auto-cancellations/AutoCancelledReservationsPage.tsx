@@ -1,7 +1,8 @@
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   RefreshCw,
   Search,
@@ -36,6 +37,8 @@ function formatDateTime(isoString: string | null | undefined): string {
 }
 
 export default function AutoCancelledReservationsPage() {
+  const [confirmScan, setConfirmScan] = useState(false)
+  const pending = useRef(false)
   const [items, setItems] = useState<AutoCancelledReservation[]>([])
   const [latestRun, setLatestRun] = useState<AutoCancellationRun | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
@@ -71,10 +74,8 @@ export default function AutoCancelledReservationsPage() {
   }, [])
 
   const handleTriggerRun = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn kích hoạt quét và huỷ đơn quá hạn ngay bây giờ không?')) {
-      return
-    }
-
+    if (pending.current) return
+    pending.current = true
     setTriggering(true)
     setTriggerSuccessMsg(null)
     setError(null)
@@ -89,6 +90,8 @@ export default function AutoCancelledReservationsPage() {
       console.error('Lỗi khi kích hoạt quét tự động:', err)
       setError(err?.response?.data?.message || 'Kích hoạt quét tự động thất bại.')
     } finally {
+      pending.current = false
+      setConfirmScan(false)
       setTriggering(false)
     }
   }
@@ -124,6 +127,7 @@ export default function AutoCancelledReservationsPage() {
 
   return (
     <div className="space-y-6">
+      {confirmScan && <ConfirmActionDialog title="Quét đơn quá hạn nhận" description="Bạn có chắc chắn muốn kích hoạt quét và huỷ đơn quá hạn ngay bây giờ không?" confirmLabel="Xác nhận quét" onConfirm={() => void handleTriggerRun()} onCancel={() => setConfirmScan(false)} busy={triggering} />}
       {/* Tiêu đề trang đồng bộ 100% với Kho & Kệ */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -148,7 +152,7 @@ export default function AutoCancelledReservationsPage() {
 
           <button
             type="button"
-            onClick={handleTriggerRun}
+            onClick={() => setConfirmScan(true)}
             disabled={triggering || loading}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
           >

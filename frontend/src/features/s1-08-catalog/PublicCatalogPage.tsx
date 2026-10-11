@@ -1,22 +1,13 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
-import PublicBookCover from '../s2-10-book-cover/PublicBookCover'
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import BookCard from '../../components/public/BookCard'
+import { readCatalogQuery, catalogQueryParams } from './catalogQuery'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { BookOpen, ChevronDown, Filter, LogIn, RefreshCw, Search, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { BookOpen, ChevronDown, Filter, RefreshCw, Search, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 
-import PublicSiteFooter from './PublicSiteFooter'
 import { catalogService } from './catalogService'
 import type { Book, PublicCatalogFilterOptions, PublicCatalogFilters, PublicCatalogPage, PublicCatalogSearch, PublicCatalogSort } from './catalogService'
-
-function authorNames(book: Book) {
-  if (book.authors?.length) {
-    return book.authors.map((author) => author.name).join(', ')
-  }
-  return book.authorName || 'Không rõ'
-}
-
-const initialQuery: PublicCatalogSearch = { keyword: '', page: 0, sort: 'relevance' }
 
 function apiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
@@ -26,13 +17,22 @@ function apiErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function PublicCatalogPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const submittedQuery = useMemo(() => readCatalogQuery(searchParams), [searchParams])
+  const setSubmittedQuery = (query: PublicCatalogSearch) => setSearchParams(catalogQueryParams(query))
+  const moreRequest = useRef<AbortController | null>(null)
+  const queryVersion = useRef(0)
   const keywordInputRef = useRef<HTMLInputElement>(null)
   const loadedPageRef = useRef(0)
   const [books, setBooks] = useState<Book[]>([])
   const [result, setResult] = useState<PublicCatalogPage | null>(null)
-  const [keyword, setKeyword] = useState('')
-  const [filters, setFilters] = useState<PublicCatalogFilters>({})
-  const [submittedQuery, setSubmittedQuery] = useState<PublicCatalogSearch>(initialQuery)
+  const [draft, setDraft] = useState({ source: submittedQuery, keyword: submittedQuery.keyword, filters: submittedQuery as PublicCatalogFilters })
+  // URL changes (including browser Back) reset drafts without an effect or a form remount.
+  const currentDraft = draft.source === submittedQuery ? draft : { source: submittedQuery, keyword: submittedQuery.keyword, filters: submittedQuery }
+  const { keyword, filters } = currentDraft
+  const setKeyword = (value: string) => setDraft({ ...currentDraft, keyword: value })
+  const setFilters = (value: PublicCatalogFilters | ((current: PublicCatalogFilters) => PublicCatalogFilters)) =>
+    setDraft({ ...currentDraft, filters: typeof value === 'function' ? value(filters) : value })
   const [options, setOptions] = useState<PublicCatalogFilterOptions>({ categories: [], publicationYears: [] })
   const [optionsLoading, setOptionsLoading] = useState(true)
   const [optionsError, setOptionsError] = useState('')
@@ -73,6 +73,8 @@ export default function PublicCatalogPage() {
     setLoadingMore(false)
     setError(''); setDismissedError('')
     loadedPageRef.current = 0
+    queryVersion.current += 1
+    moreRequest.current?.abort()
 
     const loadBooks = async (background = false) => {
       if (running || (background && document.hidden)) return
@@ -129,6 +131,7 @@ export default function PublicCatalogPage() {
       active = false
       controller.abort()
       window.clearInterval(timer)
+      moreRequest.current?.abort()
       channel?.close()
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', refresh)
@@ -138,10 +141,15 @@ export default function PublicCatalogPage() {
   const loadMore = async () => {
     if (!result || result.last || loadingMore || loading) return
     const nextPage = result.page + 1
+    const version = queryVersion.current
+    const controller = new AbortController()
+    moreRequest.current?.abort()
+    moreRequest.current = controller
     setLoadingMore(true)
     setError(''); setDismissedError('')
     try {
-      const data = await catalogService.searchPublicBooks({ ...submittedQuery, page: nextPage })
+      const data = await catalogService.searchPublicBooks({ ...submittedQuery, page: nextPage }, controller.signal)
+      if (controller.signal.aborted || version !== queryVersion.current) return
       setBooks((current) => {
         const unique = new Map(current.map((book) => [book.id, book]))
         data.content.forEach((book) => unique.set(book.id, book))
@@ -150,9 +158,10 @@ export default function PublicCatalogPage() {
       loadedPageRef.current = data.page
       setResult(data)
     } catch (error) {
+      if (controller.signal.aborted || version !== queryVersion.current) return
       setError(apiErrorMessage(error, 'Không thể hiển thị thêm đầu sách. Vui lòng thử lại.'))
     } finally {
-      setLoadingMore(false)
+      if (!controller.signal.aborted && version === queryVersion.current) setLoadingMore(false)
     }
   }
 
@@ -177,7 +186,7 @@ export default function PublicCatalogPage() {
   }
 
   const editKeyword = () => {
-    keywordInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    keywordInputRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' })
     keywordInputRef.current?.focus({ preventScroll: true })
   }
 
@@ -220,30 +229,10 @@ export default function PublicCatalogPage() {
 
   return (
     <div className="public-page min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <BookOpen size={22} />
-            </div>
-            <div>
-              <p className="font-semibold text-slate-900">LIBRA</p>
-              <p className="text-xs text-slate-500">Tra cứu đầu sách công khai</p>
-            </div>
-          </div>
 
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <LogIn size={17} />
-            Đăng nhập
-          </Link>
-        </div>
-      </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="rounded-2xl bg-slate-900 px-6 py-8 text-white shadow-sm sm:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section className="catalog-search-panel rounded-2xl bg-slate-900 px-6 py-8 text-white shadow-sm sm:px-8">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-300">Thư viện</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Tra cứu đầu sách</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
@@ -251,7 +240,7 @@ export default function PublicCatalogPage() {
           </p>
 
           <form onSubmit={handleSearch} className="mt-6">
-            <div className="flex max-w-3xl flex-col gap-3 sm:flex-row">
+            <div className="catalog-search-row">
               <div className="relative flex-1">
                 <Search
                   size={19}
@@ -277,7 +266,7 @@ export default function PublicCatalogPage() {
               </button>
             </div>
 
-            <fieldset disabled={loading} className="mt-5 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <fieldset disabled={loading} className="catalog-filter-grid">
               <legend className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
                 <Filter size={16} /> Bộ lọc tra cứu
               </legend>
@@ -313,7 +302,7 @@ export default function PublicCatalogPage() {
                   )}
                 </select>
               </div>
-              <label className="flex min-h-11 cursor-pointer items-center gap-3 self-end rounded-xl border border-slate-700 bg-slate-800 px-3 py-3 text-sm text-slate-200">
+              <label className="catalog-availability-filter">
                 <input
                   type="checkbox"
                   checked={filters.availableOnly ?? false}
@@ -335,7 +324,7 @@ export default function PublicCatalogPage() {
               <p className="mt-1 text-sm text-slate-500">
                 {loading
                   ? 'Đang tải dữ liệu…'
-                  : `${result?.totalElements ?? 0} đầu sách phù hợp${submittedKeyword ? ` với “${submittedKeyword}”` : ''}`}
+                  : error ? 'Dữ liệu chưa tải được. Vui lòng thử lại.' : `${result?.totalElements ?? 0} đầu sách phù hợp${submittedKeyword ? ` với “${submittedKeyword}”` : ''}`}
               </p>
             </div>
 
@@ -346,7 +335,7 @@ export default function PublicCatalogPage() {
                 value={submittedQuery.sort}
                 disabled={loading}
                 onChange={(event) => setSubmittedQuery({
-                  ...filters, keyword: keyword.trim(), page: 0, sort: event.target.value as PublicCatalogSort,
+                  ...submittedQuery, page: 0, sort: event.target.value as PublicCatalogSort,
                 })}
                 className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50"
               >
@@ -418,52 +407,7 @@ export default function PublicCatalogPage() {
           )}
 
           {!error && !loading && books.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {books.map((book) => (
-                <article
-                  key={book.id}
-                  className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Link to={`/catalog/books/${book.id}`} aria-label={`Xem chi tiết ${book.title}`}>
-                    <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} thumbnail />
-                  </Link>
-
-                  <div className="flex flex-1 flex-col">
-                    <Link to={`/catalog/books/${book.id}`} className="group">
-                      <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-slate-900 group-hover:text-blue-700">
-                        {book.title}
-                      </h3>
-                    </Link>
-                    <p className="mt-1 line-clamp-1 text-xs text-slate-500" title={authorNames(book)}>
-                      {authorNames(book)}
-                    </p>
-
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600" title={book.categoryName}>
-                        {book.categoryName}
-                      </span>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${
-                        (book.availableCount ?? 0) > 0
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {book.availableCount ?? 0} sẵn sàng
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                      <span className="text-[11px] text-slate-500">{book.publicationYear ?? 'Chưa rõ năm'}</span>
-                      <Link
-                        to={`/catalog/books/${book.id}`}
-                        className="text-xs font-semibold text-blue-600 transition hover:text-blue-700"
-                      >
-                        Xem chi tiết
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <div className="book-grid">{books.map(book => <BookCard key={book.id} book={book} />)}</div>
           )}
 
           {!error && !loading && result && result.totalElements > 0 && (
@@ -488,8 +432,7 @@ export default function PublicCatalogPage() {
             </div>
           )}
         </section>
-      </main>
-      <PublicSiteFooter />
+      </section>
     </div>
   )
 }
