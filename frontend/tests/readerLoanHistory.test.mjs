@@ -55,12 +55,15 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
   const Stub = () => null
   const dependencies = {
     react: f.hooks,
+    '../../app/featureRegistry': { navItems: [] },
+    '../../app/navigation': load('../src/app/navigation.ts', {}),
     '../../components/ui/FeedbackAlert': { __esModule: true, default: FeedbackStub },
     '../../components/ui/Button': { __esModule: true, default: Stub },
     '../../components/ui/Card': { __esModule: true, default: Stub },
     '../../components/ui/EmptyState': { __esModule: true, default: Stub },
     '../../components/ui/Input': { __esModule: true, default: Stub },
     '../../components/ui/LoadingState': { __esModule: true, default: Stub },
+    '../../components/ui/ConfirmActionDialog': { __esModule: true, default: () => null },
     '../../components/ui/PageHeader': { __esModule: true, default: Stub },
     '../../components/ui/StatusBadge': { __esModule: true, default: Stub },
     '../../components/ui/TableActionButton': { __esModule: true, default: Stub, TableActions: Stub },

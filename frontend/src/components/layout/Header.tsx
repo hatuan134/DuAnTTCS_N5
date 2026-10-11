@@ -8,9 +8,10 @@ import {
 
 interface HeaderProps {
   onMenuToggle?: () => void
+  menuOpen?: boolean
 }
 
-export default function Header({ onMenuToggle }: HeaderProps) {
+export default function Header({ onMenuToggle, menuOpen }: HeaderProps) {
   const navigate = useNavigate()
   const currentUser = getCurrentUser()
 
@@ -26,7 +27,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
   const handleLogout = () => {
     clearAuthSession()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (
@@ -37,14 +38,15 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           onClick={onMenuToggle}
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 lg:hidden"
           aria-label="Mở menu điều hướng"
+          aria-expanded={menuOpen}
         >
           <Menu size={20} />
         </button>
 
         <div className="min-w-0">
-          <h1 className="truncate text-base font-bold tracking-tight text-slate-950 sm:text-lg">
+          <p className="truncate text-base font-bold tracking-tight text-slate-950 sm:text-lg">
             Hệ thống Quản lý Thư viện
-          </h1>
+          </p>
           <p className="hidden text-xs text-slate-500 sm:block">
             Quản lý mượn / trả sách tập trung
           </p>
@@ -70,6 +72,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           type="button"
           onClick={handleLogout}
           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          aria-label="Đăng xuất khỏi hệ thống"
           title="Đăng xuất khỏi hệ thống"
         >
           <LogOut size={17} />

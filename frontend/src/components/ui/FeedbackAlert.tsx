@@ -37,18 +37,18 @@ export default function FeedbackAlert({
   if (!message) return null
 
   const success = tone === 'success'
-  const urgent = !success
+  const urgent = tone === 'error' || tone === 'warning'
   const styles = {
     success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     error: 'border-red-200 bg-red-50 text-red-700',
-    warning: 'border-red-200 bg-red-50 text-red-700',
-    info: 'border-red-200 bg-red-50 text-red-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    info: 'border-blue-200 bg-blue-50 text-blue-800',
   }
   const closeStyles = {
     success: 'text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800',
     error: 'text-red-600 hover:bg-red-100 hover:text-red-800',
-    warning: 'text-red-600 hover:bg-red-100 hover:text-red-800',
-    info: 'text-red-600 hover:bg-red-100 hover:text-red-800',
+    warning: 'text-amber-700 hover:bg-amber-100 hover:text-amber-900',
+    info: 'text-blue-700 hover:bg-blue-100 hover:text-blue-900',
   }
 
   return (
@@ -56,7 +56,7 @@ export default function FeedbackAlert({
       role={urgent ? 'alert' : 'status'}
       aria-live={urgent ? 'assertive' : 'polite'}
       className={[
-        'flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm',
+        'feedback-alert flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm',
         styles[tone],
         className,
       ].join(' ')}
@@ -74,7 +74,7 @@ export default function FeedbackAlert({
         type="button"
         onClick={onDismiss}
         className={[
-          'shrink-0 rounded-lg p-1 transition',
+          'shrink-0 rounded-lg p-2 transition',
           closeStyles[tone],
         ].join(' ')}
         aria-label="Đóng thông báo"

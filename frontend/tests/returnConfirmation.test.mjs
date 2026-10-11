@@ -33,7 +33,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
       }
     },
   }
-  const names = ['Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
+  const names = ['ConfirmActionDialog', 'Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
   const dependencies = Object.fromEntries(names.map(n => [`../../components/ui/${n}`, { __esModule: true, default: Object.assign(() => null, { displayName: n }) }]))
   dependencies['../../components/ui/TablePagination'] = { __esModule: true, default: Object.assign(() => null, { displayName: 'TablePagination' }) }
   dependencies['../../hooks/useTablePagination'] = { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) }
@@ -77,14 +77,14 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
     summaryRows: () => nodes(tree).filter(node => node.props?.['data-return-summary-row']),
     summaryErrors: () => nodes(tree).filter(node => node.props?.['data-return-summary-error']),
     finishButton: () => nodes(tree).find(node => node.props?.children === 'Kết thúc lượt'),
-    finish() { nodes(tree).find(node => node.props?.children === 'Kết thúc lượt')?.props.onClick(); render() },
+    async finish() { nodes(tree).find(node => node.props?.children === 'Kết thúc lượt')?.props.onClick(); render(); const dialog = find('ConfirmActionDialog'); if (dialog) { (acceptConfirmation ? dialog.props.onConfirm : dialog.props.onCancel)(); await Promise.resolve(); render() } },
     restart() { nodes(tree).find(node => node.props?.children === 'Đóng tổng kết và bắt đầu lượt mới')?.props.onClick(); render() },
     acceptNext(value) { acceptConfirmation = value },
     rowText: row => text(row),
     input(value) { find('Input').props.onChange({ target: { value } }); render() },
     submit() { const promise = find('form').props.onSubmit({ preventDefault() {} }); render(); return promise },
     dismiss() { find('FeedbackAlert').props.onDismiss(); render() },
-    confirm() { const button = nodes(tree).find(n => n.props?.children === 'Xác nhận nhận trả'); button?.props.onClick(); render() },
+    async confirm() { const button = nodes(tree).find(n => n.props?.children === 'Xác nhận nhận trả'); button?.props.onClick(); render(); const dialog = find('ConfirmActionDialog'); if (dialog) { (acceptConfirmation ? dialog.props.onConfirm : dialog.props.onCancel)(); await Promise.resolve(); render() } },
     confirmButton() { return nodes(tree).find(n => n.props?.children === 'Xác nhận nhận trả') },
     unmount() { for (const slot of slots) slot?.cleanup?.() },
   }
@@ -114,7 +114,7 @@ test('confirmation API trims barcode and sends previewed item, never a browser r
 for (const status of ['ON_TIME', 'OVERDUE', 'MISSING_DUE_DATE']) test(`${status}: shows confirmation only for open item and displays saved return`, async () => {
   const f = fixture('LIBRARIAN', async () => openItem({ status }))
   assert.equal(f.confirmButton(), undefined); await lookup(f); assert.ok(f.confirmButton())
-  f.confirm(); await flush(); f.render()
+  await f.confirm(); await flush(); f.render()
   assert.deepEqual(f.confirmations, [['LIB-001', 9]])
   for (const value of ['Đã trả', 'Ngày trả thực tế', '2026-10-09T01:00:00+07:00', 'Thủ thư An', 'Sẵn sàng']) assert.ok(f.text().includes(value), value)
   assert.equal(f.confirmButton(), undefined)
@@ -123,47 +123,47 @@ for (const status of ['ON_TIME', 'OVERDUE', 'MISSING_DUE_DATE']) test(`${status}
 })
 test('unborrowed copy and reader have no confirmation action', async () => {
   const f = fixture('LIBRARIAN', async () => openItem({ status: 'NOT_BORROWED', itemId: null }))
-  await lookup(f); assert.equal(f.confirmButton(), undefined); f.confirm(); assert.equal(f.confirmations.length, 0)
+  await lookup(f); assert.equal(f.confirmButton(), undefined); await f.confirm(); assert.equal(f.confirmations.length, 0)
   const reader = fixture('READER'); assert.equal(reader.confirmButton(), undefined)
 })
 test('other items of a partially returned loan remain visible as outstanding', async () => {
   const f = fixture('LIBRARIAN', undefined, async () => returnedItem({ loanStatus: 'BORROWED' }))
-  await lookup(f); f.confirm(); await flush(); f.render(); assert.ok(f.text().includes('Còn cuốn chưa trả'))
+  await lookup(f); await f.confirm(); await flush(); f.render(); assert.ok(f.text().includes('Còn cuốn chưa trả'))
 })
 test('duplicate click and Enter cannot submit again or change barcode while confirmation is pending', async () => {
   let resolve; const f = fixture('LIBRARIAN', undefined, () => new Promise(r => { resolve = r }))
-  await lookup(f); f.confirm(); f.confirm(); f.submit(); f.input('LIB-OTHER')
+  await lookup(f); await f.confirm(); await f.confirm(); f.submit(); f.input('LIB-OTHER')
   assert.equal(f.confirmations.length, 1); assert.equal(f.calls.length, 1)
   assert.equal(f.find('Input').props.disabled, true); assert.equal(f.find('Input').props.value, 'LIB-001')
   resolve(returnedItem()); await flush(); f.render(); assert.equal(f.find('Input').props.disabled, false)
 })
 test('409 rejects stale preview and requires fresh lookup without fabricating success', async () => {
   const f = fixture('LIBRARIAN', undefined, async () => { throw { response: { status: 409, data: { message: 'Cuốn sách đã trả.' } } } })
-  await lookup(f); f.confirm(); await flush(); f.render()
+  await lookup(f); await f.confirm(); await flush(); f.render()
   assert.equal(f.confirmButton(), undefined); assert.equal(f.find('FeedbackAlert').props.tone, 'error')
   assert.ok(!f.text().includes('Ngày trả thực tế'))
 })
 test('rolled-back server failure retains preview and allows a deliberate retry', async () => {
   let count = 0
   const f = fixture('LIBRARIAN', undefined, async () => { if (!count++) throw { response: { status: 500, data: { message: 'Dữ liệu được giữ nguyên.' } } }; return returnedItem() })
-  await lookup(f); f.confirm(); await flush(); f.render(); assert.ok(f.confirmButton())
+  await lookup(f); await f.confirm(); await flush(); f.render(); assert.ok(f.confirmButton())
   assert.equal(f.find('FeedbackAlert').props.message, 'Dữ liệu được giữ nguyên.')
-  f.confirm(); await flush(); f.render(); assert.ok(f.text().includes('Ngày trả thực tế'))
+  await f.confirm(); await flush(); f.render(); assert.ok(f.text().includes('Ngày trả thực tế'))
 })
 test('lost response clears stale action and asks staff to check the persisted result', async () => {
   const f = fixture('LIBRARIAN', undefined, async () => { throw new Error('network timeout') })
-  await lookup(f); f.confirm(); await flush(); f.render(); assert.equal(f.confirmButton(), undefined)
+  await lookup(f); await f.confirm(); await flush(); f.render(); assert.equal(f.confirmButton(), undefined)
   assert.ok(f.find('FeedbackAlert').props.message.includes('Chưa xác định được kết quả'))
 })
 test('unmount ignores a late confirmation result', async () => {
   let resolve; const f = fixture('LIBRARIAN', undefined, () => new Promise(r => { resolve = r }))
-  await lookup(f); f.confirm(); f.unmount(); resolve(returnedItem()); await flush(); f.render()
+  await lookup(f); await f.confirm(); f.unmount(); resolve(returnedItem()); await flush(); f.render()
   assert.ok(!f.text().includes('Ngày trả thực tế'))
 })
 
 test('cancelling confirmation keeps preview and never writes', async () => {
   const f = fixture('LIBRARIAN', undefined, undefined, false)
-  await lookup(f); f.confirm(); await flush(); f.render()
+  await lookup(f); await f.confirm(); await flush(); f.render()
   assert.equal(f.confirmations.length, 0); assert.ok(f.confirmButton())
   assert.equal(f.find('Input').props.disabled, false)
 })
@@ -175,7 +175,7 @@ for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) test(`${role}: ret
     holdStartedAt: '2026-10-09T01:00:00+07:00', pickupDeadline: '2026-10-12T17:00:00+07:00',
   })
   const f = fixture(role, undefined, async () => response)
-  await lookup(f); f.confirm(); await flush(); f.render()
+  await lookup(f); await f.confirm(); await flush(); f.render()
   for (const value of ['Đang giữ cho đặt trước', 'Bạn đọc Bình', 'Đơn #', '30', 'Chờ nhận',
     'Bắt đầu giữ bản sao', response.holdStartedAt, 'Hạn cuối đến nhận', response.pickupDeadline]) assert.ok(f.text().includes(value), value)
   assert.ok(!f.text().includes('Sẵn sàng'))
@@ -190,7 +190,7 @@ test('return without an eligible waiter does not show empty reservation details'
   const f = fixture('LIBRARIAN', undefined, async () => returnedItem({
     nextReservationId: null, nextReaderName: null, holdStartedAt: null, pickupDeadline: null,
   }))
-  await lookup(f); f.confirm(); await flush(); f.render()
+  await lookup(f); await f.confirm(); await flush(); f.render()
   assert.ok(f.text().includes('Sẵn sàng'))
   assert.ok(!f.text().includes('Bạn đọc được giữ sách'))
   assert.ok(!f.text().includes('Bắt đầu giữ bản sao'))
@@ -199,7 +199,7 @@ test('return without an eligible waiter does not show empty reservation details'
 // S3-07.4: each barcode is independent; rows and counts belong to the open page.
 async function receive(f, code) {
   f.input(code); f.submit(); await flush(); f.render()
-  f.confirm(); await flush(); f.render()
+  await f.confirm(); await flush(); f.render()
 }
 function sequentialFixture(readers = ['Nguyễn An', 'Nguyễn An'], options = {}) {
   const previews = new Map(readers.map((readerName, i) => {
@@ -259,7 +259,7 @@ test('an invalid barcode between two valid copies leaves successes intact and do
 test('a previously received barcode with spaces is rejected before lookup or write; no duplicate row or count', async () => {
   const f = sequentialFixture()
   await receive(f, 'LIB-1')
-  f.input('  LIB-1  '); f.submit(); await flush(); f.render(); f.confirm()
+  f.input('  LIB-1  '); f.submit(); await flush(); f.render(); await f.confirm()
   assert.equal(f.calls.length, 1); assert.equal(f.confirmations.length, 1)
   assert.equal(f.rows().length, 1)
   assert.equal(f.find('FeedbackAlert').props.tone, 'warning')
@@ -269,7 +269,7 @@ test('a previously received barcode with spaces is rejected before lookup or wri
 test('canonical copy identity guards against a second barcode resolving to the same returned copy', async () => {
   const f = fixture('LIBRARIAN', async code => openItem({ barcode: code }), async () => returnedItem())
   await receive(f, 'LIB-001')
-  f.input('ALIAS'); f.submit(); await flush(); f.render(); f.confirm()
+  f.input('ALIAS'); f.submit(); await flush(); f.render(); await f.confirm()
   assert.equal(f.confirmations.length, 1); assert.equal(f.rows().length, 1)
   assert.equal(f.confirmButton(), undefined)
   assert.equal(f.find('FeedbackAlert').props.tone, 'warning')
@@ -285,7 +285,7 @@ test('retrying a rolled-back return replaces its error row and preserves other s
   await receive(f, 'B')
   assert.ok(f.confirmButton()); assert.equal(f.rows()[1].props['data-return-result'], 'ERROR')
   assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
-  f.confirm(); await flush(); f.render()
+  await f.confirm(); await flush(); f.render()
   assert.equal(f.rows().length, 2); assert.equal(f.rows()[1].props['data-return-result'], 'SUCCESS')
   assert.equal(f.rowText(f.rows()[0]), first)
   assert.ok(f.text().includes('Đã nhận thành công: 2 cuốn'))
@@ -383,14 +383,14 @@ test('S3-07.5: empty and error-only sessions cannot be finished', async () => {
   assert.equal(f.finishButton(), undefined)
   f.input('INVALID'); f.submit(); await flush(); f.render()
   assert.equal(f.finishButton(), undefined)
-  f.finish(); assert.equal(f.summaryRows().length, 0)
+  await f.finish(); assert.equal(f.summaryRows().length, 0)
   assert.equal(f.confirmations.length, 0)
 })
 for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) {
   test(`S3-07.5: ${role} ends a one-copy session with every required field and no extra API write`, async () => {
     const f = sequentialFixture(['Nguyễn An'], { role })
     await receive(f, 'LIB-1'); assert.ok(f.finishButton())
-    f.finish()
+    await f.finish()
     assert.equal(f.summaryRows().length, 1)
     const row = f.rowText(f.summaryRows()[0])
     for (const expected of ['LIB-1', 'Sách 1', 'Nguyễn An', '2026-10-10T00:01:00+07:00',
@@ -416,7 +416,7 @@ test('S3-07.5: mixed on-time/overdue and available/held copies retain independen
     nextReservationId: code === 'A' ? null : 30, nextReaderName: code === 'A' ? null : 'Bạn đọc chờ',
   }))
   await receive(f, 'A'); f.input('INVALID'); f.submit(); await flush(); f.render(); await receive(f, 'B')
-  f.finish()
+  await f.finish()
   assert.equal(f.summaryRows().length, 2)
   const [onTime, held] = f.summaryRows().map(f.rowText)
   for (const expected of ['A', 'Sách A', 'Nguyễn An', '0 ngày · Đúng hạn', 'Sẵn sàng', 'Không chuyển hàng đợi']) assert.ok(onTime.includes(expected), expected)
@@ -432,7 +432,7 @@ test('S3-07.5: closing summary clears session, preview, errors and duplicate gua
     status: f.confirmations.length ? 'NOT_BORROWED' : 'ON_TIME',
     itemId: f.confirmations.length ? null : 9,
   }))
-  await receive(f, 'LIB-001'); f.finish(); f.restart()
+  await receive(f, 'LIB-001'); await f.finish(); f.restart()
   assert.equal(f.summaryRows().length, 0); assert.equal(f.rows().length, 0)
   assert.equal(f.find('Input').props.value, ''); assert.equal(f.find('Input').props.error, '')
   assert.equal(f.finishButton(), undefined); assert.equal(f.find('FeedbackAlert'), undefined)
@@ -446,9 +446,9 @@ test('S3-07.5: closing summary clears session, preview, errors and duplicate gua
 test('S3-07.5: unconfirmed preview is excluded and shown separately; staff can cancel finishing', async () => {
   const f = sequentialFixture()
   await receive(f, 'LIB-1'); f.input('LIB-2'); f.submit(); await flush(); f.render()
-  f.acceptNext(false); f.finish()
+  f.acceptNext(false); await f.finish()
   assert.equal(f.summaryRows().length, 0); assert.ok(f.confirmButton())
-  f.acceptNext(true); f.finish()
+  f.acceptNext(true); await f.finish()
   assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 1)
   assert.ok(f.rowText(f.summaryErrors()[0]).includes('LIB-2'))
   assert.ok(f.rowText(f.summaryErrors()[0]).includes('Chưa xác nhận nhận trả khi kết thúc lượt.'))
@@ -462,12 +462,12 @@ for (const pendingAction of ['lookup', 'confirm']) {
     (code, itemId) => code === 'B' && pendingAction === 'confirm'
       ? new Promise(r => { resolve = r }) : Promise.resolve(returnedItem({ barcode: code, copyId: 1, itemId })))
     await receive(f, 'A'); f.input('B'); f.submit()
-    if (pendingAction === 'confirm') { await flush(); f.render(); f.confirm() }
+    if (pendingAction === 'confirm') { await flush(); f.render(); await f.confirm() }
     assert.equal(f.finishButton().props.disabled, true)
-    f.finish(); assert.equal(f.summaryRows().length, 0)
+    await f.finish(); assert.equal(f.summaryRows().length, 0)
     resolve(pendingAction === 'lookup' ? openItem({ barcode: 'B', copyId: 2, itemId: 12 })
       : returnedItem({ barcode: 'B', copyId: 2, itemId: 12 }))
-    await flush(); f.render(); f.finish()
+    await flush(); f.render(); await f.finish()
     assert.equal(f.summaryRows().length, pendingAction === 'lookup' ? 1 : 2)
     assert.equal(f.confirmations.length, pendingAction === 'lookup' ? 1 : 2)
   })
@@ -482,7 +482,7 @@ test('S3-07.5: timeout, unborrowed and repeated barcodes never increase the fina
   await receive(f, 'A'); await receive(f, 'TIMEOUT')
   f.input('IDLE'); f.submit(); await flush(); f.render()
   f.input(' A '); f.submit(); await flush(); f.render()
-  f.finish()
+  await f.finish()
   assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 2)
   assert.ok(f.text().includes('Tổng số cuốn đã nhận thành công: 1 cuốn'))
   assert.equal(f.calls.length, 3); assert.equal(f.confirmations.length, 2)
@@ -495,20 +495,20 @@ test('S3-07.5: successfully retried failure occurs once in summary and no longer
     if (code === 'B' && !failed) { failed = true; throw { response: { status: 500, data: { message: 'Rollback.' } } } }
     return returnedItem({ barcode: code, copyId: code === 'A' ? 1 : 2, itemId })
   })
-  await receive(f, 'A'); await receive(f, 'B'); f.confirm(); await flush(); f.render(); f.finish()
+  await receive(f, 'A'); await receive(f, 'B'); await f.confirm(); await flush(); f.render(); await f.finish()
   assert.equal(f.summaryRows().length, 2); assert.equal(f.summaryErrors().length, 0)
   assert.equal(f.summaryRows().filter(row => row.props['data-return-summary-row'] === 'B').length, 1)
 })
 test('S3-07.5: missing legacy deadline stays unknown, never fabricated as zero days late', async () => {
   const f = fixture('LIBRARIAN', async () => openItem({ status: 'MISSING_DUE_DATE', dueAt: null, overdueDays: null }))
-  await receive(f, 'LIB-001'); f.finish()
+  await receive(f, 'LIB-001'); await f.finish()
   assert.ok(f.rowText(f.summaryRows()[0]).includes('Chưa có hạn trả'))
   assert.ok(!f.rowText(f.summaryRows()[0]).includes('0 ngày'))
 })
-test('S3-07.5: READER has neither finish nor receive actions', () => {
+test('S3-07.5: READER has neither finish nor receive actions', async () => {
   const f = fixture('READER')
   assert.equal(f.finishButton(), undefined); assert.equal(f.find('Input'), undefined)
-  f.finish(); assert.equal(f.summaryRows().length, 0); assert.equal(f.confirmations.length, 0)
+  await f.finish(); assert.equal(f.summaryRows().length, 0); assert.equal(f.confirmations.length, 0)
 })
 
 test('S3-07.5: finishing retains the original API failure diagnostic for an unconfirmed copy', async () => {
@@ -518,7 +518,7 @@ test('S3-07.5: finishing retains the original API failure diagnostic for an unco
     if (code === 'B') throw { response: { status: 500, data: { message: 'Không thể chuyển hàng đợi. Dữ liệu đã rollback.' } } }
     return returnedItem({ barcode: code, copyId: 1, itemId })
   })
-  await receive(f, 'A'); await receive(f, 'B'); f.finish()
+  await receive(f, 'A'); await receive(f, 'B'); await f.finish()
   assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 1)
   assert.ok(f.rowText(f.summaryErrors()[0]).includes('Không thể chuyển hàng đợi. Dữ liệu đã rollback.'))
 })

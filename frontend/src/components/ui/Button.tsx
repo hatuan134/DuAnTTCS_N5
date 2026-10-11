@@ -42,7 +42,7 @@ export default function Button({
     success:
       'border border-emerald-600 bg-emerald-600 text-white shadow-sm hover:border-emerald-700 hover:bg-emerald-700 focus:ring-emerald-200',
     warning:
-      'border border-amber-500 bg-amber-500 text-white shadow-sm hover:border-amber-600 hover:bg-amber-600 focus:ring-amber-200',
+      'border border-amber-700 bg-amber-700 text-white shadow-sm hover:border-amber-800 hover:bg-amber-800 focus:ring-amber-200',
     danger:
       'border border-red-600 bg-red-600 text-white shadow-sm hover:border-red-700 hover:bg-red-700 focus:ring-red-200',
     info:
@@ -59,6 +59,7 @@ export default function Button({
 
   return (
     <button
+      aria-busy={loading || undefined}
       disabled={disabled || loading}
       className={[
         'inline-flex items-center justify-center gap-2 rounded-xl',

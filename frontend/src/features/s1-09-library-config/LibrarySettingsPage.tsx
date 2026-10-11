@@ -1,3 +1,4 @@
+import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { AxiosError } from 'axios'
@@ -656,7 +657,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
 
             {loading ? <LoadingBlock /> : (
               <div className="overflow-x-auto">
-                <table className="data-table calendar-aligned-table weekly-schedule-table w-full min-w-[620px] xl:min-w-0">
+                <table aria-label="Lịch làm việc theo tuần" className="data-table calendar-aligned-table weekly-schedule-table w-full min-w-[620px] xl:min-w-0">
                   <colgroup>
                     <col className="calendar-col-stt" />
                     <col className="calendar-col-day" />
@@ -700,7 +701,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
                             <span>{item.open ? 'Mở cửa' : 'Đóng cửa'}</span>
                           </label>
                         </td>
-                        <td className="px-2 py-2 text-center">
+                        <td data-label="Mở cửa" className="px-2 py-2 text-center">
                           <input
                             type="time"
                             aria-label={`Giờ mở cửa ${item.dayLabel}`}
@@ -711,7 +712,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
                             className="time-input mx-auto h-9 w-[116px] px-2 text-sm"
                           />
                         </td>
-                        <td className="px-2 py-2 text-center">
+                        <td data-label="Đóng cửa" className="px-2 py-2 text-center">
                           <input
                             type="time"
                             aria-label={`Giờ đóng cửa ${item.dayLabel}`}
@@ -761,7 +762,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
             {loading ? <LoadingBlock /> : (
               <>
                 <div className="closed-date-table-wrap overflow-x-auto xl:overflow-x-hidden">
-                  <table className="data-table data-table-fit calendar-aligned-table closed-date-table w-full min-w-[560px] xl:min-w-0">
+                  <table aria-label="Ngày nghỉ và ngày đóng cửa" className="data-table data-table-fit calendar-aligned-table closed-date-table w-full min-w-[560px] xl:min-w-0">
                     <colgroup>
                       <col className="calendar-col-stt" />
                       <col className="calendar-col-day" />
@@ -786,7 +787,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
                           </td>
                           <td className="whitespace-nowrap px-2 py-2 text-sm font-semibold text-slate-800">{formatDateVi(item.closedDate)}</td>
                           <td className="whitespace-nowrap px-2 py-2 text-sm text-slate-600">{weekdayVi(item.closedDate)}</td>
-                          <td className="table-cell-left px-2 py-2 text-sm text-slate-600">{item.reason}</td>
+                          <td data-label="Lý do" className="table-cell-left px-2 py-2 text-sm text-slate-600">{item.reason}</td>
                           <td className="table-action-cell px-2 py-2">
                             <TableActions>
                               <TableActionButton
@@ -957,15 +958,15 @@ function EmptyBlock({ text }: { text: string }) {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <AccessibleModal onClose={onClose} label={title}>
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-          <button type="button" onClick={onClose} className="icon-button border-0"><X size={20} /></button>
+          <button aria-label="Đóng hộp thoại" type="button" onClick={onClose} className="icon-button border-0"><X size={20} /></button>
         </div>
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </AccessibleModal>
   )
 }
 

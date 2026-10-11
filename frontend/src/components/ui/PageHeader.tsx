@@ -15,9 +15,9 @@ export default function PageHeader({
     <div className="mb-6 flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <div className="mb-2 h-1 w-10 rounded-full bg-blue-600" aria-hidden="true" />
-        <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-[1.7rem]">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-[1.7rem]">
           {title}
-        </h2>
+        </h1>
 
         {description && (
           <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-500">

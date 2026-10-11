@@ -86,6 +86,18 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
     return `Có ${availableCount} bản sẵn sàng. Bạn còn ${remainingSlots} lượt đặt giữ trong giới hạn tối đa 3 đơn đang hiệu lực.`
   }, [availableCount, remainingSlots, roleAllowed])
 
+  const increaseHint = loadingMine
+    ? 'Đang kiểm tra số đơn đặt giữ của bạn…'
+    : submitting
+      ? 'Đang gửi yêu cầu đặt giữ…'
+      : remainingSlots === 0
+        ? 'Bạn đã đạt giới hạn 3 đơn đặt giữ đang hiệu lực.'
+        : quantity < maxQuantity
+          ? `Bạn có thể chọn tối đa ${maxQuantity} bản.`
+          : availableCount <= remainingSlots
+            ? `Không thể tăng thêm: đầu sách hiện chỉ có ${availableCount} bản sẵn sàng.`
+            : `Không thể tăng thêm: bạn chỉ còn ${remainingSlots} lượt trong giới hạn 3 đơn đặt giữ đang hiệu lực.`
+
   async function reserve() {
     if (pending.current) return
     const currentUser = getCurrentUser()
@@ -154,19 +166,19 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
           <div className="inline-flex items-center rounded-lg border border-slate-300 bg-white" aria-label="Chọn số lượng đặt giữ">
             <button type="button" aria-label="Giảm số lượng" onClick={() => setQuantity((current) => Math.max(1, current - 1))}
               disabled={submitting || loadingMine || quantity <= 1}
-              className="rounded-l-lg p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+              className="min-h-11 min-w-11 rounded-l-lg p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
               <Minus size={16} />
             </button>
             <output className="min-w-10 border-x border-slate-200 px-3 py-2 text-center text-sm font-bold text-slate-900">
               {quantity}
             </output>
-            <button type="button" aria-label="Tăng số lượng" onClick={() => setQuantity((current) => Math.min(maxQuantity, current + 1))}
+            <button type="button" aria-label="Tăng số lượng" aria-describedby="reservation-quantity-hint" title={increaseHint} onClick={() => setQuantity((current) => Math.min(maxQuantity, current + 1))}
               disabled={submitting || loadingMine || quantity >= maxQuantity}
-              className="rounded-r-lg p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+              className="min-h-11 min-w-11 rounded-r-lg p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
               <Plus size={16} />
             </button>
           </div>
-          <span className="text-xs text-slate-500">Tối đa {maxQuantity} bản ở thời điểm hiện tại</span>
+          <p id="reservation-quantity-hint" role="status" className="max-w-lg text-sm leading-6 text-slate-600">{increaseHint}</p>
         </div>
       )}
 
