@@ -1098,7 +1098,7 @@ public class LoanService {
         }
     }
 
-    /** S3-09.2: use the same Vietnam calendar-day rule as return lookup (S3-07). */
+    /** S3-09.2: overdue days are configured open days, excluding the deadline itself. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<OverdueLoanItemResponse> overdueLoans(Long actorId) {
         requireStaff(actorId, "xem danh sách phiếu mượn quá hạn");
@@ -1108,10 +1108,14 @@ public class LoanService {
         if (rows.isEmpty()) {
             return List.of();
         }
+        Set<LocalDate> dueDates = rows.stream()
+                .map(row -> row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate())
+                .collect(java.util.stream.Collectors.toSet());
+        Map<LocalDate, Long> countedOpenDays = configuration.calculateOverdueOpenDays(dueDates, today);
         return rows.stream()
                 .map(row -> {
                     LocalDate dueDate = row.dueAt().atZoneSameInstant(LIBRARY_ZONE).toLocalDate();
-                    long overdueDays = calendarOverdueDays(dueDate, today);
+                    long overdueDays = countedOpenDays.getOrDefault(dueDate, 0L);
                     return new OverdueLoanItemResponse(row.loanId(), row.loanNumber(), row.itemId(),
                             row.readerId(), row.readerName(), row.readerPhone(), row.bookId(), row.bookTitle(),
                             row.dueAt(), overdueDays, row.lastContactedAt(), row.lastContactNote(), row.lastContactStaffName());

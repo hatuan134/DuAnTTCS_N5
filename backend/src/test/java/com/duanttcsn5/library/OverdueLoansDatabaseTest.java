@@ -92,31 +92,4 @@ class OverdueLoansDatabaseTest {
         assertThat(actual).noneMatch(row -> row.loanId().equals(todayLoan));
         assertThat(actual).noneMatch(row -> row.loanId().equals(futureLoan));
     }
-
-    /** S3-07 + S3-09 end-to-end against disposable PostgreSQL with Flyway schema. */
-    @Test
-    void postgresReturnLookupAndOverdueListAgreeOnCalendarDays() {
-        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
-        LocalDate today = LocalDate.now(zone);
-        OffsetDateTime dueAt = today.minusDays(3).atTime(17, 0).atZone(zone).toOffsetDateTime();
-        OffsetDateTime borrowedAt = today.minusDays(10).atTime(9, 0).atZone(zone).toOffsetDateTime();
-        Long staff = user("LIBRARIAN", "Thủ thư tích hợp", "0900000111");
-        Long reader = user("READER", "Bạn đọc tích hợp", "0900000222");
-        Long book = book("S309-REGRESSION-" + UUID.randomUUID());
-        Long itemCopy = copy(book);
-        String barcode = jdbc.queryForObject("SELECT barcode FROM book_copies WHERE id = ?", String.class, itemCopy);
-        Long loanId = loans.insert(null, reader, staff, "S309-REG-" + UUID.randomUUID(), borrowedAt);
-        loans.insertItem(loanId, itemCopy, borrowedAt, dueAt);
-
-        var lookup = loanService.lookupReturn(barcode, staff);
-        var matching = loanService.overdueLoans(staff).stream()
-                .filter(item -> loanId.equals(item.loanId()))
-                .toList();
-
-        assertThat(lookup.status()).isEqualTo("OVERDUE");
-        assertThat(lookup.overdueDays()).isEqualTo(3L);
-        assertThat(matching).hasSize(1);
-        assertThat(matching.get(0).overdueDays()).isEqualTo(lookup.overdueDays());
-    }
-
 }
