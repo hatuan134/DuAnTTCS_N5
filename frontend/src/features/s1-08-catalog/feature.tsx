@@ -1,12 +1,13 @@
+import { loadablePage } from '../../app/loadablePage'
 import {
   BookOpen,
   Tags,
   UserRound,
 } from 'lucide-react'
 
-import CatalogManagementPage from './CatalogManagementPage'
-import PublicBookDetailPage from './PublicBookDetailPage'
-import PublicCatalogPage from './PublicCatalogPage'
+const CatalogManagementPage = loadablePage(() => import('./CatalogManagementPage'))
+const PublicBookDetailPage = loadablePage(() => import('./PublicBookDetailPage'))
+const PublicCatalogPage = loadablePage(() => import('./PublicCatalogPage'))
 
 import type {
   FeatureModule,

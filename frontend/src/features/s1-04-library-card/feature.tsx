@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { CreditCard } from 'lucide-react'
 
-import LibraryCardsPage from './LibraryCardsPage'
+const LibraryCardsPage = loadablePage(() => import('./LibraryCardsPage'))
 import type { FeatureModule } from '../../types/feature'
 
 const feature: FeatureModule = {

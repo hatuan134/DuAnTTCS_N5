@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { CalendarDays, Warehouse } from 'lucide-react'
 
-import LibrarySettingsPage from './LibrarySettingsPage'
+const LibrarySettingsPage = loadablePage(() => import('./LibrarySettingsPage'))
 import type { FeatureModule } from '../../types/feature'
 
 const managerRoles = ['LIBRARY_MANAGER', 'ADMIN']

@@ -1,3 +1,4 @@
+import { loadablePage } from '../../app/loadablePage'
 import { UserRoundCheck } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 
@@ -6,10 +7,10 @@ import type {
   FeatureModule,
 } from '../../types/feature'
 
-import RegisterPage from './RegisterPage'
-import ReadersPage from './ReadersPage'
-import ReaderProfilePage from './ReaderProfilePage'
-import ReaderBasicProfilePage from './ReaderBasicProfilePage'
+const RegisterPage = loadablePage(() => import('./RegisterPage'))
+const ReadersPage = loadablePage(() => import('./ReadersPage'))
+const ReaderProfilePage = loadablePage(() => import('./ReaderProfilePage'))
+const ReaderBasicProfilePage = loadablePage(() => import('./ReaderBasicProfilePage'))
 import ReaderHistoryDenied from './ReaderHistoryDenied'
 import { canViewReaderLoanHistory } from './readerPermissions'
 

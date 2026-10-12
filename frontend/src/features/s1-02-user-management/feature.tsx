@@ -1,3 +1,4 @@
+import { loadablePage } from '../../app/loadablePage'
 import { Users } from 'lucide-react'
 import {
   Navigate,
@@ -9,8 +10,8 @@ import type {
   FeatureModule,
 } from '../../types/feature'
 
-import InitialPasswordPage from './InitialPasswordPage'
-import UserManagementPage from './UserManagementPage'
+const InitialPasswordPage = loadablePage(() => import('./InitialPasswordPage'))
+const UserManagementPage = loadablePage(() => import('./UserManagementPage'))
 
 function StaffUserManagement() {
   const currentUser = getCurrentUser()

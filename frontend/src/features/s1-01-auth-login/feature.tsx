@@ -1,8 +1,9 @@
+import { loadablePage } from '../../app/loadablePage'
 import type {
   FeatureModule,
 } from '../../types/feature'
 
-import LoginPage from './LoginPage'
+const LoginPage = loadablePage(() => import('./LoginPage'))
 
 const feature: FeatureModule = {
   id: 's1-01-auth-login',

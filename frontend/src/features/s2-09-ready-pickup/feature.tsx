@@ -1,8 +1,9 @@
+import { loadablePage } from '../../app/loadablePage'
 import { BookMarked } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
-import ReadyPickupPage from './ReadyPickupPage'
-import ReadyPickupDetailPage from './ReadyPickupDetailPage'
-import BookReservationQueuePage from './BookReservationQueuePage'
+const ReadyPickupPage = loadablePage(() => import('./ReadyPickupPage'))
+const ReadyPickupDetailPage = loadablePage(() => import('./ReadyPickupDetailPage'))
+const BookReservationQueuePage = loadablePage(() => import('./BookReservationQueuePage'))
 import { pickupRoles } from './pickupService'
 
 const feature: FeatureModule = {

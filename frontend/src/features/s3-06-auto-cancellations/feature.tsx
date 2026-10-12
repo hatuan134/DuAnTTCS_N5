@@ -1,5 +1,6 @@
+import { loadablePage } from '../../app/loadablePage'
 import { CalendarX } from 'lucide-react'
-import AutoCancelledReservationsPage from './AutoCancelledReservationsPage'
+const AutoCancelledReservationsPage = loadablePage(() => import('./AutoCancelledReservationsPage'))
 import type { FeatureModule } from '../../types/feature'
 
 const feature: FeatureModule = {

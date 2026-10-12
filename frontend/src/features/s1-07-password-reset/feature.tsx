@@ -1,5 +1,6 @@
-import ForgotPasswordPage from './ForgotPasswordPage'
-import ResetPasswordPage from './ResetPasswordPage'
+import { loadablePage } from '../../app/loadablePage'
+const ForgotPasswordPage = loadablePage(() => import('./ForgotPasswordPage'))
+const ResetPasswordPage = loadablePage(() => import('./ResetPasswordPage'))
 
 import type {
   FeatureModule,

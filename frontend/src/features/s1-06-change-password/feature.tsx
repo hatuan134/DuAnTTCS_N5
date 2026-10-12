@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { UserRound } from 'lucide-react'
 
-import ChangePasswordPage from './ChangePasswordPage'
+const ChangePasswordPage = loadablePage(() => import('./ChangePasswordPage'))
 
 import type {
   FeatureModule,
