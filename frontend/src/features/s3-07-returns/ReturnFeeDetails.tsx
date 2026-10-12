@@ -1,5 +1,6 @@
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import type { ReturnFeeAssessment } from './returnService'
+import { Link } from 'react-router-dom'
 
 export function formatVnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} VND`
@@ -26,6 +27,7 @@ export default function ReturnFeeDetails({ fee, preview = false }: {
     <p className="mt-3 text-xs leading-5 text-slate-600">Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày trả. Làm tròn tổng phí đến 1.000 VND; đúng 500 đồng làm lên.</p>
     {preview ? <p className="mt-1 text-xs leading-5 text-slate-600">Khi xác nhận, hệ thống tính lại theo ngày trả thực tế và mức phí đang có hiệu lực.</p>
       : ready && <p className="mt-1 text-xs leading-5 text-slate-600">{fee.feeId === null ? 'Không tạo khoản phải thu vì phí bằng 0 VND.' : `Đã tạo khoản phải thu #${fee.feeId}.`} Kết quả giữ nguyên khi cấu hình thay đổi.</p>}
+    {!preview && ready && fee.feeId != null && <Link to={`/overdue-fees/${fee.feeId}`} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:underline">Xem chi tiết khoản phí và đề nghị miễn giảm →</Link>}
     {fee.excludedDates.length > 0 && <details className="mt-3 text-sm">
       <summary className="cursor-pointer font-medium text-blue-700">{fee.excludedDates.length} ngày đóng cửa không tính phí</summary>
       <ul className="mt-2 grid gap-1 sm:grid-cols-2">
