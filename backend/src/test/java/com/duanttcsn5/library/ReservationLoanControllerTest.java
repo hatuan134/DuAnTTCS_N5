@@ -281,4 +281,43 @@ class ReservationLoanControllerTest {
         mvc.perform(get("/api/v1/loans/999").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("LOAN_NOT_FOUND"));
     }
+
+    @Test void batchRequiresJwtAndRejectsReader() throws Exception {
+        String json = "{\"reservationIds\":[21,22],\"confirmation\":{\"cardNumber\":\"TV-0012\"}}";
+        mvc.perform(post("/api/v1/reservations/loans").contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isUnauthorized());
+        token("READER");
+        mvc.perform(post("/api/v1/reservations/loans").header("Authorization", "Bearer test-token")
+                .contentType(MediaType.APPLICATION_JSON).content(json)).andExpect(status().isForbidden());
+        verify(service, never()).createFromReservations(any(), any());
+    }
+
+    @Test void batchRejectsEmptySelectionAndInvalidCard() throws Exception {
+        token("LIBRARIAN");
+        for (String json : List.of(
+                "{\"reservationIds\":[],\"confirmation\":{\"cardNumber\":\"TV-0012\"}}",
+                "{\"reservationIds\":[21,22],\"confirmation\":{\"cardNumber\":\" \"}}",
+                "{\"reservationIds\":[21,-1],\"confirmation\":{\"cardNumber\":\"TV-0012\"}}")) {
+            mvc.perform(post("/api/v1/reservations/loans").header("Authorization", "Bearer test-token")
+                    .contentType(MediaType.APPLICATION_JSON).content(json)).andExpect(status().isBadRequest());
+        }
+        verify(service, never()).createFromReservations(any(), any());
+    }
+
+    @Test void librarianAndAdminCanConfirmBatchButManagerStillRequiresOverride() throws Exception {
+        String json = "{\"reservationIds\":[21,22],\"confirmation\":{\"cardNumber\":\"TV-0012\"}}";
+        when(service.createFromReservations(any(), eq(12L))).thenReturn(
+                new com.duanttcsn5.library.dto.loan.ReservationLoanBatchResponse(81L, "PM-BATCH", "Đã lập phiếu.", List.of()));
+        for (String role : List.of("LIBRARIAN", "ADMIN")) {
+            token(role);
+            mvc.perform(post("/api/v1/reservations/loans").header("Authorization", "Bearer test-token")
+                    .contentType(MediaType.APPLICATION_JSON).content(json)).andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(81)).andExpect(jsonPath("$.loanNumber").value("PM-BATCH"));
+        }
+        token("LIBRARY_MANAGER");
+        mvc.perform(post("/api/v1/reservations/loans").header("Authorization", "Bearer test-token")
+                .contentType(MediaType.APPLICATION_JSON).content(json)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("MANAGER_OVERRIDE_ONLY"));
+    }
+
 }

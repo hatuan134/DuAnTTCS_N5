@@ -19,6 +19,7 @@ export default function FeedbackAlert({
   className = '',
 }: FeedbackAlertProps) {
   const dismissRef = useRef(onDismiss)
+  const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
     dismissRef.current = onDismiss
@@ -28,8 +29,10 @@ export default function FeedbackAlert({
     if (!message) return
 
     const timer = window.setTimeout(() => {
+      timerRef.current = null
       dismissRef.current()
     }, FEEDBACK_DURATION_MS)
+    timerRef.current = timer
 
     return () => window.clearTimeout(timer)
   }, [message, tone])
@@ -41,18 +44,19 @@ export default function FeedbackAlert({
   const styles = {
     success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     error: 'border-red-200 bg-red-50 text-red-700',
-    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    warning: 'border-red-200 bg-red-50 text-red-700',
     info: 'border-blue-200 bg-blue-50 text-blue-800',
   }
   const closeStyles = {
     success: 'text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800',
     error: 'text-red-600 hover:bg-red-100 hover:text-red-800',
-    warning: 'text-amber-700 hover:bg-amber-100 hover:text-amber-900',
+    warning: 'text-red-600 hover:bg-red-100 hover:text-red-800',
     info: 'text-blue-700 hover:bg-blue-100 hover:text-blue-900',
   }
 
   return (
     <div
+      data-feedback-tone={tone}
       role={urgent ? 'alert' : 'status'}
       aria-live={urgent ? 'assertive' : 'polite'}
       className={[
@@ -72,7 +76,11 @@ export default function FeedbackAlert({
 
       <button
         type="button"
-        onClick={onDismiss}
+        onClick={() => {
+          if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+          timerRef.current = null
+          dismissRef.current()
+        }}
         className={[
           'shrink-0 rounded-lg p-2 transition',
           closeStyles[tone],

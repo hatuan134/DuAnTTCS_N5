@@ -33,6 +33,8 @@ import com.duanttcsn5.library.dto.loan.LoanSearchResultResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
+import com.duanttcsn5.library.dto.loan.CreateReservationLoanBatchRequest;
+import com.duanttcsn5.library.dto.loan.ReservationLoanBatchResponse;
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
 import com.duanttcsn5.library.dto.book.ReadyForPickupReservationResponse;
 import com.duanttcsn5.library.entity.BookCopy;
@@ -357,6 +359,13 @@ public class LoanService {
     public ReservationLoanResponse createFromReservation(Long reservationId, Long actorId, String cardNumber,
             LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays,
             UUID requestId, boolean overrideRequested, String overrideReason) {
+        return createReservationLoan(reservationId, actorId, cardNumber, expectedBorrowDate, expectedDueAt,
+                expectedLoanDays, requestId, overrideRequested, overrideReason, List.of());
+    }
+
+    private ReservationLoanResponse createReservationLoan(Long reservationId, Long actorId, String cardNumber,
+            LocalDate expectedBorrowDate, OffsetDateTime expectedDueAt, Integer expectedLoanDays,
+            UUID requestId, boolean overrideRequested, String overrideReason, List<BlockReason> batchReasons) {
         requireStaff(actorId);
         String approvedReason = validateOverrideRequest(actorId, overrideRequested, overrideReason);
         validateId(reservationId);
@@ -420,6 +429,7 @@ public class LoanService {
         if (approvedReason != null) {
             allReasons = new ArrayList<>(readerEligibility(confirmed, actorId).blockReasons());
         }
+        allReasons.addAll(batchReasons);
         if (!allReasons.isEmpty() && approvedReason == null) {
             logBlocked(requestId, "RESERVATION_CONFIRM", readerId, reservation.getReader().getFullName(),
                     card.getCardNumber(), actorId, reservationId, borrowed, maxBooks, allReasons);
@@ -449,6 +459,130 @@ public class LoanService {
                 readerId, reservation.getReader().getFullName(), card.getCardNumber(),
                 bookId, reservation.getBook().getTitle(), copy.getId(), copy.getBarcode(),
                 borrowedAt, "Đã lập phiếu mượn thành công từ đơn đặt giữ.", dates);
+    }
+
+    /** Confirm the selected ready holds in ONE loan; any failed item rolls back the entire batch.
+     * The original one-item confirmation remains the owner of card/date/override validation.
+     * Lock all titles before any reservations/copies to preserve cancellation/return lock order.
+     */
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
+    public ReservationLoanBatchResponse createFromReservations(CreateReservationLoanBatchRequest request, Long actorId) {
+        requireStaff(actorId);
+        if (request == null || request.confirmation() == null || request.reservationIds() == null
+                || request.reservationIds().isEmpty() || request.reservationIds().size() > 3
+                || request.reservationIds().stream().anyMatch(id -> id == null || id < 1)
+                || new HashSet<>(request.reservationIds()).size() != request.reservationIds().size()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESERVATION_SELECTION",
+                    "Vui lòng chọn từ 1 đến 3 đơn đặt giữ hợp lệ, không trùng nhau.");
+        }
+        var confirmation = request.confirmation();
+        String approvedReason = validateOverrideRequest(actorId, confirmation.overrideRequested(), confirmation.overrideReason());
+        String confirmed = confirmation.cardNumber() == null ? "" : confirmation.cardNumber().strip();
+        if (confirmed.isBlank() || confirmed.length() > 100) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CARD_NUMBER",
+                    "Vui lòng nhập mã thẻ hợp lệ, tối đa 100 ký tự.");
+        }
+        List<Long> ids = request.reservationIds().stream().sorted().toList();
+        Long readerId = loans.findReservationReaderId(ids.get(0)).orElseThrow(this::notFound);
+        // Precheck ownership before acquiring locks from more than one reader.
+        for (Long id : ids) {
+            if (!readerId.equals(loans.findReservationReaderId(id).orElseThrow(this::notFound))) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "RESERVATION_READER_MISMATCH",
+                        "Chỉ được gộp các đơn đặt giữ của cùng một bạn đọc.");
+            }
+        }
+        reservations.lockReaderForCreation(readerId);
+        loans.lockDirectLoanCard(confirmed);
+        Map<Long, Long> titleByReservation = new LinkedHashMap<>();
+        for (Long id : ids) titleByReservation.put(id,
+                reservations.findBookIdForCancellation(id).orElseThrow(this::notFound));
+        for (Long titleId : titleByReservation.values().stream().distinct().sorted().toList()) {
+            books.findForReservation(titleId).orElseThrow(() -> new ApiException(
+                    HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
+        }
+        List<BookReservation> selected = new ArrayList<>();
+        for (Long id : ids) {
+            BookReservation reservation = reservations.findForCancellation(id).orElseThrow(this::notFound);
+            if (!readerId.equals(reservation.getReader().getId())
+                    || !titleByReservation.get(id).equals(reservation.getBook().getId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_CHANGED", "Đơn đã thay đổi. Vui lòng tải lại.");
+            }
+            if (converted(reservation)) throw new ApiException(HttpStatus.CONFLICT, "RESERVATION_ALREADY_CONVERTED",
+                    "Đơn #" + id + " đã chuyển thành phiếu mượn. Không thể xác nhận lại.");
+            if ("EXPIRED".equals(reservation.getStatus())) throw rejectedBatchExpiry(id);
+            if (!"READY_FOR_PICKUP".equals(reservation.getStatus())) throw new ApiException(
+                    HttpStatus.CONFLICT, "RESERVATION_NOT_READY", "Chỉ được nhận các đơn đang Chờ nhận.");
+            if (reservation.getPickupDeadline() == null) throw new ApiException(
+                    HttpStatus.CONFLICT, "RESERVATION_PICKUP_DEADLINE_MISSING", MISSING_DEADLINE);
+            if (reservation.getBookCopy() == null) throw invalidCopy();
+            selected.add(reservation);
+        }
+        Set<Long> copyIds = new HashSet<>();
+        for (BookReservation reservation : selected.stream()
+                .sorted(Comparator.comparing(r -> r.getBookCopy().getId())).toList()) {
+            if (!copyIds.add(reservation.getBookCopy().getId())) throw invalidCopy();
+            lockedHeldCopy(reservation);
+        }
+        OffsetDateTime checkedAt = now();
+        for (BookReservation reservation : selected) {
+            if (checkedAt.isAfter(reservation.getPickupDeadline())) {
+                // No partial expiry/loan updates in a batch. The existing pickup-check owns release.
+                throw rejectedBatchExpiry(reservation.getId());
+            }
+        }
+        var card = cards.findByUserIdWithDetails(readerId).orElseThrow(() -> new ApiException(
+                HttpStatus.CONFLICT, "LIBRARY_CARD_REQUIRED", "Bạn đọc chưa có thẻ thư viện để đối chiếu."));
+        if (!confirmed.equals(card.getCardNumber())) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "RESERVATION_CARD_MISMATCH", "Mã thẻ không đúng với bạn đọc sở hữu đơn đặt giữ.");
+        int maxBooks = card.getCardType() == null ? -1 : card.getCardType().getMaxBooks();
+        if (maxBooks < 0 || maxBooks > 10) throw new ApiException(HttpStatus.CONFLICT,
+                "LOAN_POLICY_NOT_CONFIGURED", "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.");
+        long borrowed = loans.countUnreturnedBooksForReader(readerId);
+        List<BlockReason> reasons = new ArrayList<>(cardAndOverdueReasons(card, readerId, checkedAt.toLocalDate()));
+        if (borrowed + selected.size() > maxBooks) {
+            reasons.add(new BlockReason("LOAN_DRAFT_LIMIT_EXCEEDED",
+                    "Bạn đọc đang mượn " + borrowed + " sách; nhận thêm " + selected.size()
+                            + " sách sẽ vượt giới hạn " + maxBooks + " sách của loại thẻ."));
+        }
+        if (!reasons.isEmpty() && approvedReason == null) {
+            logBlocked(confirmation.requestId(), "RESERVATION_CONFIRM", readerId,
+                    selected.get(0).getReader().getFullName(), confirmed, actorId, ids.get(0), borrowed, maxBooks, reasons);
+            throw new ApiException(HttpStatus.CONFLICT, reasons.get(0).code(), joinReasons(reasons));
+        }
+        requirePermittedViolations(reasons, approvedReason);
+        ReservationLoanResponse first;
+        try {
+            first = createReservationLoan(ids.get(0), actorId, confirmed,
+                    confirmation.expectedBorrowDate(), confirmation.expectedDueAt(), confirmation.expectedLoanDays(),
+                    confirmation.requestId(), confirmation.overrideRequested(), confirmation.overrideReason(),
+                    reasons.stream().filter(r -> "LOAN_DRAFT_LIMIT_EXCEEDED".equals(r.code())).toList());
+        } catch (ReservationPickupExpiredException exception) {
+            // The outer batch transaction rolls back the single-path expiry writes too.
+            throw rejectedBatchExpiry(ids.get(0));
+        }
+        List<ReservationLoanResponse> items = new ArrayList<>();
+        items.add(first);
+        for (int index = 1; index < selected.size(); index++) {
+            BookReservation reservation = selected.get(index);
+            if (first.borrowedAt().isAfter(reservation.getPickupDeadline())) {
+                throw rejectedBatchExpiry(reservation.getId());
+            }
+            BookCopy copy = reservation.getBookCopy();
+            loans.insertReservationItem(first.id(), copy.getId(), first.borrowedAt(), first.dates().dueAt(), reservation.getId());
+            reservation.setStatus("FULFILLED");
+            reservations.saveAndFlush(reservation);
+            items.add(new ReservationLoanResponse(first.id(), first.loanNumber(), reservation.getId(), readerId,
+                    first.readerName(), first.cardNumber(), reservation.getBook().getId(), reservation.getBook().getTitle(),
+                    copy.getId(), copy.getBarcode(), first.borrowedAt(), first.message(), first.dates()));
+        }
+        return new ReservationLoanBatchResponse(first.id(), first.loanNumber(),
+                "Đã lập một phiếu mượn gồm " + items.size() + " sách từ đặt giữ.", items);
+    }
+
+    private ApiException rejectedBatchExpiry(Long reservationId) {
+        return new ApiException(HttpStatus.CONFLICT, "RESERVATION_PICKUP_EXPIRED",
+                ReservationPickupExpiredException.MESSAGE,
+                Map.of("reservationId", reservationId, "batchRejected", true));
     }
 
     /** A POST request corresponds to one intentional card check; GET previews stay read-only. */

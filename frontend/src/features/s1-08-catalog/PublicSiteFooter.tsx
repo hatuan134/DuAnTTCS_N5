@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { ArrowUpRight, Globe, Mail, MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import LibraLogo from '../../components/brand/LibraLogo'
@@ -19,12 +20,7 @@ function configuredEmail(value: string | undefined): string | null {
 }
 
 export default function PublicSiteFooter() {
-  const [pendingNotice, setPendingNotice] = useState<string | null>(null)
-  useEffect(() => {
-    if (!pendingNotice) return
-    const timer = window.setTimeout(() => setPendingNotice(null), 3000)
-    return () => window.clearTimeout(timer)
-  }, [pendingNotice])
+  const [pendingNotice, setPendingNotice] = useState<{ message: string; id: number } | null>(null)
 
   // No fabricated library accounts or email addresses. Set these three Vite
   // variables when the library's official contact details are available.
@@ -52,9 +48,10 @@ export default function PublicSiteFooter() {
         <div className="libra-contact-links" aria-label="Kênh liên hệ LIBRA">
           {channels.map(({ label, href, Icon }) => href
             ? <a key={label} href={href} target={href.startsWith('mailto:') ? undefined : '_blank'} rel={href.startsWith('mailto:') ? undefined : 'noopener noreferrer'}><Icon size={17} aria-hidden="true" />{label}</a>
-            : <button key={label} type="button" title={`${label}: thông tin liên hệ đang cập nhật`} onClick={() => setPendingNotice(`Kênh ${label} của LIBRA đang được cập nhật.`)}><Icon size={17} aria-hidden="true" />{label}</button>)}
+            : <button key={label} type="button" title={`${label}: thông tin liên hệ đang cập nhật`} onClick={() => setPendingNotice({ message: `Kênh ${label} của LIBRA đang được cập nhật.`, id: performance.now() })}><Icon size={17} aria-hidden="true" />{label}</button>)}
         </div>
-        <span className="libra-contact-note" role="status" aria-live="polite">{pendingNotice ?? '\u00a0'}</span>
+        {pendingNotice && <FeedbackAlert key={pendingNotice.id} message={pendingNotice.message} tone="info"
+          onDismiss={() => setPendingNotice(null)} className="mt-2" />}
       </div>
     </div>
     <div className="public-container footer-bottom"><span>© {new Date().getFullYear()} LIBRA · Bản quyền thuộc đơn vị vận hành thư viện</span><span>Hệ thống quản lý mượn / trả sách thư viện</span></div>

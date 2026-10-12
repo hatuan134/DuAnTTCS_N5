@@ -63,6 +63,14 @@ export interface ReservationLoanResult {
   borrowedAt: string
   message: string
   dates: LoanDatePreview
+  items?: ReservationLoanResult[]
+}
+
+export interface ReservationLoanBatchResult {
+  id: number
+  loanNumber: string
+  message: string
+  items: ReservationLoanResult[]
 }
 
 export type ReservationStatus = 'PENDING' | 'READY_FOR_PICKUP' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED'
@@ -171,6 +179,22 @@ export const pickupService = {
       ...(dates ? { expectedBorrowDate: dates.borrowDate, expectedDueAt: dates.dueAt, expectedLoanDays: dates.loanDays } : {}),
     })
     return response.data
+  },
+  createLoans: async (reservationIds: number[], cardNumber: string, dates: LoanDatePreview,
+    requestId: string, overrideRequested = false, overrideReason = ''): Promise<ReservationLoanResult> => {
+    const response = await apiClient.post<ReservationLoanBatchResult>('/reservations/loans', {
+      reservationIds,
+      confirmation: {
+        cardNumber: cardNumber.trim(), requestId,
+        expectedBorrowDate: dates.borrowDate, expectedDueAt: dates.dueAt, expectedLoanDays: dates.loanDays,
+        ...(overrideRequested ? { overrideRequested: true, overrideReason: overrideReason.trim() } : {}),
+      },
+    })
+    const first = response.data.items[0]
+    if (!first || first.id !== response.data.id) {
+      throw new Error('Chưa nhận được đầy đủ thông tin phiếu mượn. Vui lòng kiểm tra lại trạng thái đơn.')
+    }
+    return { ...first, message: response.data.message, items: response.data.items }
   },
   loanContext: async (id: number): Promise<ReservationLoanContext> => {
     const response = await apiClient.post<ReservationLoanContext>(`/reservations/${id}/pickup-check`)

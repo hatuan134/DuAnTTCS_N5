@@ -37,6 +37,7 @@ export default function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [successNotice, setSuccessNotice] = useState(false)
 
   useEffect(() => {
     if (!token.trim()) {
@@ -143,6 +144,7 @@ export default function ResetPasswordPage() {
       setNewPassword('')
       setConfirmPassword('')
       setSuccess(true)
+      setSuccessNotice(true)
     } catch (err: unknown) {
       const apiError = err as {
         response?: { data?: { code?: string; message?: string } }
@@ -188,13 +190,11 @@ export default function ResetPasswordPage() {
             <CheckCircle2 size={32} />
           </div>
 
+          {successNotice && <FeedbackAlert tone="success" message="Đặt lại mật khẩu thành công."
+            onDismiss={() => setSuccessNotice(false)} className="mt-4 text-left" />}
           <h1 className="mt-5 text-2xl font-bold text-slate-900">
-            Đặt lại mật khẩu thành công
+            Đăng nhập bằng mật khẩu mới
           </h1>
-
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Mật khẩu của bạn đã được thay đổi thành công.
-          </p>
 
           <p className="mt-1 text-sm leading-6 text-slate-500">
             Tất cả phiên đăng nhập trước đó đã bị thu hồi để đảm bảo an toàn.

@@ -49,7 +49,8 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
     }),
     react: hooks,
     'react-router-dom': {
-      useParams: () => ({ loanId: currentId }), useLocation: () => ({ state: { loanCreated: created } }),
+      useParams: () => ({ loanId: currentId }), useLocation: () => ({ pathname: `/loans/${currentId}`, search: '', hash: '', state: { loanCreated: created } }),
+      useNavigate: () => () => {},
       Link: ({ to, children, ...props }) => react.createElement('a', { ...props, href: to }, children),
     },
     '../../components/ui/Button': { __esModule: true, default: ({ children, loading, ...props }) => react.createElement('button', { ...props, disabled: props.disabled || loading }, children) },

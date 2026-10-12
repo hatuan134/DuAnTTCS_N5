@@ -232,7 +232,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
         {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
       </div>
     </form>
-    {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+    {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
       {reader.eligible
         ? `Đã đạt giới hạn ${limit} sách hợp lệ trong lượt này. Không thể thêm sách vì sẽ vượt số sách bạn đọc còn được mượn. ${isManager ? 'Quản lý có thể xem xét bỏ qua một lần kèm lý do.' : 'Xóa một dòng hợp lệ để nhập sách khác.'}`
         : reader.message}

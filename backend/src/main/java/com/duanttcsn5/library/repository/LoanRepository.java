@@ -335,8 +335,12 @@ public class LoanRepository {
     }
 
     public Optional<String> findNumberByReservation(Long reservationId) {
-        return jdbc.query("SELECT loan_number FROM loans WHERE reservation_id = ?",
-                (rs, index) -> rs.getString("loan_number"), reservationId).stream().findFirst();
+        return jdbc.query("""
+                SELECT l.loan_number FROM loans l
+                WHERE l.reservation_id = ?
+                   OR EXISTS (SELECT 1 FROM loan_items li
+                              WHERE li.loan_id = l.id AND li.source_reservation_id = ?)
+                """, (rs, index) -> rs.getString("loan_number"), reservationId, reservationId).stream().findFirst();
     }
 
     public Long insert(Long reservationId, Long readerId, Long actorId,
@@ -356,6 +360,14 @@ public class LoanRepository {
                 INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date)
                 VALUES (?, ?, ?, ?)
                 """, loanId, copyId, borrowedAt, dueAt);
+    }
+
+    public void insertReservationItem(Long loanId, Long copyId, OffsetDateTime borrowedAt,
+                                      OffsetDateTime dueAt, Long reservationId) {
+        jdbc.update("""
+                INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date, source_reservation_id)
+                VALUES (?, ?, ?, ?, ?)
+                """, loanId, copyId, borrowedAt, dueAt, reservationId);
     }
 
     /** Filter each item, so partially returned loans retain only their outstanding copies. */

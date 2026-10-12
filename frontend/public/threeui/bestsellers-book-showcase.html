@@ -1050,22 +1050,27 @@
       padding: 12px 18px;
       border: 1px solid rgba(255, 255, 255, .14);
       border-radius: 999px;
-      background: rgba(36, 32, 25, .88);
-      color: var(--paper);
+      background: #eff6ff;
+      color: #1e40af;
       box-shadow: 0 12px 36px rgba(0, 0, 0, .22);
       font-size: 13px;
       font-weight: 650;
+      display: none;
       opacity: 0;
       transform: translate(-50%, 20px);
-      transition: opacity 250ms ease, transform 350ms var(--ease);
+      transition: none;
       pointer-events: none;
       backdrop-filter: blur(12px);
     }
 
     .toast[data-show="true"] {
+      display: block;
       opacity: 1;
       transform: translate(-50%, 0);
     }
+
+    .toast[data-tone="success"] { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .toast[data-tone="error"], .toast[data-tone="warning"] { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 
     [data-mode="detail"] .hero-word {
       opacity: 0;
@@ -1365,7 +1370,7 @@
         <button class="icon-button" id="menuButton" type="button" aria-label="Open menu" aria-expanded="false">
           <span class="menu-glyph" aria-hidden="true"></span>
         </button>
-        <button class="ticket-button" type="button" data-toast="The collection is complete.">The Collection</button>
+        <button class="ticket-button" type="button" data-toast="Bộ sưu tập đã hoàn tất.">The Collection</button>
       </div>
     </header>
 
@@ -1488,15 +1493,15 @@
         </div>
         <hr class="detail-rule">
         <div class="action-rail" aria-label="Field manual actions">
-          <button class="pill language" type="button" data-toast="Field edition · 2026">
+          <button class="pill language" type="button" data-toast="Phiên bản sách · 2026">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
               <path d="M3 12h18M12 3c2.2 2.4 3.3 5.4 3.3 9S14.2 18.6 12 21c-2.2-2.4-3.3-5.4-3.3-9S9.8 5.4 12 3Z" fill="none" stroke="currentColor" stroke-width="1.7"/>
             </svg>
             Field Edition
           </button>
-          <button class="pill" type="button" data-toast="Notes opened.">Read Notes</button>
-          <button class="pill" type="button" data-toast="Guide opened.">View Guide</button>
+          <button class="pill" type="button" data-toast="Đã mở ghi chú.">Read Notes</button>
+          <button class="pill" type="button" data-toast="Đã mở hướng dẫn.">View Guide</button>
           <button class="pill icon-only" id="saveButton" type="button" aria-label="Save book" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6.8 4.2h10.4v15.6L12 16.6l-5.2 3.2V4.2Z"/>
@@ -1523,8 +1528,8 @@
     <nav class="menu-layer" id="menuLayer" aria-label="Site menu" inert>
       <ul class="menu-list">
         <li><a class="menu-link" href="#" data-menu-close>Volumes</a></li>
-        <li><a class="menu-link" href="#notes" data-menu-close data-toast="Field notes are coming soon.">Notes</a></li>
-        <li><a class="menu-link" href="#index" data-menu-close data-toast="An index of tools for thought.">Index</a></li>
+        <li><a class="menu-link" href="#notes" data-menu-close data-toast="Ghi chú đang được cập nhật.">Notes</a></li>
+        <li><a class="menu-link" href="#index" data-menu-close data-toast="Mục lục đang được cập nhật.">Index</a></li>
       </ul>
     </nav>
   </main>
@@ -1639,6 +1644,7 @@
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
       const coverVideos = [...document.querySelectorAll(".cover-motion")];
       let selectedCard = null;
+      const FEEDBACK_DURATION_MS = 3000;
       let toastTimer = 0;
       let frame = 0;
       let pointerX = 0;
@@ -1646,13 +1652,14 @@
       let pointerClientX = -10000;
       let pointerClientY = -10000;
 
-      function showToast(message) {
+      function showToast(message, tone = "info") {
         window.clearTimeout(toastTimer);
         toast.textContent = message;
+        toast.dataset.tone = tone;
         toast.dataset.show = "true";
         toastTimer = window.setTimeout(() => {
           toast.dataset.show = "false";
-        }, 1800);
+        }, FEEDBACK_DURATION_MS);
       }
 
       function syncCoverMotion() {
@@ -1835,7 +1842,7 @@
       saveButton.addEventListener("click", () => {
         const saved = saveButton.getAttribute("aria-pressed") !== "true";
         saveButton.setAttribute("aria-pressed", String(saved));
-        showToast(saved ? "Saved to your reading list." : "Removed from your reading list.");
+        showToast(saved ? "Đã lưu vào danh sách đọc." : "Đã xóa khỏi danh sách đọc.", "success");
       });
 
       document.addEventListener("click", (event) => {

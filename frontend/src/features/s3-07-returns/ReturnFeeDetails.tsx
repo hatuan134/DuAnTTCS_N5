@@ -13,7 +13,7 @@ export default function ReturnFeeDetails({ fee, preview = false }: {
   const ready = fee.status === 'READY'
   return <section className="mt-4 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label={preview ? 'Phí trễ hạn dự kiến' : 'Phí trễ hạn đã ghi nhận'}>
     <h3 className="font-semibold text-slate-900">{preview ? 'Phí trễ hạn dự kiến' : 'Phí trễ hạn đã ghi nhận'}</h3>
-    {!ready && <p role="alert" className="mt-2 text-sm leading-6 text-amber-800">{fee.message}</p>}
+    {!ready && <p role="alert" className="mt-2 text-sm leading-6 text-red-700">{fee.message}</p>}
     <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
       <Field label="Hạn trả">{formatLoanTimestamp(fee.dueAt)}</Field>
       <Field label={preview ? 'Thời điểm tra cứu' : 'Ngày trả thực tế'}>{formatLoanTimestamp(fee.returnedAt)}</Field>

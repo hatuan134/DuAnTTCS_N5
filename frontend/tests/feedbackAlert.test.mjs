@@ -77,3 +77,30 @@ test('empty message has neither alert nor timer', () => {
   assert.equal(f.render({ message: '', tone: 'error', onDismiss() {} }), null)
   assert.equal(f.timerCount(), 0)
 })
+
+test('errors and invalid-data warnings are red; successes are green', () => {
+  for (const tone of ['error', 'warning', 'success']) {
+    const f = fixture()
+    const tree = f.render({ message: 'Kết quả', tone, onDismiss() {} })
+    assert.equal(tree.props['data-feedback-tone'], tone)
+    assert.match(tree.props.className, tone === 'success' ? /bg-emerald-50.*text-emerald-800/ : /bg-red-50.*text-red-700/)
+    f.unmount()
+  }
+})
+
+test('standalone ThreeUI toast also hides exactly at 3000ms without a delayed exit', () => {
+  const html = readFileSync(new URL('../public/threeui/bestsellers-book-showcase.html', import.meta.url), 'utf8')
+  const functionSource = html.match(/function showToast\(message, tone = "info"\) \{[\s\S]*?\n      \}/)[0]
+  const durationSource = html.match(/const FEEDBACK_DURATION_MS = \d+;/)[0]
+  let now = 0, next = 0; const timers = new Map(), toast = { dataset: {}, textContent: '' }
+  const context = { toast, exports: {}, window: {
+    setTimeout(fn, ms) { timers.set(++next, { at: now + ms, fn }); return next }, clearTimeout(id) { timers.delete(id) },
+  } }
+  vm.runInNewContext(durationSource + '\nlet toastTimer = 0;\n' + functionSource + '\nexports.show = showToast;', context)
+  context.exports.show('Đã lưu.', 'success'); assert.equal(toast.dataset.tone, 'success')
+  now = 2999; for (const timer of timers.values()) if (timer.at <= now) timer.fn()
+  assert.equal(toast.dataset.show, 'true')
+  now = 3000; for (const timer of timers.values()) if (timer.at <= now) timer.fn()
+  assert.equal(toast.dataset.show, 'false')
+  assert.match(html, /\.toast \{[\s\S]*?display: none;[\s\S]*?transition: none;/)
+})

@@ -88,6 +88,7 @@ function fixture(loginImplementation) {
       Link: stub, useLocation: () => ({ state: null }), useNavigate: () => (...args) => navigations.push(args),
     },
     '../../components/ui/FeedbackAlert': { __esModule: true, default: FeedbackStub },
+    '../../components/brand/LibraLogo': { __esModule: true, default: stub },
     '../../core/auth/authService': { login: loginImplementation },
   }, { window: win })
   const render = () => { tree = f.render(page); return tree }
