@@ -94,10 +94,24 @@ public class OverdueFeeRepository {
         return result;
     }
     public record FeeRow(Long id, Long loanId, String loanNumber, String readerName, String bookTitle,
-                         String barcode, long originalAmountVnd, long paidAmountVnd, OffsetDateTime returnedAt) {
+                         String barcode, long originalAmountVnd, long paidAmountVnd, OffsetDateTime returnedAt,
+                         long waivedAmountVnd) {
+        public FeeRow(Long id, Long loanId, String loanNumber, String readerName, String bookTitle,
+                String barcode, long originalAmountVnd, long paidAmountVnd, OffsetDateTime returnedAt) {
+            this(id, loanId, loanNumber, readerName, bookTitle, barcode, originalAmountVnd, paidAmountVnd,
+                    returnedAt, 0);
+        }
+        public long outstandingAmountVnd() {
+            return originalAmountVnd - paidAmountVnd - waivedAmountVnd;
+        }
         public OverdueFeeDetailResponse withPendingRequest(FeeReductionRequestResponse request) {
+            return withRequests(request, List.of());
+        }
+        public OverdueFeeDetailResponse withRequests(FeeReductionRequestResponse request,
+                List<FeeReductionRequestResponse> history) {
             return new OverdueFeeDetailResponse(id, loanId, loanNumber, readerName, bookTitle, barcode,
-                    originalAmountVnd, paidAmountVnd, originalAmountVnd - paidAmountVnd, returnedAt, request);
+                    originalAmountVnd, paidAmountVnd, outstandingAmountVnd(), returnedAt, request,
+                    waivedAmountVnd, history);
         }
     }
 
@@ -105,7 +119,7 @@ public class OverdueFeeRepository {
     public Optional<FeeRow> findOverdueFee(Long id, boolean lock) {
         String sql = """
                 SELECT f.id, l.id AS loan_id, l.loan_number, u.full_name AS reader_name, b.title,
-                       c.barcode, f.amount_vnd, f.paid_amount_vnd, li.returned_at
+                       c.barcode, f.amount_vnd, f.paid_amount_vnd, f.waived_amount_vnd, li.returned_at
                 FROM reader_fees f
                 JOIN return_fee_assessments a ON a.reader_fee_id = f.id AND a.item_id = f.return_item_id
                 JOIN loan_items li ON li.id = f.return_item_id
@@ -119,14 +133,15 @@ public class OverdueFeeRepository {
         return jdbc.query(sql, (rs, n) -> new FeeRow(rs.getLong("id"), rs.getLong("loan_id"),
                 rs.getString("loan_number"), rs.getString("reader_name"), rs.getString("title"),
                 rs.getString("barcode"), rs.getLong("amount_vnd"), rs.getLong("paid_amount_vnd"),
-                rs.getObject("returned_at", OffsetDateTime.class)), id).stream().findFirst();
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getLong("waived_amount_vnd")), id).stream().findFirst();
     }
 
     private static final String REDUCTION_SELECT = """
             SELECT r.id, r.reader_fee_id, l.id AS loan_id, l.loan_number, u.full_name AS reader_name,
                    b.title, c.barcode, r.requested_by, r.requester_name, r.original_amount_vnd,
-                   r.requested_amount_vnd, f.amount_vnd - f.paid_amount_vnd AS outstanding_amount_vnd,
-                   r.reason, r.submitted_at, r.status
+                   r.requested_amount_vnd, f.amount_vnd - f.paid_amount_vnd - f.waived_amount_vnd AS outstanding_amount_vnd,
+                   r.reason, r.submitted_at, r.status, f.paid_amount_vnd, r.approved_amount_vnd,
+                   r.decided_by, r.decider_name, r.decided_at, r.decision_reason
             FROM fee_reduction_requests r
             JOIN reader_fees f ON f.id = r.reader_fee_id
             JOIN loan_items li ON li.id = f.return_item_id
@@ -142,7 +157,10 @@ public class OverdueFeeRepository {
                     rs.getString("title"), rs.getString("barcode"), rs.getObject("requested_by", Long.class),
                     rs.getString("requester_name"), rs.getLong("original_amount_vnd"),
                     rs.getLong("requested_amount_vnd"), rs.getLong("outstanding_amount_vnd"),
-                    rs.getString("reason"), rs.getObject("submitted_at", OffsetDateTime.class), rs.getString("status"));
+                    rs.getString("reason"), rs.getObject("submitted_at", OffsetDateTime.class), rs.getString("status"),
+                    rs.getLong("paid_amount_vnd"), rs.getLong("approved_amount_vnd"),
+                    rs.getObject("decided_by", Long.class), rs.getString("decider_name"),
+                    rs.getObject("decided_at", OffsetDateTime.class), rs.getString("decision_reason"));
 
     public Optional<FeeReductionRequestResponse> pendingReduction(Long feeId) {
         return jdbc.query(REDUCTION_SELECT + " WHERE r.reader_fee_id = ? AND r.status = 'PENDING'",
@@ -167,5 +185,28 @@ public class OverdueFeeRepository {
     public List<FeeReductionRequestResponse> pendingReductions(int limit, long offset) {
         return jdbc.query(REDUCTION_SELECT + " WHERE r.status = 'PENDING' ORDER BY r.submitted_at DESC, r.id DESC LIMIT ? OFFSET ?",
                 REDUCTION_MAPPER, limit, offset);
+    }
+
+    public Optional<Long> reductionFeeId(Long requestId) {
+        return jdbc.query("SELECT reader_fee_id FROM fee_reduction_requests WHERE id = ?",
+                (rs, n) -> rs.getLong("reader_fee_id"), requestId).stream().findFirst();
+    }
+
+    public Optional<FeeReductionRequestResponse> findReduction(Long requestId, boolean lock) {
+        return jdbc.query(REDUCTION_SELECT + " WHERE r.id = ?" + (lock ? " FOR UPDATE OF r" : ""),
+                REDUCTION_MAPPER, requestId).stream().findFirst();
+    }
+
+    public List<FeeReductionRequestResponse> reductionsForFee(Long feeId) {
+        return jdbc.query(REDUCTION_SELECT + " WHERE r.reader_fee_id = ? ORDER BY r.submitted_at DESC, r.id DESC",
+                REDUCTION_MAPPER, feeId);
+    }
+
+    /** Database triggers stamp the actor/time and apply an approved waiver in this transaction. */
+    public int decide(Long requestId, String status, Long actorId, String reason) {
+        return jdbc.update("""
+                UPDATE fee_reduction_requests SET status = ?, decided_by = ?, decision_reason = ?
+                WHERE id = ? AND status = 'PENDING'
+                """, status, actorId, reason, requestId);
     }
 }

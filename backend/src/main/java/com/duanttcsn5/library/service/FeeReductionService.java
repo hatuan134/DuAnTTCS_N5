@@ -4,6 +4,7 @@ import com.duanttcsn5.library.dto.loan.CreateFeeReductionRequest;
 import com.duanttcsn5.library.dto.loan.FeeReductionRequestPageResponse;
 import com.duanttcsn5.library.dto.loan.FeeReductionRequestResponse;
 import com.duanttcsn5.library.dto.loan.OverdueFeeDetailResponse;
+import com.duanttcsn5.library.dto.loan.RejectFeeReductionRequest;
 import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.OverdueFeeRepository;
@@ -27,12 +28,12 @@ public class FeeReductionService {
         this.users = users;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public OverdueFeeDetailResponse detail(Long feeId, Long actorId) {
         requireRole(actorId, STAFF);
         validateId(feeId);
         var fee = findFee(feeId, false);
-        return fee.withPendingRequest(fees.pendingReduction(feeId).orElse(null));
+        return fee.withRequests(fees.pendingReduction(feeId).orElse(null), fees.reductionsForFee(feeId));
     }
 
     @Transactional
@@ -41,9 +42,9 @@ public class FeeReductionService {
         validateId(feeId);
         // Lock the fee before checking payment state and pending requests.
         var fee = findFee(feeId, true);
-        if (fee.originalAmountVnd() <= 0 || fee.paidAmountVnd() != 0) {
+        if (fee.outstandingAmountVnd() <= 0 || fee.paidAmountVnd() != 0) {
             throw new ApiException(HttpStatus.CONFLICT, "FEE_REDUCTION_NOT_ALLOWED",
-                    "Chỉ khoản phí trễ hạn lớn hơn 0 VND và chưa thu tiền mới được đề nghị miễn giảm.");
+                    "Chỉ khoản phí trễ hạn còn phải thu lớn hơn 0 VND và chưa thu tiền mới được đề nghị miễn giảm.");
         }
         if (fees.pendingReduction(feeId).isPresent()) throw pendingConflict();
         String reason = trimReason(request == null ? null : request.reason());
@@ -53,9 +54,9 @@ public class FeeReductionService {
         }
         BigDecimal amount = request.amountVnd();
         if (amount == null || amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0
-                || amount.compareTo(BigDecimal.valueOf(fee.originalAmountVnd())) > 0) {
+                || amount.compareTo(BigDecimal.valueOf(fee.outstandingAmountVnd())) > 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REDUCTION_AMOUNT",
-                    "Số tiền đề nghị phải là số nguyên VND, lớn hơn 0 và không vượt quá phí gốc.");
+                    "Số tiền đề nghị phải là số nguyên VND, lớn hơn 0 và không vượt quá khoản còn phải thu.");
         }
         try {
             return fees.insertReduction(fee, actor.getId(), actor.getFullName(), amount.longValueExact(), reason);
@@ -76,6 +77,54 @@ public class FeeReductionService {
         int actualPage = Math.min(page, Math.max(0, pages - 1));
         return new FeeReductionRequestPageResponse(fees.pendingReductions(PAGE_SIZE, (long) actualPage * PAGE_SIZE),
                 actualPage, PAGE_SIZE, total, pages);
+    }
+
+    @Transactional
+    public FeeReductionRequestResponse approve(Long requestId, Long actorId) {
+        return decide(requestId, null, actorId, true);
+    }
+
+    @Transactional
+    public FeeReductionRequestResponse reject(Long requestId, RejectFeeReductionRequest request, Long actorId) {
+        return decide(requestId, request, actorId, false);
+    }
+
+    private FeeReductionRequestResponse decide(Long requestId, RejectFeeReductionRequest input,
+            Long actorId, boolean approve) {
+        User actor = requireRole(actorId, Set.of("LIBRARY_MANAGER"));
+        if (requestId == null || requestId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_REDUCTION_REQUEST_ID", "Mã đề nghị miễn giảm không hợp lệ.");
+        Long feeId = fees.reductionFeeId(requestId).orElseThrow(this::requestNotFound);
+        // All writers take the fee lock before the request lock, including new proposals.
+        var fee = findFee(feeId, true);
+        var request = fees.findReduction(requestId, true).orElseThrow(this::requestNotFound);
+        if (!"PENDING".equals(request.status())) throw processedConflict();
+        String reason = null;
+        if (approve) {
+            if (fee.paidAmountVnd() != 0) throw new ApiException(HttpStatus.CONFLICT,
+                    "FEE_REDUCTION_PAID", "Khoản phí đã thu tiền nên không thể phê duyệt miễn giảm. Bạn vẫn có thể từ chối đề nghị.");
+            if (request.requestedAmountVnd() <= 0 || request.requestedAmountVnd() > fee.outstandingAmountVnd()) {
+                throw new ApiException(HttpStatus.CONFLICT, "FEE_REDUCTION_AMOUNT_CHANGED",
+                        "Số tiền đề nghị vượt khoản còn phải thu. Vui lòng kiểm tra lại khoản phí.");
+            }
+        } else {
+            reason = trimReason(input == null ? null : input.reason());
+            if (reason.isBlank() || reason.length() > 1000) throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "INVALID_REJECTION_REASON", "Lý do từ chối phải có nội dung và không vượt quá 1000 ký tự.");
+        }
+        if (fees.decide(requestId, approve ? "APPROVED" : "REJECTED", actor.getId(), reason) != 1) {
+            throw processedConflict();
+        }
+        return fees.findReduction(requestId, false).orElseThrow(this::requestNotFound);
+    }
+
+    private ApiException requestNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "FEE_REDUCTION_NOT_FOUND", "Không tìm thấy đề nghị miễn giảm.");
+    }
+
+    private ApiException processedConflict() {
+        return new ApiException(HttpStatus.CONFLICT, "FEE_REDUCTION_PROCESSED",
+                "Đề nghị đã được xử lý. Không thể phê duyệt hoặc từ chối lại.");
     }
 
     private OverdueFeeRepository.FeeRow findFee(Long id, boolean lock) {

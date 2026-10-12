@@ -4,6 +4,7 @@ import com.duanttcsn5.library.dto.loan.CreateFeeReductionRequest;
 import com.duanttcsn5.library.dto.loan.FeeReductionRequestPageResponse;
 import com.duanttcsn5.library.dto.loan.FeeReductionRequestResponse;
 import com.duanttcsn5.library.dto.loan.OverdueFeeDetailResponse;
+import com.duanttcsn5.library.dto.loan.RejectFeeReductionRequest;
 import com.duanttcsn5.library.security.UserPrincipal;
 import com.duanttcsn5.library.service.FeeReductionService;
 import jakarta.validation.Valid;
@@ -40,5 +41,20 @@ public class FeeReductionController {
     public ResponseEntity<FeeReductionRequestPageResponse> pending(@RequestParam(defaultValue = "0") int page,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(service.pending(page, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/reduction-requests/{requestId}/approve")
+    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public ResponseEntity<FeeReductionRequestResponse> approve(@PathVariable Long requestId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(service.approve(requestId, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/reduction-requests/{requestId}/reject")
+    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public ResponseEntity<FeeReductionRequestResponse> reject(@PathVariable Long requestId,
+            @Valid @RequestBody RejectFeeReductionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(service.reject(requestId, request, principal == null ? null : principal.id()));
     }
 }
