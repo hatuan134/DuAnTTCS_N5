@@ -56,6 +56,8 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
   const Stub = () => null
   const dependencies = {
     react: f.hooks,
+    './ReturnFeeDetails': { __esModule: true, default: Stub, formatVnd: n => String(n) + ' VND' },
+    './OverdueFeeSettingsPanel': { __esModule: true, default: Stub },
     '../../components/ui/Modal': { __esModule: true, default: Stub },
     '../../components/public/BookCard': { __esModule: true, default: Stub },
     './catalogQuery': load('../src/features/s1-08-catalog/catalogQuery.ts', {}, { URLSearchParams }),
@@ -212,7 +214,7 @@ test('return queue success expires at 3000ms while saved hold details stay', asy
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
     './returnService': { ...returnHelpers, validateReturnBarcode: () => '', returnService: {
-      lookup: async () => ({ status: 'ON_TIME', bookTitle: 'Mắt biếc', barcode: 'LIB-001', itemId: 9, loanNumber: 'PM-008' }),
+      lookup: async () => ({ status: 'ON_TIME', fee: { status: 'READY' }, bookTitle: 'Mắt biếc', barcode: 'LIB-001', itemId: 9, loanNumber: 'PM-008' }),
       confirm: async () => returned,
     } },
   }, {}, 'default', { AbortController })
@@ -234,7 +236,7 @@ for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-er
         lookup: async code => {
           lookups.push(code)
           if (code === 'BAD') throw new Error('Mã vạch không tồn tại.')
-          return { status: 'ON_TIME', bookTitle: `Sách ${code}`, barcode: code,
+          return { status: 'ON_TIME', fee: { status: 'READY' }, bookTitle: `Sách ${code}`, barcode: code,
             copyId: code === 'A' ? 1 : 2, itemId: code === 'A' ? 11 : 12,
             loanNumber: 'PM-008', readerName: 'Bạn đọc An', dueAt: '2026-10-09T17:00:00+07:00' }
         },

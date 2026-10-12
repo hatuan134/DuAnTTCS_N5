@@ -7,5 +7,12 @@ import java.time.OffsetDateTime;
 public record ReturnLookupResponse(
         String status, String message, Long copyId, String barcode, String bookTitle,
         Long loanId, String loanNumber, Long itemId, Long readerId, String readerName,
-        OffsetDateTime borrowedAt, OffsetDateTime dueAt, LocalDate checkedOn, Long overdueDays) {
+        OffsetDateTime borrowedAt, OffsetDateTime dueAt, LocalDate checkedOn, Long overdueDays,
+        ReturnFeeAssessment fee) {
+    public ReturnLookupResponse(String status, String message, Long copyId, String barcode, String bookTitle,
+            Long loanId, String loanNumber, Long itemId, Long readerId, String readerName,
+            OffsetDateTime borrowedAt, OffsetDateTime dueAt, LocalDate checkedOn, Long overdueDays) {
+        this(status, message, copyId, barcode, bookTitle, loanId, loanNumber, itemId, readerId, readerName,
+                borrowedAt, dueAt, checkedOn, overdueDays, null);
+    }
 }

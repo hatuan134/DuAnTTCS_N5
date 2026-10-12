@@ -6,6 +6,8 @@ import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.*;
 import com.duanttcsn5.library.service.LoanService;
+import com.duanttcsn5.library.service.LibraryConfigurationService;
+import com.duanttcsn5.library.service.ReturnFeeCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,17 +19,21 @@ import static org.mockito.Mockito.*;
 class ReturnConfirmationServiceTest {
     LoanRepository loans = mock(LoanRepository.class);
     UserRepository users = mock(UserRepository.class);
+    LibraryConfigurationService calendar = mock(LibraryConfigurationService.class);
     User staff;
     LoanService service;
     final OffsetDateTime returnedAt = OffsetDateTime.parse("2026-10-09T01:00:00+07:00");
     final ConfirmReturnRequest request = new ConfirmReturnRequest(" LIB-001 ", 9L);
 
     @BeforeEach void setup() {
-        service = new LoanService(null, null, null, null, users, loans, null,
+        service = new LoanService(null, null, null, null, users, loans, calendar,
                 Clock.fixed(returnedAt.toInstant(), ZoneOffset.UTC));
         staff = new User(); staff.setId(12L); staff.setFullName("Thủ thư An"); staff.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("LIBRARIAN"); staff.setRole(role);
         when(users.findById(12L)).thenReturn(Optional.of(staff));
+        when(calendar.calculateReturnFee(any(), any(), any())).thenAnswer(call ->
+                ReturnFeeCalculator.calculate(returnedAt, returnedAt, 5000L, java.util.List.of(), java.util.List.of()));
+        when(calendar.recordReturnFee(any(), any(), any())).thenAnswer(call -> call.getArgument(2));
     }
     void open() {
         when(loans.lockTitleForReturn(9L, "LIB-001")).thenReturn(Optional.of(10L));
@@ -126,5 +132,26 @@ class ReturnConfirmationServiceTest {
         code(() -> service.confirmReturn(request, 12L), "RETURN_SAVE_FAILED");
         when(loans.findReturnConfirmation(9L)).thenReturn(Optional.of(result("RETURNED", "BORROWED")));
         code(() -> service.confirmReturn(request, 12L), "RETURN_SAVE_FAILED");
+    }
+
+    @Test void unconfiguredOrInvalidFeeCalculationStopsReturnBeforeQueueOrItemWrite() {
+        open();
+        var unpriced = ReturnFeeCalculator.calculate(returnedAt.minusDays(1), returnedAt, null,
+                java.util.stream.IntStream.rangeClosed(1, 7).mapToObj(i ->
+                    new ReturnFeeAssessment.WeeklyDay(i, true, LocalTime.of(8, 0), LocalTime.of(17, 0))).toList(),
+                java.util.List.of());
+        when(calendar.calculateReturnFee(any(), any(), any())).thenReturn(unpriced);
+        code(() -> service.confirmReturn(request, 12L), "OVERDUE_FEE_NOT_CONFIGURED");
+        verify(loans, never()).findEligiblePendingForReturn(anyLong(), any());
+        verify(loans, never()).markReturned(anyLong(), anyLong(), any(), anyLong());
+        verify(calendar, never()).recordReturnFee(any(), any(), any());
+    }
+    @Test void successfulReturnCarriesExactlyTheRecordedFeeSnapshot() {
+        saved("RETURNED");
+        var recorded = ReturnFeeCalculator.calculate(returnedAt, returnedAt, 5000L, java.util.List.of(), java.util.List.of());
+        when(calendar.recordReturnFee(any(), any(), any())).thenReturn(recorded);
+        assertThat(service.confirmReturn(request, 12L).fee()).isSameAs(recorded);
+        verify(calendar).lockReturnFeeRate();
+        verify(calendar).recordReturnFee(eq(9L), any(), any());
     }
 }

@@ -1,4 +1,5 @@
 import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
+import ReturnFeeDetails, { formatVnd } from './ReturnFeeDetails'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Barcode } from 'lucide-react'
@@ -117,7 +118,7 @@ export default function ReceiveReturnPage() {
   }
 
   async function confirmReturn() {
-    if (!allowed || finished.current || confirmation.current || decisionRef.current || request.current || !result?.itemId) return
+    if (!allowed || finished.current || confirmation.current || decisionRef.current || request.current || !result?.itemId || result.fee?.status !== 'READY') return
     const preview = result
     if (duplicate(preview.barcode, preview.copyId)) return
     if (!await ask(`Xác nhận đã nhận cuốn “${preview.bookTitle}” có mã vạch ${preview.barcode}?`) || !mounted.current) return
@@ -179,6 +180,7 @@ export default function ReceiveReturnPage() {
         <div className="min-w-0">
           <h2 ref={summaryHeading} tabIndex={-1} className="text-lg font-semibold text-slate-900 outline-none">Tổng kết lượt nhận trả</h2>
           <p className="mt-2 text-sm font-semibold text-emerald-700">Tổng số cuốn đã nhận thành công: {successCount} cuốn</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">Tổng phí đã ghi nhận: {formatVnd(received.reduce((total, entry) => total + (entry.fee?.amountVnd ?? 0), 0))}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">Chỉ tính các cuốn được API xác nhận nhận trả thành công. Ngày giờ theo Việt Nam; trạng thái bản sao là kết quả tại lần nhận trả.</p>
         </div>
         <Button type="button" onClick={startNewSession} className="w-full sm:w-auto sm:shrink-0 sm:self-start">Đóng tổng kết và bắt đầu lượt mới</Button>
@@ -193,7 +195,7 @@ export default function ReceiveReturnPage() {
               <th scope="col" className="w-[18%] px-4 py-3">Tên sách</th>
               <th scope="col" className="w-[14%] px-4 py-3">Bạn đọc đã trả</th>
               <th scope="col" className="w-[16%] px-4 py-3">Ngày trả thực tế</th>
-              <th scope="col" className="w-[9%] px-4 py-3">Số ngày trễ</th>
+              <th scope="col" className="w-[9%] px-4 py-3">Ngày trễ · Phí</th>
               <th scope="col" className="w-[13%] px-4 py-3">Trạng thái bản sao</th>
               <th scope="col" className="w-[16%] px-4 py-3">Đơn đặt giữ nhận bản sao</th>
             </tr>
@@ -205,7 +207,8 @@ export default function ReceiveReturnPage() {
               <td className="break-words px-4 py-4 font-semibold text-slate-900">{entry.bookTitle}</td>
               <td className="break-words px-4 py-4 text-slate-700">{entry.readerName ?? 'Chưa có thông tin'}</td>
               <td className="break-words px-4 py-4 text-slate-700"><time dateTime={entry.returnedAt}>{formatLoanTimestamp(entry.returnedAt)}</time></td>
-              <td className="px-4 py-4"><ReturnDeadline entry={entry} /></td>
+              <td className="px-4 py-4"><ReturnDeadline entry={entry} />
+                <p className="mt-1 break-words text-xs font-semibold text-slate-700">{entry.fee?.amountVnd != null ? formatVnd(entry.fee.amountVnd) : 'Chưa có phí'}</p></td>
               <td className="px-4 py-4"><ReturnCopyStatus entry={entry} /></td>
               <td className="break-words px-4 py-4"><ReturnReservation entry={entry} /></td>
             </tr>)}
@@ -220,6 +223,7 @@ export default function ReceiveReturnPage() {
             <Detail label="Bạn đọc đã trả">{entry.readerName ?? 'Chưa có thông tin'}</Detail>
             <Detail label="Ngày trả thực tế"><time dateTime={entry.returnedAt}>{formatLoanTimestamp(entry.returnedAt)}</time></Detail>
             <Detail label="Số ngày trễ"><ReturnDeadline entry={entry} /></Detail>
+            <Detail label="Phí trễ hạn">{entry.fee?.amountVnd != null ? formatVnd(entry.fee.amountVnd) : 'Chưa ghi nhận'}</Detail>
             <Detail label="Trạng thái bản sao"><ReturnCopyStatus entry={entry} /></Detail>
             <Detail label="Đơn đặt giữ nhận bản sao"><ReturnReservation entry={entry} /></Detail>
           </dl>
@@ -282,12 +286,14 @@ export default function ReceiveReturnPage() {
           {result.status === 'OVERDUE' && <Detail label="Số ngày trễ">{result.overdueDays} ngày</Detail>}
         </> : <Detail label="Phiếu mượn đang mở">Không có phiếu đang mở cho bản sao này.</Detail>}
       </dl>
+      {result.itemId !== null && <ReturnFeeDetails fee={result.fee} preview />}
       {result.itemId !== null && <div className="mt-5">
-        <Button type="button" loading={confirming} onClick={() => { void confirmReturn() }}>Xác nhận nhận trả</Button>
+        <Button type="button" loading={confirming} disabled={result.fee?.status !== 'READY'} onClick={() => { void confirmReturn() }}>Xác nhận nhận trả</Button>
         <p className="mt-2 text-xs leading-5 text-slate-500">Chỉ xác nhận khi đã nhận sách. Ngày trả được ghi theo thời điểm xác nhận.</p>
       </div>}
       {result.itemId !== null && <p className="mt-5 text-xs leading-5 text-slate-500">
-        Số ngày trễ tính theo ngày lịch, gồm ngày thư viện đóng cửa, từ hạn trả đã lưu đến ngày tra cứu theo giờ Việt Nam.
+        Trạng thái quá hạn phía trên tính theo ngày lịch. Phí trễ hạn chỉ tính ngày thư viện mở cửa.
+        {result.fee?.status !== 'READY' && <Link to="/library-calendar#overdue-fee" className="ml-1 font-semibold text-blue-700 hover:underline">Kiểm tra cấu hình phí và lịch thư viện</Link>}
       </p>}
     </Card>}
     {!busy && !result && <EmptyState title="Sẵn sàng nhận cuốn tiếp theo" description="Nhập mã vạch bản sao và chọn Tìm phiếu mượn để tiếp tục." />}
@@ -316,15 +322,16 @@ export default function ReceiveReturnPage() {
                 <Detail label="Trạng thái bản sao"><span className={entry.copyStatus === 'HELD' ? 'text-amber-800' : 'text-emerald-700'}>
                   {entry.copyStatus === 'HELD' ? 'Đang giữ cho đặt trước' : 'Sẵn sàng'}
                 </span></Detail>
-                <Detail label={entry.overdueDays !== null && entry.overdueDays > 0 ? 'Số ngày trễ' : 'Tình trạng hạn trả'}>
+                <Detail label="Ngày mở cửa trễ hạn">
                   <span className={entry.overdueDays !== null && entry.overdueDays > 0 ? 'text-red-700' : ''}>
-                    {entry.overdueDays === null ? 'Chưa có hạn trả' : entry.overdueDays > 0 ? `${entry.overdueDays} ngày` : 'Đúng hạn'}
+                    {entry.overdueDays === null ? 'Chưa có hạn trả' : entry.overdueDays > 0 ? `${entry.overdueDays} ngày` : '0 ngày tính phí'}
                   </span>
                 </Detail>
               </div> : <Detail label="Kết quả xử lý"><span className="text-red-700">Chưa ghi nhận thành công</span>
                 <p className="mt-1 text-sm font-normal leading-6 text-slate-600">{entry.message}</p>
               </Detail>}
             </dl>
+            {entry.status === 'SUCCESS' && <ReturnFeeDetails fee={entry.fee} />}
             {entry.status === 'SUCCESS' && <details className="mt-4 text-sm">
               <summary className="cursor-pointer font-semibold text-blue-700">Chi tiết phiếu và xử lý bản sao</summary>
               <dl className="mt-3 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
@@ -352,7 +359,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 
 function ReturnDeadline({ entry }: { entry: ReturnSessionSuccess }) {
   return <span className={entry.overdueDays !== null && entry.overdueDays > 0 ? 'font-semibold text-red-700' : 'text-slate-700'}>
-    {entry.overdueDays === null ? 'Chưa có hạn trả' : entry.overdueDays > 0 ? `${entry.overdueDays} ngày` : '0 ngày · Đúng hạn'}
+    {entry.overdueDays === null ? 'Chưa có hạn trả' : entry.overdueDays > 0 ? `${entry.overdueDays} ngày` : '0 ngày tính phí'}
   </span>
 }
 

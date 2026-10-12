@@ -1,6 +1,8 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.libraryconfig.BulkClosedDatesRequest;
+import com.duanttcsn5.library.dto.libraryconfig.OverdueFeeSettingRequest;
+import com.duanttcsn5.library.dto.libraryconfig.OverdueFeeSettingResponse;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateRequest;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateResponse;
 import com.duanttcsn5.library.dto.libraryconfig.DueDateAdjustmentResponse;
@@ -40,6 +42,21 @@ public class LibraryConfigurationController {
 
     public LibraryConfigurationController(LibraryConfigurationService service) {
         this.service = service;
+    }
+
+    @GetMapping("/overdue-fee")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<OverdueFeeSettingResponse> getOverdueFee() {
+        return ResponseEntity.ok(service.getOverdueFeeSetting());
+    }
+
+    @PutMapping("/overdue-fee")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<OverdueFeeSettingResponse> updateOverdueFee(
+            @Valid @RequestBody OverdueFeeSettingRequest request,
+            @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest servletRequest) {
+        return ResponseEntity.ok(service.updateOverdueFeeSetting(request,
+                principal == null ? null : principal.id(), servletRequest.getRemoteAddr()));
     }
 
     @GetMapping("/warehouses")

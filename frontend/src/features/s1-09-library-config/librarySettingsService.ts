@@ -79,7 +79,19 @@ export type ClosedDateForm = {
   reason: string
 }
 
+export type OverdueFeeSetting = {
+  dailyRateVnd: number | null
+  updatedAt: string | null
+  updatedBy: number | null
+}
+
 export const librarySettingsService = {
+  async getOverdueFee(): Promise<OverdueFeeSetting> {
+    return (await apiClient.get<OverdueFeeSetting>('/library-settings/overdue-fee')).data
+  },
+  async updateOverdueFee(dailyRateVnd: number): Promise<OverdueFeeSetting> {
+    return (await apiClient.put<OverdueFeeSetting>('/library-settings/overdue-fee', { dailyRateVnd })).data
+  },
   getWarehouses: async (): Promise<WarehouseItem[]> => {
     const response = await apiClient.get<WarehouseItem[]>('/library-settings/warehouses')
     return response.data

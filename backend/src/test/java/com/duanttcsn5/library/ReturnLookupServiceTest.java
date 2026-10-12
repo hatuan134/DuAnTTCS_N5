@@ -77,7 +77,7 @@ class ReturnLookupServiceTest {
         given("2026-10-11T10:00:00Z"); // historical deadline on a closed day
         service = serviceAt("2026-10-12T03:00:00Z");
         assertThat(service.lookupReturn("LIB-001", 12L).overdueDays()).isEqualTo(1L);
-        verifyNoInteractions(calendar);
+        verify(calendar, times(3)).previewReturnFee(any(), any());
     }
     @Test void existingCopyWithoutOpenItemIsNotMissingBarcode() {
         when(loans.findReturnLookup("LIB-001")).thenReturn(Optional.of(new LoanRepository.ReturnLookupRow(

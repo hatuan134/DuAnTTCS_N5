@@ -9,6 +9,7 @@ import com.duanttcsn5.library.repository.LoanRepository;
 import com.duanttcsn5.library.repository.UserRepository;
 import com.duanttcsn5.library.service.LibraryConfigurationService;
 import com.duanttcsn5.library.service.LoanService;
+import com.duanttcsn5.library.service.ReturnFeeCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -39,6 +40,9 @@ class ReturnQueueAllocationServiceTest {
         var staff = new User(); staff.setId(12L); staff.setStatus("ACTIVE");
         var role = new Role(); role.setCode("LIBRARIAN"); staff.setRole(role);
         when(users.findById(12L)).thenReturn(Optional.of(staff));
+        when(calendar.calculateReturnFee(any(), any(), any())).thenAnswer(call ->
+                ReturnFeeCalculator.calculate(returnedAt, returnedAt, 5000L, java.util.List.of(), java.util.List.of()));
+        when(calendar.recordReturnFee(any(), any(), any())).thenAnswer(call -> call.getArgument(2));
         when(loans.lockTitleForReturn(9L, "LIB-001")).thenReturn(Optional.of(10L));
         when(loans.lockReturnCandidate(9L, "LIB-001")).thenReturn(Optional.of(
                 new LoanRepository.ReturnCandidate(9L, 8L, 4L, returnedAt.minusDays(7), null)));
@@ -71,7 +75,7 @@ class ReturnQueueAllocationServiceTest {
         var response = service.confirmReturn(request, 12L);
         assertThat(response.copyStatus()).isEqualTo("AVAILABLE");
         assertThat(response.nextReservationId()).isNull();
-        verifyNoInteractions(calendar);
+        verify(calendar, never()).calculateReservationPickupDeadline(any());
         verify(loans, never()).allocateReturnedCopy(anyLong(), anyLong(), anyLong(), any(), any());
     }
 

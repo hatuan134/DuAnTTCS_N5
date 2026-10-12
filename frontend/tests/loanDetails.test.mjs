@@ -44,6 +44,9 @@ async function pageFixture(file, { data, error, role = 'LIBRARIAN', id = '81', c
     useMemo(callback) { return callback() },
   }
   const page = load(file, {
+    '../s3-07-returns/ReturnFeeDetails': load('../s3-07-returns/ReturnFeeDetails.tsx', {
+      '../s3-01-loans/loanService': serviceModule,
+    }),
     react: hooks,
     'react-router-dom': {
       useParams: () => ({ loanId: currentId }), useLocation: () => ({ state: { loanCreated: created } }),

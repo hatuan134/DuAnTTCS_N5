@@ -2,6 +2,7 @@ package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.ConfirmReturnRequest;
 import com.duanttcsn5.library.dto.loan.ConfirmReturnResponse;
+import com.duanttcsn5.library.dto.loan.ReturnFeeAssessment;
 
 import com.duanttcsn5.library.dto.loan.ReturnLookupResponse;
 import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
@@ -144,7 +145,8 @@ public class LoanService {
         var row = loans.findReturnLookup(normalized).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "COPY_BARCODE_NOT_FOUND",
                         "Mã vạch này không tồn tại trong thư viện."));
-        LocalDate today = LocalDate.ofInstant(clock.instant(), LIBRARY_ZONE);
+        OffsetDateTime checkedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE);
+        LocalDate today = checkedAt.toLocalDate();
         String status;
         String message;
         Long overdueDays = null;
@@ -162,7 +164,8 @@ public class LoanService {
         }
         return new ReturnLookupResponse(status, message, row.copyId(), row.barcode(), row.bookTitle(),
                 row.loanId(), row.loanNumber(), row.itemId(), row.readerId(), row.readerName(),
-                row.borrowedAt(), row.dueAt(), today, overdueDays);
+                row.borrowedAt(), row.dueAt(), today, overdueDays,
+                row.itemId() == null ? null : configuration.previewReturnFee(row.dueAt(), checkedAt));
     }
 
     /** S3-07.3: return one copy and allocate it to the first eligible FIFO waiter atomically. */
@@ -199,11 +202,16 @@ public class LoanService {
                 throw new ApiException(HttpStatus.CONFLICT, "RETURN_COPY_STATUS_MISMATCH",
                         "Trạng thái bản sao không khớp phiếu đang mượn. Dữ liệu được giữ nguyên.");
             }
+            Long dailyRate = configuration.lockReturnFeeRate();
             OffsetDateTime returnedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE)
                     .truncatedTo(ChronoUnit.MICROS);
             if (returnedAt.isBefore(candidate.borrowedAt())) {
                 throw new ApiException(HttpStatus.CONFLICT, "RETURN_BEFORE_BORROWED_AT",
                         "Ngày giờ hệ thống đang trước ngày mượn. Chưa thể ghi nhận trả sách.");
+            }
+            ReturnFeeAssessment fee = configuration.calculateReturnFee(candidate.dueAt(), returnedAt, dailyRate);
+            if (!"READY".equals(fee.status())) {
+                throw new ApiException(HttpStatus.CONFLICT, fee.status(), fee.message());
             }
             var next = loans.findEligiblePendingForReturn(bookId, returnedAt.toLocalDate()).orElse(null);
             if (next != null) {
@@ -236,10 +244,11 @@ public class LoanService {
                 throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
                         "Không thể lưu đúng trạng thái bản sao và đơn đặt giữ. Dữ liệu được giữ nguyên.");
             }
-            return result;
+            ReturnFeeAssessment savedFee = configuration.recordReturnFee(candidate.itemId(), candidate.readerId(), fee);
+            return result.withFee(savedFee);
         } catch (DataAccessException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_SAVE_FAILED",
-                    "Không thể nhận trả và chuyển hàng đợi. Dữ liệu được giữ nguyên, vui lòng thử lại.");
+                    "Không thể lưu kết quả nhận trả và phí trễ hạn. Dữ liệu được giữ nguyên, vui lòng thử lại.");
         }
     }
 
@@ -1148,8 +1157,13 @@ public class LoanService {
                         : "Không tìm thấy phiếu mượn."));
         // Only load items after the scoped header succeeds. The shared item query does not bypass ownership.
         // Header and items share one DB snapshot; use the saved item timestamps, never current card policy.
+        var items = loans.findItemsForStaff(loanId);
+        if (!reader && items.stream().anyMatch(item -> item.returnedAt() != null)) {
+            var recorded = configuration.getRecordedReturnFees(loanId);
+            items = items.stream().map(item -> item.withFee(recorded.get(item.id()))).toList();
+        }
         return new LoanDetailResponse(header.id(), header.loanNumber(), header.reservationId(),
                 header.readerId(), header.readerName(), header.createdById(), header.createdByName(),
-                header.borrowedAt(), loans.findItemsForStaff(loanId));
+                header.borrowedAt(), items);
     }
 }

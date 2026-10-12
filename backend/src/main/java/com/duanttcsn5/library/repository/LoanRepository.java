@@ -100,7 +100,13 @@ public class LoanRepository {
     }
 
     public record ReturnCandidate(Long itemId, Long loanId, Long copyId,
-                                  OffsetDateTime borrowedAt, OffsetDateTime returnedAt) {}
+                                  OffsetDateTime borrowedAt, OffsetDateTime returnedAt,
+                                  OffsetDateTime dueAt, Long readerId) {
+        public ReturnCandidate(Long itemId, Long loanId, Long copyId,
+                               OffsetDateTime borrowedAt, OffsetDateTime returnedAt) {
+            this(itemId, loanId, copyId, borrowedAt, returnedAt, null, null);
+        }
+    }
 
     /** Lock the title before any loan, reservation or copy row, matching reserve/cancel/pickup. */
     public Optional<Long> lockTitleForReturn(Long itemId, String barcode) {
@@ -160,7 +166,7 @@ public class LoanRepository {
      */
     public Optional<ReturnCandidate> lockReturnCandidate(Long itemId, String barcode) {
         return jdbc.query("""
-                SELECT li.id, li.loan_id, li.book_copy_id, li.borrowed_at, li.returned_at
+                SELECT li.id, li.loan_id, li.book_copy_id, li.borrowed_at, li.returned_at, li.due_date, l.borrower_user_id
                 FROM loan_items li
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
@@ -168,7 +174,8 @@ public class LoanRepository {
                 FOR UPDATE OF li, l
                 """, (rs, index) -> new ReturnCandidate(rs.getLong("id"), rs.getLong("loan_id"),
                 rs.getLong("book_copy_id"), rs.getObject("borrowed_at", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class)), itemId, barcode).stream().findFirst();
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getObject("due_date", OffsetDateTime.class),
+                rs.getLong("borrower_user_id")), itemId, barcode).stream().findFirst();
     }
 
     public Optional<String> lockCopyForReturn(Long copyId) {
