@@ -10,7 +10,8 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { formatVnd } from '../s3-07-returns/ReturnFeeDetails'
-import { feeReductionService, type FeeReductionRequestPage } from './feeReductionService'
+import { feeAfterApproval, feeReductionService, type FeeReductionRequestPage } from './feeReductionService'
+import ReviewFeeReductionActions from './ReviewFeeReductionActions'
 
 export default function PendingFeeReductionsPage() {
   const user = getCurrentUser()
@@ -24,6 +25,8 @@ function PendingRequests() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [notice, setNotice] = useState('')
+  const [decisionError, setDecisionError] = useState('')
   useEffect(() => {
     let active = true
     setLoading(true); setError(''); setData(null)
@@ -35,6 +38,8 @@ function PendingRequests() {
   }, [page, revision])
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Đề nghị miễn giảm phí" description="Danh sách đề nghị Chờ duyệt do Thủ thư gửi, mới nhất ở đầu danh sách." />
+    {notice && <FeedbackAlert tone="success" message={notice} onDismiss={() => setNotice('')} />}
+    {decisionError && <FeedbackAlert tone="error" message={decisionError} onDismiss={() => setDecisionError('')} />}
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">{data ? `${data.totalItems} đề nghị đang chờ duyệt` : loading ? 'Đang tải danh sách đề nghị' : 'Chưa tải được danh sách đề nghị'}</p><Button variant="secondary" disabled={loading} onClick={() => setRevision(value => value + 1)}>Làm mới</Button></div>
     <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-800">Khoản phải thu giữ nguyên trong khi đề nghị chờ duyệt.</p>
     {loading && <div role="status"><LoadingState /></div>}
@@ -47,14 +52,19 @@ function PendingRequests() {
           <p className="mt-2 break-words text-sm text-slate-600">{request.bookTitle} · Mã vạch: {request.barcode}</p>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Phí gốc" value={formatVnd(request.originalAmountVnd)} />
-            <Field label="Đề nghị miễn giảm" value={`${formatVnd(request.requestedAmountVnd)} (${request.requestedAmountVnd === request.originalAmountVnd ? 'Miễn toàn bộ' : 'Giảm một phần'})`} />
+            <Field label="Đề nghị miễn giảm" value={`${formatVnd(request.requestedAmountVnd)} (${request.paidAmountVnd === 0 && request.requestedAmountVnd === request.outstandingAmountVnd ? 'Miễn toàn bộ khoản còn phải thu' : 'Giảm một phần'})`} />
             <Field label="Khoản phải thu hiện tại" value={formatVnd(request.outstandingAmountVnd)} />
+            <Field label="Còn phải thu nếu được duyệt" value={feeAfterApproval(request) === null ? 'Không thể phê duyệt khoản phí này' : formatVnd(feeAfterApproval(request) ?? 0)} />
             <Field label="Người đề nghị" value={request.requesterName} />
             <Field label="Thời điểm gửi" value={formatLoanTimestamp(request.submittedAt)} />
             <Field label="Phiếu mượn" value={request.loanNumber} />
           </dl>
           <dl className="mt-4 text-sm"><Field label="Lý do" value={request.reason} /></dl>
           <Link to={`/overdue-fees/${request.feeId}`} className="mt-4 inline-block font-semibold text-blue-700 hover:underline">Xem chi tiết khoản phí #{request.feeId} →</Link>
+          <ReviewFeeReductionActions request={request} onReviewed={result => {
+            setDecisionError(''); setNotice(`Đề nghị #${result.id}: ${result.status === 'APPROVED' ? `Đã duyệt, miễn giảm ${formatVnd(result.approvedAmountVnd)}` : 'Từ chối'}. Còn phải thu ${formatVnd(result.outstandingAmountVnd)}.`)
+            setRevision(value => value + 1)
+          }} onConflict={message => { setNotice(''); setDecisionError(message); setRevision(value => value + 1) }} />
         </Card></li>)}</ol>}
       <TablePagination page={data.page + 1} pageSize={data.size} totalItems={data.totalItems} totalPages={data.totalPages} onPageChange={next => setPage(next - 1)} />
     </>}

@@ -15,7 +15,13 @@ export interface FeeReductionRequest {
   outstandingAmountVnd: number
   reason: string
   submittedAt: string
-  status: 'PENDING'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  paidAmountVnd: number
+  approvedAmountVnd: number
+  decidedBy: number | null
+  deciderName: string | null
+  decidedAt: string | null
+  decisionReason: string | null
 }
 
 export interface OverdueFeeDetail {
@@ -30,6 +36,8 @@ export interface OverdueFeeDetail {
   outstandingAmountVnd: number
   returnedAt: string
   pendingRequest: FeeReductionRequest | null
+  waivedAmountVnd: number
+  reductionRequests: FeeReductionRequest[]
 }
 
 export interface FeeReductionRequestPage {
@@ -50,4 +58,19 @@ export const feeReductionService = {
   async pending(page: number): Promise<FeeReductionRequestPage> {
     return (await apiClient.get<FeeReductionRequestPage>('/overdue-fees/reduction-requests/pending', { params: { page } })).data
   },
+  async approve(requestId: number): Promise<FeeReductionRequest> {
+    return (await apiClient.post<FeeReductionRequest>(`/overdue-fees/reduction-requests/${requestId}/approve`)).data
+  },
+  async reject(requestId: number, reason: string): Promise<FeeReductionRequest> {
+    return (await apiClient.post<FeeReductionRequest>(`/overdue-fees/reduction-requests/${requestId}/reject`, { reason })).data
+  },
+}
+
+export function canApproveFeeReduction(request: FeeReductionRequest): boolean {
+  return request.status === 'PENDING' && request.paidAmountVnd === 0
+    && request.requestedAmountVnd > 0 && request.requestedAmountVnd <= request.outstandingAmountVnd
+}
+
+export function feeAfterApproval(request: FeeReductionRequest): number | null {
+  return canApproveFeeReduction(request) ? request.outstandingAmountVnd - request.requestedAmountVnd : null
 }
