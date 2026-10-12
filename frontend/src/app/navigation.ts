@@ -5,7 +5,7 @@ const groups = [
   { id: 'people', label: 'Người dùng', paths: ['/users', '/readers', '/library-cards', '/change-password'] },
   { id: 'books', label: 'Quản lý sách', paths: ['/cataloging', '/authors', '/categories'] },
   { id: 'warehouse', label: 'Kho', paths: ['/warehouse-shelves'] },
-  { id: 'loans', label: 'Mượn trả', paths: ['/loans', '/loans/direct', '/loans/search', '/loans/rejections', '/loans/receive-return', '/loans/overdue', '/my-borrowed-books', '/overdue-fees/reduction-requests/pending'] },
+  { id: 'loans', label: 'Mượn trả', paths: ['/loans', '/loans/direct', '/loans/search', '/loans/rejections', '/loans/receive-return', '/loans/overdue', '/my-borrowed-books', '/overdue-fees/reduction-requests/pending', '/fee-payments'] },
   { id: 'reservations', label: 'Đặt giữ', paths: ['/reservations/ready-for-pickup', '/my-reservations', '/manager/auto-cancellations'] },
   { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/audit-log'] },
 ]
