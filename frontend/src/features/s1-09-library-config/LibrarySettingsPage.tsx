@@ -1,4 +1,5 @@
 import AccessibleModal from '../../components/ui/Modal'
+import OverdueFeeSettingsPanel from './OverdueFeeSettingsPanel'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { AxiosError } from 'axios'
@@ -609,9 +610,10 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
         onConfirm={() => void confirmDeleteHoliday(dateToDelete)} />}
       <PageHeader
         title="Lịch đóng cửa"
-        description="Khai báo lịch làm việc theo tuần, ngày nghỉ cụ thể và kiểm tra hạn trả tự động."
+        description="Khai báo lịch làm việc, ngày nghỉ, mức phí trễ hạn và kiểm tra hạn trả tự động."
       />
 
+      <OverdueFeeSettingsPanel readOnly={readOnly} />
       <Feedback
         error={holidayModal || bulkModal ? '' : error}
         notice={notice}

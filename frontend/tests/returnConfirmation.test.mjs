@@ -41,6 +41,9 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   dependencies['../../core/auth/authStorage'] = { getCurrentUser: () => ({ role }) }
   dependencies['../s1-02-user-management/accountService'] = { getApiErrorMessage: (e, fallback) => e?.response?.data?.message ?? fallback }
   dependencies['../s3-01-loans/loanService'] = { loanRoles: ['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN'], formatLoanTimestamp: value => value ?? 'Chưa có thông tin' }
+  dependencies['./ReturnFeeDetails'] = evaluate('../src/features/s3-07-returns/ReturnFeeDetails.tsx', {
+    '../s3-01-loans/loanService': dependencies['../s3-01-loans/loanService'],
+  })
   dependencies['./returnService'] = { ...serviceModule, returnService: {
     lookup: (...args) => { calls.push(args); return lookup(...args) },
     confirm: (...args) => { confirmations.push(args); return confirm(...args) },
@@ -92,7 +95,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
 function openItem(overrides = {}) {
   return { status: 'ON_TIME', message: 'Sách đang trong hạn trả.', copyId: 4, barcode: 'LIB-001', bookTitle: 'Mắt biếc',
     loanId: 8, loanNumber: 'PM-008', itemId: 9, readerId: 20, readerName: 'Nguyễn An',
-    borrowedAt: '2026-10-01T10:00:00Z', dueAt: '2026-10-09T10:00:00Z', checkedOn: '2026-10-09', overdueDays: 0, ...overrides }
+    borrowedAt: '2026-10-01T10:00:00Z', dueAt: '2026-10-09T10:00:00Z', checkedOn: '2026-10-09', overdueDays: 0, fee: { status: 'READY' }, ...overrides }
 }
 
 
@@ -232,7 +235,7 @@ for (const readers of [['Nguyễn An', 'Nguyễn An'], ['Nguyễn An', 'Trần B
     for (const [i, row] of f.rows().entries()) {
       const value = f.rowText(row)
       for (const expected of [`LIB-${i + 1}`, `Sách ${i + 1}`, readers[i], '2026-10-08T17:00:00Z',
-        '2026-10-10T00:01:00+07:00', 'Số ngày trễ', '1', 'Sẵn sàng']) assert.ok(value.includes(expected), expected)
+        '2026-10-10T00:01:00+07:00', 'Ngày mở cửa trễ hạn', '1', 'Sẵn sàng']) assert.ok(value.includes(expected), expected)
     }
     assert.ok(f.text().includes('Đã nhận thành công: 2 cuốn'))
     f.dismiss(); assert.equal(f.rows().length, 2)
@@ -419,7 +422,7 @@ test('S3-07.5: mixed on-time/overdue and available/held copies retain independen
   await f.finish()
   assert.equal(f.summaryRows().length, 2)
   const [onTime, held] = f.summaryRows().map(f.rowText)
-  for (const expected of ['A', 'Sách A', 'Nguyễn An', '0 ngày · Đúng hạn', 'Sẵn sàng', 'Không chuyển hàng đợi']) assert.ok(onTime.includes(expected), expected)
+  for (const expected of ['A', 'Sách A', 'Nguyễn An', '0 ngày tính phí', 'Sẵn sàng', 'Không chuyển hàng đợi']) assert.ok(onTime.includes(expected), expected)
   for (const expected of ['B', 'Sách B', 'Trần Bình', '2 ngày', 'Đang giữ', 'Đơn #', '30', 'Bạn đọc chờ']) assert.ok(held.includes(expected), expected)
   assert.ok(!onTime.includes('Bạn đọc chờ'))
   assert.equal(f.summaryErrors().length, 1); assert.ok(f.rowText(f.summaryErrors()[0]).includes('INVALID'))
@@ -499,11 +502,13 @@ test('S3-07.5: successfully retried failure occurs once in summary and no longer
   assert.equal(f.summaryRows().length, 2); assert.equal(f.summaryErrors().length, 0)
   assert.equal(f.summaryRows().filter(row => row.props['data-return-summary-row'] === 'B').length, 1)
 })
-test('S3-07.5: missing legacy deadline stays unknown, never fabricated as zero days late', async () => {
-  const f = fixture('LIBRARIAN', async () => openItem({ status: 'MISSING_DUE_DATE', dueAt: null, overdueDays: null }))
-  await receive(f, 'LIB-001'); await f.finish()
-  assert.ok(f.rowText(f.summaryRows()[0]).includes('Chưa có hạn trả'))
-  assert.ok(!f.rowText(f.summaryRows()[0]).includes('0 ngày'))
+test('S4-01.1: missing legacy deadline prevents confirmation until valid fee can be calculated', async () => {
+  const f = fixture('LIBRARIAN', async () => openItem({ status: 'MISSING_DUE_DATE', dueAt: null,
+    overdueDays: null, fee: { status: 'MISSING_DUE_DATE' } }))
+  await lookup(f)
+  assert.equal(f.confirmButton().props.disabled, true)
+  await f.confirm(); await flush(); f.render()
+  assert.equal(f.confirmations.length, 0)
 })
 test('S3-07.5: READER has neither finish nor receive actions', async () => {
   const f = fixture('READER')
@@ -521,4 +526,27 @@ test('S3-07.5: finishing retains the original API failure diagnostic for an unco
   await receive(f, 'A'); await receive(f, 'B'); await f.finish()
   assert.equal(f.summaryRows().length, 1); assert.equal(f.summaryErrors().length, 1)
   assert.ok(f.rowText(f.summaryErrors()[0]).includes('Không thể chuyển hàng đợi. Dữ liệu đã rollback.'))
+})
+
+
+test('S4-01.1: uses saved open-day count and fee returned by the server instead of calendar-day recalculation', async () => {
+  const fee = { status: 'READY', overdueDays: 3, amountVnd: 15000, dailyRateVnd: 5000 }
+  const entry = serviceModule.returnSessionSuccess(openItem({ dueAt: '2026-10-04T17:00:00+07:00' }),
+    returnedItem({ fee }))
+  assert.equal(entry.overdueDays, 3)
+  assert.equal(entry.fee, fee)
+})
+
+test('S4-01.1: missing price disables confirmation and does not write a return', async () => {
+  const f = fixture('LIBRARIAN', async () => openItem({ fee: { status: 'OVERDUE_FEE_NOT_CONFIGURED' } }))
+  await lookup(f)
+  assert.equal(f.confirmButton().props.disabled, true)
+  await f.confirm(); await flush(); f.render()
+  assert.equal(f.confirmations.length, 0)
+})
+
+test('S4-01.1: zero fee is a ready calculation and still permits confirmation', async () => {
+  const f = fixture('LIBRARIAN', async () => openItem({ fee: { status: 'READY', amountVnd: 0 } }))
+  await receive(f, 'LIB-001')
+  assert.equal(f.confirmations.length, 1)
 })

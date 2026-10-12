@@ -5,6 +5,7 @@ import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.LoanRepository;
 import com.duanttcsn5.library.service.LoanService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +25,9 @@ class ReturnConfirmationDatabaseTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired LoanService service;
     @Autowired LoanRepository loans;
+    @BeforeEach void configureReturnFeeDependency() {
+        jdbc.update("UPDATE library_overdue_fee_settings SET daily_rate_vnd = 5000 WHERE id = 1");
+    }
     private record Fixture(Long staff, Long reader, Long loan, Long item, Long copy, String barcode,
                            OffsetDateTime dueAt) {
         ConfirmReturnRequest request() { return new ConfirmReturnRequest(barcode, item); }
@@ -84,7 +88,7 @@ class ReturnConfirmationDatabaseTest {
                 .isEqualTo(result.returnedAt().toInstant());
     }
     @Test void returnsOnTimeCopyWithPersistedReceiverAndDate() { returns(false); }
-    @Test void overdueCopyIsReturnedWithoutChangingDeadlineOrCreatingFees() { returns(true); }
+    @Test void overdueCopyIsReturnedWithoutChangingDeadlineAndRecordsConfiguredFee() { returns(true); }
     @Test void failureAfterCopyTriggerRunsRollsBackItemDateReceiverAndCopyTogether() {
         var f = fixture(false); String constraint = "s3072_fail_item_" + f.item();
         try {

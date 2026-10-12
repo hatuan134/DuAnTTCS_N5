@@ -1,6 +1,11 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.LoanDatePreviewResponse;
+import com.duanttcsn5.library.dto.loan.ReturnFeeAssessment;
+import com.duanttcsn5.library.dto.libraryconfig.OverdueFeeSettingRequest;
+import com.duanttcsn5.library.dto.libraryconfig.OverdueFeeSettingResponse;
+import com.duanttcsn5.library.repository.OverdueFeeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.duanttcsn5.library.dto.libraryconfig.BulkClosedDatesRequest;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateRequest;
 import com.duanttcsn5.library.dto.libraryconfig.ClosedDateResponse;
@@ -40,6 +45,7 @@ import java.util.Set;
 @Service
 public class LibraryConfigurationService {
 
+    private OverdueFeeRepository overdueFees;
     private final WarehouseRepository warehouseRepository;
     private final ShelfRepository shelfRepository;
     private final LibraryWeeklyScheduleRepository weeklyScheduleRepository;
@@ -57,6 +63,62 @@ public class LibraryConfigurationService {
         this.weeklyScheduleRepository = weeklyScheduleRepository;
         this.closedDateRepository = closedDateRepository;
         this.auditLogRepository = auditLogRepository;
+    }
+
+    @Autowired
+    public LibraryConfigurationService(WarehouseRepository warehouseRepository, ShelfRepository shelfRepository,
+            LibraryWeeklyScheduleRepository weeklyScheduleRepository, LibraryClosedDateRepository closedDateRepository,
+            AuditLogRepository auditLogRepository, OverdueFeeRepository overdueFees) {
+        this(warehouseRepository, shelfRepository, weeklyScheduleRepository, closedDateRepository, auditLogRepository);
+        this.overdueFees = overdueFees;
+    }
+
+    @Transactional(readOnly = true)
+    public OverdueFeeSettingResponse getOverdueFeeSetting() { return overdueFees.settings(); }
+
+    @Transactional
+    public OverdueFeeSettingResponse updateOverdueFeeSetting(OverdueFeeSettingRequest request,
+            Long actorId, String ipAddress) {
+        if (request == null || request.dailyRateVnd() == null || request.dailyRateVnd().signum() < 0
+                || request.dailyRateVnd().scale() > 0
+                || request.dailyRateVnd().compareTo(java.math.BigDecimal.valueOf(1_000_000_000L)) > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OVERDUE_FEE",
+                    "Mức phí phải là số nguyên từ 0 đến 1.000.000.000 VND/ngày.");
+        }
+        if (overdueFees.updateRate(request.dailyRateVnd().longValueExact(), actorId) != 1) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "OVERDUE_FEE_MANAGER_REQUIRED",
+                    "Chỉ Quản lý thư viện hoặc Quản trị hệ thống đang hoạt động được cập nhật mức phí.");
+        }
+        auditLogRepository.insert(actorId, "OVERDUE_FEE_UPDATED", "LIBRARY_CONFIGURATION", "1",
+                "{\"dailyRateVnd\":" + request.dailyRateVnd() + "}", ipAddress);
+        return overdueFees.settings();
+    }
+
+    public Long lockReturnFeeRate() { return overdueFees.lockRate(); }
+
+    @Transactional(readOnly = true)
+    public ReturnFeeAssessment previewReturnFee(OffsetDateTime dueAt, OffsetDateTime returnedAt) {
+        return calculateReturnFee(dueAt, returnedAt, overdueFees.settings().dailyRateVnd());
+    }
+
+    public ReturnFeeAssessment calculateReturnFee(OffsetDateTime dueAt, OffsetDateTime returnedAt, Long rate) {
+        ZoneId zone = ZoneId.of("Asia/Ho_Chi_Minh");
+        if (dueAt == null || !returnedAt.atZoneSameInstant(zone).toLocalDate()
+                .isAfter(dueAt.atZoneSameInstant(zone).toLocalDate())) {
+            return ReturnFeeCalculator.calculate(dueAt, returnedAt, rate, List.of(), List.of());
+        }
+        var calendar = overdueFees.calendar(dueAt.atZoneSameInstant(zone).toLocalDate().plusDays(1),
+                returnedAt.atZoneSameInstant(zone).toLocalDate());
+        return ReturnFeeCalculator.calculate(dueAt, returnedAt, rate, calendar.weekly(), calendar.closures());
+    }
+
+    public ReturnFeeAssessment recordReturnFee(Long itemId, Long readerId, ReturnFeeAssessment assessment) {
+        return overdueFees.record(itemId, readerId, assessment);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, ReturnFeeAssessment> getRecordedReturnFees(Long loanId) {
+        return overdueFees.findForLoan(loanId);
     }
 
     @Transactional(readOnly = true)

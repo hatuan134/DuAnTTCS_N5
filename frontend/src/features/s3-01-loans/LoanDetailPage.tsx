@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ReturnFeeDetails from '../s3-07-returns/ReturnFeeDetails'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -98,6 +99,7 @@ function LoanDetails({ id, viewerId, reader, justCreated }: { id: number; viewer
                 </>}
                 <div><dt className="text-slate-500">Hạn trả đã lưu</dt><dd className="mt-1 font-semibold text-blue-900">{item.dueAt ? <time dateTime={item.dueAt}>{formatLoanTimestamp(item.dueAt)}</time> : 'Phiếu cũ chưa có hạn trả được lưu.'}</dd></div>
               </dl>
+              {!reader && item.returnedAt && <ReturnFeeDetails fee={item.fee} />}
             </li>)}
           </ol>}
       </Card>

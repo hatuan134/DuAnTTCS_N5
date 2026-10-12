@@ -1,5 +1,21 @@
 import { apiClient } from '../../core/api/apiClient'
 
+export interface ReturnFeeAssessment {
+  status: string
+  message: string
+  policyVersion: string
+  dueAt: string | null
+  returnedAt: string
+  overdueDays: number
+  dailyRateVnd: number | null
+  rawAmountVnd: number | null
+  amountVnd: number | null
+  feeId: number | null
+  excludedDates: string[]
+  weeklySchedule: { dayOfWeek: number; open: boolean; openTime: string | null; closeTime: string | null }[]
+  closedDates: { date: string; reason: string }[]
+}
+
 export interface ReturnLookup {
   status: 'NOT_BORROWED' | 'MISSING_DUE_DATE' | 'ON_TIME' | 'OVERDUE'
   message: string
@@ -15,6 +31,7 @@ export interface ReturnLookup {
   dueAt: string | null
   checkedOn: string
   overdueDays: number | null
+  fee?: ReturnFeeAssessment | null
 }
 
 export interface ConfirmReturnResult {
@@ -35,6 +52,7 @@ export interface ConfirmReturnResult {
   nextReaderName: string | null
   holdStartedAt: string | null
   pickupDeadline: string | null
+  fee?: ReturnFeeAssessment | null
 }
 
 export interface ReturnSessionSuccess extends ConfirmReturnResult {
@@ -86,7 +104,7 @@ export function recordReturnResult(entries: ReturnSessionEntry[], entry: ReturnS
 
 export function returnSessionSuccess(preview: ReturnLookup, result: ConfirmReturnResult): ReturnSessionSuccess {
   return { ...result, status: 'SUCCESS', readerName: preview.readerName, dueAt: preview.dueAt,
-    overdueDays: returnOverdueDays(preview.dueAt, result.returnedAt) }
+    overdueDays: result.fee?.overdueDays ?? returnOverdueDays(preview.dueAt, result.returnedAt) }
 }
 
 export function validateReturnBarcode(barcode: string): string {

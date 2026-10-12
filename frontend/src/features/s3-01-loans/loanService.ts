@@ -1,4 +1,5 @@
 import { apiClient } from '../../core/api/apiClient'
+import type { ReturnFeeAssessment } from '../s3-07-returns/returnService'
 
 export const loanRoles = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']
 
@@ -24,6 +25,7 @@ export interface LoanItem {
   returnedAt?: string | null
   returnedById?: number | null
   returnedByName?: string | null
+  fee?: ReturnFeeAssessment | null
 }
 
 export interface LoanDetail {
