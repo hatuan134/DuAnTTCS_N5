@@ -14,6 +14,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import com.duanttcsn5.library.dto.loan.FeeReductionRequestResponse;
+import com.duanttcsn5.library.dto.loan.OverdueFeeDetailResponse;
+import org.springframework.jdbc.core.RowMapper;
 
 /** Fee storage extends the existing JDBC lending and reader_fees domain. */
 @Repository
@@ -88,5 +92,80 @@ public class OverdueFeeRepository {
                 """, rs -> { result.put(rs.getLong("item_id"),
                     mapper.readValue(rs.getString("snapshot"), ReturnFeeAssessment.class)); }, loanId);
         return result;
+    }
+    public record FeeRow(Long id, Long loanId, String loanNumber, String readerName, String bookTitle,
+                         String barcode, long originalAmountVnd, long paidAmountVnd, OffsetDateTime returnedAt) {
+        public OverdueFeeDetailResponse withPendingRequest(FeeReductionRequestResponse request) {
+            return new OverdueFeeDetailResponse(id, loanId, loanNumber, readerName, bookTitle, barcode,
+                    originalAmountVnd, paidAmountVnd, originalAmountVnd - paidAmountVnd, returnedAt, request);
+        }
+    }
+
+    /** Only fees linked to a saved return assessment belong to this feature. */
+    public Optional<FeeRow> findOverdueFee(Long id, boolean lock) {
+        String sql = """
+                SELECT f.id, l.id AS loan_id, l.loan_number, u.full_name AS reader_name, b.title,
+                       c.barcode, f.amount_vnd, f.paid_amount_vnd, li.returned_at
+                FROM reader_fees f
+                JOIN return_fee_assessments a ON a.reader_fee_id = f.id AND a.item_id = f.return_item_id
+                JOIN loan_items li ON li.id = f.return_item_id
+                JOIN loans l ON l.id = li.loan_id
+                JOIN users u ON u.id = f.reader_user_id
+                JOIN book_copies c ON c.id = li.book_copy_id
+                JOIN books b ON b.id = c.book_id
+                WHERE f.id = ? AND li.returned_at IS NOT NULL
+                """;
+        if (lock) sql += " FOR UPDATE OF f";
+        return jdbc.query(sql, (rs, n) -> new FeeRow(rs.getLong("id"), rs.getLong("loan_id"),
+                rs.getString("loan_number"), rs.getString("reader_name"), rs.getString("title"),
+                rs.getString("barcode"), rs.getLong("amount_vnd"), rs.getLong("paid_amount_vnd"),
+                rs.getObject("returned_at", OffsetDateTime.class)), id).stream().findFirst();
+    }
+
+    private static final String REDUCTION_SELECT = """
+            SELECT r.id, r.reader_fee_id, l.id AS loan_id, l.loan_number, u.full_name AS reader_name,
+                   b.title, c.barcode, r.requested_by, r.requester_name, r.original_amount_vnd,
+                   r.requested_amount_vnd, f.amount_vnd - f.paid_amount_vnd AS outstanding_amount_vnd,
+                   r.reason, r.submitted_at, r.status
+            FROM fee_reduction_requests r
+            JOIN reader_fees f ON f.id = r.reader_fee_id
+            JOIN loan_items li ON li.id = f.return_item_id
+            JOIN loans l ON l.id = li.loan_id
+            JOIN users u ON u.id = f.reader_user_id
+            JOIN book_copies c ON c.id = li.book_copy_id
+            JOIN books b ON b.id = c.book_id
+            """;
+
+    private static final RowMapper<FeeReductionRequestResponse> REDUCTION_MAPPER = (rs, n) ->
+            new FeeReductionRequestResponse(rs.getLong("id"), rs.getLong("reader_fee_id"),
+                    rs.getLong("loan_id"), rs.getString("loan_number"), rs.getString("reader_name"),
+                    rs.getString("title"), rs.getString("barcode"), rs.getObject("requested_by", Long.class),
+                    rs.getString("requester_name"), rs.getLong("original_amount_vnd"),
+                    rs.getLong("requested_amount_vnd"), rs.getLong("outstanding_amount_vnd"),
+                    rs.getString("reason"), rs.getObject("submitted_at", OffsetDateTime.class), rs.getString("status"));
+
+    public Optional<FeeReductionRequestResponse> pendingReduction(Long feeId) {
+        return jdbc.query(REDUCTION_SELECT + " WHERE r.reader_fee_id = ? AND r.status = 'PENDING'",
+                REDUCTION_MAPPER, feeId).stream().findFirst();
+    }
+
+    public FeeReductionRequestResponse insertReduction(FeeRow fee, Long actorId, String actorName,
+                                                       long amount, String reason) {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO fee_reduction_requests(reader_fee_id, requested_by, requester_name,
+                    original_amount_vnd, requested_amount_vnd, reason)
+                VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+                """, Long.class, fee.id(), actorId, actorName, fee.originalAmountVnd(), amount, reason);
+        return jdbc.queryForObject(REDUCTION_SELECT + " WHERE r.id = ?", REDUCTION_MAPPER, id);
+    }
+
+    public long countPendingReductions() {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM fee_reduction_requests WHERE status = 'PENDING'", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    public List<FeeReductionRequestResponse> pendingReductions(int limit, long offset) {
+        return jdbc.query(REDUCTION_SELECT + " WHERE r.status = 'PENDING' ORDER BY r.submitted_at DESC, r.id DESC LIMIT ? OFFSET ?",
+                REDUCTION_MAPPER, limit, offset);
     }
 }
