@@ -327,9 +327,8 @@ public class BookCopyService {
         long availableCount = items.stream()
                 .filter(copy -> "AVAILABLE".equals(copy.status()))
                 .count();
-        long originalCount = 1L;
-        long totalCount = originalCount + items.size();
-        return new BookCopySummaryResponse(items, availableCount, originalCount, totalCount);
+        long totalCount = items.size();
+        return new BookCopySummaryResponse(items, availableCount, 0L, totalCount);
     }
 
     @Transactional(readOnly = true)

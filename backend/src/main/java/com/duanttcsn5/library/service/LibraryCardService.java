@@ -8,6 +8,7 @@ import com.duanttcsn5.library.dto.librarycard.RejectReaderApplicationRequest;
 import com.duanttcsn5.library.entity.CardType;
 import com.duanttcsn5.library.entity.LibraryCard;
 import com.duanttcsn5.library.entity.ReaderProfile;
+import com.duanttcsn5.library.entity.User;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.AuditLogRepository;
 import com.duanttcsn5.library.repository.CardTypeRepository;
@@ -113,12 +114,15 @@ public class LibraryCardService {
 
     @Transactional(readOnly = true)
     public List<LibraryCardResponse> getIssuedCards() {
+        LocalDate today = LocalDate.now(LIBRARY_ZONE);
+        OffsetDateTime now = OffsetDateTime.now(LIBRARY_ZONE);
         return libraryCardRepository.findAllWithDetails().stream()
                 .map(card -> LibraryCardResponse.fromEntity(
                         card,
                         readerProfileRepository.findById(card.getUser().getId())
                                 .map(ReaderProfile::getMemberCode)
-                                .orElse("-")))
+                                .orElse("-"),
+                        resolveCardStatus(card, today, now)))
                 .toList();
     }
 
@@ -238,6 +242,9 @@ public class LibraryCardService {
                         "Không tìm thấy hồ sơ bạn đọc của tài khoản hiện tại."
                 ));
 
+        LocalDate today = LocalDate.now(LIBRARY_ZONE);
+        OffsetDateTime now = OffsetDateTime.now(LIBRARY_ZONE);
+
         return libraryCardRepository.findByUserIdWithDetails(userId)
                 .map(card -> new MyLibraryCardResponse(
                         profile.getUserId(),
@@ -250,7 +257,7 @@ public class LibraryCardService {
                         card.getCardType().getName(),
                         card.getIssuedAt(),
                         card.getExpiresAt(),
-                        card.getStatus()))
+                        resolveCardStatus(card, today, now)))
                 .orElseGet(() -> new MyLibraryCardResponse(
                         profile.getUserId(),
                         profile.getUser().getFullName(),
@@ -263,6 +270,36 @@ public class LibraryCardService {
                         null,
                         null,
                         null));
+    }
+
+    public static String resolveCardStatus(LibraryCard card, LocalDate today, OffsetDateTime now) {
+        if (card == null) {
+            return null;
+        }
+
+        User user = card.getUser();
+
+        if ("DISABLED".equalsIgnoreCase(card.getStatus())
+                || (user != null && "DISABLED".equalsIgnoreCase(user.getStatus()))) {
+            return "DISABLED";
+        }
+
+        if ("LOCKED".equalsIgnoreCase(card.getStatus())
+                || (user != null && "LOCKED".equalsIgnoreCase(user.getStatus()))
+                || (user != null && user.getLockedUntil() != null && user.getLockedUntil().isAfter(now))) {
+            return "LOCKED";
+        }
+
+        if ("EXPIRED".equalsIgnoreCase(card.getStatus())
+                || (card.getExpiresAt() != null && card.getExpiresAt().isBefore(today))) {
+            return "EXPIRED";
+        }
+
+        if (card.getStatus() != null && !card.getStatus().isBlank()) {
+            return card.getStatus().toUpperCase(Locale.ROOT);
+        }
+
+        return "ACTIVE";
     }
 
     private ReaderProfile getPendingProfileForUpdate(Long readerUserId) {

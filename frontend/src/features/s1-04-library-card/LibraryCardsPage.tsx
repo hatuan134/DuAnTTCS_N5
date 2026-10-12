@@ -59,6 +59,23 @@ function getApiMessage(error: unknown) {
   return 'Không thể thực hiện yêu cầu. Vui lòng thử lại.'
 }
 
+function getCardDisplayStatus(card: LibraryCard): string {
+  const status = (card.status ?? '').toUpperCase()
+  if (status === 'LOCKED' || status === 'DISABLED') {
+    return status
+  }
+  if (status === 'EXPIRED') {
+    return 'EXPIRED'
+  }
+  if (card.expiresAt) {
+    const today = new Date().toLocaleDateString('en-CA')
+    if (card.expiresAt < today) {
+      return 'EXPIRED'
+    }
+  }
+  return status || 'ACTIVE'
+}
+
 export default function LibraryCardsPage() {
   const currentUser = getCurrentUser()
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
@@ -353,7 +370,7 @@ export default function LibraryCardsPage() {
                       <td className="px-4 py-4">{card.cardTypeName}</td>
                       <td className="px-4 py-4">{formatDate(card.issuedAt)}</td>
                       <td className="px-4 py-4">{formatDate(card.expiresAt)}</td>
-                      <td className="px-4 py-4"><StatusBadge status={card.status} /></td>
+                      <td className="px-4 py-4"><StatusBadge status={getCardDisplayStatus(card)} /></td>
                     </tr>
                   ))}
                 </tbody>

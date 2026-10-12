@@ -32,8 +32,8 @@ class BookCopySummaryServiceTest {
         when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of());
         var result = service.getSummaryByBookId(1L);
         assertEquals(0L, result.availableCount());
-        assertEquals(1L, result.originalCount());
-        assertEquals(1L, result.totalCount());
+        assertEquals(0L, result.originalCount());
+        assertEquals(0L, result.totalCount());
         assertTrue(result.copies().isEmpty());
     }
 
@@ -44,8 +44,8 @@ class BookCopySummaryServiceTest {
         when(copies.findAllByBookIdOrderByIdAsc(1L)).thenReturn(availableCopies);
         var result = service.getSummaryByBookId(1L);
         assertEquals(3L, result.availableCount());
-        assertEquals(1L, result.originalCount());
-        assertEquals(4L, result.totalCount());
+        assertEquals(0L, result.originalCount());
+        assertEquals(3L, result.totalCount());
         assertEquals(3, result.copies().size());
     }
 
@@ -59,8 +59,8 @@ class BookCopySummaryServiceTest {
         var result = service.getSummaryByBookId(1L);
 
         assertEquals(10L, result.availableCount());
-        assertEquals(1L, result.originalCount());
-        assertEquals(11L, result.totalCount());
+        assertEquals(0L, result.originalCount());
+        assertEquals(10L, result.totalCount());
         assertEquals(10, result.copies().size());
     }
 
