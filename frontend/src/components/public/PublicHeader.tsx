@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { BookOpen, LogOut, Menu, X, UserRound } from 'lucide-react'
+import { LogOut, Menu, X, UserRound } from 'lucide-react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { clearAuthSession } from '../../core/auth/authStorage'
 import usePublicSession from '../../core/auth/usePublicSession'
 import Modal from '../ui/Modal'
+import LibraLogo from '../brand/LibraLogo'
 
 export default function PublicHeader() {
   const user = usePublicSession()
@@ -14,6 +15,8 @@ export default function PublicHeader() {
   const links = <>
     <NavLink to="/" end onClick={close}>Trang chủ</NavLink>
     <NavLink to="/catalog" onClick={close}>Tra cứu sách</NavLink>
+    <Link to="/#sach-noi-bat" onClick={close}>Sách nổi bật</Link>
+    <Link to="/#huong-dan-muon" onClick={close}>Hướng dẫn mượn</Link>
     <Link to="/#gioi-thieu" onClick={close}>Giới thiệu</Link>
   </>
   const account = user ? <>
@@ -30,14 +33,14 @@ export default function PublicHeader() {
   return <header className="public-header">
     <a href="#main-content" className="skip-link">Đến nội dung chính</a>
     <div className="public-container public-header-inner">
-      <Link to="/" className="brand" aria-label="LIBRA – Trang chủ"><span className="brand-icon"><BookOpen size={24} /></span><span>LIBRA<small>Không gian tri thức</small></span></Link>
+      <Link to="/" className="brand" aria-label="LIBRA – Trang chủ"><span className="brand-icon"><LibraLogo size={34} /></span><span>LIBR<span className="libra-wordmark-accent">A</span><small>Không gian tri thức</small></span></Link>
       <nav className="public-nav" aria-label="Điều hướng công khai">{links}</nav>
       <div className="public-account">{account}</div>
       <button className="icon-button public-menu-button" type="button" aria-expanded={open} aria-label="Mở menu" onClick={() => setOpen(true)}><Menu size={21} /></button>
     </div>
     {open && <Modal label="Menu điều hướng" onClose={close}>
       <div className="public-mobile-menu">
-        <div className="flex items-center justify-between"><strong className="text-xl">LIBRA</strong><button className="icon-button" onClick={close} aria-label="Đóng menu"><X size={20} /></button></div>
+        <div className="flex items-center justify-between"><strong className="text-xl inline-flex items-center gap-2"><span className="brand-icon"><LibraLogo size={28} /></span>LIBR<span className="libra-wordmark-accent">A</span></strong><button className="icon-button" onClick={close} aria-label="Đóng menu"><X size={20} /></button></div>
         <nav aria-label="Điều hướng công khai trên điện thoại">{links}</nav>
         <div className="mobile-account">{account}</div>
       </div>

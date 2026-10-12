@@ -62,6 +62,11 @@ public class BookCatalogController {
                 keyword, categoryId, publicationYear, availableOnly, page, size, sort));
     }
 
+    @GetMapping("/public/featured")
+    public ResponseEntity<List<BookCatalogService.FeaturedPublicBook>> getMostBorrowedAvailableBooks() {
+        return ResponseEntity.ok(bookCatalogService.getMostBorrowedAvailableBooks());
+    }
+
     @GetMapping("/public/filters")
     public ResponseEntity<PublicCatalogFilterOptionsResponse> getPublicFilterOptions() {
         return ResponseEntity.ok(bookCatalogService.getPublicFilterOptions());

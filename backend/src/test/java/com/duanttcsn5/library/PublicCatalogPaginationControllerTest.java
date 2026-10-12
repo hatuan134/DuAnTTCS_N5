@@ -131,6 +131,14 @@ class PublicCatalogPaginationControllerTest {
         }
     }
 
+    @Test void anonymousCanRequestFiveNewestWithoutChangingDefaultsOrPermissions() throws Exception {
+        when(service.searchPublicBooks(null, null, null, false, 0, 5, "createdAt"))
+                .thenReturn(new PublicCatalogPageResponse(List.of(book()), 0, 5, 1, 1, true, true, "createdAt"));
+        mvc.perform(get("/api/v1/books/public/search").param("sort", "createdAt").param("size", "5"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sort").value("createdAt"))
+                .andExpect(jsonPath("$.size").value(5)).andExpect(jsonPath("$.content[0].id").value(101));
+        verify(service).searchPublicBooks(null, null, null, false, 0, 5, "createdAt");
+    }
     private BookResponse book() {
         return new BookResponse(101L, "9786040000001", "Mắt biếc", null, 1L, "Nguyễn Nhật Ánh", true,
                 List.of(new BookResponse.BookAuthorResponse(1L, "Nguyễn Nhật Ánh", true)),

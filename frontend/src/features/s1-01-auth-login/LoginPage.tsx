@@ -5,7 +5,6 @@ import axios from 'axios'
 
 import {
   ArrowRight,
-  BookOpen,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -21,6 +20,7 @@ import {
 } from 'react-router-dom'
 
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import LibraLogo from '../../components/brand/LibraLogo'
 import {
   login,
 } from '../../core/auth/authService'
@@ -265,14 +265,12 @@ export default function LoginPage() {
           <div className="relative z-10">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
-                <BookOpen
-                  size={25}
-                />
+                <LibraLogo size={36} />
               </div>
 
               <div>
                 <p className="text-xl font-bold tracking-wide">
-                  LIBRA
+                  LIBR<span className="libra-wordmark-accent">A</span>
                 </p>
 
                 <p className="text-sm text-slate-400">
@@ -349,14 +347,12 @@ export default function LoginPage() {
             <div className="mb-10 lg:hidden">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white">
-                  <BookOpen
-                    size={22}
-                  />
+                  <LibraLogo size={32} />
                 </div>
 
                 <div>
                   <p className="font-bold text-slate-900">
-                    LIBRA
+                    LIBR<span className="libra-wordmark-accent">A</span>
                   </p>
 
                   <p className="text-xs text-slate-500">

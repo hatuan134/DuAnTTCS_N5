@@ -14,6 +14,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .brand { display: inline-flex; align-items: center; gap: 11px; font-size: 23px; font-weight: 800; letter-spacing: 2px; line-height: 1.25; flex-shrink: 0; }
 .brand small { display: block; font-size: 10px; font-weight: 500; letter-spacing: .04em; margin-top: 5px; color: #64748b; }
 .brand-icon { display: inline-flex; justify-content: center; align-items: center; width: 44px; height: 44px; border-radius: 13px; background: #2461d4; color: white; box-shadow: 0 4px 10px #2563eb19; }
+/* One LIBRA identity: network/open-book mark + cyan A on both dark and light surfaces. */
+.libra-wordmark-accent { color: #3fb9f2; }
+.brand-icon svg { display: block; flex: none; max-width: 90%; max-height: 90%; }
 .public-nav,.public-account { display: flex; gap: 26px; align-items: center; font-size: 14px; font-weight: 600; }
 .public-nav a { padding-block: 32px; color: #58667b; position: relative; white-space: nowrap; }
 .public-nav a[aria-current="page"],.public-nav a:hover { color: #225bc1; }

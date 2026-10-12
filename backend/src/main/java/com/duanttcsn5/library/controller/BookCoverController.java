@@ -2,6 +2,7 @@ package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.service.BookCoverService;
 import org.springframework.http.CacheControl;
+import java.time.Duration;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,25 +32,35 @@ public class BookCoverController {
 
     @GetMapping("/{id}/cover")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
-    public ResponseEntity<byte[]> get(@PathVariable Long id) { return image(id, false); }
+    public ResponseEntity<byte[]> get(@PathVariable Long id) { return image(id, false, null); }
 
     @GetMapping("/public/{id}/cover")
-    public ResponseEntity<byte[]> getPublic(@PathVariable Long id) { return image(id, true); }
+    public ResponseEntity<byte[]> getPublic(@PathVariable Long id,
+                                           @RequestParam(value = "v", required = false) String version) {
+        return image(id, true, version);
+    }
 
     @GetMapping("/public/{id}/cover/thumbnail")
-    public ResponseEntity<byte[]> getPublicThumbnail(@PathVariable Long id) {
-        return response(service.getThumbnail(id, true));
+    public ResponseEntity<byte[]> getPublicThumbnail(@PathVariable Long id,
+                                                     @RequestParam(value = "v", required = false) String version) {
+        return response(service.getThumbnail(id, true), true, version);
     }
 
-    private ResponseEntity<byte[]> image(Long id, boolean publicView) {
-        return response(service.get(id, publicView));
+    private ResponseEntity<byte[]> image(Long id, boolean publicView, String version) {
+        return response(service.get(id, publicView), publicView, version);
     }
 
-    private ResponseEntity<byte[]> response(com.duanttcsn5.library.entity.BookCoverImage cover) {
+    private ResponseEntity<byte[]> response(com.duanttcsn5.library.entity.BookCoverImage cover,
+                                            boolean publicView, String version) {
+        // Each successful upload changes the public URL's ?v=UUID. A versioned URL
+        // is safe to cache; legacy URLs and staff-only images must remain no-store.
+        CacheControl cache = publicView && version != null && !version.isBlank()
+                ? CacheControl.maxAge(Duration.ofDays(30)).cachePublic()
+                : CacheControl.noStore();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(cover.getContentType()))
                 .contentLength(cover.getImageData().length)
-                .cacheControl(CacheControl.noStore())
+                .cacheControl(cache)
                 .header("X-Content-Type-Options", "nosniff")
                 .body(cover.getImageData());
     }

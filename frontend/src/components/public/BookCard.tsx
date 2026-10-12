@@ -4,11 +4,11 @@ import type { Book } from '../../features/s1-08-catalog/catalogService'
 import PublicBookCover from '../../features/s2-10-book-cover/PublicBookCover'
 import StatusBadge from '../ui/StatusBadge'
 
-export default function BookCard({ book }: { book: Book }) {
+export default function BookCard({ book, priority = false }: { book: Book; priority?: boolean }) {
   const authors = book.authors?.length ? book.authors.map(author => author.name).join(', ') : book.authorName || 'Chưa có thông tin tác giả'
   return <article className="book-card">
     <Link to={`/catalog/books/${book.id}`} className="book-card-cover" aria-label={`Xem chi tiết ${book.title}`}>
-      <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} thumbnail />
+      <PublicBookCover bookId={book.id} url={book.coverImageUrl} title={book.title} thumbnail priority={priority} />
       <span className="book-card-arrow"><ArrowUpRight size={18} /></span>
     </Link>
     <div className="book-card-body">

@@ -125,9 +125,9 @@ public class BookCatalogService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE_SIZE",
                     "Mỗi trang phải có từ 1 đến tối đa 20 đầu sách.");
         }
-        if (!"relevance".equals(sort) && !"publicationYear".equals(sort)) {
+        if (!"relevance".equals(sort) && !"publicationYear".equals(sort) && !"createdAt".equals(sort)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATALOG_SORT",
-                    "Cách sắp xếp phải là mức phù hợp hoặc năm xuất bản.");
+                    "Cách sắp xếp phải là mức phù hợp, năm xuất bản hoặc thời điểm thêm sách.");
         }
 
         validatePublicFilters(categoryId, publicationYear);
@@ -155,6 +155,32 @@ public class BookCatalogService {
         }).toList();
         return new PublicCatalogPageResponse(content, currentPage, size, total, totalPages,
                 currentPage == 0, currentPage == totalPages - 1, sort);
+    }
+
+    public record FeaturedPublicBook(BookResponse book, long borrowCount) {}
+
+    /** History counts individual loan items; excludes titles without a currently borrowable copy. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public List<FeaturedPublicBook> getMostBorrowedAvailableBooks() {
+        List<Object[]> ranked = bookRepository.findMostBorrowedAvailableBookIds(3);
+        if (ranked.isEmpty()) return List.of();
+        List<Long> ids = ranked.stream().map(row -> ((Number) row[0]).longValue()).toList();
+        Map<Long, Book> books = bookRepository.findPublicPageWithAuthorAndCategory(ids).stream()
+                .collect(Collectors.toMap(Book::getId, book -> book));
+        Map<Long, long[]> counts = new HashMap<>();
+        for (Object[] row : bookCopyRepository.countCopiesForPublicPage(ids)) {
+            counts.put(((Number) row[0]).longValue(),
+                    new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
+        }
+        return ranked.stream().map(row -> {
+            Long id = ((Number) row[0]).longValue();
+            Book book = books.get(id);
+            long[] quantities = counts.get(id);
+            if (book == null || quantities == null || quantities[1] <= 0) return null;
+            return new FeaturedPublicBook(
+                    BookResponse.fromEntity(book, quantities[0], quantities[1]),
+                    ((Number) row[1]).longValue());
+        }).filter(java.util.Objects::nonNull).toList();
     }
 
     @Transactional(readOnly = true)

@@ -108,15 +108,22 @@ class BookCoverControllerTest {
         verify(service, never()).get(anyLong(), anyBoolean());
     }
 
-    @Test void versionedOriginalAndThumbnailAreNotCached() throws Exception {
+    @Test void versionedPublicImagesAreCachedAndUnversionedAreNot() throws Exception {
         when(service.get(7L, true)).thenReturn(new BookCoverImage(7L, "image/jpeg", new byte[]{8, 9}));
+        when(service.get(7L, false)).thenReturn(new BookCoverImage(7L, "image/jpeg", new byte[]{8, 9}));
         when(service.getThumbnail(7L, true)).thenReturn(new BookCoverImage(7L, "image/png", new byte[]{5, 6}));
         mvc.perform(get("/api/v1/books/public/7/cover").param("v", "new-version"))
                 .andExpect(status().isOk()).andExpect(content().contentType("image/jpeg"))
                 .andExpect(content().bytes(new byte[]{8, 9}))
-                .andExpect(header().string("Cache-Control", "no-store"));
+                .andExpect(header().string("Cache-Control", "max-age=2592000, public"));
         mvc.perform(get("/api/v1/books/public/7/cover/thumbnail").param("v", "new-version"))
                 .andExpect(status().isOk()).andExpect(content().bytes(new byte[]{5, 6}))
+                .andExpect(header().string("Cache-Control", "max-age=2592000, public"));
+        mvc.perform(get("/api/v1/books/public/7/cover"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/v1/books/public/7/cover/thumbnail"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/v1/books/7/cover").with(user("staff").roles("LIBRARIAN")))
                 .andExpect(header().string("Cache-Control", "no-store"));
     }
 }

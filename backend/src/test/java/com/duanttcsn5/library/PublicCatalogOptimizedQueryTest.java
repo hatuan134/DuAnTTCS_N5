@@ -21,7 +21,7 @@ class PublicCatalogOptimizedQueryTest {
             try {
                 try (var s = c.createStatement()) {
                     s.execute("CREATE TEMP TABLE authors(id bigint PRIMARY KEY, name text, name_search text GENERATED ALWAYS AS (catalog_search_text(name)) STORED) ON COMMIT DROP");
-                    s.execute("CREATE TEMP TABLE books(id bigint PRIMARY KEY, title text, isbn text, author_id bigint, category_id bigint, publication_year integer, title_search text GENERATED ALWAYS AS (catalog_search_text(title)) STORED, isbn_search text GENERATED ALWAYS AS (catalog_search_text(isbn)) STORED, isbn_digits text GENERATED ALWAYS AS (catalog_isbn_digits(isbn)) STORED) ON COMMIT DROP");
+                    s.execute("CREATE TEMP TABLE books(id bigint PRIMARY KEY, title text, isbn text, author_id bigint, category_id bigint, publication_year integer, created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, title_search text GENERATED ALWAYS AS (catalog_search_text(title)) STORED, isbn_search text GENERATED ALWAYS AS (catalog_search_text(isbn)) STORED, isbn_digits text GENERATED ALWAYS AS (catalog_isbn_digits(isbn)) STORED) ON COMMIT DROP");
                     s.execute("CREATE TEMP TABLE book_authors(book_id bigint, author_id bigint) ON COMMIT DROP");
                     s.execute("CREATE TEMP TABLE book_copies(id bigint PRIMARY KEY, book_id bigint, status text) ON COMMIT DROP");
                     s.execute("CREATE TEMP TABLE loan_items(book_copy_id bigint, returned_at timestamptz) ON COMMIT DROP");
@@ -50,6 +50,24 @@ class PublicCatalogOptimizedQueryTest {
                 try (var s = c.createStatement(); var r = s.executeQuery("SELECT catalog_search_text(U&'  MA\\0306\\0301T  BIE\\0302\\0301C  '), catalog_search_text('ĐẶNG'), catalog_isbn_digits('ISBN-X')")) {
                     r.next(); assertEquals("mat biec",r.getString(1)); assertEquals("dang",r.getString(2)); assertEquals("",r.getString(3));
                 }
+                // Newest means database creation time, never publication year; ties use descending ID.
+                try (var s = c.createStatement()) {
+                    s.execute("UPDATE books SET created_at='2026-01-01T00:00:00Z'");
+                    s.execute("UPDATE books SET created_at='2026-10-11T00:00:00Z',publication_year=1990 WHERE id IN (1,2)");
+                    s.execute("UPDATE books SET created_at='2026-10-10T00:00:00Z',publication_year=2025 WHERE id=3");
+                    s.execute("UPDATE books SET created_at='2026-10-12T00:00:00Z' WHERE id=10");
+                    s.execute("UPDATE book_copies SET status='BORROWED' WHERE book_id=9");
+                }
+                assertEquals(List.of(2L,1L,3L,9L,8L), ids(c,"","",null,null,false,"createdAt",5,0));
+                assertEquals(List.of(7L,6L,5L,4L), ids(c,"","",null,null,false,"createdAt",5,5));
+                assertEquals(List.of(2L,1L), ids(c,"","",6L,1990,false,"createdAt",5,0));
+                assertFalse(ids(c,"","",null,null,true,"createdAt",20,0).contains(9L));
+                try (var s = c.createStatement()) {
+                    s.execute("INSERT INTO books(id,title,author_id,category_id,publication_year,created_at) VALUES(11,'Vừa bổ sung',1,6,1980,'2026-10-13T00:00:00Z')");
+                    assertEquals(2L, ids(c,"","",null,null,false,"createdAt",5,0).get(0));
+                    s.execute("INSERT INTO book_copies VALUES(15,11,'BORROWED')");
+                }
+                assertEquals(11L, ids(c,"","",null,null,false,"createdAt",5,0).get(0));
                 // Generated fields also update on edits; no stale application-side search cache.
                 try (var s = c.createStatement()) { s.execute("UPDATE authors SET name='Đặng Văn Mới' WHERE id=3"); }
                 assertEquals(List.of(5L,6L), ids(c,"dang van moi","",null,null,false,"relevance",20,0));

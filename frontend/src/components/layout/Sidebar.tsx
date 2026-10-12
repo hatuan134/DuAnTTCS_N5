@@ -5,6 +5,7 @@ import { navItems } from '../../app/featureRegistry'
 import { activeNavigation, groupedNavigation, visibleNavigation } from '../../app/navigation'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import Modal from '../ui/Modal'
+import LibraLogo from '../brand/LibraLogo'
 
 interface SidebarProps { open?: boolean; onClose?: () => void; collapsed?: boolean; onCollapse?: () => void }
 
@@ -21,7 +22,7 @@ export default function Sidebar({ open = false, onClose = () => {}, collapsed = 
 
   const content = (mobile: boolean) => <>
     <div className="sidebar-brand">
-      <Link to="/" className="brand" aria-label="LIBRA – Trang chủ" onClick={onClose}><span className="brand-icon"><BookOpen size={22} /></span><span className="sidebar-label">LIBRA<small>Không gian làm việc</small></span></Link>
+      <Link to="/" className="brand" aria-label="LIBRA – Trang chủ" onClick={onClose}><span className="brand-icon"><LibraLogo size={32} /></span><span className="sidebar-label">LIBR<span className="libra-wordmark-accent">A</span><small>Không gian làm việc</small></span></Link>
       {mobile && <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng menu"><X size={18} /></button>}
     </div>
     <nav className="sidebar-nav" aria-label={mobile ? 'Điều hướng nghiệp vụ trên điện thoại' : 'Điều hướng nghiệp vụ'}>

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
+import LibraLogo from '../components/brand/LibraLogo'
 
 import {
-  BookOpen,
   CreditCard,
   ShieldCheck,
   UsersRound,
@@ -44,12 +44,12 @@ export default function AuthLayout({
 
         <div className="relative z-10 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-            <BookOpen size={25} />
+            <LibraLogo size={36} />
           </div>
 
           <div>
             <div className="text-xl font-semibold tracking-wide">
-              LIBRA
+              LIBR<span className="libra-wordmark-accent">A</span>
             </div>
 
             <div className="text-sm text-slate-300">
@@ -114,12 +114,12 @@ export default function AuthLayout({
         <div className="w-full max-w-[460px]">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <BookOpen size={23} />
+              <LibraLogo size={34} />
             </div>
 
             <div>
               <div className="font-semibold text-slate-900">
-                LIBRA
+                LIBR<span className="libra-wordmark-accent">A</span>
               </div>
 
               <div className="text-xs text-slate-500">

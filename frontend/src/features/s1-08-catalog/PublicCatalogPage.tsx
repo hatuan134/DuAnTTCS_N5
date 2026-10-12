@@ -407,7 +407,7 @@ export default function PublicCatalogPage() {
           )}
 
           {!error && !loading && books.length > 0 && (
-            <div className="book-grid">{books.map(book => <BookCard key={book.id} book={book} />)}</div>
+            <div className="book-grid">{books.map((book, index) => <BookCard key={book.id} book={book} priority={index < 5} />)}</div>
           )}
 
           {!error && !loading && result && result.totalElements > 0 && (

@@ -71,8 +71,14 @@ public class BookCoverService {
         if (bookId == null || bookId < 1 || (publicView && copies.countByBookId(bookId) == 0)) {
             throw missingCover();
         }
-        // Read the cover only AFTER the lock: a legacy backfill must never restore stale bytes
-        // over a replacement that committed while this request was waiting for the lock.
+        // Fast path: return the stored lightweight PNG thumbnail without loading
+        // the original BYTEA or acquiring a row lock for every catalog image.
+        byte[] existingThumbnail = covers.findThumbnailBytes(bookId);
+        if (existingThumbnail != null) {
+            return new BookCoverImage(bookId, "image/png", existingThumbnail);
+        }
+        // Legacy images lacking thumbnails need one-time generation. Acquire
+        // the upload lock first, then re-read to avoid overwriting a replacement.
         books.findForCoverUpload(bookId).orElseThrow(this::missingBook);
         BookCoverImage cover = covers.findById(bookId).orElseThrow(this::missingCover);
         if (cover.getThumbnailData() == null) {
