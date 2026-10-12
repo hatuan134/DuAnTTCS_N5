@@ -1,7 +1,8 @@
+import { loadablePage } from '../../app/loadablePage'
 import { LayoutDashboard } from 'lucide-react'
 
 import type { FeatureModule } from '../../types/feature'
-import DashboardPage from './DashboardPage'
+const DashboardPage = loadablePage(() => import('./DashboardPage'))
 
 const feature: FeatureModule = {
   id: 's1-00-dashboard',

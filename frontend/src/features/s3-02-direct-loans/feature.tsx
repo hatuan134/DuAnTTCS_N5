@@ -1,8 +1,9 @@
+import { loadablePage } from '../../app/loadablePage'
 import { BookUser, ShieldAlert } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
 import { loanRoles } from '../s3-01-loans/loanService'
-import DirectLoanPage from './DirectLoanPage'
-import LoanRejectionsPage from './LoanRejectionsPage'
+const DirectLoanPage = loadablePage(() => import('./DirectLoanPage'))
+const LoanRejectionsPage = loadablePage(() => import('./LoanRejectionsPage'))
 
 const feature: FeatureModule = {
   id: 's3-02-direct-loans', order: 151,

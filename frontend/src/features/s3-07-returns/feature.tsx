@@ -1,7 +1,8 @@
+import { loadablePage } from '../../app/loadablePage'
 import { BookDown } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
 import { loanRoles } from '../s3-01-loans/loanService'
-import ReceiveReturnPage from './ReceiveReturnPage'
+const ReceiveReturnPage = loadablePage(() => import('./ReceiveReturnPage'))
 
 const feature: FeatureModule = {
   id: 's3-07-returns', order: 157,

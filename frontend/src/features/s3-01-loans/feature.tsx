@@ -1,8 +1,9 @@
+import { loadablePage } from '../../app/loadablePage'
 import { ClipboardList, Search } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
-import LoanListPage from './LoanListPage'
-import LoanSearchPage from './LoanSearchPage'
-import LoanDetailPage from './LoanDetailPage'
+const LoanListPage = loadablePage(() => import('./LoanListPage'))
+const LoanSearchPage = loadablePage(() => import('./LoanSearchPage'))
+const LoanDetailPage = loadablePage(() => import('./LoanDetailPage'))
 import { loanRoles } from './loanService'
 
 const feature: FeatureModule = {

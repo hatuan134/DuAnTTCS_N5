@@ -57,6 +57,12 @@ export interface Book {
   expectedReturnNotice?: string | null
 }
 
+/** Thống kê số lượt mượn thực tế (loan_items), chỉ trả về sách còn bản AVAILABLE. */
+export interface FeaturedPublicBook {
+  book: Book
+  borrowCount: number
+}
+
 export interface BookQueueInfo {
   queueCount: number
   earliestExpectedReturnDate?: string | null
@@ -81,7 +87,7 @@ export interface PublicCatalogFilters {
   availableOnly?: boolean
 }
 
-export type PublicCatalogSort = 'relevance' | 'publicationYear'
+export type PublicCatalogSort = 'relevance' | 'publicationYear' | 'createdAt'
 
 export interface PublicCatalogPage {
   content: Book[]
@@ -95,6 +101,7 @@ export interface PublicCatalogPage {
 }
 
 export interface PublicCatalogSearch extends PublicCatalogFilters {
+  size?: number
   keyword: string
   page: number
   sort: PublicCatalogSort
@@ -244,11 +251,16 @@ export const catalogService = {
         publicationYear: query.publicationYear,
         availableOnly: query.availableOnly || undefined,
         page: query.page,
-        size: 10,
+        size: query.size ?? 10,
         sort: query.sort,
       },
       signal,
     })
+    return res.data
+  },
+
+  getMostBorrowedAvailableBooks: async (signal?: AbortSignal): Promise<FeaturedPublicBook[]> => {
+    const res = await apiClient.get<FeaturedPublicBook[]>('/books/public/featured', { signal })
     return res.data
   },
 

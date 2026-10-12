@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { ScrollText } from 'lucide-react'
 
-import AuditLogPage from './AuditLogPage'
+const AuditLogPage = loadablePage(() => import('./AuditLogPage'))
 import type { FeatureModule } from '../../types/feature'
 
 const feature: FeatureModule = {

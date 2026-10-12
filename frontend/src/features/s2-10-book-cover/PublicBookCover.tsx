@@ -3,8 +3,8 @@ import { publicBookImageUrl } from './bookCoverService'
 
 const DEFAULT_COVER = `${import.meta.env.BASE_URL}images/default-book-cover.svg`
 
-export default function PublicBookCover({ bookId, url, title, thumbnail = false }: {
-  bookId: number; url?: string | null; title: string; thumbnail?: boolean
+export default function PublicBookCover({ bookId, url, title, thumbnail = false, priority = false }: {
+  bookId: number; url?: string | null; title: string; thumbnail?: boolean; priority?: boolean
 }) {
   const original = url?.trim() ?? ''
   const source = original
@@ -18,7 +18,8 @@ export default function PublicBookCover({ bookId, url, title, thumbnail = false 
     alt={fallback ? `Ảnh bìa mặc định của ${title}` : `Ảnh bìa ${title}`}
     width={thumbnail ? 160 : 224}
     height={thumbnail ? 240 : 336}
-    loading={thumbnail ? 'lazy' : 'eager'}
+    loading={priority || !thumbnail ? 'eager' : 'lazy'}
+    fetchPriority={priority ? 'high' : 'auto'}
     decoding="async"
     onError={fallback ? undefined : () => setFailedSource(source)}
     className={thumbnail

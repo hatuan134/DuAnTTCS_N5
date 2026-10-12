@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { AlertTriangle, ChevronDown, ChevronUp, RefreshCcw, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCcw, Search } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
@@ -80,11 +80,7 @@ export default function LoanRejectionsPage() {
   return <div className="space-y-5">
     <PageHeader title="Nhật ký chặn và bỏ qua cho mượn" description="Theo dõi các lượt bị chặn và lượt được Quản lý cho phép bỏ qua, kèm nguyên nhân và người thực hiện." />
     <Card className="p-4 sm:p-6">
-      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-        <AlertTriangle size={18} className="mt-1 shrink-0" />
-        <p>Quyền xem hiện áp dụng tạm thời cho Thủ thư, Quản lý thư viện và Quản trị hệ thống. Thời hạn lưu nhật ký và phạm vi quyền xem cuối cùng cần được thống nhất với Product Owner.</p>
-      </div>
-      <form onSubmit={search} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-semibold text-slate-700">
           Tìm theo mã thẻ
           <input className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"

@@ -424,18 +424,6 @@ function AuditLogContent() {
         )}
       </Card>
 
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <div className="flex gap-3">
-          <ShieldCheck size={20} className="mt-0.5 shrink-0 text-blue-600" />
-          <div>
-            <p className="text-sm font-semibold text-blue-900">Nhật ký chỉ đọc</p>
-            <p className="mt-1 text-sm leading-6 text-blue-700">
-              Chỉ Quản trị hệ thống được phép tra cứu. Backend từ chối mọi yêu cầu sửa hoặc xóa nhật ký.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {selectedLog && (
         <AccessibleModal onClose={() => setSelectedLog(null)} label="Chi tiết nhật ký">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">

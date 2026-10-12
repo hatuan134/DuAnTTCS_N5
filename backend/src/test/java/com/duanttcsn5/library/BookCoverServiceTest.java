@@ -199,6 +199,16 @@ class BookCoverServiceTest {
         assertEquals(8, thumbnail.getWidth());
         assertEquals(8, thumbnail.getHeight());
     }
+    @Test void storedThumbnailIsReadWithoutLoadingTheOriginalOrLockingTheBook() {
+        when(copies.countByBookId(7L)).thenReturn(1L);
+        byte[] smallThumbnail = new byte[]{8, 9, 10};
+        when(covers.findThumbnailBytes(7L)).thenReturn(smallThumbnail);
+        var result = service.getThumbnail(7L, true);
+        assertArrayEquals(smallThumbnail, result.getImageData());
+        assertEquals("image/png", result.getContentType());
+        verify(covers, never()).findById(anyLong());
+        verify(books, never()).findForCoverUpload(anyLong());
+    }
     @Test void existingCoverGetsThumbnailOnceWithoutReplacingOriginal() throws Exception {
         byte[] original = image("png");
         var cover = new BookCoverImage(7L, "image/png", original);

@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import type { FeatureModule } from '../../types/feature'
-import BookDetailPage from './BookDetailPage'
-import BookCopyDetailPage from './BookCopyDetailPage'
+const BookDetailPage = loadablePage(() => import('./BookDetailPage'))
+const BookCopyDetailPage = loadablePage(() => import('./BookCopyDetailPage'))
 
 const feature: FeatureModule = {
   id: 's2-02-book-copies',

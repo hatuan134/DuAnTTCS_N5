@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   Calendar,
   CheckCircle2,
   CreditCard,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import LibraLogo from '../../components/brand/LibraLogo'
 import { readerService } from './readerService'
 import { validateRegistrationPassword } from './passwordPolicy'
 import type { ReaderRegistrationResponse } from './readerService'
@@ -177,10 +177,10 @@ export default function RegisterPage() {
           <div className="relative z-10">
             <Link to="/" className="inline-flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
-                <BookOpen size={25} />
+                <LibraLogo size={36} />
               </div>
               <div>
-                <p className="text-xl font-bold tracking-wide">LIBRA</p>
+                <p className="text-xl font-bold tracking-wide">LIBR<span className="libra-wordmark-accent">A</span></p>
                 <p className="text-sm text-slate-400">
                   Hệ thống quản lý thư viện
                 </p>
@@ -260,9 +260,7 @@ export default function RegisterPage() {
               </Link>
 
               <div className="lg:hidden">
-                <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                  LIBRA
-                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-600"><span className="brand-icon !h-8 !w-8 !rounded-lg"><LibraLogo size={26} /></span>LIBR<span className="libra-wordmark-accent">A</span></span>
               </div>
             </div>
 

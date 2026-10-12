@@ -70,11 +70,28 @@ class PublicCatalogPaginationServiceTest {
         for (int size : new int[]{-1, 0, 21}) assertThrows(ApiException.class,
                 () -> service.searchPublicBooks(null, null, null, false, 0, size, "relevance"));
         assertThrows(ApiException.class, () -> service.searchPublicBooks(null, null, null, false, -1, 20, "relevance"));
-        for (String sort : new String[]{null, "unknown"}) assertThrows(ApiException.class,
+        for (String sort : new String[]{null, "unknown", "createdAt DESC; DROP TABLE books", "CREATEDAT"}) assertThrows(ApiException.class,
                 () -> service.searchPublicBooks(null, null, null, false, 0, 20, sort));
         assertThrows(ApiException.class, () -> service.searchPublicBooks(null, 0L, null, false, 0, 20, "relevance"));
         assertThrows(ApiException.class, () -> service.searchPublicBooks(null, null, 0, false, 0, 20, "relevance"));
         verifyNoInteractions(books, copies, categories);
+    }
+    @Test void newestPageUsesDatabaseOrderAndIncludesUnavailableBooks() {
+        when(books.countPublicSearch("", "", null, null, false)).thenReturn(3L);
+        when(books.findPublicSearchIds("", "", null, null, false, "createdAt", 5, 0L))
+                .thenReturn(List.of(3L, 2L, 1L));
+        Book newest = book(3L); newest.setPublicationYear(1990);
+        when(books.findPublicPageWithAuthorAndCategory(List.of(3L, 2L, 1L)))
+                .thenReturn(List.of(book(1L), newest, book(2L)));
+        when(copies.countCopiesForPublicPage(List.of(3L, 2L, 1L))).thenReturn(List.of(
+                new Object[]{3L, 2L, 0L}, new Object[]{2L, 1L, 1L}, new Object[]{1L, 1L, 1L}));
+        var page = service.searchPublicBooks(null, null, null, false, 0, 5, "createdAt");
+        assertEquals(List.of(3L, 2L, 1L), page.content().stream().map(b -> b.id()).toList());
+        assertEquals(1990, page.content().get(0).publicationYear());
+        assertEquals(0, page.content().get(0).availableCount());
+        assertEquals("createdAt", page.sort()); assertEquals(5, page.size());
+        verify(books, never()).findAllPublicWithAuthorAndCategory();
+        verify(copies, never()).countAllGroupedByBookId();
     }
     private Book book(long id) {
         Author author = new Author("Nguyễn Nhật Ánh", null, true); author.setId(1L);

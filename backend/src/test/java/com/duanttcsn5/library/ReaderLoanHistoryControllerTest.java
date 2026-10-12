@@ -15,6 +15,7 @@ import com.duanttcsn5.library.security.JwtService;
 import com.duanttcsn5.library.security.RestAccessDeniedHandler;
 import com.duanttcsn5.library.security.RestAuthenticationEntryPoint;
 import com.duanttcsn5.library.service.ReaderRegistrationService;
+import com.duanttcsn5.library.service.ReaderRegistrationRateLimitService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,7 @@ class ReaderLoanHistoryControllerTest {
             JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
     static class Config {
         @Bean ReaderRegistrationService readers() { return mock(ReaderRegistrationService.class); }
+        @Bean ReaderRegistrationRateLimitService rateLimit() { return mock(ReaderRegistrationRateLimitService.class); }
         @Bean ReaderSelfService selfService() { return mock(ReaderSelfService.class); }
         @Bean JwtService jwtService() { return mock(JwtService.class); }
         @Bean UserRepository users() { return mock(UserRepository.class); }

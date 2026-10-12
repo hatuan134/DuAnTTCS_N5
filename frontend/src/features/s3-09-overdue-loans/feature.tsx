@@ -1,7 +1,8 @@
+import { loadablePage } from '../../app/loadablePage'
 import { ClockAlert } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
 import { loanRoles } from '../s3-01-loans/loanService'
-import OverdueLoansPage from './OverdueLoansPage'
+const OverdueLoansPage = loadablePage(() => import('./OverdueLoansPage'))
 
 const feature: FeatureModule = {
   id: 's3-09-overdue-loans',

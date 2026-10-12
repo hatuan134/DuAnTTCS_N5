@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { BookOpen } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
-import MyBorrowedBooksPage from './MyBorrowedBooksPage'
+const MyBorrowedBooksPage = loadablePage(() => import('./MyBorrowedBooksPage'))
 
 const feature: FeatureModule = {
   id: 's3-04-my-borrowed-books',

@@ -77,6 +77,9 @@ class ControlledLoanOverrideServiceTest {
         when(loans.findCopyIdentity("BC-1")).thenReturn(Optional.of(new LoanRepository.CopyIdentity(1L, 50L)));
         when(loans.insertDirect(eq(12L), eq(5L), anyString(), eq(at), any(UUID.class), anyString()))
                 .thenReturn(80L);
+        // The current business implementation also authorizes an active ADMIN override.
+        when(loans.insertDirect(eq(12L), eq(4L), anyString(), eq(at), any(UUID.class), anyString()))
+                .thenReturn(80L);
         when(loans.findHeaderForStaff(80L)).thenReturn(Optional.of(new LoanDetailResponse(
                 80L, "PM-80", null, 12L, "Bạn đọc", 5L, "Quản lý", at, List.of())));
         when(loans.findItemsForStaff(80L)).thenReturn(List.of(new LoanDetailResponse.Item(
@@ -96,9 +99,19 @@ class ControlledLoanOverrideServiceTest {
                 anyLong(), anyInt(), anyLong(), any(), any());
     }
 
-    @Test void librarianAndAdministratorCannotOverrideEvenWithReason() {
+    @Test void librarianCannotOverrideEvenWithReason() {
         rejected(UUID.randomUUID(), 3L, true, "Tôi đồng ý", "MANAGER_OVERRIDE_REQUIRED");
-        rejected(UUID.randomUUID(), 4L, true, "Tôi đồng ý", "MANAGER_OVERRIDE_REQUIRED");
+    }
+
+    @Test void administratorMayOverrideWithReasonAndAuditLikeManager() {
+        // Matches LoanService.validateOverrideRequest and the existing ADMIN UI behavior.
+        var result = service.createDirectLoan(request(UUID.randomUUID(), true, "Cho phép ngoại lệ"), 4L);
+        assertThat(result.loan().id()).isEqualTo(80L);
+        verify(loans).insertItem(80L, 1L, at, at.plusDays(14));
+        verify(audit).logOverride(any(UUID.class), eq("DIRECT_CONFIRM"), eq(12L),
+                eq("READER 12"), eq("TV-12"), eq(4L), isNull(), eq(5L), eq(5),
+                eq(80L), eq("Cho phép ngoại lệ"), argThat(reasons ->
+                        reasons.stream().anyMatch(r -> r.code().equals("LOAN_LIMIT_REACHED"))));
     }
 
     @Test void reasonIsMandatoryAndCannotBeSuppliedWithoutExplicitApproval() {

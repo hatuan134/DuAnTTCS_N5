@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 
 /** Animate the existing content container; never key/remount forms or the shell. */
 export default function PageTransition({ children }: { children: ReactNode }) {
-  const { pathname, hash } = useLocation()
+  const { pathname } = useLocation()
   const container = useRef<HTMLDivElement>(null)
   const previousPath = useRef(pathname)
 
@@ -27,13 +27,6 @@ export default function PageTransition({ children }: { children: ReactNode }) {
     return () => animation?.cancel()
   }, [pathname])
 
-  useLayoutEffect(() => {
-    if (!hash) return
-    let id = hash.slice(1)
-    try { id = decodeURIComponent(id) } catch { /* Keep malformed fragments harmless. */ }
-    const target = document.getElementById(id)
-    target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
-  }, [pathname, hash])
 
   return <div ref={container} className="page-transition">{children}</div>
 }

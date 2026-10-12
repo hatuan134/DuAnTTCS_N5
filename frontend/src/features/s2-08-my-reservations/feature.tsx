@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { BookMarked } from 'lucide-react'
 import type { FeatureModule } from '../../types/feature'
-import MyReservationsPage from './MyReservationsPage'
+const MyReservationsPage = loadablePage(() => import('./MyReservationsPage'))
 
 const feature: FeatureModule = {
   id: 's2-08-my-reservations',

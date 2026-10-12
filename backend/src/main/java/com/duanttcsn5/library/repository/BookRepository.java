@@ -153,6 +153,8 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     @Query(value = "SELECT b.id " + PUBLIC_SEARCH_WHERE + """
             ORDER BY
+              CASE WHEN :sort = 'createdAt' THEN b.created_at END DESC NULLS LAST,
+              CASE WHEN :sort = 'createdAt' THEN b.id END DESC,
               CASE WHEN :sort = 'publicationYear' THEN b.publication_year END DESC NULLS LAST,
               CASE WHEN :sort = 'relevance' THEN
             """ + PUBLIC_RELEVANCE + """
@@ -171,6 +173,26 @@ public interface BookRepository extends JpaRepository<Book, Long> {
             LEFT JOIN FETCH b.author JOIN FETCH b.category WHERE b.id IN :ids
             """)
     List<Book> findPublicPageWithAuthorAndCategory(@Param("ids") List<Long> ids);
+
+    /** Top historically borrowed book titles with at least one presently AVAILABLE copy. */
+    @Query(value = """
+            SELECT c.book_id, COUNT(li.id) AS borrow_count
+            FROM loan_items li
+            JOIN book_copies c ON c.id = li.book_copy_id
+            WHERE EXISTS (
+                SELECT 1 FROM book_copies ready
+                WHERE ready.book_id = c.book_id
+                  AND ready.status = 'AVAILABLE'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM loan_items open_item
+                    WHERE open_item.book_copy_id = ready.id AND open_item.returned_at IS NULL
+                  )
+            )
+            GROUP BY c.book_id
+            ORDER BY borrow_count DESC, c.book_id ASC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findMostBorrowedAvailableBookIds(@Param("limit") int limit);
 
     @Query(value = """
             SELECT DISTINCT b.category_id, c.name, b.publication_year

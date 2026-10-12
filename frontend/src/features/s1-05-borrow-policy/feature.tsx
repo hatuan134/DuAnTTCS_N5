@@ -1,6 +1,7 @@
+import { loadablePage } from '../../app/loadablePage'
 import { Settings } from 'lucide-react'
 
-import CardTypesPage from './CardTypesPage'
+const CardTypesPage = loadablePage(() => import('./CardTypesPage'))
 
 import type {
   FeatureModule,
