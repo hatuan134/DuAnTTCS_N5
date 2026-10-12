@@ -78,18 +78,20 @@ function ReadyPickupDetail({ id }: { id: number }) {
             setReload((value) => value + 1)
           }}>Thử lại</Button>
       </div>}
-      {!loading && !error && item && item.id === id && <Card className="p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
-          <StatusBadge status={item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status}
-            label={reservationStatusLabel(item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status)} />
+      {!loading && !error && item && item.id === id && <Card className="p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h3 className="text-xl font-semibold text-slate-900">Đơn #{item.id}</h3>
+            <StatusBadge status={item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status}
+              label={reservationStatusLabel(item.expired || item.status === 'EXPIRED' ? 'EXPIRED' : item.converted ? 'FULFILLED' : item.status)} />
+          </div>
+          {!item.converted && !item.expired && item.status !== 'EXPIRED' && <Button type="button" variant="danger" size="sm" disabled={cancelOpen || creatingLoan}
+            aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>}
         </div>
-        {!item.converted && !item.expired && item.status !== 'EXPIRED' && <Button type="button" variant="danger" className="mt-4" disabled={cancelOpen || creatingLoan}
-          aria-label={`Huỷ đơn #${item.id}`} onClick={() => setCancelOpen(true)}>Huỷ đơn</Button>}
-        <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
+        <dl className="mt-4 grid min-w-0 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
           <div>
             <dt className="text-slate-500">Tên đầu sách</dt>
-            <dd className="mt-1 font-medium"><Link to={`/books/${item.bookId}`}
+            <dd className="mt-1 break-words font-medium"><Link to={`/books/${item.bookId}`}
               className="text-blue-700 hover:underline">{item.bookTitle}</Link></dd>
           </div>
           <div>
@@ -102,7 +104,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
           </div>
           <div>
             <dt className="text-slate-500">Bạn đọc của đơn đặt giữ</dt>
-            <dd className="mt-1 font-medium text-slate-900">{item.readerName}</dd>
+            <dd className="mt-1 break-words font-medium text-slate-900">{item.readerName}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Hạn cuối đến nhận (giờ Việt Nam)</dt>
@@ -110,7 +112,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
           </div>
           <div>
             <dt className="text-slate-500">Thời điểm đặt giữ (giờ Việt Nam)</dt>
-            <dd className="mt-1 font-medium text-slate-900">{formatPickupDate(item.reservedAt)}</dd>
+            <dd className="mt-1 break-words font-medium text-slate-900">{formatPickupDate(item.reservedAt)}</dd>
           </div>
           {item.copyStatus && <div><dt className="text-slate-500">Trạng thái bản sao</dt>
             <dd className="mt-1"><StatusBadge status={item.copyStatus} /></dd></div>}

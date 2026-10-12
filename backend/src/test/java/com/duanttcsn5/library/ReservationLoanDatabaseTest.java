@@ -289,4 +289,71 @@ class ReservationLoanDatabaseTest {
         assertThat(detail.items().get(1).dueAt()).isNull();
         assertThat(service.listLoans(first.staff())).anyMatch(row -> row.id().equals(loan) && row.itemCount() == 2);
     }
+
+    @Test @Transactional
+    void threeReservationsOfOneReaderPersistOneLoanAndKeepReturnFlow() {
+        Fixture first = fixture(), second = fixture(), third = fixture();
+        jdbc.update("UPDATE book_reservations SET reader_id = ? WHERE id IN (?, ?)",
+                first.reader(), second.reservation(), third.reservation());
+        entities.clear();
+        var batch = service.createFromReservations(new com.duanttcsn5.library.dto.loan.CreateReservationLoanBatchRequest(
+                List.of(first.reservation(), second.reservation(), third.reservation()),
+                new com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest(first.card())), first.staff());
+        assertThat(batch.items()).hasSize(3).allMatch(item -> item.id().equals(batch.id()));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loans WHERE borrower_user_id = ?", Long.class, first.reader()))
+                .isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loan_items WHERE loan_id = ?", Long.class, batch.id()))
+                .isEqualTo(3L);
+        for (Fixture f : List.of(first, second, third)) {
+            assertThat(jdbc.queryForObject("SELECT status FROM book_reservations WHERE id = ?", String.class, f.reservation()))
+                    .isEqualTo("FULFILLED");
+            assertThat(jdbc.queryForObject("SELECT status FROM book_copies WHERE id = ?", String.class, f.copy()))
+                    .isEqualTo("BORROWED");
+            assertThat(jdbc.queryForObject("SELECT source_reservation_id FROM loan_items WHERE loan_id = ? AND book_copy_id = ?",
+                    Long.class, batch.id(), f.copy())).isEqualTo(f.reservation());
+        }
+        entities.clear();
+        assertThat(service.pickupContext(third.reservation()).loanNumber()).isEqualTo(batch.loanNumber());
+        assertThat(service.loanDetail(batch.id(), first.staff()).items()).hasSize(3);
+        String barcode = jdbc.queryForObject("SELECT barcode FROM book_copies WHERE id = ?", String.class, second.copy());
+        var lookup = service.lookupReturn(barcode, first.staff());
+        var returned = service.confirmReturn(new com.duanttcsn5.library.dto.loan.ConfirmReturnRequest(barcode, lookup.itemId()), first.staff());
+        assertThat(returned.copyStatus()).isEqualTo("AVAILABLE");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loan_items WHERE loan_id = ? AND returned_at IS NULL",
+                Long.class, batch.id())).isEqualTo(2L);
+    }
+
+    /** Real transaction rollback: force the final item insert to fail after the first two wrote.
+     * Opt-in disposable DB only; the service transaction (not a test transaction) owns rollback.
+     */
+    @Test void failedLastBatchItemRollsBackHeaderItemsReservationsAndCopyStates() {
+        Fixture first = fixture(), second = fixture(), third = fixture();
+        jdbc.update("UPDATE book_reservations SET reader_id = ? WHERE id IN (?, ?)",
+                first.reader(), second.reservation(), third.reservation());
+        String function = "test_group_fail_" + UUID.randomUUID().toString().replace("-", "");
+        String trigger = "trg_" + function;
+        jdbc.execute("CREATE FUNCTION " + function + "() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN "
+                + "IF NEW.source_reservation_id = " + third.reservation() + " THEN RAISE EXCEPTION 'test batch rollback'; END IF; RETURN NEW; END $$");
+        jdbc.execute("CREATE TRIGGER " + trigger + " BEFORE INSERT ON loan_items FOR EACH ROW EXECUTE FUNCTION " + function + "()");
+        try {
+            assertThatThrownBy(() -> service.createFromReservations(
+                    new com.duanttcsn5.library.dto.loan.CreateReservationLoanBatchRequest(
+                        List.of(first.reservation(), second.reservation(), third.reservation()),
+                        new com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest(first.card())), first.staff()))
+                    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loans WHERE borrower_user_id = ?", Long.class, first.reader()))
+                    .isZero();
+            for (Fixture f : List.of(first, second, third)) {
+                assertThat(jdbc.queryForObject("SELECT status FROM book_reservations WHERE id = ?", String.class, f.reservation()))
+                        .isEqualTo("READY_FOR_PICKUP");
+                assertThat(jdbc.queryForObject("SELECT status FROM book_copies WHERE id = ?", String.class, f.copy()))
+                        .isEqualTo("HELD");
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loan_items WHERE book_copy_id = ?", Long.class, f.copy())).isZero();
+            }
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS " + trigger + " ON loan_items");
+            jdbc.execute("DROP FUNCTION IF EXISTS " + function + "()");
+        }
+    }
+
 }

@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 const require = createRequire(import.meta.url)
 const root = new URL('../src/features/s2-09-ready-pickup/', import.meta.url)
 const react = require('react')
+const SelectionStub = () => null
 let clockMs = 0
 let timerCallbacks = []
 
@@ -108,8 +109,14 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
     async createLoan(id, number) { calls.push([id, number]); return { id: 81, loanNumber: 'PM-NEW', readerName: 'Nguyễn Văn An', cardNumber: number, bookTitle: 'Mắt biếc', barcode: 'LIB-031', borrowedAt: '2026-10-07T10:00:00Z', message: 'Đã lập phiếu mượn thành công.', dates: loanDates } },
     async loanContext() { return { converted: false, dates: loanDates, dateError: null } },
   }
+  service.createLoans = async (ids, number, ...rest) => {
+    calls.batches ??= []
+    calls.batches.push([...ids])
+    return service.createLoan(ids[0], number, ...rest)
+  }
   const panel = load('CreateReservationLoanPanel.tsx', {
     react: hooks,
+    './ReservationLoanSelection': { __esModule: true, default: SelectionStub },
     '../../components/ui/Button': { __esModule: true, default: (props) => react.createElement('button', { disabled: props.disabled || props.loading }, props.children) },
     '../../components/ui/StatusBadge': load('../../components/ui/StatusBadge.tsx', {}),
     '../../components/ui/Input': { __esModule: true, default: (props) => react.createElement('label', {}, props.label, react.createElement('input', { id: props.id, required: props.required, value: props.value, onChange: props.onChange, disabled: props.disabled })) },
@@ -118,11 +125,19 @@ function panelFixture({ card = '', api, overrides = {} } = {}) {
   }).default
   function render() {
     cursor = 0
-    return panel({ reservation: { ...reservation, ...overrides }, disabled: false,
+    const props = { reservation: { ...reservation, ...overrides }, disabled: false,
       onBusyChange: (value) => busy.push(value), onSuccess: (value) => successes.push(value),
       onAlreadyConverted: () => { alreadyConverted++ },
       onExpired: (context) => expiries.push(context),
-    })
+    }
+    let tree = panel(props)
+    const selection = find(tree, SelectionStub)
+    if (selection) {
+      selection.props.onReady(true)
+      cursor = 0
+      tree = panel(props)
+    }
+    return tree
   }
   return { render, states, calls, busy, successes, expiries, runEffects: () => { for (const effect of effects.splice(0)) effect() }, get alreadyConverted() { return alreadyConverted } }
 }
@@ -364,4 +379,15 @@ test('a failed automatic expiry check keeps confirmation locked and waits for ma
   assert.equal(checks, 1)
   assert.equal(find(f.render(), 'form'), null)
   assert.match(renderToStaticMarkup(f.render()), /Kiểm tra lại trạng thái/)
+})
+
+for (const ids of [[21, 22], [21, 22, 23]]) test(`one confirmation sends all ${ids.length} selected holds once`, async () => {
+  const f = panelFixture({ card: 'TV-0012' })
+  find(f.render(), SelectionStub).props.onChange(ids)
+  const form = find(f.render(), 'form')
+  form.props.onSubmit({ preventDefault() {} })
+  form.props.onSubmit({ preventDefault() {} })
+  await settle()
+  assert.deepEqual(f.calls.batches, [ids])
+  assert.equal(f.successes.length, 1)
 })

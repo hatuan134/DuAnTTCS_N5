@@ -479,7 +479,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {isTemporarilyLocked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Tài khoản tạm khóa đến {lockedUntilLabel}. Vui lòng quay lại sau thời điểm này.</p>}
+              {isTemporarilyLocked && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Tài khoản tạm khóa đến {lockedUntilLabel}. Vui lòng quay lại sau thời điểm này.</p>}
 
               {error && (
                 <FeedbackAlert

@@ -34,6 +34,7 @@ type ApiErrorResponse = {
 
 export default function RegisterPage() {
   const pending = useRef(false)
+  const [successNotice, setSuccessNotice] = useState(false)
   const emailRequest = useRef(0)
   const [passwordTouched, setPasswordTouched] = useState(false)
   const [confirmTouched, setConfirmTouched] = useState(false)
@@ -142,6 +143,7 @@ export default function RegisterPage() {
       })
 
       setSuccessData(result)
+      setSuccessNotice(true)
     } catch (err: unknown) {
       if (axios.isAxiosError<ApiErrorResponse>(err)) {
         const errorData = err.response?.data
@@ -271,8 +273,10 @@ export default function RegisterPage() {
                   <CheckCircle2 size={36} />
                 </div>
 
+                {successNotice && <FeedbackAlert message="Đăng ký hồ sơ thành công. Hồ sơ đang chờ duyệt." tone="success"
+                  onDismiss={() => setSuccessNotice(false)} className="mt-4 text-left" />}
                 <h2 className="mt-5 text-2xl font-bold text-slate-900">
-                  Đăng ký hồ sơ thành công!
+                  Thông tin hồ sơ đã gửi
                 </h2>
 
                 <p className="mt-2 text-sm text-slate-600 leading-relaxed">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import ReturnFeeDetails from '../s3-07-returns/ReturnFeeDetails'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
@@ -15,6 +15,12 @@ export default function LoanDetailPage() {
   const { loanId } = useParams()
   const id = Number(loanId)
   const location = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (location.state?.loanCreated === true) {
+      navigate(location.pathname + location.search + location.hash, { replace: true, state: null })
+    }
+  }, [location, navigate])
   const user = getCurrentUser()
   const reader = user?.role === 'READER'
   const allowed = reader || loanRoles.includes(user?.role ?? '')

@@ -22,6 +22,8 @@ import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
 import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
 import java.util.List;
 import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
+import com.duanttcsn5.library.dto.loan.CreateReservationLoanBatchRequest;
+import com.duanttcsn5.library.dto.loan.ReservationLoanBatchResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
 import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
@@ -94,6 +96,16 @@ public class LoanController {
         return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
                 reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
                 request.expectedDueAt(), request.expectedLoanDays(), request.requestId()));
+    }
+
+    @PostMapping("/reservations/loans")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReservationLoanBatchResponse> createFromReservations(
+            @Valid @RequestBody CreateReservationLoanBatchRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        requireManagerOverrideWhenApplicable(principal, request.confirmation().overrideRequested());
+        return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservations(
+                request, principal == null ? null : principal.id()));
     }
 
     @GetMapping("/loans/me/borrowed-books")

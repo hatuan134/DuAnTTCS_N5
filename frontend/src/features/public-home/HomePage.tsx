@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { catalogService, type Book } from '../s1-08-catalog/catalogService'
 import BookCard from '../../components/public/BookCard'
 import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import Hero3DBookShowcase from './components/Hero3DBookShowcase'
 import LiquidParticleBackground from './components/LiquidParticleBackground'
 import { useReducedMotion, useSceneMotion } from './hooks/useSceneMotion'
@@ -23,11 +24,12 @@ export default function HomePage() {
   const { overview, error: overviewError } = usePublicOverview()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [retry, setRetry] = useState(0)
+  const [retryNotice, setRetryNotice] = useState('')
   const navigate = useNavigate()
   const heroRef = useRef<HTMLElement>(null)
   const reducedMotion = useReducedMotion()
   const active = useSceneMotion(heroRef, !reducedMotion)
-  const retryBooks = () => { setStatus('loading'); setRetry(value => value + 1) }
+  const retryBooks = () => { setRetryNotice(''); setStatus('loading'); setRetry(value => value + 1) }
   useEffect(() => {
     const hero = heroRef.current
     if (!hero || reducedMotion) return
@@ -79,7 +81,10 @@ export default function HomePage() {
         setBooks(data.content.slice(0, 5))
         setStatus('success')
       } })
-      .catch(() => { if (!controller.signal.aborted) setStatus('error') })
+      .catch(() => { if (!controller.signal.aborted) {
+        setStatus('error')
+        if (retry > 0) setRetryNotice('Chưa tải được tủ sách. Vui lòng kiểm tra kết nối và thử lại.')
+      } })
     return () => controller.abort()
   }, [retry])
   useEffect(() => {
@@ -135,6 +140,7 @@ export default function HomePage() {
     <section id="sach-moi" className="public-container home-discover" aria-labelledby="discover-title" data-libra-reveal>
       <div className="section-heading"><div><p className="eyebrow">MỞ THÊM MỘT TRANG MỚI</p><h2 id="discover-title">Khám phá tủ sách</h2><p>Những đầu sách vừa được bổ sung vào thư viện, chờ bạn khám phá.</p></div><Link className="text-link" to="/catalog">Xem tất cả sách <ArrowRight size={17} /></Link></div>
       {status === 'loading' && <div className="book-grid" role="status" aria-label="Đang tải đầu sách"><span className="sr-only">Đang tải đầu sách…</span>{Array.from({ length: 5 }, (_, i) => <div className="book-skeleton" key={i}><div /><span /><span /></div>)}</div>}
+      {retryNotice && <FeedbackAlert tone="error" message={retryNotice} onDismiss={() => setRetryNotice('')} className="mb-4" />}
       {status === 'error' && <div className="catalog-unavailable" role="status"><BookOpen size={30} /><h3>Chưa tải được tủ sách</h3><p>Vui lòng thử lại để xem dữ liệu hiện tại của thư viện.</p><button className="secondary-button" onClick={retryBooks}>Thử lại</button></div>}
       {status === 'success' && (books.length ? <div className="book-grid">{books.map(book => <BookCard key={book.id} book={book} />)}</div> : <EmptyState title="Tủ sách đang được cập nhật" description="Các đầu sách sẽ xuất hiện tại đây khi thư viện bổ sung vào danh mục." />)}
     </section>

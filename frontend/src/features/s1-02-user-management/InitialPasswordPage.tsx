@@ -43,6 +43,7 @@ export default function InitialPasswordPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [successNotice, setSuccessNotice] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -110,6 +111,7 @@ export default function InitialPasswordPage() {
       setPassword('')
       setConfirmPassword('')
       setSuccess(true)
+      setSuccessNotice(true)
     } catch (requestError) {
       setError(
         getApiErrorMessage(
@@ -136,8 +138,10 @@ export default function InitialPasswordPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 size={28} />
           </div>
+          {successNotice && <FeedbackAlert tone="success" message="Thiết lập mật khẩu thành công."
+            onDismiss={() => setSuccessNotice(false)} className="mt-4 text-left" />}
           <h1 className="mt-5 text-2xl font-semibold text-slate-900">
-            Thiết lập mật khẩu thành công
+            Tài khoản sẵn sàng đăng nhập
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-500">
             Tài khoản của bạn đã sẵn sàng. Liên kết này không thể sử dụng lại.

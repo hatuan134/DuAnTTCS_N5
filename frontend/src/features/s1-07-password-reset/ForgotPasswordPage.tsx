@@ -132,9 +132,9 @@ export default function ForgotPasswordPage() {
                 Kiểm tra email của bạn
               </h2>
 
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {successMessage}
-              </p>
+              {successMessage && <FeedbackAlert tone="success" message={successMessage}
+                onDismiss={() => setSuccessMessage('')} className="mt-3 text-left" />}
+              <p className="mt-2 text-sm leading-6 text-slate-600">Nếu tài khoản hợp lệ, hãy kiểm tra hộp thư và làm theo hướng dẫn trong email.</p>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 Liên kết có hiệu lực trong 30 phút và chỉ sử dụng được một lần.
