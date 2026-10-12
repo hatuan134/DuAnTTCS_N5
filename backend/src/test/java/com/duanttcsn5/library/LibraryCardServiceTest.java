@@ -22,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -150,6 +152,120 @@ class LibraryCardServiceTest {
         assertEquals(5L, profile.getReviewedBy());
         verify(auditLogRepository).insert(
                 eq(5L), eq("READER_APPLICATION_REJECTED"), eq("READER_PROFILE"), eq("10"), anyString(), eq("127.0.0.1"));
+    }
+
+    @Test
+    @DisplayName("getIssuedCards trả về EXPIRED nếu thẻ quá ngày hết hạn")
+    void getIssuedCards_ExpiredCard_ResolvesExpiredStatus() {
+        User user = new User();
+        user.setId(20L);
+        user.setFullName("Bạn Đọc Hết Hạn");
+        user.setStatus("ACTIVE");
+
+        CardType type = cardType(1L, "Thẻ cán bộ", true);
+
+        LibraryCard card = new LibraryCard();
+        card.setId(101L);
+        card.setCardNumber("LIB-2026-EXPIRED");
+        card.setUser(user);
+        card.setCardType(type);
+        card.setIssuedAt(LocalDate.now().minusMonths(2));
+        card.setExpiresAt(LocalDate.now().minusDays(1)); // Quá hạn hôm qua
+        card.setStatus("ACTIVE"); // Trong DB vẫn lưu ACTIVE
+
+        when(libraryCardRepository.findAllWithDetails()).thenReturn(List.of(card));
+        when(readerProfileRepository.findById(20L)).thenReturn(Optional.of(pendingProfile(20L, "Bạn Đọc Hết Hạn", "DTC020")));
+
+        var results = service.getIssuedCards();
+
+        assertEquals(1, results.size());
+        assertEquals("EXPIRED", results.get(0).status());
+    }
+
+    @Test
+    @DisplayName("getIssuedCards trả về LOCKED nếu tài khoản hoặc thẻ bị khóa")
+    void getIssuedCards_LockedUserOrCard_ResolvesLockedStatus() {
+        User user = new User();
+        user.setId(21L);
+        user.setFullName("Bạn Đọc Bị Khóa");
+        user.setStatus("LOCKED"); // Tài khoản bị khóa
+
+        CardType type = cardType(1L, "Thẻ cán bộ", true);
+
+        LibraryCard card = new LibraryCard();
+        card.setId(102L);
+        card.setCardNumber("LIB-2026-LOCKED");
+        card.setUser(user);
+        card.setCardType(type);
+        card.setIssuedAt(LocalDate.now());
+        card.setExpiresAt(LocalDate.now().plusMonths(6));
+        card.setStatus("ACTIVE");
+
+        when(libraryCardRepository.findAllWithDetails()).thenReturn(List.of(card));
+        when(readerProfileRepository.findById(21L)).thenReturn(Optional.of(pendingProfile(21L, "Bạn Đọc Bị Khóa", "DTC021")));
+
+        var results = service.getIssuedCards();
+
+        assertEquals(1, results.size());
+        assertEquals("LOCKED", results.get(0).status());
+    }
+
+    @Test
+    @DisplayName("getIssuedCards trả về ACTIVE nếu thẻ còn hạn và tài khoản hoạt động bình thường")
+    void getIssuedCards_ValidCard_ResolvesActiveStatus() {
+        User user = new User();
+        user.setId(22L);
+        user.setFullName("Bạn Đọc Bình Thường");
+        user.setStatus("ACTIVE");
+
+        CardType type = cardType(1L, "Thẻ sinh viên", true);
+
+        LibraryCard card = new LibraryCard();
+        card.setId(103L);
+        card.setCardNumber("LIB-2026-ACTIVE");
+        card.setUser(user);
+        card.setCardType(type);
+        card.setIssuedAt(LocalDate.now());
+        card.setExpiresAt(LocalDate.now().plusMonths(12));
+        card.setStatus("ACTIVE");
+
+        when(libraryCardRepository.findAllWithDetails()).thenReturn(List.of(card));
+        when(readerProfileRepository.findById(22L)).thenReturn(Optional.of(pendingProfile(22L, "Bạn Đọc Bình Thường", "DTC022")));
+
+        var results = service.getIssuedCards();
+
+        assertEquals(1, results.size());
+        assertEquals("ACTIVE", results.get(0).status());
+    }
+
+    @Test
+    @DisplayName("getMyCard trả về EXPIRED nếu thẻ của người dùng đã quá hạn")
+    void getMyCard_ExpiredCard_ResolvesExpiredStatus() {
+        User user = new User();
+        user.setId(23L);
+        user.setFullName("Tôi Hết Hạn");
+        user.setStatus("ACTIVE");
+
+        ReaderProfile profile = pendingProfile(23L, "Tôi Hết Hạn", "DTC023");
+        profile.setRegistrationStatus("APPROVED");
+
+        CardType type = cardType(1L, "Thẻ sinh viên", true);
+
+        LibraryCard card = new LibraryCard();
+        card.setId(104L);
+        card.setCardNumber("LIB-2026-MY-EXPIRED");
+        card.setUser(user);
+        card.setCardType(type);
+        card.setIssuedAt(LocalDate.now().minusMonths(6));
+        card.setExpiresAt(LocalDate.now().minusDays(5));
+        card.setStatus("ACTIVE");
+
+        when(readerProfileRepository.findById(23L)).thenReturn(Optional.of(profile));
+        when(libraryCardRepository.findByUserIdWithDetails(23L)).thenReturn(Optional.of(card));
+
+        var response = service.getMyCard(23L);
+
+        assertEquals("EXPIRED", response.cardStatus());
     }
 
     private ReaderProfile pendingProfile(Long id, String fullName, String memberCode) {

@@ -19,6 +19,10 @@ public record LibraryCardResponse(
         OffsetDateTime createdAt
 ) {
     public static LibraryCardResponse fromEntity(LibraryCard card, String memberCode) {
+        return fromEntity(card, memberCode, card.getStatus());
+    }
+
+    public static LibraryCardResponse fromEntity(LibraryCard card, String memberCode, String status) {
         return new LibraryCardResponse(
                 card.getId(),
                 card.getCardNumber(),
@@ -29,7 +33,7 @@ public record LibraryCardResponse(
                 card.getCardType().getName(),
                 card.getIssuedAt(),
                 card.getExpiresAt(),
-                card.getStatus(),
+                status,
                 card.getCreatedAt()
         );
     }

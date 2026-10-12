@@ -325,7 +325,7 @@ export default function BookDetailPage() {
                     <strong className="text-3xl">{summary.totalCount}</strong>
                     <span className="pb-1 text-sm">bản</span>
                   </div>
-                  <p className="mt-1 text-xs">1 bản gốc + {summary.copies.length} bản sao đã nhập.</p>
+                  <p className="mt-1 text-xs">{summary.copies.length} bản sao đã nhập.</p>
                 </div>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
                   <div className="text-sm font-medium">Số bản sẵn sàng</div>
