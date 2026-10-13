@@ -337,7 +337,7 @@ export default function ReceiveReturnPage() {
               <dl className="mt-3 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
                 <Detail label="Mã phiếu mượn"><Link to={`/loans/${entry.loanId}`} className="text-blue-700 hover:underline">{entry.loanNumber} · Xem chi tiết phiếu mượn</Link></Detail>
                 <Detail label="Nhân viên nhận trả">{entry.returnedByName}</Detail>
-                <Detail label="Trạng thái phiếu tại lần nhận trả">{entry.loanStatus === 'RETURNED' ? 'Đã trả' : 'Đang mượn · Còn cuốn chưa trả'}</Detail>
+                <Detail label="Trạng thái phiếu tại lần nhận trả">{entry.loanStatus === 'LOST' ? 'Đã đóng · Mất' : entry.loanStatus === 'DAMAGED' ? 'Đã đóng · Hỏng' : entry.loanStatus === 'MIXED_INCIDENT' ? 'Đã đóng · Mất và Hỏng' : entry.loanStatus === 'RETURNED' ? 'Đã trả' : 'Đang mượn · Còn cuốn chưa trả'}</Detail>
                 {entry.copyStatus === 'HELD' && <>
                   <Detail label="Bạn đọc được giữ sách">{entry.nextReaderName}</Detail>
                   <Detail label="Đơn đặt giữ"><Link to={`/reservations/ready-for-pickup/${entry.nextReservationId}`} className="text-blue-700 hover:underline">Đơn #{entry.nextReservationId} · Chờ nhận</Link></Detail>

@@ -53,7 +53,7 @@ export interface ReaderHistoryItem {
   borrowedAt: string
   dueAt: string | null
   returnedAt: string | null
-  status: 'BORROWED' | 'RETURNED'
+  status: 'BORROWED' | 'RETURNED' | 'LOST' | 'DAMAGED'
   returnedLate: boolean
 }
 
@@ -61,7 +61,7 @@ export interface ReaderHistoryLoan {
   id: number
   loanNumber: string
   borrowedAt: string
-  status: 'EMPTY' | 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED'
+  status: 'EMPTY' | 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED' | 'LOST' | 'DAMAGED' | 'MIXED_INCIDENT'
   returnedLate: boolean
   items: ReaderHistoryItem[]
 }

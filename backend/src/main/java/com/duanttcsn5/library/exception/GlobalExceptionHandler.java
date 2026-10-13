@@ -65,18 +65,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleOversizedUpload(
-            org.springframework.web.multipart.MaxUploadSizeExceededException exception) {
+            org.springframework.web.multipart.MaxUploadSizeExceededException exception, jakarta.servlet.http.HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ErrorResponse(
-                com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
-                "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
+                request.getRequestURI().startsWith("/api/v1/book-incidents") ? "Ảnh sự cố vượt giới hạn hoặc dữ liệu không hợp lệ. Tối đa 5 ảnh, 5 MB/ảnh." : com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
+                request.getRequestURI().startsWith("/api/v1/book-incidents") ? "INVALID_INCIDENT_IMAGES" : "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
     }
 
     @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
     public ResponseEntity<ErrorResponse> handleInvalidMultipart(
-            org.springframework.web.multipart.MultipartException exception) {
+            org.springframework.web.multipart.MultipartException exception, jakarta.servlet.http.HttpServletRequest request) {
         return ResponseEntity.badRequest().body(new ErrorResponse(
-                com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
-                "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
+                request.getRequestURI().startsWith("/api/v1/book-incidents") ? "Ảnh sự cố vượt giới hạn hoặc dữ liệu không hợp lệ. Tối đa 5 ảnh, 5 MB/ảnh." : com.duanttcsn5.library.service.BookCoverService.INVALID_MESSAGE,
+                request.getRequestURI().startsWith("/api/v1/book-incidents") ? "INVALID_INCIDENT_IMAGES" : "INVALID_BOOK_COVER", OffsetDateTime.now(), Map.of()));
     }
 
     @ExceptionHandler(Exception.class)

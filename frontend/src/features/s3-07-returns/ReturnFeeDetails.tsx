@@ -6,8 +6,8 @@ export function formatVnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} VND`
 }
 
-export default function ReturnFeeDetails({ fee, preview = false }: {
-  fee?: ReturnFeeAssessment | null; preview?: boolean
+export default function ReturnFeeDetails({ fee, preview = false, incident = false }: {
+  fee?: ReturnFeeAssessment | null; preview?: boolean; incident?: boolean
 }) {
   if (!fee) return <p className="mt-4 text-sm text-slate-500">Phiếu cũ chưa ghi nhận kết quả tính phí. Không tự tính lại từ cấu hình hiện tại.</p>
   const ready = fee.status === 'READY'
@@ -16,7 +16,7 @@ export default function ReturnFeeDetails({ fee, preview = false }: {
     {!ready && <p role="alert" className="mt-2 text-sm leading-6 text-red-700">{fee.message}</p>}
     <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
       <Field label="Hạn trả">{formatLoanTimestamp(fee.dueAt)}</Field>
-      <Field label={preview ? 'Thời điểm tra cứu' : 'Ngày trả thực tế'}>{formatLoanTimestamp(fee.returnedAt)}</Field>
+      <Field label={preview ? 'Thời điểm tra cứu' : incident ? 'Ngày ghi nhận sự cố' : 'Ngày trả thực tế'}>{formatLoanTimestamp(fee.returnedAt)}</Field>
       <Field label="Số ngày mở cửa trễ hạn">{ready || fee.status === 'OVERDUE_FEE_NOT_CONFIGURED' ? `${fee.overdueDays} ngày` : 'Chưa xác định'}</Field>
       <Field label="Mức phí áp dụng mỗi ngày">{fee.dailyRateVnd === null ? 'Chưa khai báo' : formatVnd(fee.dailyRateVnd)}</Field>
       <Field label="Tiền trước làm tròn">{fee.rawAmountVnd === null ? 'Chưa xác định' : formatVnd(fee.rawAmountVnd)}</Field>
@@ -24,7 +24,7 @@ export default function ReturnFeeDetails({ fee, preview = false }: {
         <span className={fee.amountVnd ? 'text-red-700' : 'text-emerald-700'}>{fee.amountVnd === null ? 'Chưa xác định' : formatVnd(fee.amountVnd)}</span>
       </Field>
     </dl>
-    <p className="mt-3 text-xs leading-5 text-slate-600">Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày trả. Làm tròn tổng phí đến 1.000 VND; đúng 500 đồng làm lên.</p>
+    <p className="mt-3 text-xs leading-5 text-slate-600">{incident ? 'Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày ghi nhận sự cố.' : 'Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày trả.'} Làm tròn tổng phí đến 1.000 VND; đúng 500 đồng làm lên.</p>
     {preview ? <p className="mt-1 text-xs leading-5 text-slate-600">Khi xác nhận, hệ thống tính lại theo ngày trả thực tế và mức phí đang có hiệu lực.</p>
       : ready && <p className="mt-1 text-xs leading-5 text-slate-600">{fee.feeId === null ? 'Không tạo khoản phải thu vì phí bằng 0 VND.' : `Đã tạo khoản phải thu #${fee.feeId}.`} Kết quả giữ nguyên khi cấu hình thay đổi.</p>}
     {!preview && ready && fee.feeId != null && <Link to={`/overdue-fees/${fee.feeId}`} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:underline">Xem chi tiết khoản phí và đề nghị miễn giảm →</Link>}

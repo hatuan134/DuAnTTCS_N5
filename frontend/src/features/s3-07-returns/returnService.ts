@@ -43,7 +43,7 @@ export interface ConfirmReturnResult {
   loanNumber: string
   itemId: number
   itemStatus: 'RETURNED'
-  loanStatus: 'BORROWED' | 'RETURNED'
+  loanStatus: 'BORROWED' | 'RETURNED' | 'LOST' | 'DAMAGED' | 'MIXED_INCIDENT'
   copyStatus: 'AVAILABLE' | 'HELD'
   returnedAt: string
   returnedById: number

@@ -250,17 +250,14 @@ public class ReaderRegistrationService {
             List<ReaderLoanHistoryResponse.Item> items = rows.stream()
                     .filter(row -> row.itemId() != null)
                     .map(row -> {
-                        boolean late = row.returnedAt() != null && row.dueAt() != null
+                        boolean late = row.returnedAt() != null && (row.resolutionReason()==null || "RETURNED".equals(row.resolutionReason())) && row.dueAt() != null
                                 && row.returnedAt().atZoneSameInstant(vietnam).toLocalDate()
                                 .isAfter(row.dueAt().atZoneSameInstant(vietnam).toLocalDate());
                         return new ReaderLoanHistoryResponse.Item(row.itemId(), row.bookTitle(), row.barcode(),
                                 row.borrowedAt(), row.dueAt(), row.returnedAt(),
-                                row.returnedAt() == null ? "BORROWED" : "RETURNED", late);
+                                LoanClosurePolicy.item(row.returnedAt(), row.resolutionReason()), late);
                     }).toList();
-            boolean open = items.stream().anyMatch(item -> item.returnedAt() == null);
-            boolean returned = items.stream().anyMatch(item -> item.returnedAt() != null);
-            String status = items.isEmpty() ? "EMPTY"
-                    : open ? (returned ? "PARTIALLY_RETURNED" : "BORROWED") : "RETURNED";
+            String status = LoanClosurePolicy.loan(items.stream().map(ReaderLoanHistoryResponse.Item::status).toList());
             return new ReaderLoanHistoryResponse.Loan(header.loanId(), header.loanNumber(),
                     header.loanBorrowedAt(), status,
                     items.stream().anyMatch(ReaderLoanHistoryResponse.Item::returnedLate), items);

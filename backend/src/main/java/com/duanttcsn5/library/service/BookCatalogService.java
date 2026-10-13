@@ -232,7 +232,7 @@ public class BookCatalogService {
                         "PUBLIC_BOOK_NOT_FOUND",
                         "Không tìm thấy đầu sách trên trang tra cứu công khai."));
 
-        long copyCount = bookCopyRepository.countByBookId(id);
+        long copyCount = bookCopyRepository.countStockByBookId(id);
         List<BookAvailableCopyLocationResponse> availableCopies = loadAvailableCopyLocations(id);
         long availableCount = availableCopies.isEmpty()
                 ? bookCopyRepository.countAvailableByBookId(id)
@@ -400,7 +400,7 @@ public class BookCatalogService {
     public BookResponse getById(Long id) {
         Book book = bookRepository.findById(id).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "BOOK_NOT_FOUND", "Không tìm thấy đầu sách."));
-        return BookResponse.fromEntity(book, bookCopyRepository.countByBookId(id), bookCopyRepository.countAvailableByBookId(id));
+        return BookResponse.fromEntity(book, bookCopyRepository.countStockByBookId(id), bookCopyRepository.countAvailableByBookId(id));
     }
 
     @Transactional

@@ -14,10 +14,11 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles, loanService } from './loanService'
 import type { LoanSearchResult, LoanSearchPage, LoanSearchFilters } from './loanService'
 
-function loanStatus(status: LoanSearchResult['status']) {
+function loanStatus(status: LoanSearchResult['status'], incident = false) {
   switch (status) {
+    case 'LOST': case 'DAMAGED': case 'MIXED_INCIDENT': return `Đã đóng · ${closureLabel(status)}`
     case 'RETURNED': return 'Đã trả'
-    case 'PARTIALLY_RETURNED': return 'Đang mượn · Đã trả một phần'
+    case 'PARTIALLY_RETURNED': return incident ? 'Đang mượn · Đã xử lý một phần' : 'Đang mượn · Đã trả một phần'
     case 'BORROWED': return 'Đang mượn'
     default: return 'Chưa có bản sao'
   }
@@ -158,6 +159,7 @@ export default function LoanSearchPage() {
             <option value="BORROWED">Đang mượn</option>
             <option value="PARTIALLY_RETURNED">Đang mượn · Đã trả một phần</option>
             <option value="RETURNED">Đã trả</option>
+            <option value="LOST">Đã đóng · Mất</option><option value="DAMAGED">Đã đóng · Hỏng</option><option value="MIXED_INCIDENT">Đã đóng · Mất và Hỏng</option>
             <option value="EMPTY">Chưa có bản sao</option>
           </select>
         </div>
@@ -211,7 +213,7 @@ export default function LoanSearchPage() {
               <div className="min-w-0"><dt className="text-slate-500">Mã thẻ</dt><dd className="mt-1 break-all font-mono font-medium text-slate-900">{loan.cardNumber || 'Chưa có thẻ'}</dd></div>
               <div className="min-w-0"><dt className="text-slate-500">Bạn đọc</dt><dd className="mt-1 break-words font-medium text-slate-900">{loan.readerName}</dd></div>
               <div><dt className="text-slate-500">Ngày mượn</dt><dd className="mt-1 font-medium text-slate-900">{formatLoanTimestamp(loan.borrowedAt, true)}</dd></div>
-              <div><dt className="text-slate-500">Trạng thái phiếu</dt><dd className={`mt-1 font-semibold ${loan.status === 'RETURNED' ? 'text-emerald-700' : 'text-slate-900'}`}>{loanStatus(loan.status)}</dd></div>
+              <div><dt className="text-slate-500">Trạng thái phiếu</dt><dd className={`mt-1 font-semibold ${loan.status === 'RETURNED' ? 'text-emerald-700' : 'text-slate-900'}`}>{loanStatus(loan.status, loan.items.some(item => item.status === 'LOST' || item.status === 'DAMAGED'))}</dd></div>
             </dl>
           </div>
           <Link to={`/loans/${loan.id}`} className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl border border-blue-600 bg-white px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50">
@@ -226,7 +228,7 @@ export default function LoanSearchPage() {
                 <div className="min-w-0"><p className="text-xs text-slate-500">Mã vạch</p><p className="mt-1 break-all font-mono font-semibold text-slate-900">{item.barcode}</p></div>
                 <div className="min-w-0"><p className="text-xs text-slate-500">Tên sách</p><p className="mt-1 break-words font-medium text-slate-900">{item.bookTitle}</p></div>
                 <div><p className="text-xs text-slate-500">Hạn trả</p><p className="mt-1 font-medium text-slate-900">{formatLoanTimestamp(item.dueAt, true)}</p>
-                  <p className={`mt-1 text-xs font-semibold ${item.status === 'RETURNED' ? 'text-emerald-700' : 'text-blue-700'}`}>{item.status === 'RETURNED' ? 'Đã trả' : 'Đang mượn'}</p></div>
+                  <p className={`mt-1 text-xs font-semibold ${item.status === 'RETURNED' ? 'text-emerald-700' : 'text-blue-700'}`}>{item.status === 'BORROWED' ? 'Đang mượn' : closureLabel(item.status)}</p></div>
               </li>)}
             </ul>}
         </div>
@@ -242,4 +244,8 @@ export default function LoanSearchPage() {
       </Card>}
     </section>}
   </div>
+}
+
+function closureLabel(reason?: string | null): string {
+  return reason === 'LOST' ? 'Mất' : reason === 'DAMAGED' ? 'Hỏng' : reason === 'MIXED_INCIDENT' ? 'Mất và Hỏng' : 'Đã trả'
 }

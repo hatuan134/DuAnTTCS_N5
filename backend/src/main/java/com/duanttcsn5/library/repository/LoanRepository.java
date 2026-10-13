@@ -206,7 +206,12 @@ public class LoanRepository {
                        assigned.hold_started_at, assigned.pickup_deadline,
                        CASE WHEN EXISTS (SELECT 1 FROM loan_items outstanding
                             WHERE outstanding.loan_id = l.id AND outstanding.returned_at IS NULL)
-                            THEN 'BORROWED' ELSE 'RETURNED' END AS loan_status
+                            THEN 'BORROWED'
+                       WHEN EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='LOST')
+                         AND EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='DAMAGED') THEN 'MIXED_INCIDENT'
+                       WHEN EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='LOST') THEN 'LOST'
+                       WHEN EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='DAMAGED') THEN 'DAMAGED'
+                       ELSE 'RETURNED' END AS loan_status
                 FROM loan_items li
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
@@ -469,7 +474,7 @@ public class LoanRepository {
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
-                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL AND COALESCE(li.resolution_reason,'RETURNED')='RETURNED'
                 """, Long.class, readerId);
         return count == null ? 0L : count;
     }
@@ -482,7 +487,7 @@ public class LoanRepository {
                 JOIN loans l ON l.id = li.loan_id
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
-                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL
+                WHERE l.borrower_user_id = ? AND li.returned_at IS NOT NULL AND COALESCE(li.resolution_reason,'RETURNED')='RETURNED'
                 ORDER BY li.returned_at DESC, li.id DESC
                 LIMIT ? OFFSET ?
                 """, (rs, index) -> new MyReturnedBookResponse(rs.getLong("id"), rs.getString("title"),
@@ -518,7 +523,12 @@ public class LoanRepository {
     public record LoanSearchRow(Long loanId, String loanNumber, String cardNumber,
                                 String readerName, OffsetDateTime borrowedAt,
                                 Long itemId, String barcode, String bookTitle,
-                                OffsetDateTime dueAt, OffsetDateTime returnedAt) {}
+                                OffsetDateTime dueAt, OffsetDateTime returnedAt, String resolutionReason) {
+        public LoanSearchRow(Long loanId,String loanNumber,String cardNumber,String readerName,
+                OffsetDateTime borrowedAt,Long itemId,String barcode,String bookTitle,OffsetDateTime dueAt,OffsetDateTime returnedAt) {
+            this(loanId,loanNumber,cardNumber,readerName,borrowedAt,itemId,barcode,bookTitle,dueAt,returnedAt,null);
+        }
+    }
 
     /** Page over distinct loans BEFORE joining their full item history. Sorting uses the
      * same returned_at rule as the service's status mapping: partially returned = open.
@@ -550,7 +560,7 @@ public class LoanRepository {
                 SELECT l.id AS loan_id, l.loan_number, card.card_number,
                        reader.full_name AS reader_name, l.borrowed_at,
                        li.id AS item_id, c.barcode, b.title AS book_title,
-                       li.due_date, li.returned_at
+                       li.due_date, li.returned_at, li.resolution_reason
                 FROM selected_loans selected
                 JOIN loans l ON l.id = selected.id
                 JOIN users reader ON reader.id = l.borrower_user_id
@@ -566,7 +576,7 @@ public class LoanRepository {
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("item_id", Long.class), rs.getString("barcode"),
                 rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class)), code, code, code, limit, offset);
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason")), code, code, code, limit, offset);
     }
 
     /** The same predicate is used for count and page so totals cannot drift.
@@ -590,6 +600,10 @@ public class LoanRepository {
                        THEN 'PARTIALLY_RETURNED'
                   WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id = l.id AND i.returned_at IS NULL)
                        THEN 'BORROWED'
+                  WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='LOST')
+                   AND EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='DAMAGED') THEN 'MIXED_INCIDENT'
+                  WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='LOST') THEN 'LOST'
+                  WHEN EXISTS (SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND i.resolution_reason='DAMAGED') THEN 'DAMAGED'
                   ELSE 'RETURNED' END) = ?::text)
             """;
 
@@ -631,7 +645,7 @@ public class LoanRepository {
                 SELECT l.id AS loan_id, l.loan_number, card.card_number,
                        reader.full_name AS reader_name, l.borrowed_at,
                        li.id AS item_id, c.barcode, b.title AS book_title,
-                       li.due_date, li.returned_at
+                       li.due_date, li.returned_at, li.resolution_reason
                 FROM selected_loans selected
                 JOIN loans l ON l.id = selected.id
                 JOIN users reader ON reader.id = l.borrower_user_id
@@ -652,7 +666,7 @@ public class LoanRepository {
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("item_id", Long.class), rs.getString("barcode"),
                 rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class)), args);
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason")), args);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {
@@ -706,7 +720,7 @@ public class LoanRepository {
         return jdbc.query("""
                 SELECT li.id, li.book_copy_id, c.barcode, c.book_id, b.title,
                        li.borrowed_at, li.due_date, li.returned_at, li.returned_by,
-                       li.returned_by_name
+                       li.returned_by_name, li.resolution_reason
                 FROM loan_items li
                 JOIN book_copies c ON c.id = li.book_copy_id
                 JOIN books b ON b.id = c.book_id
@@ -716,7 +730,7 @@ public class LoanRepository {
                 rs.getString("barcode"), rs.getLong("book_id"), rs.getString("title"),
                 rs.getObject("borrowed_at", OffsetDateTime.class), rs.getObject("due_date", OffsetDateTime.class),
                 rs.getObject("returned_at", OffsetDateTime.class), rs.getObject("returned_by", Long.class),
-                rs.getString("returned_by_name")), loanId);
+                rs.getString("returned_by_name"), null, rs.getString("resolution_reason")), loanId);
     }
 
     /** S3-10.1: all loans for exactly one reader; no page limit or date filter.
@@ -726,13 +740,18 @@ public class LoanRepository {
     public record ReaderHistoryRow(Long loanId, String loanNumber, OffsetDateTime loanBorrowedAt,
                                    Long itemId, String bookTitle, String barcode,
                                    OffsetDateTime borrowedAt, OffsetDateTime dueAt,
-                                   OffsetDateTime returnedAt) {}
+                                   OffsetDateTime returnedAt, String resolutionReason) {
+        public ReaderHistoryRow(Long loanId,String loanNumber,OffsetDateTime loanBorrowedAt,Long itemId,
+                String bookTitle,String barcode,OffsetDateTime borrowedAt,OffsetDateTime dueAt,OffsetDateTime returnedAt) {
+            this(loanId,loanNumber,loanBorrowedAt,itemId,bookTitle,barcode,borrowedAt,dueAt,returnedAt,null);
+        }
+    }
 
     public List<ReaderHistoryRow> findReaderHistory(Long readerId) {
         return jdbc.query("""
                 SELECT l.id AS loan_id, l.loan_number, l.borrowed_at AS loan_borrowed_at,
                        li.id AS item_id, b.title AS book_title, c.barcode,
-                       li.borrowed_at, li.due_date, li.returned_at
+                       li.borrowed_at, li.due_date, li.returned_at, li.resolution_reason
                 FROM loans l
                 LEFT JOIN loan_items li ON li.loan_id = l.id
                 LEFT JOIN book_copies c ON c.id = li.book_copy_id
@@ -745,6 +764,6 @@ public class LoanRepository {
                 rs.getObject("item_id", Long.class), rs.getString("book_title"), rs.getString("barcode"),
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class)), readerId);
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason")), readerId);
     }
 }

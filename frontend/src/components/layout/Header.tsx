@@ -27,7 +27,7 @@ export default function Header({ onMenuToggle, menuOpen }: HeaderProps) {
 
   const handleLogout = () => {
     clearAuthSession()
-    navigate('/', { replace: true })
+    navigate('/', { replace: true, state: { loggedOut: true } })
   }
 
   return (

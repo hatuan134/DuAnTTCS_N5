@@ -11,7 +11,7 @@ export interface FeeReader {
 }
 export interface ReaderFee {
   id: number
-  feeType: 'OVERDUE' | 'RECORDED'
+  feeType: 'OVERDUE' | 'RECORDED' | 'COMPENSATION'
   description: string | null
   originalAmountVnd: number
   paidAmountVnd: number
@@ -78,6 +78,7 @@ export const feePaymentService = {
   },
 }
 export function feeTypeLabel(type: ReaderFee['feeType']): string {
+  if (type === 'COMPENSATION') return 'Bồi thường sách'
   return type === 'OVERDUE' ? 'Phí trễ hạn' : 'Khoản phí đã ghi nhận'
 }
 

@@ -56,6 +56,9 @@ public final class ReaderLoanHistoryCsv {
             case "BORROWED" -> "Đang mượn";
             case "PARTIALLY_RETURNED" -> "Đã trả một phần";
             case "RETURNED" -> "Đã trả";
+            case "LOST" -> "Mất";
+            case "DAMAGED" -> "Hỏng";
+            case "MIXED_INCIDENT" -> "Mất và Hỏng";
             case "EMPTY" -> "Chưa có bản sao";
             default -> value;
         };

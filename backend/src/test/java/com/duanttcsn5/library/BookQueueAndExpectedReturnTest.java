@@ -96,7 +96,7 @@ class BookQueueAndExpectedReturnTest {
     @DisplayName("Test 1: Không còn bản rảnh và không có người đặt giữ (queueCount = 0)")
     void testNoAvailableCopiesAndNoReservationQueue() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(10L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(10L)).thenReturn(1L);
+        when(bookCopyRepository.countStockByBookId(10L)).thenReturn(1L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(10L)).thenReturn(List.of());
         when(bookCopyRepository.countAvailableByBookId(10L)).thenReturn(0L);
 
@@ -118,7 +118,7 @@ class BookQueueAndExpectedReturnTest {
     @DisplayName("Test 2: Không còn bản rảnh và có 1 người đặt giữ (queueCount = 1)")
     void testNoAvailableCopiesAndSingleReservation() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(10L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(10L)).thenReturn(1L);
+        when(bookCopyRepository.countStockByBookId(10L)).thenReturn(1L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(10L)).thenReturn(List.of());
         when(bookCopyRepository.countAvailableByBookId(10L)).thenReturn(0L);
 
@@ -139,7 +139,7 @@ class BookQueueAndExpectedReturnTest {
     @DisplayName("Test 3: Có nhiều người đặt giữ (queueCount = 5)")
     void testMultipleReservationsInQueue() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(10L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(10L)).thenReturn(2L);
+        when(bookCopyRepository.countStockByBookId(10L)).thenReturn(2L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(10L)).thenReturn(List.of());
         when(bookCopyRepository.countAvailableByBookId(10L)).thenReturn(0L);
 
@@ -230,7 +230,7 @@ class BookQueueAndExpectedReturnTest {
     @DisplayName("Test 7: Xuất hiện bản Sẵn sàng trở lại -> Ẩn thông tin hàng đợi và ngày trả")
     void testAvailableCopyReturnsHidesQueueInfo() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(10L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(10L)).thenReturn(2L);
+        when(bookCopyRepository.countStockByBookId(10L)).thenReturn(2L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(10L))
                 .thenReturn(List.<Object[]>of(new Object[]{101L, "LIB-101", 1L, "KHO-A", "Kho A", 1L, "A01", "Kệ 1"}));
 
@@ -247,7 +247,7 @@ class BookQueueAndExpectedReturnTest {
     @DisplayName("Test 8: Kiểm tra không xuất hiện tên người mượn hoặc người đặt giữ trong public API")
     void testNoBorrowerOrReaderNamesExposed() throws Exception {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(10L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(10L)).thenReturn(1L);
+        when(bookCopyRepository.countStockByBookId(10L)).thenReturn(1L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(10L)).thenReturn(List.of());
         when(bookCopyRepository.countAvailableByBookId(10L)).thenReturn(0L);
 

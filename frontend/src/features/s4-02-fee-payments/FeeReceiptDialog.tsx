@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { formatVnd } from '../s3-07-returns/ReturnFeeDetails'
 import { feeTypeLabel, type FeeReceipt } from './feePaymentService'
@@ -81,7 +82,7 @@ export default function FeeReceiptDialog({ receipt, onClose }: { receipt: FeeRec
   return <Modal onClose={onClose} busy={printing} label={`Biên lai ${receipt.receiptNumber}`}>
     <section className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
       <ReceiptContent receipt={receipt} />
-      {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <FeedbackAlert className="mt-4" message={error} tone="error" onDismiss={() => setError('')} />}
       <p className="mt-4 text-xs leading-5 text-slate-500">Có thể in lại cùng mã biên lai. Hủy in hoặc lỗi máy in không hủy giao dịch thu tiền.</p>
       <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
         <Button type="button" variant="secondary" onClick={onClose} disabled={printing}>Đóng</Button>
