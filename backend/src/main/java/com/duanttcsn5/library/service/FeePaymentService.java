@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.loan.CollectFullFeesRequest;
+import com.duanttcsn5.library.dto.loan.CollectPartialFeesRequest;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse.Fee;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse.Reader;
@@ -50,14 +51,29 @@ public class FeePaymentService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
     public FeeReceiptResponse collect(Long readerId, CollectFullFeesRequest request, Long actorId) {
+        return collectPayment(readerId, request, request == null ? null : request.expectedTotalVnd(), "FULL", actorId);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
+    public FeeReceiptResponse collectPartial(Long readerId, CollectPartialFeesRequest request, Long actorId) {
+        var preview = request == null ? null : new CollectFullFeesRequest(
+                request.requestKey(), request.expectedTotalVnd(), request.debtToken());
+        return collectPayment(readerId, preview, request == null ? null : request.amountVnd(), "PARTIAL", actorId);
+    }
+
+    private FeeReceiptResponse collectPayment(Long readerId, CollectFullFeesRequest request,
+            BigDecimal requestedAmount, String mode, Long actorId) {
         User actor = requireLibrarian(actorId); validateId(readerId); validateRequest(request);
+        validateAmount(requestedAmount, request.expectedTotalVnd());
+        long amount = requestedAmount.longValueExact();
         try {
             var reader = findReader(readerId, true);
             var existing = payments.replay(readerId, request.requestKey());
             if (existing.isPresent()) {
                 var replay = existing.get();
-                if (!Objects.equals(replay.actorId(), actorId) || BigDecimal.valueOf(replay.totalVnd()).compareTo(request.expectedTotalVnd()) != 0
-                        || !replay.debtToken().equals(request.debtToken())) throw error(HttpStatus.CONFLICT,
+                if (!Objects.equals(replay.actorId(), actorId) || replay.totalVnd() != amount
+                        || BigDecimal.valueOf(replay.debtBeforeVnd()).compareTo(request.expectedTotalVnd()) != 0
+                        || !mode.equals(replay.paymentMode()) || !replay.debtToken().equals(request.debtToken())) throw error(HttpStatus.CONFLICT,
                         "PAYMENT_REQUEST_REUSED", "Mã xác nhận đã dùng cho một giao dịch khác. Vui lòng tra cứu lại.");
                 return findReceipt(replay.paymentId());
             }
@@ -69,16 +85,29 @@ public class FeePaymentService {
                 throw error(HttpStatus.CONFLICT, "FEE_DEBT_CHANGED",
                         "Khoản nợ đã thay đổi. Vui lòng tải lại, kiểm tra số tiền và xác nhận lại.");
             }
-            Long id = payments.insert(reader, actor.getId(), actor.getFullName(), total, request.requestKey(), request.debtToken());
+            long debtAfter = total - amount;
+            boolean full = "FULL".equals(mode);
+            Long id = full
+                    ? payments.insert(reader, actor.getId(), actor.getFullName(), amount, request.requestKey(), request.debtToken())
+                    : payments.insert(reader, actor.getId(), actor.getFullName(), amount, request.requestKey(), request.debtToken(), debtAfter, mode);
+            long remaining = amount;
+            // Repository locks and returns fees in ascending ID order. Pay the oldest recorded fee first.
             for (var fee : fees) {
-                payments.insertItem(id, fee);
-                if (payments.settle(readerId, fee) != 1) throw error(HttpStatus.CONFLICT,
+                if (remaining == 0) break;
+                long allocated = Math.min(remaining, fee.outstandingAmountVnd());
+                if (full) payments.insertItem(id, fee);
+                else payments.insertItem(id, fee, allocated);
+                int changed = full ? payments.settle(readerId, fee) : payments.applyPayment(readerId, fee, allocated);
+                if (changed != 1) throw error(HttpStatus.CONFLICT,
                         "FEE_DEBT_CHANGED", "Khoản phí đã thay đổi. Giao dịch được hủy, vui lòng tra cứu lại.");
+                remaining -= allocated;
             }
-            // Debt is derived from reader_fees throughout lending/renewal. There is no
-            // separate DEBT card status to reset (and no reason to unlock an expired card).
-            if (!payments.outstanding(readerId, false).isEmpty()) throw error(HttpStatus.CONFLICT,
-                    "FEE_DEBT_CHANGED", "Chưa thể thu đủ toàn bộ khoản nợ. Giao dịch được hủy, vui lòng tra cứu lại.");
+            // Lending/renewal derive debt from these same rows, so zero removes the debt block atomically.
+            // Expiration and other card restrictions are not changed by collecting fees.
+            if (remaining != 0 || total(payments.outstanding(readerId, false)) != debtAfter) {
+                throw error(HttpStatus.CONFLICT, "FEE_DEBT_CHANGED",
+                        "Số dư sau khi thu không khớp. Giao dịch được hủy, vui lòng tra cứu lại.");
+            }
             return findReceipt(id);
         } catch (DataAccessException exception) {
             throw error(HttpStatus.INTERNAL_SERVER_ERROR, "FEE_PAYMENT_FAILED",
@@ -116,8 +145,17 @@ public class FeePaymentService {
                 || r.expectedTotalVnd().stripTrailingZeros().scale() > 0
                 || r.expectedTotalVnd().compareTo(BigDecimal.valueOf(9_007_199_254_740_991L)) > 0
                 || r.debtToken() == null || !r.debtToken().matches("[a-f0-9]{64}")) {
-            throw error(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_REQUEST", "Vui lòng tra cứu lại khoản nợ trước khi xác nhận thu đủ.");
+            throw error(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_REQUEST", "Vui lòng tra cứu lại khoản nợ trước khi xác nhận thu phí.");
         }
+    }
+    private void validateAmount(BigDecimal amount, BigDecimal expectedTotal) {
+        if (amount == null || amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0
+                || amount.compareTo(BigDecimal.valueOf(9_007_199_254_740_991L)) > 0) {
+            throw error(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_AMOUNT",
+                    "Số tiền thu phải là số nguyên VND, tối thiểu 1 VND và trong giới hạn xử lý.");
+        }
+        if (amount.compareTo(expectedTotal) > 0) throw error(HttpStatus.BAD_REQUEST, "PAYMENT_AMOUNT_EXCEEDS_DEBT",
+                "Số tiền thu không được vượt quá tổng số tiền còn nợ.");
     }
     private long total(List<Fee> fees) {
         long result = 0;
