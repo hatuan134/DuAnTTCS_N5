@@ -1,6 +1,7 @@
 package com.duanttcsn5.library;
 
 import com.duanttcsn5.library.dto.loan.CollectFullFeesRequest;
+import com.duanttcsn5.library.dto.loan.CollectPartialFeesRequest;
 import com.duanttcsn5.library.dto.loan.FeeReceiptResponse;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.LoanRepository;
@@ -133,5 +134,87 @@ class FeePaymentDatabaseTest {
         jdbc.update("INSERT INTO library_cards(card_number,user_id,card_type_id,expires_at,status) VALUES (?,?,?,CURRENT_DATE + 30,'LOCKED')", "S4021-" + UUID.randomUUID(), f.reader(), type);
         service.collect(f.reader(), input, f.staff());
         var d = service.detail(f.reader(), f.staff()); assertThat(d.hasDebt()).isFalse(); assertThat(d.reader().cardStatus()).isEqualTo("LOCKED");
+    }
+
+    CollectPartialFeesRequest partialPreview(Fixture f, long amount) {
+        var d = service.detail(f.reader(), f.staff());
+        return new CollectPartialFeesRequest(UUID.randomUUID(), d.totalOutstandingVnd(), d.debtToken(), amount);
+    }
+    @Test void partialDemoThreeCollectionsPreserveBalancesReceiptsAndClearDebtAtLastPayment() {
+        var f = fixture(10000, 15000, 5000);
+        var a = service.collectPartial(f.reader(), partialPreview(f, 10000), f.staff());
+        assertThat(a.debtBeforeVnd()).isEqualTo(30000); assertThat(a.debtAfterVnd()).isEqualTo(20000);
+        assertThat(a.items()).hasSize(1); assertThat(service.detail(f.reader(), f.staff()).hasDebt()).isTrue();
+        var b = service.collectPartial(f.reader(), partialPreview(f, 15000), f.staff());
+        assertThat(b.debtBeforeVnd()).isEqualTo(20000); assertThat(b.debtAfterVnd()).isEqualTo(5000);
+        assertThat(service.detail(f.reader(), f.staff()).hasDebt()).isTrue();
+        var c = service.collectPartial(f.reader(), partialPreview(f, 5000), f.staff());
+        assertThat(c.debtAfterVnd()).isZero(); assertThat(loans.sumUnpaidFeesForReader(f.reader())).isZero();
+        var d = service.detail(f.reader(), f.staff()); assertThat(d.hasDebt()).isFalse(); assertThat(d.fees()).isEmpty();
+        assertThat(d.payments().stream().mapToLong(p -> p.debtAfterVnd()).toArray()).containsExactly(0, 5000, 20000);
+        assertThat(paymentCount(f)).isEqualTo(3);
+        for (var receipt : List.of(a, b, c)) {
+            assertThat(receipt.items().stream().mapToLong(FeeReceiptResponse.Item::collectedAmountVnd).sum()).isEqualTo(receipt.totalAmountVnd());
+            assertThat(service.receipt(receipt.id(), f.otherStaff())).isEqualTo(receipt);
+        }
+        assertThat(List.of(a.receiptNumber(), b.receiptNumber(), c.receiptNumber())).doesNotHaveDuplicates();
+        code(() -> service.collectPartial(f.reader(), new CollectPartialFeesRequest(UUID.randomUUID(), 1L, d.debtToken(), 1L), f.staff()), "NO_OUTSTANDING_FEES");
+    }
+    @Test void onePartialFeeThenCollectionAcrossTwoFeesKeepsOnlyActualAllocationsOnReceipt() {
+        var f = fixture(10000, 15000, 5000);
+        var a = service.collectPartial(f.reader(), partialPreview(f, 4000), f.staff());
+        assertThat(a.items()).hasSize(1); assertThat(a.items().get(0).collectedAmountVnd()).isEqualTo(4000);
+        var b = service.collectPartial(f.reader(), partialPreview(f, 10000), f.staff());
+        assertThat(b.items().stream().mapToLong(FeeReceiptResponse.Item::collectedAmountVnd).toArray()).containsExactly(6000, 4000);
+        assertThat(b.items().get(0).previouslyPaidVnd()).isEqualTo(4000);
+        assertThat(service.detail(f.reader(), f.staff()).totalOutstandingVnd()).isEqualTo(16000);
+        var c = service.collect(f.reader(), preview(f), f.staff());
+        assertThat(c.totalAmountVnd()).isEqualTo(16000); assertThat(c.paymentMode()).isEqualTo("FULL");
+        assertThat(c.debtAfterVnd()).isZero(); assertThat(service.receipt(a.id(), f.staff())).isEqualTo(a);
+    }
+    @Test void partialConcurrentCollectorsRejectStaleBalancesAndRepeatedKeyReplays() throws Exception {
+        partialRace(false); partialRace(true);
+    }
+    void partialRace(boolean sameKey) throws Exception {
+        var f = fixture(10000, 15000, 5000); var input = partialPreview(f, 10000);
+        var other = sameKey ? input : new CollectPartialFeesRequest(UUID.randomUUID(), input.expectedTotalVnd(), input.debtToken(), input.amountVnd());
+        var pool = Executors.newFixedThreadPool(2); var barrier = new CyclicBarrier(2);
+        try {
+            var a = pool.submit(() -> partialAttempt(f, input, f.staff(), barrier));
+            var b = pool.submit(() -> partialAttempt(f, other, sameKey ? f.staff() : f.otherStaff(), barrier));
+            var outcomes = List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS));
+            if (sameKey) assertThat(outcomes).containsExactly("OK", "OK");
+            else assertThat(outcomes).containsExactlyInAnyOrder("OK", "FEE_DEBT_CHANGED");
+            assertThat(paymentCount(f)).isEqualTo(1); assertThat(loans.sumUnpaidFeesForReader(f.reader())).isEqualByComparingTo("20000");
+            assertThat(service.detail(f.reader(), f.staff()).hasDebt()).isTrue();
+        } finally { pool.shutdownNow(); }
+    }
+    String partialAttempt(Fixture f, CollectPartialFeesRequest input, Long actor, CyclicBarrier barrier) throws Exception {
+        barrier.await(5, TimeUnit.SECONDS);
+        try { service.collectPartial(f.reader(), input, actor); return "OK"; } catch (ApiException e) { return e.getCode(); }
+    }
+    @Test void failureWhileAllocatingSecondPartialFeeRollsBackMoneyHistoryAndItems() {
+        var f = fixture(10000, 15000, 5000); var input = partialPreview(f, 20000);
+        Long fee = jdbc.queryForObject("SELECT id FROM reader_fees WHERE reader_user_id = ? ORDER BY id LIMIT 1 OFFSET 1", Long.class, f.reader());
+        String name = "s4022_fail_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("CREATE FUNCTION " + name + "() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN IF NEW.id = " + fee
+                + " THEN RAISE EXCEPTION 'forced partial test failure'; END IF; RETURN NEW; END; $$");
+        jdbc.execute("CREATE TRIGGER " + name + " BEFORE UPDATE ON reader_fees FOR EACH ROW EXECUTE FUNCTION " + name + "()");
+        try {
+            code(() -> service.collectPartial(f.reader(), input, f.staff()), "FEE_PAYMENT_FAILED");
+            assertThat(paymentCount(f)).isZero(); assertThat(loans.sumUnpaidFeesForReader(f.reader())).isEqualByComparingTo("30000");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM fee_payment_items i JOIN reader_fees f ON f.id=i.reader_fee_id WHERE f.reader_user_id=?", Long.class, f.reader())).isZero();
+            assertThat(service.detail(f.reader(), f.staff()).hasDebt()).isTrue();
+        } finally { jdbc.execute("DROP TRIGGER " + name + " ON reader_fees"); jdbc.execute("DROP FUNCTION " + name + "()"); }
+    }
+    @Test void partialRepeatedPayloadCannotBeChangedAndReceiptDoesNotChangeOnLaterCollections() {
+        var f = fixture(30000); var input = partialPreview(f, 10000);
+        var saved = service.collectPartial(f.reader(), input, f.staff());
+        assertThat(service.collectPartial(f.reader(), input, f.staff())).isEqualTo(saved);
+        code(() -> service.collectPartial(f.reader(), new CollectPartialFeesRequest(input.requestKey(), input.expectedTotalVnd(), input.debtToken(), java.math.BigDecimal.valueOf(5000)), f.staff()), "PAYMENT_REQUEST_REUSED");
+        code(() -> service.collectPartial(f.reader(), input, f.otherStaff()), "PAYMENT_REQUEST_REUSED");
+        service.collectPartial(f.reader(), partialPreview(f, 15000), f.otherStaff());
+        assertThat(service.receipt(saved.id(), f.staff())).isEqualTo(saved); assertThat(saved.debtAfterVnd()).isEqualTo(20000);
+        assertThat(paymentCount(f)).isEqualTo(2);
     }
 }

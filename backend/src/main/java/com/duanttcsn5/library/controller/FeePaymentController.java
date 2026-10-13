@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.controller;
 
 import com.duanttcsn5.library.dto.loan.CollectFullFeesRequest;
+import com.duanttcsn5.library.dto.loan.CollectPartialFeesRequest;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse;
 import com.duanttcsn5.library.dto.loan.FeeReceiptResponse;
 import com.duanttcsn5.library.security.UserPrincipal;
@@ -31,6 +32,11 @@ public class FeePaymentController {
             @AuthenticationPrincipal UserPrincipal actor) {
         // 200 also describes an idempotent replay of a previously committed collection.
         return service.collect(readerId, request, actor == null ? null : actor.id());
+    }
+    @PostMapping("/readers/{readerId}/collect-partial")
+    public FeeReceiptResponse collectPartial(@PathVariable Long readerId,
+            @Valid @RequestBody CollectPartialFeesRequest request, @AuthenticationPrincipal UserPrincipal actor) {
+        return service.collectPartial(readerId, request, actor == null ? null : actor.id());
     }
     @GetMapping("/{paymentId}/receipt")
     public FeeReceiptResponse receipt(@PathVariable Long paymentId, @AuthenticationPrincipal UserPrincipal actor) {

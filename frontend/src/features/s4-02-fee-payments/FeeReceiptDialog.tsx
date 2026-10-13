@@ -27,7 +27,9 @@ export function ReceiptContent({ receipt }: { receipt: FeeReceipt }) {
       </li>)}
     </ol>
     <p className="my-5 flex flex-wrap justify-between gap-2 text-lg font-bold"><span>Tổng tiền đã thu</span><span>{formatVnd(receipt.totalAmountVnd)}</span></p>
-    <p className="text-sm">Đã thu đủ các khoản phí trên biên lai.</p>
+    <p className="text-sm">Chỉ ghi số tiền thực tế nhận trong lần thanh toán này.</p>
+    <p className="mt-2 text-sm">Số dư nợ sau lần thu: <strong>{formatVnd(receipt.debtAfterVnd ?? 0)}</strong>.</p>
+    <p className="mt-2 text-sm">{(receipt.debtAfterVnd ?? 0) > 0 ? 'Bạn đọc vẫn còn nợ phí.' : 'Bạn đọc đã hết nợ phí tại thời điểm thu.'}</p>
     <p className="mt-5 break-words text-right text-sm">Thủ thư thu: <strong>{receipt.collectorName}</strong></p>
   </article>
 }
