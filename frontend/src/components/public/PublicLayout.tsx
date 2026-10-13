@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import FeedbackAlert from '../ui/FeedbackAlert'
+import { useEffect, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import PublicHeader from './PublicHeader'
 import PublicSiteFooter from '../../features/s1-08-catalog/PublicSiteFooter'
 import PageTransition from '../ui/PageTransition'
@@ -19,6 +20,14 @@ function scrollToPublicAnchor(hash: string) {
 
 export default function PublicLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const [logoutMessage, setLogoutMessage] = useState('')
+  useEffect(() => {
+    if (location.state?.loggedOut) {
+      setLogoutMessage('Đã đăng xuất khỏi hệ thống.')
+      navigate(location.pathname + location.search + location.hash, { replace: true, state: null })
+    }
+  }, [location, navigate])
 
   useEffect(() => {
     if (!location.hash) return
@@ -43,5 +52,6 @@ export default function PublicLayout() {
     return () => document.removeEventListener('click', onClick, true)
   }, [])
 
-  return <div className="public-page"><PublicHeader /><main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /></div>
+  return <div className="public-page"><PublicHeader />
+    {logoutMessage && <div className="mx-auto w-full max-w-7xl px-4 pt-3"><FeedbackAlert tone="success" message={logoutMessage} onDismiss={() => setLogoutMessage('')} /></div>}<main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /></div>
 }

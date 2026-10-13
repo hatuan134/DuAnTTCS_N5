@@ -25,6 +25,7 @@ export interface LoanItem {
   returnedAt?: string | null
   returnedById?: number | null
   returnedByName?: string | null
+  resolutionReason?: string | null
   fee?: ReturnFeeAssessment | null
 }
 
@@ -44,7 +45,7 @@ export interface LoanSearchItem {
   barcode: string
   bookTitle: string
   dueAt: string | null
-  status: 'BORROWED' | 'RETURNED'
+  status: 'BORROWED' | 'RETURNED' | 'LOST' | 'DAMAGED'
 }
 
 export interface LoanSearchResult {
@@ -53,7 +54,7 @@ export interface LoanSearchResult {
   cardNumber: string | null
   readerName: string
   borrowedAt: string
-  status: 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED' | 'EMPTY'
+  status: 'BORROWED' | 'PARTIALLY_RETURNED' | 'RETURNED' | 'EMPTY' | 'LOST' | 'DAMAGED' | 'MIXED_INCIDENT'
   items: LoanSearchItem[]
 }
 

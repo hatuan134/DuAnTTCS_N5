@@ -79,7 +79,7 @@ class BookAvailableCopiesLocationTest {
     @DisplayName("S2-06.2 - Có một bản Sẵn sàng: hiển thị đúng kho và kệ của bản đó")
     void singleAvailableCopyLocation() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(1L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(1L);
 
         // 1 bản AVAILABLE tại Kho A, Kệ A01
         Object[] copy1 = new Object[]{1L, "BC-1001", 10L, "KHO-A", "Kho Tổng Hợp", 20L, "A01", "Kệ Văn Học 1"};
@@ -104,7 +104,7 @@ class BookAvailableCopiesLocationTest {
     @DisplayName("S2-06.2 - Có nhiều bản Sẵn sàng ở cùng một kho")
     void multipleAvailableCopiesInSameWarehouse() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(3L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(3L);
 
         // 2 bản AVAILABLE cùng ở Kho Tổng Hợp (Kệ A01 và Kệ A02)
         Object[] copy1 = new Object[]{1L, "BC-1001", 10L, "KHO-A", "Kho Tổng Hợp", 20L, "A01", "Kệ 1"};
@@ -125,7 +125,7 @@ class BookAvailableCopiesLocationTest {
     @DisplayName("S2-06.2 - Có nhiều bản Sẵn sàng ở các kho khác nhau")
     void multipleAvailableCopiesInDifferentWarehouses() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(4L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(4L);
 
         // Bản 1 ở Kho Tổng Hợp, bản 2 ở Kho Đọc Mở
         Object[] copy1 = new Object[]{1L, "BC-1001", 10L, "KHO-A", "Kho Tổng Hợp", 20L, "A01", "Kệ 1"};
@@ -145,7 +145,7 @@ class BookAvailableCopiesLocationTest {
     void onlyAvailableCopiesReturnedWhenOthersAreBorrowedOrUnavailable() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(sampleBook));
         // Tổng số bản sao là 5: 1 AVAILABLE, 1 BORROWED, 1 HELD, 1 REPAIR, 1 REMOVED
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(5L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(5L);
 
         // SQL repository chỉ lọc bản AVAILABLE không có loan_items chưa trả, nên chỉ trả về bản copy 1
         Object[] copy1 = new Object[]{1L, "BC-1001", 10L, "KHO-A", "Kho Tổng Hợp", 20L, "A01", "Kệ 1"};
@@ -163,7 +163,7 @@ class BookAvailableCopiesLocationTest {
     @DisplayName("S2-06.2 - Không còn bản Sẵn sàng nào: danh sách vị trí rỗng")
     void noAvailableCopiesReturnsEmptyLocationList() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(sampleBook));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(3L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(3L);
         when(bookCopyRepository.findAvailableCopyLocationsByBookId(101L)).thenReturn(List.<Object[]>of());
         when(bookCopyRepository.countAvailableByBookId(101L)).thenReturn(0L);
 

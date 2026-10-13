@@ -81,7 +81,7 @@ class BookPublicDetailTest {
                 "NXB Trẻ", 2008, 250, "Tác phẩm nổi tiếng về tuổi thơ", "https://example.com/cover.jpg");
 
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(book));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(5L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(5L);
         when(bookCopyRepository.countAvailableByBookId(101L)).thenReturn(3L);
 
         BookResponse result = service.getPublicBookById(101L);
@@ -108,7 +108,7 @@ class BookPublicDetailTest {
                 "NXB Trẻ", 1990, 180, "Tiểu thuyết tình cảm", null);
 
         when(bookRepository.findPublicByIdWithAuthorAndCategory(102L)).thenReturn(Optional.of(book));
-        when(bookCopyRepository.countByBookId(102L)).thenReturn(2L);
+        when(bookCopyRepository.countStockByBookId(102L)).thenReturn(2L);
         when(bookCopyRepository.countAvailableByBookId(102L)).thenReturn(1L);
 
         BookResponse result = service.getPublicBookById(102L);
@@ -125,7 +125,7 @@ class BookPublicDetailTest {
                 "NXB Giáo Dục", 2026, 300, "Đang chuẩn bị bản sao", null);
 
         when(bookRepository.findPublicByIdWithAuthorAndCategory(103L)).thenReturn(Optional.of(book));
-        when(bookCopyRepository.countByBookId(103L)).thenReturn(0L);
+        when(bookCopyRepository.countStockByBookId(103L)).thenReturn(0L);
         when(bookCopyRepository.countAvailableByBookId(103L)).thenReturn(0L);
 
         BookResponse result = service.getPublicBookById(103L);
@@ -144,7 +144,7 @@ class BookPublicDetailTest {
         // Giả sử có 8 bản sao: 2 AVAILABLE, 1 BORROWED, 1 HELD, 1 REPAIR, 1 REMOVED, 1 LOST, 1 DAMAGED
         // Tổng số bản sao trong hệ thống là 8, nhưng chỉ có 2 bản AVAILABLE
         when(bookRepository.findPublicByIdWithAuthorAndCategory(104L)).thenReturn(Optional.of(book));
-        when(bookCopyRepository.countByBookId(104L)).thenReturn(8L);
+        when(bookCopyRepository.countStockByBookId(104L)).thenReturn(8L);
         when(bookCopyRepository.countAvailableByBookId(104L)).thenReturn(2L);
 
         BookResponse result = service.getPublicBookById(104L);
@@ -170,7 +170,7 @@ class BookPublicDetailTest {
                 "NXB Trẻ", 2008, 250, "Mô tả nội dung", "https://example.com/cover.jpg");
 
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L)).thenReturn(Optional.of(book));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(4L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(4L);
         when(bookCopyRepository.countAvailableByBookId(101L)).thenReturn(1L);
 
         mockMvc.perform(get("/api/v1/books/public/101"))

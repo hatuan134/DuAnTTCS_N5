@@ -231,7 +231,7 @@ export function ReaderProfile({ id }: { id: number }) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge status={loan.status === 'PARTIALLY_RETURNED' ? 'BORROWED' : loan.status}
-                      label={loan.status === 'PARTIALLY_RETURNED' ? 'Đã trả một phần'
+                      label={loan.status === 'PARTIALLY_RETURNED' ? (loan.items.some(item => item.status === 'LOST' || item.status === 'DAMAGED') ? 'Đã xử lý một phần' : 'Đã trả một phần')
                         : loan.status === 'EMPTY' ? 'Chưa có bản sao' : undefined} />
                     {loan.returnedLate && <StatusBadge status="OVERDUE" label="Từng trả trễ" />}
                   </div>
@@ -250,7 +250,7 @@ export function ReaderProfile({ id }: { id: number }) {
                         <Field label="Mã vạch" value={item.barcode} />
                         <Field label="Ngày mượn" value={formatLoanTimestamp(item.borrowedAt)} />
                         <Field label="Hạn trả" value={item.dueAt ? formatLoanTimestamp(item.dueAt, true) : 'Phiếu cũ chưa lưu hạn trả'} />
-                        <Field label="Ngày trả thực tế" value={item.returnedAt ? formatLoanTimestamp(item.returnedAt) : 'Chưa trả'} />
+                        <Field label={item.status === 'LOST' || item.status === 'DAMAGED' ? 'Thời điểm kết thúc lượt mượn' : 'Ngày trả thực tế'} value={item.returnedAt ? formatLoanTimestamp(item.returnedAt) : 'Chưa trả'} />
                       </dl>
                     </li>)}
                   </ul>}

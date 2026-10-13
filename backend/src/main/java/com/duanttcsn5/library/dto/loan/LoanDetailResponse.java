@@ -13,7 +13,12 @@ public record LoanDetailResponse(
 
     public record Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,
                        OffsetDateTime borrowedAt, OffsetDateTime dueAt,
-                       OffsetDateTime returnedAt, Long returnedById, String returnedByName, ReturnFeeAssessment fee) {
+                       OffsetDateTime returnedAt, Long returnedById, String returnedByName, ReturnFeeAssessment fee, String resolutionReason) {
+        public Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,
+                OffsetDateTime borrowedAt, OffsetDateTime dueAt, OffsetDateTime returnedAt,
+                Long returnedById, String returnedByName, ReturnFeeAssessment fee) {
+            this(id, copyId, barcode, bookId, bookTitle, borrowedAt, dueAt, returnedAt, returnedById, returnedByName, fee, null);
+        }
         public Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,
                 OffsetDateTime borrowedAt, OffsetDateTime dueAt, OffsetDateTime returnedAt,
                 Long returnedById, String returnedByName) {
@@ -21,7 +26,7 @@ public record LoanDetailResponse(
         }
         public Item withFee(ReturnFeeAssessment saved) {
             return new Item(id, copyId, barcode, bookId, bookTitle, borrowedAt, dueAt, returnedAt,
-                    returnedById, returnedByName, saved);
+                    returnedById, returnedByName, saved, resolutionReason);
         }
         /** Preserve the constructors used by existing lending code and tests. */
         public Item(Long id, Long copyId, String barcode, Long bookId, String bookTitle,

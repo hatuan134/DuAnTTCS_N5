@@ -1173,7 +1173,7 @@ public class LoanService {
         }
         String normalizedStatus = status == null ? "" : status.trim();
         if (!normalizedStatus.isEmpty() && !"ALL".equals(normalizedStatus)
-                && !Set.of("BORROWED", "PARTIALLY_RETURNED", "RETURNED", "EMPTY").contains(normalizedStatus)) {
+                && !Set.of("BORROWED", "PARTIALLY_RETURNED", "RETURNED", "EMPTY", "LOST", "DAMAGED", "MIXED_INCIDENT").contains(normalizedStatus)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_STATUS",
                     "Trạng thái phiếu không hợp lệ.");
         }
@@ -1193,15 +1193,13 @@ public class LoanService {
             var items = grouped.computeIfAbsent(row.loanId(), ignored -> new ArrayList<>());
             if (row.itemId() != null) {
                 items.add(new LoanSearchResultResponse.Item(row.barcode(), row.bookTitle(),
-                        row.dueAt(), row.returnedAt() == null ? "BORROWED" : "RETURNED"));
+                        row.dueAt(), LoanClosurePolicy.item(row.returnedAt(), row.resolutionReason())));
             }
         }
         List<LoanSearchResultResponse> pageItems = grouped.entrySet().stream().map(entry -> {
             var header = headers.get(entry.getKey());
             var items = entry.getValue();
-            long returned = items.stream().filter(item -> "RETURNED".equals(item.status())).count();
-            String loanStatus = items.isEmpty() ? "EMPTY" : returned == items.size() ? "RETURNED"
-                    : returned > 0 ? "PARTIALLY_RETURNED" : "BORROWED";
+            String loanStatus = LoanClosurePolicy.loan(items.stream().map(LoanSearchResultResponse.Item::status).toList());
             return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
                     header.readerName(), header.borrowedAt(), loanStatus, items);
         }).toList();

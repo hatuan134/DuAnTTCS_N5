@@ -61,6 +61,9 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
 
     long countByBookId(Long bookId);
 
+    @Query(value="SELECT COUNT(*) FROM book_copies WHERE book_id=:bookId AND status <> 'REMOVED'", nativeQuery=true)
+    long countStockByBookId(@Param("bookId") Long bookId);
+
     @Query(value = """
             SELECT COUNT(*) FROM book_copies c WHERE c.book_id = :bookId AND c.status = 'AVAILABLE'
             AND NOT EXISTS (SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL)
@@ -87,6 +90,7 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     @Query("""
             SELECT bc.book.id, COUNT(bc.id)
             FROM BookCopy bc
+            WHERE bc.status <> 'REMOVED'
             GROUP BY bc.book.id
             """)
     List<Object[]> countAllGroupedByBookId();
@@ -134,7 +138,7 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     );
 
     @Query(value = """
-            SELECT c.book_id, COUNT(*), COUNT(*) FILTER (
+            SELECT c.book_id, COUNT(*) FILTER (WHERE c.status <> 'REMOVED'), COUNT(*) FILTER (
                 WHERE c.status = 'AVAILABLE' AND NOT EXISTS (
                     SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL))
             FROM book_copies c WHERE c.book_id IN :ids GROUP BY c.book_id

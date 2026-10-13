@@ -51,7 +51,7 @@ public class FeePaymentRepository {
         // Lock every existing fee in ID order, then filter in Java. A concurrently paid fee
         // or approved waiver is re-read after waiting at READ COMMITTED isolation.
         var all = jdbc.query("""
-                SELECT id, CASE WHEN return_item_id IS NULL THEN 'RECORDED' ELSE 'OVERDUE' END AS fee_type,
+                SELECT id, CASE WHEN compensation_item_id IS NOT NULL THEN 'COMPENSATION' WHEN return_item_id IS NULL THEN 'RECORDED' ELSE 'OVERDUE' END AS fee_type,
                        description, amount_vnd, paid_amount_vnd, waived_amount_vnd
                 FROM reader_fees WHERE reader_user_id = ? ORDER BY id
                 """ + (lock ? " FOR UPDATE" : ""), (rs, n) -> new Fee(rs.getLong("id"),

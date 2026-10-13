@@ -159,7 +159,7 @@ class PublicCatalogSearchServiceTest {
     void publicDetailReturnsAvailableCount() {
         when(bookRepository.findPublicByIdWithAuthorAndCategory(101L))
                 .thenReturn(Optional.of(childhoodTicket));
-        when(bookCopyRepository.countByBookId(101L)).thenReturn(3L);
+        when(bookCopyRepository.countStockByBookId(101L)).thenReturn(3L);
         when(bookCopyRepository.countAvailableByBookId(101L)).thenReturn(2L);
 
         BookResponse result = service.getPublicBookById(101L);

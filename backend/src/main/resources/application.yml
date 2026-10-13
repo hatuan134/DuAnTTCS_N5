@@ -4,9 +4,9 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 3MB
-      # Allow multipart headers in addition to a file exactly 3MB in size.
-      max-request-size: 4MB
+      max-file-size: 5MB
+      # Incident upload: 5 images x 5 MB plus multipart headers. Book covers still enforce 3 MB in the service.
+      max-request-size: 26MB
 
   devtools:
     restart:

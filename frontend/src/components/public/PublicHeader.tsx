@@ -11,7 +11,7 @@ export default function PublicHeader() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const close = () => setOpen(false)
-  const logout = () => { clearAuthSession(); close(); navigate('/', { replace: true }) }
+  const logout = () => { clearAuthSession(); close(); navigate('/', { replace: true, state: { loggedOut: true } }) }
   const links = <>
     <NavLink to="/" end onClick={close}>Trang chủ</NavLink>
     <NavLink to="/catalog" onClick={close}>Tra cứu sách</NavLink>
