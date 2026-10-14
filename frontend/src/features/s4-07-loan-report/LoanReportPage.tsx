@@ -10,6 +10,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { getLoanReport, type LoanReport } from './loanReportService'
+import DailyLoansChart from './DailyLoansChart'
 
 const DATE_ZONE = 'Asia/Ho_Chi_Minh'
 
@@ -43,6 +44,7 @@ export default function LoanReportPage() {
   const [report, setReport] = useState<LoanReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null)
   const [notice, setNotice] = useState('')
   const allowed = getCurrentUser()?.role === 'LIBRARY_MANAGER'
   const dateError = !startDate || !endDate
@@ -65,10 +67,13 @@ export default function LoanReportPage() {
     setLoadFailed(false)
     setNotice('')
     setReport(null)
+    setElapsedMs(null)
+    const startedAt = performance.now()
     getLoanReport(startDate, endDate, controller.signal)
       .then(data => {
         if (controller.signal.aborted) return
         setReport(data)
+        setElapsedMs(performance.now() - startedAt)
         setLoadFailed(false)
       })
       .catch(error => {
@@ -122,7 +127,7 @@ export default function LoanReportPage() {
       </div>
       {dateError
         ? <p role="alert" className="mt-3 text-sm font-medium text-red-700">{dateError}</p>
-        : <p className="mt-3 text-xs text-slate-500">Đổi khoảng ngày để cập nhật chỉ số và bảng xếp hạng lượt mượn. Bảng hàng đợi luôn phản ánh dữ liệu đặt giữ tại thời điểm tải, không lọc theo khoảng ngày.</p>}
+        : <p className="mt-3 text-xs text-slate-500">Đổi khoảng ngày để cập nhật chỉ số, bảng xếp hạng lượt mượn và biểu đồ. Bảng hàng đợi luôn phản ánh dữ liệu đặt giữ tại thời điểm tải, không lọc theo khoảng ngày.</p>}
     </Card>
 
     {notice && <FeedbackAlert tone="error" message={notice} onDismiss={() => setNotice('')} />}
@@ -141,6 +146,11 @@ export default function LoanReportPage() {
         <p className="mt-2 text-xs leading-5 text-slate-500">{item.note}</p>
       </Card>)}
     </section>
+
+    {report && <p className="text-xs text-slate-500" role="status">
+      Thời gian nhận dữ liệu báo cáo: {elapsedMs === null ? '—' : `${Math.round(elapsedMs)} ms`}.
+      {elapsedMs !== null && elapsedMs >= 3000 ? ' Báo cáo vượt mốc 3 giây, cần kiểm tra hiệu năng.' : ''}
+    </p>}
 
     <Card className="min-w-0 overflow-hidden">
       <div className="border-b border-slate-200 px-4 py-5 sm:px-6">
@@ -241,6 +251,7 @@ export default function LoanReportPage() {
             ? <div className="p-4"><EmptyState title="Chưa có đầu sách nào đang được đặt giữ" description="Không có đơn PENDING tại thời điểm tải. Hãy bấm Làm mới khi có đơn mới." /></div>
             : null}
     </Card>
+    {report && <Card className="min-w-0 overflow-hidden"><DailyLoansChart data={report.dailyLoans} totalBorrowed={report.totalBorrowed} /></Card>}
     {report && <p className="text-xs leading-5 text-slate-500">Bảng mượn tính lượt phát sinh trong khoảng ngày đã chọn; bảng đặt giữ đếm số đơn PENDING tại thời điểm tải, không đếm người duy nhất và không tái tạo lịch sử tại ngày kết thúc. Hai bảng dùng cùng quy tắc số bản hiện có: không tính REMOVED, vẫn tính bản đang sửa chữa. Phiếu quá hạn được xác định tại ngày kết thúc báo cáo theo ngày hẹn trả.</p>}
   </div>
 }

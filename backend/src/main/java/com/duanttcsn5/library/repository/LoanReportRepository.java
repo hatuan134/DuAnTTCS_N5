@@ -5,7 +5,9 @@ import com.duanttcsn5.library.dto.report.LoanReportResponse.TopQueuedBook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Aggregate directly in PostgreSQL; never load all loan slips into the application. */
@@ -17,20 +19,52 @@ public class LoanReportRepository {
         this.jdbc = jdbc;
     }
 
-    public record Activity(long borrowed, long returned) {}
+    public record DayBorrowCount(LocalDate date, long borrowCount) {}
+    public record Activity(long borrowed, long returned, List<DayBorrowCount> dailyBorrowed) {}
     public record OpenAndOverdue(long open, long overdue) {}
 
-    public Activity activity(OffsetDateTime from, OffsetDateTime untilExclusive) {
-        return jdbc.queryForObject("""
-                SELECT
-                  (SELECT COUNT(*) FROM loan_items
-                   WHERE borrowed_at >= ? AND borrowed_at < ?) AS borrowed,
-                  (SELECT COUNT(*) FROM loan_items
-                   WHERE returned_at >= ? AND returned_at < ?
-                     AND (resolution_reason IS NULL OR resolution_reason = 'RETURNED')) AS returned
-                """, (rs, row) -> new Activity(rs.getLong("borrowed"), rs.getLong("returned")),
-                from, untilExclusive, from, untilExclusive);
+    /**
+     * Count borrowed copies once for both the daily chart and the headline total.
+     * The timestamp range uses the inclusive Vietnam calendar days, and the
+     * PostgreSQL date cast uses the SAME zone to avoid midnight drift.
+     * Returning an explicit row per day makes empty days and one-day reports reliable.
+     */
+    public Activity activity(LocalDate startDate, LocalDate endDate,
+                             OffsetDateTime from, OffsetDateTime untilExclusive) {
+        var rows = jdbc.query("""
+                WITH borrowed_per_day AS (
+                  SELECT (borrowed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS borrow_date,
+                         COUNT(*) AS borrow_count
+                  FROM loan_items
+                  WHERE borrowed_at >= ? AND borrowed_at < ?
+                  GROUP BY borrow_date
+                ), returned_total AS (
+                  SELECT COUNT(*) AS returned_count
+                  FROM loan_items
+                  WHERE returned_at >= ? AND returned_at < ?
+                    AND (resolution_reason IS NULL OR resolution_reason = 'RETURNED')
+                )
+                SELECT (CAST(? AS date) + day.day_offset) AS report_date,
+                       COALESCE(borrowed.borrow_count, 0) AS borrow_count,
+                       returned_total.returned_count AS returned_count
+                FROM generate_series(0, CAST(? AS date) - CAST(? AS date)) AS day(day_offset)
+                CROSS JOIN returned_total
+                LEFT JOIN borrowed_per_day borrowed ON borrowed.borrow_date = (CAST(? AS date) + day.day_offset)
+                ORDER BY day.day_offset ASC
+                """, (rs, row) -> new DayActivity(
+                rs.getObject("report_date", LocalDate.class),
+                rs.getLong("borrow_count"), rs.getLong("returned_count")),
+                from, untilExclusive, from, untilExclusive, startDate, endDate, startDate, startDate);
+        long borrowed = 0;
+        List<DayBorrowCount> days = new ArrayList<>(rows.size());
+        for (DayActivity row : rows) {
+            days.add(new DayBorrowCount(row.date(), row.borrowCount()));
+            borrowed += row.borrowCount();
+        }
+        return new Activity(borrowed, rows.isEmpty() ? 0 : rows.get(0).returnedCount(), days);
     }
+
+    private record DayActivity(LocalDate date, long borrowCount, long returnedCount) {}
 
     /**
      * A loan slip is open if at least one copy was not yet returned at the end-date cutoff.

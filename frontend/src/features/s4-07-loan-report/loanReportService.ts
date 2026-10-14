@@ -14,6 +14,11 @@ export interface TopQueuedBook {
   stockCount: number
 }
 
+export interface DailyLoanCount {
+  date: string
+  borrowCount: number
+}
+
 export interface LoanReport {
   startDate: string
   endDate: string
@@ -23,6 +28,7 @@ export interface LoanReport {
   overdueLoans: number
   overdueRate: number
   topBooks: TopBorrowedBook[]
+  dailyLoans: DailyLoanCount[]
   queueSnapshotAt: string
   topQueuedBooks: TopQueuedBook[]
 }
