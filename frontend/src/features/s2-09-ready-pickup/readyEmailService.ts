@@ -20,7 +20,7 @@ export interface PickupEmailNotification {
   pickupDeadline: string | null
   pickupLocation: string | null
   eventAt: string
-  sendBefore: string
+  sendBefore: string | null
   sentAt: string | null
   completedAt: string | null
   status: 'PENDING' | 'RETRY' | 'SENDING' | 'SENT' | 'FAILED' | 'SKIPPED'
@@ -30,6 +30,9 @@ export interface PickupEmailNotification {
   errorCode: string | null
   errorMessage: string | null
   attempts: PickupEmailAttempt[]
+  bookId?: number | null
+  cancellationReason?: string | null
+  cancelledAt?: string | null
 }
 export interface PickupEmailHistory {
   reservationId: number
@@ -65,7 +68,31 @@ export interface PickupReminderReport {
   message: string
   entries: PickupReminderEntry[]
 }
+export interface PickupCancellationPreview {
+  reservationId: number
+  bookId: number
+  bookTitle: string
+  readerName: string
+  recipientEmail: string | null
+  reservationStatus: string
+  pickupDeadline: string | null
+  evaluatedAt: string
+  actualNow: string
+  eligible: boolean
+  canRunNow: boolean
+  reason: string
+  subject: string
+  emailContent: string
+}
 export const readyEmailService = {
+  async previewCancellation(id: number, checkTime?: string): Promise<PickupCancellationPreview> {
+    return (await apiClient.get<PickupCancellationPreview>(`/reservations/${id}/ready-email/cancellation-preview`,
+      { params: { checkTime } })).data
+  },
+  async runCancellation(id: number, checkTime?: string): Promise<{ message: string; history: PickupEmailHistory }> {
+    return (await apiClient.post<{ message: string; history: PickupEmailHistory }>(
+      `/reservations/${id}/ready-email/cancellation-run`, { checkTime })).data
+  },
   async previewLastDay(date: string): Promise<PickupReminderReport> {
     return (await apiClient.get<PickupReminderReport>('/reservations/pickup-last-day-reminders/preview', { params: { date } })).data
   },

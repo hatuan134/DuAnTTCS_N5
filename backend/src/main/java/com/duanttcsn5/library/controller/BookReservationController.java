@@ -119,6 +119,7 @@ public class BookReservationController {
         if (autoCancellationService == null) {
             return ResponseEntity.ok(List.of());
         }
+        autoCancellationService.validateRealCheckTime(checkTime);
         if (checkTime != null) {
             return ResponseEntity.ok(autoCancellationService.processOverdueReservationsAt(checkTime));
         }
@@ -161,6 +162,7 @@ public class BookReservationController {
         if (autoCancellationService == null) {
             return ResponseEntity.noContent().build();
         }
+        autoCancellationService.validateRealCheckTime(checkTime);
         String actor = currentUser != null ? currentUser.email() : "MANUAL_TRIGGER";
         OffsetDateTime time = checkTime != null ? checkTime : OffsetDateTime.now();
         return ResponseEntity.ok(autoCancellationService.executeAutoCancellationRun(time, actor));

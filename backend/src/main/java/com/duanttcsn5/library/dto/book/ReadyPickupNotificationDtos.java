@@ -14,7 +14,18 @@ public final class ReadyPickupNotificationDtos {
                                OffsetDateTime eventAt, OffsetDateTime sendBefore,
                                OffsetDateTime sentAt, OffsetDateTime completedAt, String status,
                                int attemptCount, String subject, String emailContent,
-                               String errorCode, String errorMessage, List<Attempt> attempts) {}
+                               String errorCode, String errorMessage, List<Attempt> attempts,
+                               Long bookId, String cancellationReason, OffsetDateTime cancelledAt) {
+        public Notification(long id, long reservationId, String notificationType, String recipientEmail,
+                String readerName, String bookTitle, OffsetDateTime pickupDeadline, String pickupLocation,
+                OffsetDateTime eventAt, OffsetDateTime sendBefore, OffsetDateTime sentAt, OffsetDateTime completedAt,
+                String status, int attemptCount, String subject, String emailContent,
+                String errorCode, String errorMessage, List<Attempt> attempts) {
+            this(id, reservationId, notificationType, recipientEmail, readerName, bookTitle, pickupDeadline,
+                    pickupLocation, eventAt, sendBefore, sentAt, completedAt, status, attemptCount,
+                    subject, emailContent, errorCode, errorMessage, attempts, null, null, null);
+        }
+    }
     public record History(long reservationId, String reservationStatus, String pickupLocation,
                           String timeZone, List<Notification> notifications) {}
     public record TriggerRequest(Boolean simulateFailure) {}

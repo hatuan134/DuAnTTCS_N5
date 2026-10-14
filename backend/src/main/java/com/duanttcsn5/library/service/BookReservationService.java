@@ -85,13 +85,15 @@ public class BookReservationService {
         return reservations.findAllForReader(readerId).stream().map(reservation -> {
             Long position = "PENDING".equals(reservation.getStatus())
                     ? reservations.findPendingQueuePosition(reservation.getId()) : null;
-            OffsetDateTime deadline = "READY_FOR_PICKUP".equals(reservation.getStatus())
-                    && reservation.getBookCopy() != null ? reservation.getPickupDeadline() : null;
+            OffsetDateTime deadline = ("READY_FOR_PICKUP".equals(reservation.getStatus()) && reservation.getBookCopy() != null)
+                    || "CANCELLED".equals(reservation.getStatus()) ? reservation.getPickupDeadline() : null;
             return new MyBookReservationResponse(reservation.getId(), reservation.getBook().getId(),
                     reservation.getBook().getTitle(), reservation.getStatus(), reservation.getReservedAt(),
                     position, deadline,
                     "READY_FOR_PICKUP".equals(reservation.getStatus()) && pickupNotifications != null
-                            ? pickupNotifications.pickupLocation() : null);
+                            ? pickupNotifications.pickupLocation() : null,
+                    reservation.getCancellationReason(), reservation.getCancelledAt(),
+                    reservation.getCancelledBy() == null && "Hệ thống".equals(reservation.getCancelledByName()));
         }).toList();
     }
 

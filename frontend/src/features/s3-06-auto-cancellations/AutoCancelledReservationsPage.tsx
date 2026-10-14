@@ -1,3 +1,4 @@
+import PickupCancellationTrialPanel from '../s2-09-ready-pickup/PickupCancellationTrialPanel'
 import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import TablePagination from '../../components/ui/TablePagination'
@@ -165,6 +166,8 @@ export default function AutoCancelledReservationsPage() {
       {/* Thông báo thông tin kết quả quét / lỗi */}
       {triggerSuccessMsg && <FeedbackAlert message={triggerSuccessMsg} tone="success" onDismiss={() => setTriggerSuccessMsg(null)} />}
       {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError(null)} />}
+
+      <PickupCancellationTrialPanel onChanged={() => { void fetchData() }} />
 
       {/* 4 Thẻ thống kê chuẩn giao diện dự án: Nền trắng, viền mỏng, chữ đen to rõ nét */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import com.duanttcsn5.library.exception.ApiException;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -112,6 +114,7 @@ public class ReservationAutoCancellationService {
      * Tự động phát hiện và huỷ các đơn đặt giữ đã quá 3 ngày mở cửa mà Bạn đọc không đến nhận.
      */
     @Scheduled(cron = "0 30 0 * * *", zone = "Asia/Ho_Chi_Minh")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void runDailyScheduledCheck() {
         log.info("Bắt đầu tiến trình kiểm tra và huỷ tự động đơn đặt giữ quá hạn nhận lúc 00:30...");
         AutoCancellationRunResponse runResponse = executeAutoCancellationRun(
@@ -136,6 +139,31 @@ public class ReservationAutoCancellationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public AutoCancellationRunResponse executeAutoCancellationRun(OffsetDateTime checkTime, String triggeredBy) {
+        return executeRun(checkTime,triggeredBy,null);
+    }
+
+    public void validateRealCheckTime(OffsetDateTime checkTime) {
+        if (checkTime!=null && checkTime.isAfter(OffsetDateTime.now(clock))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,"FUTURE_CANCELLATION_TIME",
+                    "Mốc tương lai chỉ được xem trước. Không thể hủy thật đơn trước hạn theo giờ thực tế.");
+        }
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public AutoCancellationRunResponse executeForReservation(long id,OffsetDateTime checkTime,String actor) {
+        if (id<=0) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_RESERVATION_ID","Mã đơn đặt giữ không hợp lệ.");
+        validateRealCheckTime(checkTime);
+        OffsetDateTime actual=OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+        BookReservation target=reservations.findForCancellation(id).orElseThrow(()->new ApiException(
+                HttpStatus.NOT_FOUND,"RESERVATION_NOT_FOUND","Không tìm thấy đơn đặt giữ."));
+        if (!isOverdue(target,actual) || reservations.hasLoanLinkedToReservation(id)) {
+            throw new ApiException(HttpStatus.CONFLICT,"RESERVATION_NOT_OVERDUE",
+                    "Chỉ hủy thật đơn đang Chờ nhận, chưa được nhận và đã quá hạn theo giờ thực tế.");
+        }
+        return executeRun(actual,actor,id);
+    }
+
+    private AutoCancellationRunResponse executeRun(OffsetDateTime checkTime,String triggeredBy,Long selectedId) {
         wakePickupEmails();
         LocalDate runDate = checkTime.toLocalDate();
         OffsetDateTime startedAt = checkTime;
@@ -154,6 +182,7 @@ public class ReservationAutoCancellationService {
         List<BookReservation> overdueCandidates = new ArrayList<>();
         for (BookReservation candidate : candidateList) {
             if (candidate == null
+                    || (selectedId != null && !selectedId.equals(candidate.getId()))
                     || !"READY_FOR_PICKUP".equals(candidate.getStatus())
                     || candidate.getAutoCancellationRun() != null) {
                 continue;
@@ -191,10 +220,13 @@ public class ReservationAutoCancellationService {
                     continue;
                 }
 
-                if (!isOverdue(target, checkTime)) {
+                if (!isOverdue(target, checkTime) || reservations.hasLoanLinkedToReservation(target.getId())) {
                     continue;
                 }
 
+                if (target.getPickupDeadline()==null) {
+                    target.setPickupDeadline(configuration.calculateReservationPickupDeadline(target.getReservedAt()));
+                }
                 target.cancelBySystem(checkTime, OVERDUE_CANCELLATION_REASON);
                 if (runRepository != null) {
                     target.setAutoCancellationRun(runRecord);

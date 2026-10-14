@@ -56,7 +56,7 @@ class MyBookReservationServiceTest {
         verify(reservations).findAllForReader(12L);
     }
 
-    @Test void readyHasExactDeadlineOnlyWhenAllocatedAndHistoryHasNeitherField() {
+    @Test void readyRequiresAllocationAndCancelledHistoryRetainsDeadline() {
         var ready = order(1L, "READY_FOR_PICKUP", true);
         when(reservations.findAllForReader(12L)).thenReturn(List.of(ready,
                 order(2L, "READY_FOR_PICKUP", false), order(3L, "CANCELLED", true),
@@ -65,7 +65,9 @@ class MyBookReservationServiceTest {
         assertThat(result).hasSize(5);
         assertThat(result.get(0).pickupDeadline()).isEqualTo(ready.getPickupDeadline());
         assertThat(result).allMatch(r -> r.queuePosition() == null);
-        assertThat(result.subList(1, 5)).allMatch(r -> r.pickupDeadline() == null);
+        assertThat(result.get(1).pickupDeadline()).isNull();
+        assertThat(result.get(2).pickupDeadline()).isEqualTo(ready.getPickupDeadline());
+        assertThat(result.subList(3, 5)).allMatch(r -> r.pickupDeadline() == null);
         verify(reservations, never()).findPendingQueuePosition(anyLong());
     }
 

@@ -192,21 +192,28 @@ export default function MyReservationsPage() {
                   </td>
                   <td className="px-5 py-4">
                     <StatusBadge status={item.status} label={statusLabel} />
+                    {item.status === 'CANCELLED' && <div className="mt-2 max-w-xs space-y-1 text-xs text-slate-600">
+                      <p className="break-words">Lý do: {item.cancellationReason || 'Đơn cũ chưa ghi nhận lý do hủy'}</p>
+                      {item.cancelledAt && <p>Thời điểm hủy: <time dateTime={item.cancelledAt}>{formatDate(item.cancelledAt)}</time></p>}
+                    </div>}
                   </td>
                   <td className="px-5 py-4 font-semibold text-slate-900">
                     {item.status === 'PENDING' ? (item.queuePosition ?? 'Chưa xác định') : '—'}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
-                    {item.status === 'READY_FOR_PICKUP' && item.pickupDeadline
+                    {['READY_FOR_PICKUP', 'CANCELLED'].includes(item.status) && item.pickupDeadline
                       ? <><time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
                         {isLastDayPickup(item.status, item.pickupDeadline, now) && <p role="status" className="mt-2 max-w-xs whitespace-normal rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Hôm nay là hạn cuối nhận sách</p>}
                         <p className="mt-1 max-w-xs whitespace-normal break-words text-xs font-normal text-slate-600">
-                          {item.pickupLocation || 'Chưa khai báo quầy nhận. Vui lòng liên hệ thủ thư.'}
+                          {item.status === 'READY_FOR_PICKUP' ? item.pickupLocation || 'Chưa khai báo quầy nhận. Vui lòng liên hệ thủ thư.' : 'Hạn nhận của đơn đã hủy.'}
                         </p></>
                       : '—'}
                   </td>
                   <td className="px-5 py-4">
-                    {item.status === 'FULFILLED'
+                    {item.status === 'CANCELLED' ? <div className="max-w-xs space-y-2">
+                      <Link to={`/catalog/books/${item.bookId}#reserve-book`} className="inline-flex min-h-11 items-center rounded-lg border border-blue-200 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50">Đặt giữ lại</Link>
+                      <p className="text-xs leading-5 text-slate-600">Mở trang sách để tạo đơn mới nếu thẻ còn hạn, không bị khóa và đủ điều kiện. Nếu hết bản rảnh, bạn vào cuối hàng đợi, không giữ vị trí cũ.</p>
+                    </div> : item.status === 'FULFILLED'
                       ? <span className="text-xs font-medium text-slate-500">Không thể huỷ: sách đã được nhận.</span>
                       : ['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <TableActionButton
                         tone="danger"

@@ -148,7 +148,7 @@ export default function ReserveBookPanel({ bookId, availableCount, onReserved }:
   }
 
   return (
-    <section className="border-t border-slate-200 bg-blue-50/40 p-6 sm:p-8" aria-labelledby="reserve-book-title">
+    <section id="reserve-book" className="border-t border-slate-200 bg-blue-50/40 p-6 sm:p-8" aria-labelledby="reserve-book-title">
       <h2 id="reserve-book-title" className="flex items-center gap-2 text-base font-bold text-slate-900">
         <Bookmark size={18} className="text-blue-600" /> Đặt giữ đầu sách
       </h2>

@@ -1,3 +1,4 @@
+import PickupEmailHistoryDialog from './PickupEmailHistoryDialog'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -40,6 +41,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
   const [cancelTarget, setCancelTarget] = useState<ReservationQueueEntry | null>(null)
   const [cancellation, setCancellation] = useState<CancelReservationResult | null>(null)
   const [revision, setRevision] = useState(0)
+  const [emailId, setEmailId] = useState<number | null>(null)
   const panelOpenRef = useRef(false)
   const refreshRef = useRef<() => void>(() => {})
 
@@ -147,6 +149,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
           Bỏ bộ lọc
         </Button>}
       </div>
+      {emailId !== null && <PickupEmailHistoryDialog reservationId={emailId} onClose={() => setEmailId(null)} />}
       {cancellation && <CancellationNotice result={cancellation} />}
       {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
         onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}
@@ -205,6 +208,7 @@ function ReservationQueue({ bookId }: { bookId: number }) {
                     onClick={() => { panelOpenRef.current = true; setCancelTarget(item); setCancellation(null) }}>
                     Hủy đơn
                   </TableActionButton>}
+                  <TableActionButton disabled={!!cancelTarget} aria-label={`Xem email đơn #${item.id}`} onClick={() => setEmailId(item.id)}>Lịch sử email</TableActionButton>
                   {item.cancellation && <CancellationAudit audit={item.cancellation} />}
                   {item.status === 'CANCELLED' && !item.cancellation && <span className="text-slate-500">
                     Đơn cũ chưa có thông tin người và thời điểm huỷ.
