@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ManualCardLock } from './libraryCardService'
 
 /** Refresh authoritative status at the earliest lock expiry or when returning to the page. */
-export default function useCardLockExpiry(locks: (ManualCardLock | null | undefined)[], refresh: () => void) {
+export default function useCardLockExpiry(locks: (ManualCardLock | null | undefined)[], refresh: () => void, watchChanges = false) {
   const refreshRef = useRef(refresh)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
   const nextExpiry = locks.filter(lock => lock?.active && lock.endsAt)
@@ -20,6 +20,14 @@ export default function useCardLockExpiry(locks: (ManualCardLock | null | undefi
     schedule()
     return () => window.clearTimeout(timer)
   }, [nextExpiry])
+  const hasActiveLock = locks.some(lock => lock?.active)
+  useEffect(() => {
+    if (!watchChanges || !hasActiveLock) return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshRef.current()
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [watchChanges, hasActiveLock])
   useEffect(() => {
     const onFocus = () => refreshRef.current()
     window.addEventListener('focus', onFocus)

@@ -303,13 +303,84 @@ public class LibraryCardService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOCK_EXPIRY",
                     "Thời điểm hết hạn khóa phải hợp lệ và sau thời điểm bắt đầu khóa.");
         }
+        String previousStatus = resolveCardStatus(card, startedAt.toLocalDate(), startedAt);
         card.applyManualLock(reason, startedAt, endsAt, actorId);
         libraryCardRepository.saveAndFlush(card);
+        recordLockHistory(card, "LOCK", actorId, startedAt, reason, previousStatus,
+                resolveCardStatus(card, startedAt.toLocalDate(), startedAt));
         auditLogService.logLibraryCardLocked(actorId, card, ipAddress);
         return LibraryCardResponse.fromEntity(card,
                 readerProfileRepository.findById(readerId).map(ReaderProfile::getMemberCode).orElse("-"),
                 resolveCardStatus(card, startedAt.toLocalDate(), startedAt), startedAt,
                 libraryCardRepository.sumUnpaidFees(readerId));
+    }
+
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public com.duanttcsn5.library.dto.librarycard.LibraryCardDetailsResponse getCardDetails(Long cardId) {
+        LibraryCard card = libraryCardRepository.findById(cardId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND", "Không tìm thấy thẻ thư viện."));
+        OffsetDateTime now = OffsetDateTime.now(LIBRARY_ZONE);
+        var history = libraryCardRepository.findLockHistory(cardId).stream()
+                .map(com.duanttcsn5.library.dto.librarycard.LibraryCardLockHistoryResponse::fromRow).toList();
+        String lockActorName = history.stream()
+                .filter(h -> "LOCK".equals(h.action()) && card.getManualLockStartedAt() != null
+                        && h.lockStartedAt().isEqual(card.getManualLockStartedAt()))
+                .map(com.duanttcsn5.library.dto.librarycard.LibraryCardLockHistoryResponse::actorName)
+                .findFirst().orElseGet(() -> card.getManualLockActorId() == null ? "Không xác định"
+                        : libraryCardRepository.findLockActorName(card.getManualLockActorId()).orElse("Không xác định"));
+        return new com.duanttcsn5.library.dto.librarycard.LibraryCardDetailsResponse(
+                cardResponse(card, now), lockActorName, history);
+    }
+
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public LibraryCardResponse unlockCard(Long cardId,
+            com.duanttcsn5.library.dto.librarycard.UnlockLibraryCardRequest request,
+            Long actorId, String ipAddress) {
+        String reason = request == null || request.reason() == null ? "" : request.reason().strip();
+        if (reason.isBlank() || reason.codePoints().allMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c))
+                || reason.length() > 1000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_UNLOCK_REASON",
+                    "Bắt buộc nhập lý do mở khóa thẻ, tối đa 1000 ký tự.");
+        }
+        if (request.lockStartedAt() == null) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "LOCK_REFERENCE_REQUIRED", "Thiếu thông tin lần khóa. Vui lòng tải lại chi tiết thẻ.");
+        if (cardId == null || cardId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_CARD_ID", "Mã thẻ không hợp lệ.");
+        Long readerId = libraryCardRepository.findReaderId(cardId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND", "Không tìm thấy thẻ thư viện."));
+        libraryCardRepository.lockReaderForTransactions(readerId);
+        LibraryCard card = libraryCardRepository.findByIdForUpdate(cardId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND", "Không tìm thấy thẻ thư viện."));
+        OffsetDateTime now = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        if (!card.hasActiveManualLock(now)) throw new ApiException(HttpStatus.CONFLICT,
+                "MANUAL_CARD_LOCK_NOT_ACTIVE", "Thẻ không còn khóa thủ công có hiệu lực. Vui lòng tải lại chi tiết thẻ.");
+        if (!card.getManualLockStartedAt().isEqual(request.lockStartedAt())) throw new ApiException(HttpStatus.CONFLICT,
+                "CARD_LOCK_CHANGED", "Lần khóa đã thay đổi. Vui lòng tải lại chi tiết thẻ trước khi mở khóa.");
+        String previousStatus = resolveCardStatus(card, now.toLocalDate(), now);
+        // PO: allow early release with a reason. Do not waive fees, erase overdue loans,
+        // reactivate an expired/disabled card, or release account/other card restrictions.
+        card.releaseManualLock(now);
+        libraryCardRepository.saveAndFlush(card);
+        String resultingStatus = resolveCardStatus(card, now.toLocalDate(), now);
+        recordLockHistory(card, "UNLOCK", actorId, now, reason, previousStatus, resultingStatus);
+        auditLogService.logLibraryCardUnlocked(actorId, card, reason, previousStatus, resultingStatus, ipAddress);
+        return cardResponse(card, now);
+    }
+
+    private LibraryCardResponse cardResponse(LibraryCard card, OffsetDateTime now) {
+        return LibraryCardResponse.fromEntity(card,
+                readerProfileRepository.findById(card.getUser().getId()).map(ReaderProfile::getMemberCode).orElse("-"),
+                resolveCardStatus(card, now.toLocalDate(), now), now,
+                libraryCardRepository.sumUnpaidFees(card.getUser().getId()));
+    }
+
+    private void recordLockHistory(LibraryCard card, String action, Long actorId, OffsetDateTime now,
+            String reason, String previousStatus, String resultingStatus) {
+        libraryCardRepository.insertLockHistory(card.getId(), card.getCardNumber(), action, actorId, now, reason,
+                card.getManualLockStartedAt(), card.getManualLockEndsAt(), card.getManualLockReason(),
+                card.getManualLockActorId(), previousStatus, resultingStatus);
     }
 
     public static String resolveCardStatus(LibraryCard card, LocalDate today, OffsetDateTime now) {

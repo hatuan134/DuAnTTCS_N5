@@ -59,6 +59,12 @@ public class LibraryCard {
     @Column(name = "manual_lock_actor_id")
     private Long manualLockActorId;
 
+    @Column(name = "manual_lock_released_at")
+    private OffsetDateTime manualLockReleasedAt;
+
+    public OffsetDateTime getManualLockReleasedAt() { return manualLockReleasedAt; }
+    public void releaseManualLock(OffsetDateTime releasedAt) { manualLockReleasedAt = releasedAt; }
+
     public String getManualLockReason() { return manualLockReason; }
     public OffsetDateTime getManualLockStartedAt() { return manualLockStartedAt; }
     public OffsetDateTime getManualLockEndsAt() { return manualLockEndsAt; }
@@ -70,10 +76,11 @@ public class LibraryCard {
         manualLockStartedAt = startedAt;
         manualLockEndsAt = endsAt;
         manualLockActorId = actorId;
+        manualLockReleasedAt = null;
     }
 
     public boolean hasActiveManualLock(OffsetDateTime now) {
-        return manualLockStartedAt != null && !manualLockStartedAt.isAfter(now)
+        return manualLockReleasedAt == null && manualLockStartedAt != null && !manualLockStartedAt.isAfter(now)
                 && (manualLockEndsAt == null || manualLockEndsAt.isAfter(now));
     }
 

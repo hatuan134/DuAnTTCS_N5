@@ -101,6 +101,7 @@ public class AuditLogService {
                 new AuditActionOptionResponse("UPDATE_ACCOUNT", "Sửa tài khoản"),
                 new AuditActionOptionResponse("ISSUE_CARD", "Cấp thẻ"),
                 new AuditActionOptionResponse("LIBRARY_CARD_MANUALLY_LOCKED", "Khóa thẻ thủ công"),
+                new AuditActionOptionResponse("LIBRARY_CARD_MANUALLY_UNLOCKED", "Mở khóa thẻ thủ công"),
                 new AuditActionOptionResponse("UPDATE_POLICY", "Sửa chính sách mượn")
         );
 
@@ -130,6 +131,24 @@ public class AuditLogService {
         data.put("endsAt", card.getManualLockEndsAt() == null ? null : card.getManualLockEndsAt().toString());
         data.put("indefinite", card.getManualLockEndsAt() == null);
         auditLogRepository.insert(actorId, "LIBRARY_CARD_MANUALLY_LOCKED", "LIBRARY_CARD",
+                card.getId().toString(), toJson(data), ipAddress);
+    }
+
+    public void logLibraryCardUnlocked(Long actorId, com.duanttcsn5.library.entity.LibraryCard card,
+            String reason, String previousStatus, String resultingStatus, String ipAddress) {
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("cardNumber", card.getCardNumber());
+        data.put("readerName", card.getUser().getFullName());
+        data.put("readerUserId", card.getUser().getId());
+        data.put("reason", reason);
+        data.put("unlockedAt", card.getManualLockReleasedAt().toString());
+        data.put("lockStartedAt", card.getManualLockStartedAt().toString());
+        data.put("lockEndsAt", card.getManualLockEndsAt() == null ? null : card.getManualLockEndsAt().toString());
+        data.put("lockReason", card.getManualLockReason());
+        data.put("lockActorUserId", card.getManualLockActorId());
+        data.put("previousStatus", previousStatus);
+        data.put("resultingStatus", resultingStatus);
+        auditLogRepository.insert(actorId, "LIBRARY_CARD_MANUALLY_UNLOCKED", "LIBRARY_CARD",
                 card.getId().toString(), toJson(data), ipAddress);
     }
 
@@ -449,7 +468,7 @@ public class AuditLogService {
         if (ACTION_GROUPS.get("UPDATE_ACCOUNT").contains(action)) return "UPDATE_ACCOUNT";
         if (ACTION_GROUPS.get("ISSUE_CARD").contains(action)) return "ISSUE_CARD";
         if (ACTION_GROUPS.get("UPDATE_POLICY").contains(action)) return "UPDATE_POLICY";
-        if ("LIBRARY_CARD_MANUALLY_LOCKED".equals(action)) return action;
+        if ("LIBRARY_CARD_MANUALLY_LOCKED".equals(action) || "LIBRARY_CARD_MANUALLY_UNLOCKED".equals(action)) return action;
         return "OTHER";
     }
 
@@ -469,6 +488,7 @@ public class AuditLogService {
             case "READER_CONTACT_UPDATED" -> "Cập nhật thông tin liên hệ";
             case "READER_PASSWORD_CHANGED" -> "Đổi mật khẩu";
             case "LIBRARY_CARD_MANUALLY_LOCKED" -> "Khóa thẻ thủ công";
+            case "LIBRARY_CARD_MANUALLY_UNLOCKED" -> "Mở khóa thẻ thủ công";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ thư viện";
             case "READER_APPLICATION_REJECTED" -> "Từ chối hồ sơ bạn đọc";
             case "CARD_TYPE_CREATED" -> "Tạo chính sách mượn";
@@ -517,6 +537,9 @@ public class AuditLogService {
                     ? " Email đổi từ " + valueOrDash(afterData, "oldEmail") + " sang " + valueOrDash(afterData, "newEmail") + "."
                     : " Email không thay đổi.");
             case "READER_PASSWORD_CHANGED" -> "Bạn đọc đổi mật khẩu tài khoản thành công.";
+            case "LIBRARY_CARD_MANUALLY_UNLOCKED" -> "Mở khóa thẻ " + valueOrDash(afterData, "cardNumber")
+                    + ": " + valueOrDash(afterData, "reason") + ". Thời điểm: " + valueOrDash(afterData, "unlockedAt")
+                    + ". Trạng thái: " + valueOrDash(afterData, "previousStatus") + " → " + valueOrDash(afterData, "resultingStatus");
             case "LIBRARY_CARD_MANUALLY_LOCKED" -> "Khóa thẻ " + valueOrDash(afterData, "cardNumber")
                     + ": " + valueOrDash(afterData, "reason") + ". Bắt đầu: " + valueOrDash(afterData, "startedAt")
                     + ". Hết hạn: " + (text(afterData, "endsAt") == null ? "Đến khi mở thủ công" : text(afterData, "endsAt"));
