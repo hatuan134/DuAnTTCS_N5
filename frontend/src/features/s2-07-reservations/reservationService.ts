@@ -28,6 +28,7 @@ export interface BookReservationBatch {
 }
 
 export interface MyBookReservation {
+  pickupLocation?: string | null
   id: number
   bookId: number
   bookTitle: string

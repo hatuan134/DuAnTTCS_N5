@@ -69,6 +69,13 @@ import java.util.Map;
 /** Lending is a new domain; reservation creation/cancellation stays in its existing service. */
 @Service
 public class LoanService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReadyPickupNotificationService pickupNotifications;
+
+    private void wakePickupEmails() {
+        if (pickupNotifications != null) pickupNotifications.wakeAfterCommit();
+    }
+
     private final BookRepository books;
     private final BookReservationRepository reservations;
     private final BookCopyRepository copies;
@@ -178,6 +185,7 @@ public class LoanService {
     /** S3-07.3: return one copy and allocate it to the first eligible FIFO waiter atomically. */
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
     public ConfirmReturnResponse confirmReturn(ConfirmReturnRequest request, Long actorId) {
+        wakePickupEmails();
         requireStaff(actorId, "nhận trả sách");
         String barcode = request == null || request.barcode() == null ? "" : request.barcode().trim();
         if (barcode.isEmpty() || barcode.length() > 100) {

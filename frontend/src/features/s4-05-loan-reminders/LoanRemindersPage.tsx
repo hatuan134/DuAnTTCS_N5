@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, RefreshCw, Eye, Filter, AlertCircle } from 'lucide-react'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import { Send, RefreshCw, Eye, Filter } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -10,6 +11,7 @@ import TriggerReminderModal from './TriggerReminderModal'
 import EmailPreviewModal from './EmailPreviewModal'
 import {
   loanReminderService,
+  retryFeedback,
   type LoanReminderLog,
 } from './loanReminderService'
 
@@ -17,6 +19,7 @@ export default function LoanRemindersPage() {
   const [logs, setLogs] = useState<LoanReminderLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   // Filters
   const [filterDate, setFilterDate] = useState<string>('')
@@ -34,11 +37,13 @@ export default function LoanRemindersPage() {
   const [showTriggerModal, setShowTriggerModal] = useState(false)
   const [selectedLogForPreview, setSelectedLogForPreview] = useState<LoanReminderLog | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [retryResultTone, setRetryResultTone] = useState<'success' | 'warning' | 'info'>('info')
   const [retryResultMsg, setRetryResultMsg] = useState<string | null>(null)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setLoadFailed(false)
     try {
       const res = await loanReminderService.getHistory({
         date: filterDate || undefined,
@@ -52,6 +57,7 @@ export default function LoanRemindersPage() {
       setLogs(res.content)
       setTotalElements(res.totalElements)
     } catch (err: any) {
+      setLoadFailed(true)
       setError(err?.response?.data?.message || err?.message || 'Không thể tải lịch sử gửi email nhắc nhở')
     } finally {
       setLoading(false)
@@ -67,8 +73,10 @@ export default function LoanRemindersPage() {
     setRetryResultMsg(null)
     try {
       const res = await loanReminderService.retryPending()
-      setRetryResultMsg(res.executionSummary)
-      fetchLogs()
+      const feedback = retryFeedback(res)
+      setRetryResultMsg(feedback.message)
+      setRetryResultTone(feedback.tone)
+      void fetchLogs()
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Lỗi khi thực hiện thử lại các email chờ')
     } finally {
@@ -81,8 +89,10 @@ export default function LoanRemindersPage() {
     setRetryResultMsg(null)
     try {
       const res = await loanReminderService.retrySingle(logId)
-      setRetryResultMsg(res.executionSummary)
-      fetchLogs()
+      const feedback = retryFeedback(res)
+      setRetryResultMsg(feedback.message)
+      setRetryResultTone(feedback.tone)
+      void fetchLogs()
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Lỗi khi thử lại email này')
     } finally {
@@ -140,21 +150,7 @@ export default function LoanRemindersPage() {
       />
 
       {/* Retry Result Banner if any */}
-      {retryResultMsg && (
-        <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm text-purple-800">
-          <div className="flex items-center gap-2 font-medium">
-            <RefreshCw className="h-4 w-4 text-purple-600" />
-            <span>{retryResultMsg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setRetryResultMsg(null)}
-            className="text-xs text-purple-600 underline font-semibold"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
+      {retryResultMsg && <FeedbackAlert tone={retryResultTone} message={retryResultMsg} onDismiss={() => setRetryResultMsg(null)} />}
 
       {/* Filter Toolbar */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
@@ -270,19 +266,15 @@ export default function LoanRemindersPage() {
       </div>
 
       {/* Main Table */}
-      {error && (
-        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
-          <p>{error}</p>
-        </div>
-      )}
+      {error && <FeedbackAlert tone="error" message={error} onDismiss={() => setError(null)} />}
+      {loadFailed && <p role="status" className="text-sm text-slate-600">Chưa tải được lịch sử gửi email. Nhấn “Làm mới” để thử lại.</p>}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-8">
             <LoadingState />
           </div>
-        ) : logs.length === 0 ? (
+        ) : loadFailed ? <div className="p-8 text-sm text-slate-600">Lịch sử hiện chưa có sẵn.</div> : logs.length === 0 ? (
           <div className="p-8">
             <EmptyState
               title="Chưa có bản ghi nhắc nhở nào"

@@ -1,3 +1,4 @@
+import ReadyPickupEmailPanel from './ReadyPickupEmailPanel'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -117,6 +118,7 @@ function ReadyPickupDetail({ id }: { id: number }) {
           {item.copyStatus && <div><dt className="text-slate-500">Trạng thái bản sao</dt>
             <dd className="mt-1"><StatusBadge status={item.copyStatus} /></dd></div>}
         </dl>
+        <ReadyPickupEmailPanel key={item.id} reservationId={item.id} />
         <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
           isManager={['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')}
           requireOverride={getCurrentUser()?.role === 'LIBRARY_MANAGER'}

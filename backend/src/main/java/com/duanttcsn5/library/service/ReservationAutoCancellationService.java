@@ -30,6 +30,13 @@ import java.util.Optional;
 
 @Service
 public class ReservationAutoCancellationService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReadyPickupNotificationService pickupNotifications;
+
+    private void wakePickupEmails() {
+        if (pickupNotifications != null) pickupNotifications.wakeAfterCommit();
+    }
+
 
     private static final Logger log = LoggerFactory.getLogger(ReservationAutoCancellationService.class);
     public static final ZoneId LIBRARY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -129,6 +136,7 @@ public class ReservationAutoCancellationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public AutoCancellationRunResponse executeAutoCancellationRun(OffsetDateTime checkTime, String triggeredBy) {
+        wakePickupEmails();
         LocalDate runDate = checkTime.toLocalDate();
         OffsetDateTime startedAt = checkTime;
 

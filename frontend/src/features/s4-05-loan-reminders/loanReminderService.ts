@@ -63,12 +63,23 @@ export interface LoanReminderRetryAttempt {
 }
 
 export interface LoanReminderRetryExecutionResult {
-  totalPending: number
-  attempted: number
-  successfulRetries: number
-  stillPending: number
-  exhaustedRetries: number
-  executionSummary: string
+  totalProcessed: number
+  succeededCount: number
+  stillPendingCount: number
+  maxRetriesReachedCount: number
+  executionSummary?: string
+}
+
+export function retryFeedback(result: LoanReminderRetryExecutionResult): { message: string; tone: 'success' | 'warning' | 'info' } {
+  const total = result.totalProcessed ?? 0
+  const succeeded = result.succeededCount ?? 0
+  const pending = result.stillPendingCount ?? 0
+  const failed = result.maxRetriesReachedCount ?? 0
+  return {
+    message: result.executionSummary || (total === 0 ? 'Không có email chờ thử lại.' :
+      `Đã xử lý ${total} email: ${succeeded} thành công, ${pending} chờ thử lại, ${failed} hết lượt thử.`),
+    tone: failed > 0 ? 'warning' : pending > 0 || total === 0 ? 'info' : 'success',
+  }
 }
 
 export interface LoanReminderLog {
