@@ -97,8 +97,12 @@ public class LoanReminderService {
             String email = group.recipientEmail() != null ? group.recipientEmail().trim() : "";
             if (email.isBlank() || !EMAIL_PATTERN.matcher(email).matches()) {
                 log.warn("Invalid or missing email for readerId={}: '{}'", group.readerId(), email);
-                recordLog(targetDate, group, "SKIPPED", "Địa chỉ email không hợp lệ hoặc bị trống",
-                        triggeredBy, triggeredByUserId, triggeredByUserName);
+                try {
+                    recordLog(targetDate, group, "SKIPPED", "Địa chỉ email không hợp lệ hoặc bị trống",
+                            triggeredBy, triggeredByUserId, triggeredByUserName);
+                } catch (Exception ex) {
+                    log.error("Failed to record skipped log for readerId={}: {}", group.readerId(), ex.getMessage());
+                }
                 skippedCount++;
                 continue;
             }
@@ -113,8 +117,16 @@ public class LoanReminderService {
                         email, group.reminderGroup(), group.totalEstimatedFeeVnd());
             } catch (Exception ex) {
                 log.error("Failed to send reminder email to {} for group {}: {}", email, group.reminderGroup(), ex.getMessage(), ex);
-                recordLog(targetDate, group, "FAILED", ex.getMessage(),
-                        triggeredBy, triggeredByUserId, triggeredByUserName);
+                String reason = ex.getMessage();
+                if (reason != null && reason.contains("smtp.gmail.com")) {
+                    reason = "Không thể kết nối đến máy chủ gửi email SMTP. Vui lòng kiểm tra cấu hình MAIL_USERNAME / MAIL_PASSWORD: " + reason;
+                }
+                try {
+                    recordLog(targetDate, group, "FAILED", reason,
+                            triggeredBy, triggeredByUserId, triggeredByUserName);
+                } catch (Exception logEx) {
+                    log.error("Failed to record failed log for readerId={}: {}", group.readerId(), logEx.getMessage());
+                }
                 failedCount++;
             }
         }
@@ -486,6 +498,11 @@ public class LoanReminderService {
             itemsDetailJson = "[]";
         }
 
+        String safeError = errorMessage;
+        if (safeError != null && safeError.length() > 900) {
+            safeError = safeError.substring(0, 900) + "...";
+        }
+
         repository.insertLog(
                 targetDate,
                 group.readerId(),
@@ -500,7 +517,7 @@ public class LoanReminderService {
                 group.subject(),
                 group.emailContentHtml(),
                 status,
-                errorMessage,
+                safeError,
                 triggeredBy != null ? triggeredBy : "SYSTEM_SCHEDULED",
                 triggeredByUserId,
                 triggeredByUserName,

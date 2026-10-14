@@ -298,6 +298,13 @@ public class EmailService {
             return;
         }
 
+        if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl impl) {
+            if (impl.getUsername() == null || impl.getUsername().isBlank()) {
+                log.info("[MOCK EMAIL DEV MODE] SMTP username is not configured. Simulated sending email to '{}' with subject '{}'", toEmail, subject);
+                return;
+            }
+        }
+
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
         helper.setFrom(mailFrom);
