@@ -100,6 +100,7 @@ public class AuditLogService {
                 new AuditActionOptionResponse("CREATE_ACCOUNT", "Tạo tài khoản"),
                 new AuditActionOptionResponse("UPDATE_ACCOUNT", "Sửa tài khoản"),
                 new AuditActionOptionResponse("ISSUE_CARD", "Cấp thẻ"),
+                new AuditActionOptionResponse("LIBRARY_CARD_MANUALLY_LOCKED", "Khóa thẻ thủ công"),
                 new AuditActionOptionResponse("UPDATE_POLICY", "Sửa chính sách mượn")
         );
 
@@ -116,6 +117,20 @@ public class AuditLogService {
                         "failedAttempts", failedAttempts,
                         "reason", "INVALID_PASSWORD")),
                 ipAddress);
+    }
+
+    public void logLibraryCardLocked(Long actorId, com.duanttcsn5.library.entity.LibraryCard card,
+                                     String ipAddress) {
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("cardNumber", card.getCardNumber());
+        data.put("readerName", card.getUser().getFullName());
+        data.put("readerUserId", card.getUser().getId());
+        data.put("reason", card.getManualLockReason());
+        data.put("startedAt", card.getManualLockStartedAt().toString());
+        data.put("endsAt", card.getManualLockEndsAt() == null ? null : card.getManualLockEndsAt().toString());
+        data.put("indefinite", card.getManualLockEndsAt() == null);
+        auditLogRepository.insert(actorId, "LIBRARY_CARD_MANUALLY_LOCKED", "LIBRARY_CARD",
+                card.getId().toString(), toJson(data), ipAddress);
     }
 
     public void logLoginFailedUnknownEmail(String email, String ipAddress) {
@@ -434,6 +449,7 @@ public class AuditLogService {
         if (ACTION_GROUPS.get("UPDATE_ACCOUNT").contains(action)) return "UPDATE_ACCOUNT";
         if (ACTION_GROUPS.get("ISSUE_CARD").contains(action)) return "ISSUE_CARD";
         if (ACTION_GROUPS.get("UPDATE_POLICY").contains(action)) return "UPDATE_POLICY";
+        if ("LIBRARY_CARD_MANUALLY_LOCKED".equals(action)) return action;
         return "OTHER";
     }
 
@@ -452,6 +468,7 @@ public class AuditLogService {
             case "PASSWORD_RESET_COMPLETED" -> "Đặt lại mật khẩu thành công";
             case "READER_CONTACT_UPDATED" -> "Cập nhật thông tin liên hệ";
             case "READER_PASSWORD_CHANGED" -> "Đổi mật khẩu";
+            case "LIBRARY_CARD_MANUALLY_LOCKED" -> "Khóa thẻ thủ công";
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ thư viện";
             case "READER_APPLICATION_REJECTED" -> "Từ chối hồ sơ bạn đọc";
             case "CARD_TYPE_CREATED" -> "Tạo chính sách mượn";
@@ -500,6 +517,9 @@ public class AuditLogService {
                     ? " Email đổi từ " + valueOrDash(afterData, "oldEmail") + " sang " + valueOrDash(afterData, "newEmail") + "."
                     : " Email không thay đổi.");
             case "READER_PASSWORD_CHANGED" -> "Bạn đọc đổi mật khẩu tài khoản thành công.";
+            case "LIBRARY_CARD_MANUALLY_LOCKED" -> "Khóa thẻ " + valueOrDash(afterData, "cardNumber")
+                    + ": " + valueOrDash(afterData, "reason") + ". Bắt đầu: " + valueOrDash(afterData, "startedAt")
+                    + ". Hết hạn: " + (text(afterData, "endsAt") == null ? "Đến khi mở thủ công" : text(afterData, "endsAt"));
             case "LIBRARY_CARD_ISSUED" -> "Cấp thẻ " + valueOrDash(afterData, "cardNumber")
                     + " cho " + valueOrDash(afterData, "readerName")
                     + ", loại " + valueOrDash(afterData, "cardTypeName")

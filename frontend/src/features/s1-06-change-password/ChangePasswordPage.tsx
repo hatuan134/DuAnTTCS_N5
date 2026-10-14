@@ -1,4 +1,6 @@
 import axios from 'axios'
+import ManualCardLockDetails from '../s1-04-library-card/ManualCardLockDetails'
+import useCardLockExpiry from '../s1-04-library-card/useCardLockExpiry'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 
@@ -155,6 +157,12 @@ export default function ChangePasswordPage() {
     [profile.email, savedEmail],
   )
 
+  useCardLockExpiry([profileData?.manualLock], () => {
+    if (currentUser?.role !== 'READER' || loading) return
+    void profileService.getMine().then(updated => {
+      setProfileData(current => current ? { ...current, cardStatus: updated.cardStatus, manualLock: updated.manualLock } : current)
+    }).catch(error => setProfileError(getApiErrorMessage(error, 'Không tải được trạng thái thẻ.')))
+  })
   const cardStatusLabel = getCardStatusLabel(profileData)
 
   const handleProfileSubmit = async (
@@ -378,6 +386,11 @@ export default function ChangePasswordPage() {
             </span>
           </div>
         </div>
+
+        {profileData.manualLock?.active && <div className="mx-5 mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          <ManualCardLockDetails lock={profileData.manualLock} />
+          <p className="mt-2 text-sm">Bạn không thể mượn mới, đặt giữ hoặc gia hạn. Bạn vẫn có thể trả sách và thanh toán phí tại thư viện.</p>
+        </div>}
 
         {profileData.registrationStatus === 'REJECTED' &&
           profileData.rejectionReason && (

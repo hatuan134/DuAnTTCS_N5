@@ -522,6 +522,10 @@ public class BookReservationService {
     }
 
     private void validateCard(LibraryCard card, LocalDate today) {
+        OffsetDateTime checkedAt = OffsetDateTime.now(LIBRARY_ZONE);
+        if (card.hasActiveManualLock(checkedAt)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "LIBRARY_CARD_LOCKED", card.manualLockMessage(checkedAt));
+        }
         if ("LOCKED".equals(card.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "LIBRARY_CARD_LOCKED",
                     "Thẻ thư viện đang bị khóa. Không thể đặt giữ đầu sách.");

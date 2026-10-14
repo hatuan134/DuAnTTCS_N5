@@ -972,14 +972,18 @@ public class LoanService {
         String message = eligible ? "Bạn đọc đang mượn " + borrowed + "/" + maxBooks
                 + " sách. Có thể mượn thêm " + remaining + " sách." : joinReasons(reasons);
         return new ReaderLoanEligibilityResponse(reader.getId(), reader.getFullName(), card.getCardNumber(),
-                type.getName(), card.getStatus(), card.getExpiresAt(), maxBooks, borrowed,
+                type.getName(), LibraryCardService.resolveCardStatus(card, today,
+                        OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE)), card.getExpiresAt(), maxBooks, borrowed,
                 eligible ? remaining : 0L, eligible, reason, message, reasons);
     }
 
     /** Independent conditions are intentionally accumulated, never mutually exclusive. */
     private List<BlockReason> cardAndOverdueReasons(LibraryCard card, Long readerId, LocalDate today) {
         List<BlockReason> reasons = new ArrayList<>();
-        if ("LOCKED".equals(card.getStatus())) {
+        OffsetDateTime checkedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE);
+        if (card.hasActiveManualLock(checkedAt)) {
+            reasons.add(new BlockReason("LIBRARY_CARD_LOCKED", card.manualLockMessage(checkedAt)));
+        } else if ("LOCKED".equals(card.getStatus())) {
             reasons.add(new BlockReason("LIBRARY_CARD_LOCKED",
                     "Thẻ thư viện đang bị khóa. Vui lòng liên hệ người quản lý thẻ."));
         }
@@ -1047,6 +1051,18 @@ public class LoanService {
         if (itemId == null || itemId < 1) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_ITEM_ID",
                     "Mã bản sách đang mượn không hợp lệ.");
+        }
+        // Serialize renewal with manual lock and all new-loan/reservation confirmations.
+        reservations.lockReaderForCreation(readerId);
+        LibraryCard renewalCard = cards.findByUserIdWithDetails(readerId).orElse(null);
+        OffsetDateTime cardCheckedAt = OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE);
+        if (renewalCard != null && renewalCard.hasActiveManualLock(cardCheckedAt)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "LIBRARY_CARD_LOCKED",
+                    renewalCard.manualLockMessage(cardCheckedAt));
+        }
+        if (renewalCard != null && "LOCKED".equals(renewalCard.getStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "LIBRARY_CARD_LOCKED",
+                    "Thẻ thư viện đang bị khóa. Không thể gia hạn phiếu mượn.");
         }
         var candidate = loans.findRenewalCandidateForReader(itemId, readerId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "LOAN_ITEM_NOT_FOUND",

@@ -91,7 +91,7 @@ export default function BookCopyDetailPage() {
         <div className="mt-5 text-sm"><p className="text-slate-500">Ghi chú</p><p className="mt-1 whitespace-pre-wrap break-words text-slate-900">{copy.notes || 'Chưa ghi nhận'}</p></div>
         {canEditCopies && !editing && <div className="mt-6"><Button type="button" onClick={() => { setEditing(true); setSaved(false) }}>Sửa thông tin và vị trí</Button></div>}
         {canEditCopies && editing && <EditBookCopyForm key={copy.id} copy={copy} onCancel={() => setEditing(false)} onSaved={updated => {
-          setCopy(updated); setEditing(false); setSaved(true)
+          setCopy(updated); setEditing(false); setCreatedNotice(''); setSaved(true)
         }} />}
         {canEditCopies && !editing && <RepairBookCopyPanel key={copy.id} copy={copy} onSaved={updated => { setCopy(updated); setSaved(false) }} />}
         <p className="mt-6 text-sm text-slate-500">Bản sao được gắn cố định với đầu sách. Không hỗ trợ chuyển sang đầu sách khác.</p>

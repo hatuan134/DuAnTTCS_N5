@@ -50,6 +50,41 @@ public class LibraryCard {
     @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "manual_lock_reason", length = 1000)
+    private String manualLockReason;
+    @Column(name = "manual_lock_started_at")
+    private OffsetDateTime manualLockStartedAt;
+    @Column(name = "manual_lock_ends_at")
+    private OffsetDateTime manualLockEndsAt;
+    @Column(name = "manual_lock_actor_id")
+    private Long manualLockActorId;
+
+    public String getManualLockReason() { return manualLockReason; }
+    public OffsetDateTime getManualLockStartedAt() { return manualLockStartedAt; }
+    public OffsetDateTime getManualLockEndsAt() { return manualLockEndsAt; }
+    public Long getManualLockActorId() { return manualLockActorId; }
+
+    public void applyManualLock(String reason, OffsetDateTime startedAt,
+                                OffsetDateTime endsAt, Long actorId) {
+        manualLockReason = reason;
+        manualLockStartedAt = startedAt;
+        manualLockEndsAt = endsAt;
+        manualLockActorId = actorId;
+    }
+
+    public boolean hasActiveManualLock(OffsetDateTime now) {
+        return manualLockStartedAt != null && !manualLockStartedAt.isAfter(now)
+                && (manualLockEndsAt == null || manualLockEndsAt.isAfter(now));
+    }
+
+    public String manualLockMessage(OffsetDateTime now) {
+        String duration = manualLockEndsAt == null ? "Khóa đến khi mở thủ công."
+                : "Khóa đến " + manualLockEndsAt.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) + " (giờ Việt Nam).";
+        return "Thẻ thư viện đang bị khóa. Lý do: " + manualLockReason + ". " + duration
+                + " Không thể mượn mới, đặt giữ hoặc gia hạn.";
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getCardNumber() { return cardNumber; }

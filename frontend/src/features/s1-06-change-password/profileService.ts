@@ -1,3 +1,4 @@
+import type { ManualCardLock } from '../s1-04-library-card/libraryCardService'
 import { apiClient } from '../../core/api/apiClient'
 
 export interface ReaderSelfProfile {
@@ -14,6 +15,7 @@ export interface ReaderSelfProfile {
   cardTypeName?: string | null
   issuedAt?: string | null
   expiresAt?: string | null
+  manualLock?: ManualCardLock | null
   cardStatus?: string | null
 }
 

@@ -1,3 +1,6 @@
+import LockLibraryCardDialog from './LockLibraryCardDialog'
+import ManualCardLockDetails from './ManualCardLockDetails'
+import useCardLockExpiry from './useCardLockExpiry'
 import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -80,6 +83,9 @@ export default function LibraryCardsPage() {
   const currentUser = getCurrentUser()
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
 
+  const canLock = currentUser?.role === 'LIBRARY_MANAGER'
+  const [lockCard, setLockCard] = useState<LibraryCard | null>(null)
+  const [issuedSearch, setIssuedSearch] = useState('')
   const [pending, setPending] = useState<PendingReaderApplication[]>([])
   const [issued, setIssued] = useState<LibraryCard[]>([])
   const [cardTypes, setCardTypes] = useState<CardType[]>([])
@@ -105,7 +111,11 @@ export default function LibraryCardsPage() {
     pending,
     `${search}|${fromDate}|${toDate}`,
   )
-  const issuedPagination = useTablePagination(issued)
+  const filteredIssued = useMemo(() => {
+    const q = issuedSearch.trim().toLocaleLowerCase('vi-VN')
+    return issued.filter(card => `${card.cardNumber} ${card.readerName} ${card.memberCode}`.toLocaleLowerCase('vi-VN').includes(q))
+  }, [issued, issuedSearch])
+  const issuedPagination = useTablePagination(filteredIssued, issuedSearch)
 
   const load = async () => {
     setLoading(true)
@@ -134,6 +144,8 @@ export default function LibraryCardsPage() {
     if (allowed) void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed])
+
+  useCardLockExpiry(issued.map(card => card.manualLock), () => { if (allowed) void load() })
 
   if (!allowed) {
     return <Navigate to="/dashboard" replace />
@@ -204,8 +216,8 @@ export default function LibraryCardsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Duyệt hồ sơ & cấp thẻ thư viện"
-        description="Duyệt hồ sơ chờ, chọn loại thẻ, hạn thẻ và cấp mã thẻ duy nhất cho bạn đọc."
+        title="Quản lý thẻ thư viện"
+        description="Duyệt hồ sơ, cấp thẻ và tra cứu trạng thái thẻ, nợ phí của bạn đọc."
         action={(
           <Button type="button" variant="secondary" onClick={() => void load()} loading={loading}>
             <RefreshCw size={16} />
@@ -223,7 +235,7 @@ export default function LibraryCardsPage() {
       {success && (
         <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} />
       )}
-      {error && !modal && (
+      {error && !modal && !lockCard && (
         <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />
       )}
 
@@ -342,21 +354,44 @@ export default function LibraryCardsPage() {
         </>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {issued.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">Chưa có thẻ thư viện nào được cấp.</div>
+          <div className="space-y-2 border-b border-slate-200 p-4">
+            <label htmlFor="issued-card-search" className="block text-sm font-medium">Tìm thẻ đã cấp</label>
+            <input id="issued-card-search" value={issuedSearch} onChange={e => setIssuedSearch(e.target.value)}
+              placeholder="Nhập mã thẻ, họ tên hoặc mã bạn đọc..."
+              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+            <p role="status" className="text-xs text-slate-500">{filteredIssued.length} thẻ phù hợp / {issued.length} thẻ đã cấp</p>
+          </div>
+          {loading ? <div className="p-10 text-center text-sm text-slate-500">Đang tải thẻ...</div> : filteredIssued.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-500">Không có thẻ phù hợp. Thử mã thẻ hoặc tên khác, hoặc xóa từ khóa.</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-slate-100 md:hidden">
+                {issuedPagination.pageItems.map(card => <article key={card.id} className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0"><p className="break-words font-semibold">{card.readerName}</p>
+                      <p className="break-all font-mono text-sm text-blue-700">{card.cardNumber}</p>
+                      <p className="text-xs text-slate-500">{card.memberCode}</p></div>
+                    <StatusBadge status={getCardDisplayStatus(card)} />
+                  </div>
+                  <p className="text-sm">{card.cardTypeName} · Hết hạn: {formatDate(card.expiresAt)}</p>
+                  <p className="text-sm">Nợ phí: {Number(card.unpaidFees || 0).toLocaleString('vi-VN')} ₫</p>
+                  <ManualCardLockDetails lock={card.manualLock} />
+                  {canLock && <Button type="button" variant="danger" disabled={card.manualLock?.active || card.status === 'LOCKED'}
+                    onClick={() => { setError(''); setSuccess(''); setLockCard(card) }}>Khóa thẻ</Button>}
+                </article>)}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
               <table className="data-table w-full text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">STT</th>
                     <th className="px-4 py-3">Mã thẻ</th>
                     <th className="px-4 py-3">Bạn đọc</th>
-                    <th className="px-4 py-3">Loại thẻ</th>
-                    <th className="px-4 py-3">Ngày cấp</th>
+                    <th className="px-4 py-3">Loại thẻ / Ngày cấp</th>
+                    <th className="px-4 py-3">Nợ phí</th>
                     <th className="px-4 py-3">Hết hạn</th>
-                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Trạng thái / Lệnh khóa</th>
+                    {canLock && <th className="px-4 py-3 text-right">Thao tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -367,10 +402,15 @@ export default function LibraryCardsPage() {
                       </td>
                       <td className="px-4 py-4 font-mono font-semibold text-blue-700">{card.cardNumber}</td>
                       <td className="px-4 py-4"><div className="font-semibold">{card.readerName}</div><div className="text-xs text-slate-500">{card.memberCode}</div></td>
-                      <td className="px-4 py-4">{card.cardTypeName}</td>
-                      <td className="px-4 py-4">{formatDate(card.issuedAt)}</td>
+                      <td className="px-4 py-4">{card.cardTypeName}<div className="text-xs text-slate-500">Cấp: {formatDate(card.issuedAt)}</div></td>
+                      <td className="px-4 py-4">{Number(card.unpaidFees || 0).toLocaleString('vi-VN')} ₫</td>
                       <td className="px-4 py-4">{formatDate(card.expiresAt)}</td>
-                      <td className="px-4 py-4"><StatusBadge status={getCardDisplayStatus(card)} /></td>
+                      <td className="max-w-xs px-4 py-4"><StatusBadge status={getCardDisplayStatus(card)} />
+                        <div className="mt-2"><ManualCardLockDetails lock={card.manualLock} /></div></td>
+                      {canLock && <td className="px-4 py-4"><TableActions>
+                        <TableActionButton tone="danger" disabled={card.manualLock?.active || card.status === 'LOCKED'}
+                          onClick={() => { setError(''); setSuccess(''); setLockCard(card) }}>Khóa thẻ</TableActionButton>
+                      </TableActions></td>}
                     </tr>
                   ))}
                 </tbody>
@@ -387,6 +427,12 @@ export default function LibraryCardsPage() {
           )}
         </div>
       )}
+
+      {lockCard && <LockLibraryCardDialog key={lockCard.id} card={lockCard} onClose={() => setLockCard(null)}
+        onLocked={card => {
+          setIssued(current => current.map(item => item.id === card.id ? card : item))
+          setLockCard(null); setSuccess(`Đã khóa thẻ ${card.cardNumber} của ${card.readerName}.`)
+        }} />}
 
       {modal && (
         <AccessibleModal onClose={() => setModal(null)} busy={submitting} label="Duyệt hồ sơ và cấp thẻ">

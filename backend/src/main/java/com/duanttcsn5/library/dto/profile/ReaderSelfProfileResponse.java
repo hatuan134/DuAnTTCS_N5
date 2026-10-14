@@ -16,6 +16,7 @@ public record ReaderSelfProfileResponse(
         String cardTypeName,
         LocalDate issuedAt,
         LocalDate expiresAt,
-        String cardStatus
+        String cardStatus,
+        com.duanttcsn5.library.dto.librarycard.LibraryCardLockResponse manualLock
 ) {
 }
