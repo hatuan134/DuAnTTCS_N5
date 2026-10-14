@@ -29,6 +29,13 @@ function changeDays(date: string, days: number): string {
 
 const formatNumber = (value: number) => value.toLocaleString('vi-VN')
 
+function formatSnapshot(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: DATE_ZONE, day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date(value))
+}
+
 export default function LoanReportPage() {
   const [endDate, setEndDate] = useState(todayInVietnam)
   const [startDate, setStartDate] = useState(() => changeDays(todayInVietnam(), -29))
@@ -115,7 +122,7 @@ export default function LoanReportPage() {
       </div>
       {dateError
         ? <p role="alert" className="mt-3 text-sm font-medium text-red-700">{dateError}</p>
-        : <p className="mt-3 text-xs text-slate-500">Đổi khoảng ngày để tự động cập nhật số liệu và bảng Top 10. Bao gồm cả ngày bắt đầu và ngày kết thúc.</p>}
+        : <p className="mt-3 text-xs text-slate-500">Đổi khoảng ngày để cập nhật chỉ số và bảng xếp hạng lượt mượn. Bảng hàng đợi luôn phản ánh dữ liệu đặt giữ tại thời điểm tải, không lọc theo khoảng ngày.</p>}
     </Card>
 
     {notice && <FeedbackAlert tone="error" message={notice} onDismiss={() => setNotice('')} />}
@@ -184,6 +191,56 @@ export default function LoanReportPage() {
             ? <div className="p-4"><EmptyState title="Không có lượt mượn trong khoảng ngày này" description="Hãy chọn khoảng ngày khác để xem các đầu sách được mượn nhiều nhất." /></div>
             : null}
     </Card>
-    {report && <p className="text-xs leading-5 text-slate-500">Số bản hiện có không tính bản đã loại khỏi kho (REMOVED); bản đang sửa chữa vẫn được tính trong kho. Phiếu quá hạn được xác định tại ngày kết thúc báo cáo theo ngày hẹn trả.</p>}
+    <Card className="min-w-0 overflow-hidden">
+      <div className="border-b border-slate-200 px-4 py-5 sm:px-6">
+        <h2 className="text-lg font-bold text-slate-900">Top 10 đầu sách có hàng đợi đặt giữ dài nhất</h2>
+        <p className="mt-1 text-sm text-slate-500">Đếm đơn đang xếp hàng (PENDING), không tính đơn đã chờ nhận, hoàn tất, hủy hoặc hết hiệu lực. Khi bằng số đơn, xếp mã đầu sách tăng dần.</p>
+        {report?.queueSnapshotAt && <p className="mt-2 text-xs text-slate-500">Dữ liệu hàng đợi tại: <time dateTime={report.queueSnapshotAt}>{formatSnapshot(report.queueSnapshotAt)}</time> (giờ Việt Nam). Bấm “Làm mới” để xem đơn vừa tạo hoặc vừa hủy.</p>}
+      </div>
+      {!dateError && loading
+        ? <p role="status" className="px-6 py-12 text-center text-sm text-slate-500">Đang tổng hợp hàng đợi đặt giữ...</p>
+        : report?.topQueuedBooks.length
+          ? <>
+            <div className="space-y-3 p-4 sm:hidden">
+              {report.topQueuedBooks.map((book, index) => <div key={book.bookId} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-lg bg-slate-100 px-2 py-1 text-sm font-semibold tabular-nums text-slate-600">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <Link className="break-words font-semibold text-blue-700 hover:underline" to={`/books/${book.bookId}`}>{book.bookTitle}</Link>
+                    <p className="mt-1 text-xs text-slate-500">Mã đầu sách: #{book.bookId}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+                  <span>Đang chờ: <strong>{formatNumber(book.waitCount)}</strong></span>
+                  <span>Bản hiện có: <strong>{formatNumber(book.stockCount)}</strong></span>
+                </div>
+              </div>)}
+            </div>
+            <table className="hidden w-full table-fixed border-collapse text-left text-sm sm:table">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th scope="col" className="w-14 px-4 py-3 font-semibold">STT</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">Tên sách</th>
+                  <th scope="col" className="w-28 px-3 py-3 font-semibold">Mã đầu sách</th>
+                  <th scope="col" className="w-28 px-3 py-3 text-right font-semibold">Đang chờ</th>
+                  <th scope="col" className="w-32 px-4 py-3 text-right font-semibold">Bản hiện có</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.topQueuedBooks.map((book, index) => <tr key={book.bookId} className="border-t border-slate-100 hover:bg-slate-50/70">
+                  <td className="px-4 py-4 tabular-nums text-slate-500">{index + 1}</td>
+                  <td className="break-words px-4 py-4"><Link to={`/books/${book.bookId}`} className="font-semibold text-blue-700 hover:underline">{book.bookTitle}</Link></td>
+                  <td className="break-words px-3 py-4 text-slate-600">#{book.bookId}</td>
+                  <td className="px-3 py-4 text-right font-semibold tabular-nums text-slate-900">{formatNumber(book.waitCount)}</td>
+                  <td className="px-4 py-4 text-right tabular-nums text-slate-700">{formatNumber(book.stockCount)}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </>
+          : !dateError && report
+            ? <div className="p-4"><EmptyState title="Chưa có đầu sách nào đang được đặt giữ" description="Không có đơn PENDING tại thời điểm tải. Hãy bấm Làm mới khi có đơn mới." /></div>
+            : null}
+    </Card>
+    {report && <p className="text-xs leading-5 text-slate-500">Bảng mượn tính lượt phát sinh trong khoảng ngày đã chọn; bảng đặt giữ đếm số đơn PENDING tại thời điểm tải, không đếm người duy nhất và không tái tạo lịch sử tại ngày kết thúc. Hai bảng dùng cùng quy tắc số bản hiện có: không tính REMOVED, vẫn tính bản đang sửa chữa. Phiếu quá hạn được xác định tại ngày kết thúc báo cáo theo ngày hẹn trả.</p>}
   </div>
 }

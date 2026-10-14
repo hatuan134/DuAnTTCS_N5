@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.repository;
 
 import com.duanttcsn5.library.dto.report.LoanReportResponse.TopBorrowedBook;
+import com.duanttcsn5.library.dto.report.LoanReportResponse.TopQueuedBook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -77,4 +78,35 @@ public class LoanReportRepository {
                 rs.getLong("borrow_count"), rs.getLong("stock_count")),
                 from, untilExclusive);
     }
+
+    /**
+     * The existing operational queue counts PENDING reservation orders only.
+     * READY_FOR_PICKUP already has an allocated copy and is no longer in line.
+     * This is a CURRENT snapshot, NOT a reconstruction for the report end date:
+     * the schema does not store full historical reservation-status transitions.
+     * Ties are ordered by numeric book id so the Top 10 is deterministic.
+     */
+    public List<TopQueuedBook> topQueuedBooks(OffsetDateTime snapshotAt) {
+        return jdbc.query("""
+                WITH ranked AS (
+                  SELECT reservations.book_id, COUNT(*) AS wait_count
+                  FROM book_reservations reservations
+                  WHERE reservations.status = 'PENDING'
+                    AND reservations.reserved_at <= ?
+                  GROUP BY reservations.book_id
+                  ORDER BY wait_count DESC, reservations.book_id ASC
+                  LIMIT 10
+                )
+                SELECT books.id AS book_id, books.title AS book_title,
+                       ranked.wait_count,
+                       (SELECT COUNT(*) FROM book_copies stock
+                        WHERE stock.book_id = books.id AND stock.status <> 'REMOVED') AS stock_count
+                FROM ranked
+                JOIN books ON books.id = ranked.book_id
+                ORDER BY ranked.wait_count DESC, books.id ASC
+                """, (rs, row) -> new TopQueuedBook(
+                rs.getLong("book_id"), rs.getString("book_title"),
+                rs.getLong("wait_count"), rs.getLong("stock_count")), snapshotAt);
+    }
+
 }

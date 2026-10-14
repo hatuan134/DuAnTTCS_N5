@@ -7,6 +7,13 @@ export interface TopBorrowedBook {
   stockCount: number
 }
 
+export interface TopQueuedBook {
+  bookId: number
+  bookTitle: string
+  waitCount: number
+  stockCount: number
+}
+
 export interface LoanReport {
   startDate: string
   endDate: string
@@ -16,6 +23,8 @@ export interface LoanReport {
   overdueLoans: number
   overdueRate: number
   topBooks: TopBorrowedBook[]
+  queueSnapshotAt: string
+  topQueuedBooks: TopQueuedBook[]
 }
 
 export async function getLoanReport(startDate: string, endDate: string, signal?: AbortSignal): Promise<LoanReport> {
