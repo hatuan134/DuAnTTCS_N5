@@ -33,6 +33,7 @@ export default function TriggerReminderModal({
   const [preview, setPreview] = useState<LoanReminderPreviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LoanReminderExecutionResult | null>(null)
+  const [simulateFailure, setSimulateFailure] = useState(false)
 
   const [previewItem, setPreviewItem] = useState<LoanReminderGroupDto | null>(null)
 
@@ -60,7 +61,7 @@ export default function TriggerReminderModal({
     setSubmitting(true)
     setError(null)
     try {
-      const res = await loanReminderService.trigger(targetDate)
+      const res = await loanReminderService.trigger({ targetDate, simulateFailure })
       setResult(res)
       onSuccess()
     } catch (err: any) {
@@ -238,10 +239,22 @@ export default function TriggerReminderModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 bg-slate-50 rounded-b-xl">
-            <Button variant="secondary" onClick={onClose} disabled={submitting}>
-              Đóng
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-6 py-4 bg-slate-50 rounded-b-xl">
+            <div className="flex items-center gap-4">
+              <Button variant="secondary" onClick={onClose} disabled={submitting}>
+                Đóng
+              </Button>
+              <label className="flex items-center gap-2 text-xs font-semibold text-rose-700 cursor-pointer select-none bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg hover:bg-rose-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={simulateFailure}
+                  onChange={(e) => setSimulateFailure(e.target.checked)}
+                  disabled={submitting}
+                  className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                />
+                Mô phỏng gửi thất bại (Đưa vào Chờ gửi lại & Kiểm tra Retry)
+              </label>
+            </div>
             <Button
               variant="primary"
               onClick={handleTrigger}

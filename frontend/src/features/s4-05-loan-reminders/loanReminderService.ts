@@ -51,11 +51,32 @@ export interface LoanReminderExecutionResult {
   triggeredBy: string
 }
 
+export interface LoanReminderRetryAttempt {
+  id: number
+  reminderLogId: number
+  attemptNumber: number
+  attemptedAt: string
+  status: 'SUCCESS' | 'FAILED'
+  errorMessage: string | null
+  triggeredBy: string
+  triggeredByUserName: string | null
+}
+
+export interface LoanReminderRetryExecutionResult {
+  totalPending: number
+  attempted: number
+  successfulRetries: number
+  stillPending: number
+  exhaustedRetries: number
+  executionSummary: string
+}
+
 export interface LoanReminderLog {
   id: number
   reminderDate: string
   readerId: number
   readerName: string
+  readerCardNumber?: string | null
   recipientEmail: string
   reminderGroup: ReminderGroupType | string
   loanItemCount: number
@@ -65,12 +86,15 @@ export interface LoanReminderLog {
   itemsDetail: string
   subject: string
   emailContent: string
-  status: 'SENT' | 'FAILED' | 'SKIPPED'
+  status: 'SENT' | 'FAILED' | 'PENDING_RETRY' | 'FAILED_MAX_RETRIES' | 'SKIPPED'
   errorMessage: string | null
+  retryCount: number
+  maxRetries: number
   triggeredBy: string
   triggeredByUserName: string | null
   isDryRun: boolean
   sentAt: string
+  attempts?: LoanReminderRetryAttempt[]
 }
 
 export interface LoanReminderHistoryResponse {
@@ -88,9 +112,30 @@ export const loanReminderService = {
     return response.data
   },
 
-  async trigger(targetDate?: string): Promise<LoanReminderExecutionResult> {
-    const body = targetDate ? { targetDate } : {}
+  async trigger(params?: { targetDate?: string; simulateFailure?: boolean }): Promise<LoanReminderExecutionResult> {
+    const body = {
+      targetDate: params?.targetDate,
+      simulateFailure: params?.simulateFailure ?? false,
+    }
     const response = await apiClient.post<LoanReminderExecutionResult>('/loan-reminders/trigger', body)
+    return response.data
+  },
+
+  async retryPending(params?: { logId?: number; simulateFailure?: boolean }): Promise<LoanReminderRetryExecutionResult> {
+    const body = {
+      logId: params?.logId,
+      simulateFailure: params?.simulateFailure ?? false,
+    }
+    const response = await apiClient.post<LoanReminderRetryExecutionResult>('/loan-reminders/retry-pending', body)
+    return response.data
+  },
+
+  async retrySingle(id: number, params?: { simulateFailure?: boolean }): Promise<LoanReminderRetryExecutionResult> {
+    const body = {
+      logId: id,
+      simulateFailure: params?.simulateFailure ?? false,
+    }
+    const response = await apiClient.post<LoanReminderRetryExecutionResult>(`/loan-reminders/${id}/retry`, body)
     return response.data
   },
 
@@ -98,6 +143,8 @@ export const loanReminderService = {
     date?: string
     reminderGroup?: string
     status?: string
+    search?: string
+    cardNumber?: string
     page?: number
     size?: number
   }): Promise<LoanReminderHistoryResponse> {

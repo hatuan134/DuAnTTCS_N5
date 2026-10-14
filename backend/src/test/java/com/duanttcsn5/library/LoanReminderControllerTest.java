@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -111,6 +112,10 @@ class LoanReminderControllerTest {
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/loan-reminders/history"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/loan-reminders/retry-pending"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/loan-reminders/100/retry"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -130,18 +135,34 @@ class LoanReminderControllerTest {
         mvc.perform(get("/api/v1/loan-reminders/history")
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/loan-reminders/retry-pending")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/loan-reminders/100/retry")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void librarianCanPreviewTriggerAndReadHistory() throws Exception {
+    void librarianCanPreviewTriggerRetryAndReadHistory() throws Exception {
         authenticateWithRole("LIBRARIAN");
 
         LocalDate today = LocalDate.of(2026, 10, 14);
-        when(service.getPreview(today)).thenReturn(new LoanReminderPreviewResponse(today, 2, 3, Collections.emptyList()));
-        when(service.processDailyReminders(eq(today), eq("MANUAL_TEST_RUN"), eq(99L), eq("Nhân Viên Thư Viện")))
-                .thenReturn(new LoanReminderExecutionResult(today, 2, 2, 0, 0, 3, "MANUAL_TEST_RUN"));
-        when(service.getLogs(any(), any(), any(), anyInt(), anyInt())).thenReturn(Collections.emptyList());
-        when(service.countLogs(any(), any(), any())).thenReturn(0L);
+        when(service.getPreview(today)).thenReturn(new LoanReminderPreviewResponse(today, 2, 3, 0L, Collections.emptyList()));
+        when(service.processDailyReminders(eq(today), eq("MANUAL_TEST_RUN"), eq(99L), eq("Nhân Viên Thư Viện"), eq(false)))
+                .thenReturn(new LoanReminderExecutionResult(today, 2, 2, 0, 0, 3, 0L, "MANUAL_TEST_RUN"));
+        when(service.getLogs(any(), any(), any(), any(), any(), anyInt(), anyInt())).thenReturn(Collections.emptyList());
+        when(service.countLogs(any(), any(), any(), any(), any())).thenReturn(0L);
+        when(service.processPendingRetries(any(), anyBoolean(), eq(99L), eq("Nhân Viên Thư Viện")))
+                .thenReturn(new com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderRetryExecutionResult(
+                        1, 1, 0, 0
+                ));
 
         mvc.perform(get("/api/v1/loan-reminders/preview?date=2026-10-14")
                         .header("Authorization", "Bearer test-token"))
@@ -157,12 +178,27 @@ class LoanReminderControllerTest {
                 .andExpect(jsonPath("$.sentCount").value(2))
                 .andExpect(jsonPath("$.triggeredBy").value("MANUAL_TEST_RUN"));
 
-        mvc.perform(get("/api/v1/loan-reminders/history")
+        mvc.perform(post("/api/v1/loan-reminders/retry-pending")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"simulateFailure\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.succeededCount").value(1));
+
+        mvc.perform(post("/api/v1/loan-reminders/100/retry")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalProcessed").value(1));
+
+        mvc.perform(get("/api/v1/loan-reminders/history?search=Nguyen&cardNumber=CARD-001")
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
 
         verify(service).getPreview(today);
-        verify(service).processDailyReminders(eq(today), eq("MANUAL_TEST_RUN"), eq(99L), eq("Nhân Viên Thư Viện"));
+        verify(service).processDailyReminders(eq(today), eq("MANUAL_TEST_RUN"), eq(99L), eq("Nhân Viên Thư Viện"), eq(false));
+        verify(service).countLogs(any(), any(), any(), eq("Nguyen"), eq("CARD-001"));
     }
 }
