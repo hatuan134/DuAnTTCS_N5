@@ -271,14 +271,10 @@ export default function TriggerReminderModal({
               Đóng
             </Button>
             <Button
-              variant={simulateFailure ? 'secondary' : 'primary'}
+              variant="primary"
               onClick={handleTrigger}
               disabled={loading || submitting || !preview || preview.reminders.length === 0}
-              className={`inline-flex items-center gap-2 ${
-                simulateFailure
-                  ? 'bg-purple-600 text-white hover:bg-purple-700 border-transparent shadow-sm'
-                  : ''
-              }`}
+              className={simulateFailure ? '!border-purple-600 !bg-purple-600 hover:!bg-purple-700 !text-white' : ''}
             >
               <Send className="h-4 w-4" />
               {submitting
