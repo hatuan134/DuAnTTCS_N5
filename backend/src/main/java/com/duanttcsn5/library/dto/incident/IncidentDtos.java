@@ -17,6 +17,7 @@ public final class IncidentDtos {
     public record Incident(Long id, Item item, String type, String description, BigDecimal coverPrice,
                            BigDecimal factor, long compensationVnd, Long compensationFeeId,
                            ReturnFeeAssessment overdueFee, String actorName, OffsetDateTime recordedAt,
-                           String beforeStatus, String afterStatus, String loanStatus, List<Photo> photos) {}
+                           String beforeStatus, String afterStatus, String loanStatus, List<Photo> photos,
+                           long automaticCompensationVnd, String adjustmentReason, Long actorUserId) {}
     public record Image(String contentType, byte[] data) {}
 }

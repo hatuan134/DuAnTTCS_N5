@@ -163,4 +163,55 @@ class BookIncidentDatabaseTest {
         try { service.confirm(f.item(),"LOST","Mất",p.token(),List.of(),actor); return "OK"; }
         catch(ApiException e) { return e.getCode(); }
     }
+    @Test void adjustmentPersistsActualDebtSnapshotsAndAuditAtomically() {
+        for(String value:List.of("100000","250000","0","10000000")) {
+            var f=fixture(true); var p=service.preview(f.item(),"DAMAGED",f.staff());
+            var result=service.confirm(f.item(),"DAMAGED","Hỏng bìa",p.token(),List.of(),f.staff(),value,"Còn phục hồi được");
+            assertThat(result.automaticCompensationVnd()).isEqualTo(150000);
+            assertThat(result.compensationVnd()).isEqualTo(Long.parseLong(value));
+            assertThat(result.adjustmentReason()).isEqualTo("Còn phục hồi được");
+            assertThat(result.actorUserId()).isEqualTo(f.staff());
+            assertThat(result.item().copyStatus()).isEqualTo("REMOVED");
+            assertThat(result.loanStatus()).isEqualTo("DAMAGED");
+            assertThat(result.overdueFee().amountVnd()).isEqualTo(p.overdueFee().amountVnd());
+            assertThat(jdbc.queryForObject("SELECT amount_vnd FROM reader_fees WHERE id=?",Long.class,result.compensationFeeId())).isEqualTo(Long.parseLong(value));
+            assertThat(jdbc.queryForObject("SELECT sum(amount_vnd-paid_amount_vnd-waived_amount_vnd) FROM reader_fees WHERE reader_user_id=?",Long.class,f.reader())).isEqualTo(Long.parseLong(value)+result.overdueFee().amountVnd());
+            var audit=jdbc.queryForMap("SELECT after_data->>'beforeAmountVnd' AS before,after_data->>'afterAmountVnd' AS after,after_data->>'reason' AS reason FROM audit_logs WHERE action='COMPENSATION_ADJUSTED' AND entity_id=?",result.id().toString());
+            assertThat(audit.get("before")).isEqualTo("150000");assertThat(audit.get("after")).isEqualTo(value);
+            assertThat(audit.get("reason")).isEqualTo("Còn phục hồi được");
+            assertThatThrownBy(()->jdbc.update("UPDATE reader_fees SET amount_vnd=1 WHERE id=?",result.compensationFeeId())).isInstanceOf(Exception.class);
+            assertThatThrownBy(()->jdbc.update("DELETE FROM reader_fees WHERE id=?",result.compensationFeeId())).isInstanceOf(Exception.class);
+            assertThatThrownBy(()->jdbc.update("UPDATE book_incidents SET adjustment_reason='Khác' WHERE id=?",result.id())).isInstanceOf(Exception.class);
+        }
+    }
+    @Test void invalidOrUnauthorizedAdjustmentNeverRecordsAnything() {
+        var f=fixture(false);var p=service.preview(f.item(),"DAMAGED",f.staff());
+        code(()->service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"-1","Lý do"),"INVALID_COMPENSATION_AMOUNT");
+        code(()->service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"10000001","Lý do"),"COMPENSATION_ADJUSTMENT_LIMIT");
+        code(()->service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"0"," "),"INVALID_ADJUSTMENT_REASON");
+        for(Long actor:List.of(f.manager(),f.reader())) code(()->service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),actor,"0","Lý do"),"FORBIDDEN");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reader_fees WHERE reader_user_id=?",Long.class,f.reader())).isZero();
+        assertThat(jdbc.queryForObject("SELECT returned_at IS NULL FROM loan_items WHERE id=?",Boolean.class,f.item())).isTrue();
+    }
+    @Test void lateFailureRollsBackAdjustmentAuditToo() {
+        var f=fixture(true);var p=service.preview(f.item(),"DAMAGED",f.staff());String constraint="s4032_fail_"+f.copy();
+        try {
+            jdbc.execute("ALTER TABLE book_copy_status_history ADD CONSTRAINT "+constraint+" CHECK(book_copy_id<>"+f.copy()+")");
+            assertThatThrownBy(()->service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"100000","Lý do")).isInstanceOf(Exception.class);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action='COMPENSATION_ADJUSTED' AND actor_user_id=?",Long.class,f.staff())).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM reader_fees WHERE reader_user_id=?",Long.class,f.reader())).isZero();
+        } finally {jdbc.execute("ALTER TABLE book_copy_status_history DROP CONSTRAINT "+constraint);}
+    }
+
+    @Test void adjustmentDoesNotRewritePaidOrWaivedOverdueFee() {
+        var f=fixture(true);var tx=new TransactionTemplate(transactions);
+        var fee=tx.execute(status->configuration.recordReturnFee(f.item(),f.reader(),configuration.previewReturnFee(OffsetDateTime.now().minusDays(2),OffsetDateTime.now())));
+        jdbc.update("UPDATE reader_fees SET paid_amount_vnd=3000,waived_amount_vnd=1000 WHERE id=?",fee.feeId());
+        var before=jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",fee.feeId());
+        var p=service.preview(f.item(),"DAMAGED",f.staff());
+        var result=service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"100000","Còn phục hồi được");
+        assertThat(result.overdueFee()).isEqualTo(fee);
+        assertThat(jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",fee.feeId())).isEqualTo(before);
+    }
+
 }

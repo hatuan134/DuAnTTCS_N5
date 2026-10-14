@@ -37,8 +37,10 @@ public class BookIncidentController {
     @PreAuthorize("hasRole('LIBRARIAN')")
     public ResponseEntity<Incident> confirm(@RequestParam(required=false) Long itemId,@RequestParam(required=false) String type,
             @RequestParam(required=false) String description,@RequestParam(required=false) String previewToken,
-            @RequestParam(value="files",required=false) List<MultipartFile> files,@AuthenticationPrincipal UserPrincipal actor) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.confirm(itemId,type,description,previewToken,files,actor.id()));
+            @RequestParam(value="files",required=false) List<MultipartFile> files,
+            @RequestParam(required=false) String proposedCompensationVnd,@RequestParam(required=false) String adjustmentReason,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.confirm(itemId,type,description,previewToken,files,actor.id(),proposedCompensationVnd,adjustmentReason));
     }
     @GetMapping
     @PreAuthorize("hasRole('LIBRARIAN')")

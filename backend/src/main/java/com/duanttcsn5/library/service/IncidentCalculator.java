@@ -8,6 +8,25 @@ import java.math.RoundingMode;
 public final class IncidentCalculator {
     // Existing payment APIs use JS-safe whole VND. Preserve that monetary boundary.
     public static final long MAX_VND = 9_007_199_254_740_991L;
+    public static final long MAX_ADJUSTED_VND = 10_000_000L;
+    public record Adjustment(long amount, String reason) {}
+    public static Adjustment adjustment(long automatic, String proposed, String reason) {
+        if (proposed == null) return new Adjustment(automatic, null);
+        String value = proposed.strip();
+        if (!value.matches("[0-9]{1,16}"))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COMPENSATION_AMOUNT",
+                    "Số tiền phải là số nguyên VND không âm, không dùng dấu phân cách.");
+        long amount = Long.parseLong(value);
+        if (amount == automatic) return new Adjustment(automatic, null);
+        if (amount > MAX_ADJUSTED_VND)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "COMPENSATION_ADJUSTMENT_LIMIT",
+                    "Số tiền sau điều chỉnh không được vượt 10.000.000 đồng.");
+        String explanation = reason == null ? "" : reason.replace('\u00a0',' ').replace('\u202f',' ').strip();
+        if (explanation.isBlank() || explanation.length() > 1900)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ADJUSTMENT_REASON",
+                    "Khi đổi tiền, phải nhập lý do từ 1 đến 1.900 ký tự.");
+        return new Adjustment(amount, explanation);
+    }
     private IncidentCalculator() {}
     public static void validateFactor(BigDecimal factor) {
         if (factor == null || factor.signum() <= 0 || factor.stripTrailingZeros().scale() > 2
