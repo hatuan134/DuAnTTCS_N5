@@ -13,6 +13,7 @@ import useTablePagination from '../../hooks/useTablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { reservationService } from '../s2-07-reservations/reservationService'
+import { isLastDayPickup } from './pickupLastDay'
 import type { MyBookReservation } from '../s2-07-reservations/reservationService'
 
 const statusLabels: Record<string, string> = {
@@ -43,6 +44,7 @@ export default function MyReservationsPage() {
   const [cancelling, setCancelling] = useState(false)
   const [actionError, setActionError] = useState('')
   const [success, setSuccess] = useState('')
+  const [now, setNow] = useState(() => Date.now())
   const cancellingRef = useRef(false)
   const refreshRef = useRef<() => void>(() => {})
 
@@ -84,6 +86,12 @@ export default function MyReservationsPage() {
       document.removeEventListener('visibilitychange', refreshWhenVisible)
       refreshRef.current = () => {}
     }
+  }, [allowed])
+
+  useEffect(() => {
+    if (!allowed) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
   }, [allowed])
 
   async function cancelConfirmed() {
@@ -191,6 +199,7 @@ export default function MyReservationsPage() {
                   <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
                     {item.status === 'READY_FOR_PICKUP' && item.pickupDeadline
                       ? <><time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
+                        {isLastDayPickup(item.status, item.pickupDeadline, now) && <p role="status" className="mt-2 max-w-xs whitespace-normal rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Hôm nay là hạn cuối nhận sách</p>}
                         <p className="mt-1 max-w-xs whitespace-normal break-words text-xs font-normal text-slate-600">
                           {item.pickupLocation || 'Chưa khai báo quầy nhận. Vui lòng liên hệ thủ thư.'}
                         </p></>

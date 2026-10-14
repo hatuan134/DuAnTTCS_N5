@@ -91,3 +91,19 @@ test('trigger API failure uses temporary error without removing stored history',
   await settle();p.render();p.button('Chạy thử gửi thật').props.onClick();p.render();p.confirm().props.onConfirm();await settle();p.render()
   assert.equal(p.notice().props.tone,'error');assert.match(text(p.tree()), /Lập trình Java/);p.unmount()
 })
+
+test('combined history labels last-day reminder and still targets the pending ready email', async () => {
+  const data=history('PENDING')
+  data.notifications[0].notificationType='READY_FOR_PICKUP'
+  data.notifications.unshift({...data.notifications[0],id:2,notificationType:'LAST_DAY_REMINDER',status:'SENT'})
+  const p=fixture({history:async()=>data});await settle();p.render()
+  assert.match(text(p.tree()),/Nhắc ngày cuối/);assert.match(text(p.tree()),/Sách sẵn sàng/)
+  assert.equal(p.button('Chạy thử gửi thật').props.disabled,false);p.unmount()
+})
+test('pending reminder cannot make an already-sent ready email resendable', async () => {
+  const data=history('SENT')
+  data.notifications[0].notificationType='READY_FOR_PICKUP'
+  data.notifications.unshift({...data.notifications[0],id:2,notificationType:'LAST_DAY_REMINDER',status:'PENDING'})
+  const p=fixture({history:async()=>data});await settle();p.render()
+  assert.equal(p.button('Chạy thử gửi thật'),undefined);assert.equal(p.intervals.size,1);p.unmount()
+})

@@ -39,13 +39,13 @@ export default function ReadyPickupEmailPanel({ reservationId }: { reservationId
     void load()
     return () => { active.current = false }
   }, [load])
-  const latest = history?.notifications[0]
+  const latest = history?.notifications.find((item) => !item.notificationType || item.notificationType === 'READY_FOR_PICKUP')
   const waiting = latest?.status === 'PENDING' || latest?.status === 'RETRY' || latest?.status === 'SENDING'
   useEffect(() => {
-    if (!waiting || loadFailed) return
+    if (!history?.notifications.some((item) => ['PENDING', 'RETRY', 'SENDING'].includes(item.status)) || loadFailed) return
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(false) }, 2000)
     return () => window.clearInterval(timer)
-  }, [waiting, loadFailed, load])
+  }, [history, loadFailed, load])
   const trigger = async (simulateFailure: boolean) => {
     if (submitting.current) return
     submitting.current = true
@@ -54,7 +54,7 @@ export default function ReadyPickupEmailPanel({ reservationId }: { reservationId
       const result = await readyEmailService.trigger(reservationId, simulateFailure)
       if (!active.current) return
       setHistory(result.history)
-      const status = result.history.notifications[0]?.status
+      const status = result.history.notifications.find((item) => !item.notificationType || item.notificationType === 'READY_FOR_PICKUP')?.status
       setNotice({ tone: status === 'FAILED' || status === 'SKIPPED' ? 'warning' : status === 'SENT' ? 'success' : 'info', message: result.message })
     } catch (e) {
       if (active.current) setNotice({ tone: 'error', message: getApiErrorMessage(e, 'Không chạy thử được email nhận sách.') })
@@ -64,23 +64,23 @@ export default function ReadyPickupEmailPanel({ reservationId }: { reservationId
     }
   }
   const canTrigger = !loading && !loadFailed && !busy && latest?.status !== 'SENDING' && waiting && history?.reservationStatus === 'READY_FOR_PICKUP'
-  return <section className="mt-6 min-w-0 border-t border-slate-200 pt-5" aria-label="Email sách sẵn sàng">
+  return <section className="mt-6 min-w-0 border-t border-slate-200 pt-5" aria-label="Lịch sử email đơn đặt giữ">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h3 className="font-semibold text-slate-900">Email thông báo sách sẵn sàng</h3>
+      <h3 className="font-semibold text-slate-900">Lịch sử email đơn đặt giữ</h3>
       <Button type="button" size="sm" variant="secondary" disabled={busy || loading} onClick={() => void load()}>Làm mới email</Button>
     </div>
     <p className="mt-2 break-words text-sm text-slate-700">Quầy nhận: <strong>{history?.pickupLocation || 'Chưa khai báo'}</strong></p>
-    <p className="mt-1 text-xs leading-5 text-slate-500">Đã gửi nghĩa là SMTP đã chấp nhận thư. Hạn gửi là 5 phút từ khi đơn chuyển sang Chờ nhận; giờ hiển thị là giờ Việt Nam.</p>
+    <p className="mt-1 text-xs leading-5 text-slate-500">Đã gửi nghĩa là SMTP đã chấp nhận thư. Thông báo sẵn sàng có hạn gửi 5 phút; nhắc ngày cuối được lập theo giờ buổi sáng đã khai báo và chỉ gửi khi đơn còn hiệu lực. Giờ hiển thị là giờ Việt Nam.</p>
     {notice && <FeedbackAlert message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} className="mt-3" />}
     {loading && <p role="status" className="mt-3 text-sm text-slate-600">Đang tải lịch sử email…</p>}
     {loadFailed && <p role="status" className="mt-3 text-sm text-slate-600">Chưa tải được lịch sử. Nhấn “Làm mới email” để thử lại.</p>}
-    {!loading && !loadFailed && !latest && <p className="mt-3 text-sm text-slate-600">Đơn chưa có sự kiện thông báo. Các đơn đã Chờ nhận trước khi áp dụng bản vá không được tự gửi bù.</p>}
+    {!loading && !loadFailed && !history?.notifications.length && <p className="mt-3 text-sm text-slate-600">Đơn chưa có sự kiện thông báo. Các đơn đã Chờ nhận trước khi áp dụng bản vá không được tự gửi bù.</p>}
     {history?.notifications.map((item) => <article key={item.id} className="mt-4 min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-wrap items-center gap-2"><StatusBadge status={item.status === 'RETRY' ? 'PENDING_RETRY' : item.status} label={pickupEmailLabels[item.status]} /><span className="text-xs text-slate-500">Lần giữ #{item.id} · {item.attemptCount} lượt xử lý</span></div>
+      <div className="flex flex-wrap items-center gap-2"><StatusBadge status={item.status === 'RETRY' ? 'PENDING_RETRY' : item.status} label={pickupEmailLabels[item.status]} /><span className="text-xs font-semibold text-slate-700">{item.notificationType === 'LAST_DAY_REMINDER' ? 'Nhắc ngày cuối' : 'Sách sẵn sàng'}</span><span className="text-xs text-slate-500">Email #{item.id} · {item.attemptCount} lượt xử lý</span></div>
       <dl className="mt-3 grid min-w-0 gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-slate-500">Người nhận</dt><dd className="break-all">{item.recipientEmail || 'Chưa có email'}</dd></div>
         <div><dt className="text-slate-500">Sách</dt><dd className="break-words">{item.bookTitle}</dd></div>
-        <div><dt className="text-slate-500">Chuyển sang Chờ nhận</dt><dd>{formatPickupDate(item.eventAt, true)}</dd></div>
+        <div><dt className="text-slate-500">{item.notificationType === 'LAST_DAY_REMINDER' ? 'Thời điểm lập lịch nhắc' : 'Chuyển sang Chờ nhận'}</dt><dd>{formatPickupDate(item.eventAt, true)}</dd></div>
         <div><dt className="text-slate-500">Hạn gửi email</dt><dd>{formatPickupDate(item.sendBefore, true)}</dd></div>
         <div><dt className="text-slate-500">Thời gian gửi</dt><dd>{item.sentAt ? formatPickupDate(item.sentAt, true) : 'Chưa gửi'}</dd></div>
         <div><dt className="text-slate-500">Hạn nhận sách</dt><dd>{formatPickupDate(item.pickupDeadline)}</dd></div>

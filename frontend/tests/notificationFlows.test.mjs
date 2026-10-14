@@ -292,3 +292,21 @@ test('old copy-created notice never reappears after a newer edit-success notice 
   verifyTimer(p)
   p.render(); assert.equal(p.notice(), undefined, 'older created message must not return')
 })
+
+test('public filter-load error expires at 3000ms and keeps fixed recovery guidance', async () => {
+  const params = new URLSearchParams()
+  const p = page('../src/features/s1-08-catalog/PublicCatalogPage.tsx', {
+    'axios': { isAxiosError: () => true },
+    'react-router-dom': { Link: () => null, useSearchParams: () => [params, () => {}] },
+    '../s2-10-book-cover/PublicBookCover': { __esModule: true, default: () => null },
+    './PublicSiteFooter': { __esModule: true, default: () => null },
+    './catalogService': { catalogService: {
+      getPublicFilterOptions: async () => { throw { response: { data: { message: 'Không tải được bộ lọc.' } } } },
+      searchPublicBooks: async () => ({ content: [], page: 0, last: true, totalElements: 0, totalPages: 0 }),
+    } },
+  }, {}, 'default', { AbortController, window: { setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} },
+    document: { hidden: false, addEventListener() {}, removeEventListener() {} } })
+  await settle(); p.render(); assert.equal(p.notice().props.tone, 'error'); verifyTimer(p)
+  assert.ok(text(p.tree()).includes('Chưa tải được bộ lọc. Bấm Làm mới để thử lại.'))
+  assert.equal(p.notice(), undefined)
+})

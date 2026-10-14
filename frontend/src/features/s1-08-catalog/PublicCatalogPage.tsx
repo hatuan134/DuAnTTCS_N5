@@ -36,6 +36,7 @@ export default function PublicCatalogPage() {
   const [options, setOptions] = useState<PublicCatalogFilterOptions>({ categories: [], publicationYears: [] })
   const [optionsLoading, setOptionsLoading] = useState(true)
   const [optionsError, setOptionsError] = useState('')
+  const [optionsNotice, setOptionsNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
@@ -46,14 +47,17 @@ export default function PublicCatalogPage() {
     const controller = new AbortController()
     let active = true
     setOptionsLoading(true)
-    setOptionsError('')
+    setOptionsError(''); setOptionsNotice('')
 
     const loadOptions = async () => {
       try {
         const data = await catalogService.getPublicFilterOptions(controller.signal)
         if (active) setOptions(data)
       } catch (error) {
-        if (active) setOptionsError(apiErrorMessage(error, 'Không thể tải bộ lọc. Vui lòng bấm Làm mới để thử lại.'))
+        if (active) {
+          const message = apiErrorMessage(error, 'Không thể tải bộ lọc. Vui lòng bấm Làm mới để thử lại.')
+          setOptionsError(message); setOptionsNotice(message)
+        }
       } finally {
         if (active) setOptionsLoading(false)
       }
@@ -314,7 +318,8 @@ export default function PublicCatalogPage() {
             </fieldset>
             <p className="mt-3 text-xs text-slate-400">Chọn bộ lọc rồi bấm Tra cứu để áp dụng cùng từ khóa.</p>
           </form>
-          {optionsError && <p role="alert" className="mt-3 text-sm text-red-300">{optionsError}</p>}
+          {optionsNotice && <FeedbackAlert message={optionsNotice} tone="error" onDismiss={() => setOptionsNotice('')} className="mt-3" />}
+          {optionsError && <p role="status" className="mt-3 text-sm text-red-300">Chưa tải được bộ lọc. Bấm Làm mới để thử lại.</p>}
         </section>
 
         <section className="mt-6">

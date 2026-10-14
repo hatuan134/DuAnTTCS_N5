@@ -41,7 +41,37 @@ export interface PickupEmailHistory {
 export const pickupEmailLabels: Record<string, string> = {
   SENDING: 'Đang gửi', STARTED: 'Bắt đầu gửi', PENDING: 'Chờ gửi', RETRY: 'Chờ thử lại', SENT: 'Đã gửi', FAILED: 'Gửi thất bại', SKIPPED: 'Không gửi',
 }
+export interface PickupReminderEntry {
+  reservationId: number
+  readerName: string
+  recipientEmail: string | null
+  bookTitle: string
+  pickupDeadline: string
+  pickupLocation: string | null
+  eligible: boolean
+  reason: string
+  notificationStatus: string | null
+  subject: string
+  emailContent: string
+}
+export interface PickupReminderReport {
+  date: string
+  evaluatedAt: string
+  sendTime: string
+  timeZone: string
+  preview: boolean
+  queuedCount: number
+  eligibleCount: number
+  message: string
+  entries: PickupReminderEntry[]
+}
 export const readyEmailService = {
+  async previewLastDay(date: string): Promise<PickupReminderReport> {
+    return (await apiClient.get<PickupReminderReport>('/reservations/pickup-last-day-reminders/preview', { params: { date } })).data
+  },
+  async runLastDay(date: string): Promise<PickupReminderReport> {
+    return (await apiClient.post<PickupReminderReport>('/reservations/pickup-last-day-reminders/run', { date })).data
+  },
   async history(id: number): Promise<PickupEmailHistory> {
     return (await apiClient.get<PickupEmailHistory>(`/reservations/${id}/ready-email`)).data
   },
