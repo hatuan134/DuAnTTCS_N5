@@ -1,5 +1,7 @@
 package com.duanttcsn5.library.config;
 
+import com.duanttcsn5.library.service.ReadyPickupNotificationService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -7,6 +9,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @Configuration
 public class ReadyPickupNotificationConfig {
+    // Resolve the schedule without looking up the service while Spring is creating it.
+    @Bean(name="pickupLastDayCron")
+    public String pickupLastDayCron(@Value("${app.pickup-email.last-day-send-time:07:00}") String sendTime) {
+        return ReadyPickupNotificationService.lastDayCron(sendTime);
+    }
+
     @Bean(name="pickupNotificationExecutor")
     public ThreadPoolTaskExecutor pickupNotificationExecutor() {
         var executor=new ThreadPoolTaskExecutor();
@@ -20,6 +28,12 @@ public class ReadyPickupNotificationConfig {
     public ThreadPoolTaskScheduler taskScheduler() {
         var scheduler=new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);scheduler.setThreadNamePrefix("scheduling-");
+        return scheduler;
+    }
+    @Bean(name="pickupLastDayScheduler")
+    public ThreadPoolTaskScheduler pickupLastDayScheduler() {
+        var scheduler=new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);scheduler.setThreadNamePrefix("pickup-last-day-");
         return scheduler;
     }
     @Bean(name="pickupNotificationScheduler")

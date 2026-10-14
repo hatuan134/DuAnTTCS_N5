@@ -51,6 +51,7 @@ app:
   pickup-email:
     automatic-enabled: ${PICKUP_EMAIL_AUTOMATIC_ENABLED:true}
     location: ${PICKUP_LOCATION:}
+    last-day-send-time: ${PICKUP_LAST_DAY_SEND_TIME:07:00}
 
   mail:
     from: ${MAIL_FROM:noreply@libra.edu.vn}

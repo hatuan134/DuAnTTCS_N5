@@ -7,6 +7,7 @@ import ts from 'typescript'
 const require = createRequire(import.meta.url), react = require('react')
 const settle = () => new Promise(resolve => setImmediate(resolve))
 function load(path, imports, extra = {}) {
+  if (path.endsWith('MyReservationsPage.tsx')) imports['./pickupLastDay'] ??= load('../src/features/s2-08-my-reservations/pickupLastDay.ts', {})
   const context = { exports: {}, require: n => imports[n] ?? require(n), ...extra }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
@@ -91,7 +92,7 @@ for (const fail of [false, true]) test(`reader reservation page load ${fail ? 'f
     'react-router-dom': { Link: () => null },
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'READER' }) },
     '../s2-07-reservations/reservationService': { reservationService: { listMine: async () => { if (fail) throw new Error('Lỗi tải đơn.'); return [] } } },
-  }, {}, 'default', { window: { addEventListener() {}, removeEventListener() {} }, document: { addEventListener() {}, removeEventListener() {} } })
+  }, {}, 'default', { window: { setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} }, document: { addEventListener() {}, removeEventListener() {} } })
   await settle(); p.render()
   if (fail) { assert.equal(p.notice().props.tone, 'error'); verifyTimer(p); assert.match(text(p.tree()), /Chưa tải được đơn đặt giữ/); assert.ok(find(p.tree(), n => n.props.action)?.props.action.props.onClick) }
   else { assert.equal(p.notice(), undefined); assert.ok(find(p.tree(), n => n.props.title === 'Bạn chưa có đơn đặt giữ nào')) }

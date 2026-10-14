@@ -1,4 +1,5 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import PickupLastDayReminderPanel from './PickupLastDayReminderPanel'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -96,6 +97,7 @@ export default function ReadyPickupPage() {
         Đối chiếu mã vạch và tên bạn đọc để đưa đúng bản sách lên giá chờ nhận.
         {' '}Giờ hiển thị theo Việt Nam. Tự cập nhật mỗi 5 giây khi đang xem trang.
       </p>
+      <PickupLastDayReminderPanel />
       {cancellation && <CancellationNotice result={cancellation} />}
       {cancelTarget && <CancelReservationPanel key={cancelTarget.id} reservation={cancelTarget}
         onDismiss={() => closeCancellation()} onSuccess={(result) => closeCancellation(result)} />}

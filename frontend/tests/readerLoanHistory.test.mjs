@@ -7,6 +7,7 @@ import ts from 'typescript'
 const require = createRequire(import.meta.url), react = require('react')
 const settle = () => new Promise(resolve => setImmediate(resolve))
 function load(path, imports, extra = {}) {
+  imports['./PickupLastDayReminderPanel'] ??= { __esModule: true, default: () => null }
   imports['./ReadyPickupEmailPanel'] ??= { __esModule: true, default: () => null }
   const context = { exports: {}, require: n => imports[n] ?? require(n), ...extra }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
