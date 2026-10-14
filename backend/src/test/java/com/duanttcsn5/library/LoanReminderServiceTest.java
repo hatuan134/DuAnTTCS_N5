@@ -1,5 +1,6 @@
 package com.duanttcsn5.library;
 
+import com.duanttcsn5.library.dto.loan.ReturnFeeAssessment;
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderExecutionResult;
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderGroupDto;
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderItemDto;
@@ -7,6 +8,7 @@ import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderPreviewR
 import com.duanttcsn5.library.repository.LoanReminderRepository;
 import com.duanttcsn5.library.repository.LoanReminderRepository.EligibleLoanItemRow;
 import com.duanttcsn5.library.service.EmailService;
+import com.duanttcsn5.library.service.LibraryConfigurationService;
 import com.duanttcsn5.library.service.LoanReminderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,7 @@ class LoanReminderServiceTest {
     private LoanReminderRepository repository;
     private EmailService emailService;
     private ObjectMapper objectMapper;
+    private LibraryConfigurationService libraryConfigService;
     private LoanReminderService service;
 
     private final LocalDate targetDate = LocalDate.of(2026, 10, 14);
@@ -51,7 +54,8 @@ class LoanReminderServiceTest {
         repository = mock(LoanReminderRepository.class);
         emailService = mock(EmailService.class);
         objectMapper = new ObjectMapper();
-        service = new LoanReminderService(repository, emailService, objectMapper);
+        libraryConfigService = mock(LibraryConfigurationService.class);
+        service = new LoanReminderService(repository, emailService, objectMapper, libraryConfigService);
     }
 
     @Test
@@ -92,31 +96,125 @@ class LoanReminderServiceTest {
     }
 
     @Test
-    void testConsolidateMultipleLoansForSameReaderSameGroup() {
-        OffsetDateTime dueIn2 = targetDate.plusDays(2).atTime(15, 0).atOffset(VN_OFFSET);
+    void testOverdue1Day7Days30DaysClassification() {
+        OffsetDateTime due1DayAgo = targetDate.minusDays(1).atTime(17, 0).atOffset(VN_OFFSET);
+        OffsetDateTime due7DaysAgo = targetDate.minusDays(7).atTime(17, 0).atOffset(VN_OFFSET);
+        OffsetDateTime due30DaysAgo = targetDate.minusDays(30).atTime(17, 0).atOffset(VN_OFFSET);
 
         EligibleLoanItemRow item1 = new EligibleLoanItemRow(
                 1L, 101L, "PM-001", 10L, "Nguyễn Văn A", "vana@example.com",
-                201L, "Mắt biếc", "BAR-001", dueIn2
+                201L, "Sách Quá Hạn 1 Ngày", "BAR-001", due1DayAgo
         );
         EligibleLoanItemRow item2 = new EligibleLoanItemRow(
-                2L, 101L, "PM-001", 10L, "Nguyễn Văn A", "vana@example.com",
-                202L, "Tôi thấy hoa vàng trên cỏ xanh", "BAR-002", dueIn2
+                2L, 102L, "PM-002", 11L, "Trần Thị B", "thib@example.com",
+                202L, "Sách Quá Hạn 7 Ngày", "BAR-002", due7DaysAgo
+        );
+        EligibleLoanItemRow item3 = new EligibleLoanItemRow(
+                3L, 103L, "PM-003", 12L, "Lê Văn C", "vanc@example.com",
+                203L, "Sách Quá Hạn 30 Ngày", "BAR-003", due30DaysAgo
+        );
+
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item1, item2, item3));
+
+        LoanReminderPreviewResponse preview = service.getPreview(targetDate);
+        assertEquals(3, preview.totalRecipients());
+        assertEquals(3, preview.totalItems());
+
+        LoanReminderGroupDto group1 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_1_DAY")).findFirst().orElseThrow();
+        assertEquals(1L, group1.items().get(0).daysOverdue());
+        assertTrue(group1.subject().contains("quá hạn 1 ngày"));
+
+        LoanReminderGroupDto group2 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_7_DAYS")).findFirst().orElseThrow();
+        assertEquals(7L, group2.items().get(0).daysOverdue());
+        assertTrue(group2.subject().contains("quá hạn 7 ngày"));
+
+        LoanReminderGroupDto group3 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_30_DAYS")).findFirst().orElseThrow();
+        assertEquals(30L, group3.items().get(0).daysOverdue());
+        assertTrue(group3.subject().contains("quá hạn 30 ngày"));
+    }
+
+    @Test
+    void testNonDesignatedOverdueDaysIgnored() {
+        // Overdue by 2 days, 6 days, 8 days, 29 days, 31 days
+        EligibleLoanItemRow item2Days = new EligibleLoanItemRow(
+                1L, 101L, "PM-001", 10L, "Nguyễn Văn A", "vana@example.com",
+                201L, "Sách Quá Hạn 2 Ngày", "BAR-001", targetDate.minusDays(2).atTime(17, 0).atOffset(VN_OFFSET)
+        );
+        EligibleLoanItemRow item6Days = new EligibleLoanItemRow(
+                2L, 102L, "PM-002", 11L, "Trần Thị B", "thib@example.com",
+                202L, "Sách Quá Hạn 6 Ngày", "BAR-002", targetDate.minusDays(6).atTime(17, 0).atOffset(VN_OFFSET)
+        );
+        EligibleLoanItemRow item8Days = new EligibleLoanItemRow(
+                3L, 103L, "PM-003", 12L, "Lê Văn C", "vanc@example.com",
+                203L, "Sách Quá Hạn 8 Ngày", "BAR-003", targetDate.minusDays(8).atTime(17, 0).atOffset(VN_OFFSET)
+        );
+        EligibleLoanItemRow item29Days = new EligibleLoanItemRow(
+                4L, 104L, "PM-004", 13L, "Phạm Văn D", "vand@example.com",
+                204L, "Sách Quá Hạn 29 Ngày", "BAR-004", targetDate.minusDays(29).atTime(17, 0).atOffset(VN_OFFSET)
+        );
+        EligibleLoanItemRow item31Days = new EligibleLoanItemRow(
+                5L, 105L, "PM-005", 14L, "Hoàng Thị E", "thie@example.com",
+                205L, "Sách Quá Hạn 31 Ngày", "BAR-005", targetDate.minusDays(31).atTime(17, 0).atOffset(VN_OFFSET)
+        );
+
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item2Days, item6Days, item8Days, item29Days, item31Days));
+
+        LoanReminderPreviewResponse preview = service.getPreview(targetDate);
+        assertEquals(0, preview.totalRecipients(), "Non-designated days must not produce reminders");
+        assertEquals(0, preview.totalItems());
+    }
+
+    @Test
+    void testConsolidateMultipleLoansForSameReaderSameGroupWithFeeCalculationDemo() {
+        // Demo scenario: Reader A has 2 books overdue by exactly 7 days.
+        // Book 1 estimated fee = 20,000 VND (e.g. 4 open days)
+        // Book 2 estimated fee = 15,000 VND (e.g. 3 open days due to closure)
+        OffsetDateTime due7DaysAgo = targetDate.minusDays(7).atTime(17, 0).atOffset(VN_OFFSET);
+
+        EligibleLoanItemRow item1 = new EligibleLoanItemRow(
+                1L, 101L, "PM-001", 10L, "Bạn đọc A", "bandoca@example.com",
+                201L, "Cuốn sách số 1", "BAR-001", due7DaysAgo
+        );
+        EligibleLoanItemRow item2 = new EligibleLoanItemRow(
+                2L, 102L, "PM-002", 10L, "Bạn đọc A", "bandoca@example.com",
+                202L, "Cuốn sách số 2", "BAR-002", due7DaysAgo
         );
 
         when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item1, item2));
 
+        ReturnFeeAssessment assessment1 = new ReturnFeeAssessment(
+                "READY", "Phí trễ hạn", "V1", due7DaysAgo, targetDate.atTime(7, 0).atOffset(VN_OFFSET),
+                4L, 5000L, 20000L, 20000L, null, List.of(), List.of(), List.of()
+        );
+        ReturnFeeAssessment assessment2 = new ReturnFeeAssessment(
+                "READY", "Phí trễ hạn", "V1", due7DaysAgo, targetDate.atTime(7, 0).atOffset(VN_OFFSET),
+                3L, 5000L, 15000L, 15000L, null, List.of(), List.of(), List.of()
+        );
+
+        when(libraryConfigService.previewReturnFee(eq(due7DaysAgo), any())).thenReturn(assessment1, assessment2);
+
         LoanReminderPreviewResponse preview = service.getPreview(targetDate);
-        assertEquals(1, preview.totalRecipients(), "Should consolidate into 1 email reminder");
+        assertEquals(1, preview.totalRecipients(), "Consolidated into 1 email for Reader A");
         assertEquals(2, preview.totalItems());
+        assertEquals(35000L, preview.grandTotalEstimatedFeeVnd());
 
         LoanReminderGroupDto group = preview.reminders().get(0);
-        assertEquals("Nguyễn Văn A", group.readerName());
+        assertEquals("OVERDUE_7_DAYS", group.reminderGroup());
+        assertEquals(35000L, group.totalEstimatedFeeVnd());
         assertEquals(2, group.items().size());
-        assertTrue(group.emailContentHtml().contains("Mắt biếc"));
-        assertTrue(group.emailContentHtml().contains("Tôi thấy hoa vàng trên cỏ xanh"));
-        assertTrue(group.emailContentHtml().contains("Còn 2 ngày"));
-        assertTrue(group.emailContentHtml().contains("0 đ (Trong hạn)"));
+        assertEquals(20000L, group.items().get(0).estimatedFeeVnd());
+        assertEquals(15000L, group.items().get(1).estimatedFeeVnd());
+
+        // Check HTML content
+        String html = group.emailContentHtml();
+        assertTrue(html.contains("Cuốn sách số 1"));
+        assertTrue(html.contains("Cuốn sách số 2"));
+        assertTrue(html.contains("20.000 đ"));
+        assertTrue(html.contains("15.000 đ"));
+        assertTrue(html.contains("35.000 đ"));
+        assertTrue(html.contains("Quá hạn 7 ngày"));
+        assertTrue(html.contains("phí tạm tính tại thời điểm gửi email"));
+        assertTrue(html.contains("không tạo khoản phải thu mới"));
     }
 
     @Test
@@ -210,7 +308,7 @@ class LoanReminderServiceTest {
         verify(emailService).sendRawHtmlEmail(eq("bandoc@example.com"), anyString(), anyString());
         verify(repository).insertLog(
                 eq(targetDate), eq(10L), eq("Bạn Đọc A"), eq("bandoc@example.com"),
-                eq("DUE_TODAY"), eq(1), eq("PM-001"), eq("Sách Giáo Trình"),
+                eq("DUE_TODAY"), eq(1), eq(0L), eq("PM-001"), eq("Sách Giáo Trình"),
                 anyString(), anyString(), anyString(), eq("SENT"), any(),
                 eq("MANUAL_TEST_RUN"), eq(1L), eq("Thủ thư A"), eq(false)
         );
@@ -273,7 +371,7 @@ class LoanReminderServiceTest {
 
         verify(repository).insertLog(
                 eq(targetDate), eq(10L), anyString(), anyString(),
-                anyString(), anyInt(), anyString(), anyString(),
+                anyString(), anyInt(), eq(0L), anyString(), anyString(),
                 anyString(), anyString(), anyString(), eq("FAILED"),
                 eq("SMTP connection refused"), anyString(), any(), any(), anyBoolean()
         );

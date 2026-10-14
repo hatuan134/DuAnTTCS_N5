@@ -1,4 +1,4 @@
-import { X, Mail } from 'lucide-react'
+import { X, Mail, DollarSign } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Button from '../../components/ui/Button'
@@ -11,6 +11,7 @@ interface EmailPreviewModalProps {
   recipientEmail: string
   htmlContent: string
   reminderGroup: string
+  totalEstimatedFeeVnd?: number
 }
 
 export default function EmailPreviewModal({
@@ -21,6 +22,7 @@ export default function EmailPreviewModal({
   recipientEmail,
   htmlContent,
   reminderGroup,
+  totalEstimatedFeeVnd,
 }: EmailPreviewModalProps) {
   if (!isOpen) return null
 
@@ -29,11 +31,17 @@ export default function EmailPreviewModal({
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <Mail className="h-5 w-5 text-blue-600" />
               <h2 className="text-lg font-bold text-slate-800">Nội dung email thông báo</h2>
               <StatusBadge status={reminderGroup} />
+              {typeof totalEstimatedFeeVnd === 'number' && totalEstimatedFeeVnd > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-700 border border-rose-200">
+                  <DollarSign className="h-3 w-3" />
+                  Phí tạm tính: {totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                </span>
+              )}
             </div>
             <p className="text-sm text-slate-500">
               Gửi tới: <span className="font-medium text-slate-700">{recipientName}</span> ({recipientEmail || 'Chưa có email'})
