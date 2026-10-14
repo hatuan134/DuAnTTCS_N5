@@ -98,6 +98,7 @@ class LoanReportControllerTest {
                 .thenReturn(new LoanReportResponse(LocalDate.of(2026, 10, 1),
                         LocalDate.of(2026, 10, 14), 500, 420, 80, 20, 25,
                         List.of(new LoanReportResponse.TopBorrowedBook(3, "Cơ sở dữ liệu", 65, 3)),
+                        List.of(new LoanReportResponse.DailyLoanCount(LocalDate.of(2026, 10, 1), 500)),
                         java.time.OffsetDateTime.parse("2026-10-14T10:00:00+07:00"),
                         List.of(new LoanReportResponse.TopQueuedBook(3, "Cơ sở dữ liệu", 12, 3))));
         mvc.perform(get(URL).header("Authorization", "Bearer test-token")
@@ -111,6 +112,7 @@ class LoanReportControllerTest {
                 .andExpect(jsonPath("$.topBooks[0].bookTitle").value("Cơ sở dữ liệu"))
                 .andExpect(jsonPath("$.topQueuedBooks[0].waitCount").value(12))
                 .andExpect(jsonPath("$.topQueuedBooks[0].stockCount").value(3))
-                .andExpect(jsonPath("$.queueSnapshotAt").exists());
+                .andExpect(jsonPath("$.queueSnapshotAt").exists())
+                .andExpect(jsonPath("$.dailyLoans[0].borrowCount").value(500));
     }
 }

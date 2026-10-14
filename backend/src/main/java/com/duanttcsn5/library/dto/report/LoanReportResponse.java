@@ -14,9 +14,11 @@ public record LoanReportResponse(
         long overdueLoans,
         double overdueRate,
         List<TopBorrowedBook> topBooks,
+        List<DailyLoanCount> dailyLoans,
         OffsetDateTime queueSnapshotAt,
         List<TopQueuedBook> topQueuedBooks
 ) {
+    public record DailyLoanCount(LocalDate date, long borrowCount) {}
     public record TopBorrowedBook(long bookId, String bookTitle, long borrowCount, long stockCount) {}
     public record TopQueuedBook(long bookId, String bookTitle, long waitCount, long stockCount) {}
 }

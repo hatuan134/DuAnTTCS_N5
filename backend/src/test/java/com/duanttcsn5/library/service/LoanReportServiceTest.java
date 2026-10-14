@@ -23,7 +23,15 @@ class LoanReportServiceTest {
             Clock.fixed(Instant.parse("2026-10-14T03:00:00Z"), ZoneOffset.UTC));
 
     private void stubCounts(long borrowed, long returned, long open, long overdue) {
-        when(repository.activity(any(), any())).thenReturn(new LoanReportRepository.Activity(borrowed, returned));
+        when(repository.activity(any(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    LocalDate start = invocation.getArgument(0);
+                    LocalDate end = invocation.getArgument(1);
+                    // Fixtures remain numerically consistent with the daily chart.
+                    var days = start.datesUntil(end.plusDays(1)).map(day ->
+                            new LoanReportRepository.DayBorrowCount(day, day.equals(start) ? borrowed : 0L)).toList();
+                    return new LoanReportRepository.Activity(borrowed, returned, days);
+                });
         when(repository.openAndOverdue(any(), any())).thenReturn(new LoanReportRepository.OpenAndOverdue(open, overdue));
         when(repository.topBooks(any(), any())).thenReturn(List.of());
         when(repository.topQueuedBooks(any())).thenReturn(List.of());
@@ -47,7 +55,8 @@ class LoanReportServiceTest {
         assertThat(report.topBooks()).containsExactly(new TopBorrowedBook(4, "Cơ sở dữ liệu", 65, 3));
         assertThat(report.queueSnapshotAt()).isEqualTo(OffsetDateTime.parse("2026-10-14T10:00:00+07:00"));
         verify(repository).topQueuedBooks(OffsetDateTime.parse("2026-10-14T10:00:00+07:00"));
-        verify(repository).activity(OffsetDateTime.parse("2026-09-15T00:00:00+07:00"),
+        verify(repository).activity(LocalDate.of(2026, 9, 15), LocalDate.of(2026, 10, 14),
+                OffsetDateTime.parse("2026-09-15T00:00:00+07:00"),
                 OffsetDateTime.parse("2026-10-15T00:00:00+07:00"));
         verify(repository).openAndOverdue(OffsetDateTime.parse("2026-10-14T00:00:00+07:00"),
                 OffsetDateTime.parse("2026-10-15T00:00:00+07:00"));
@@ -58,8 +67,34 @@ class LoanReportServiceTest {
         stubCounts(2, 3, 1, 0);
         var report = service.report(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 1));
         assertThat(report.overdueRate()).isZero();
-        verify(repository).activity(OffsetDateTime.parse("2026-10-01T00:00:00+07:00"),
+        verify(repository).activity(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 1),
+                OffsetDateTime.parse("2026-10-01T00:00:00+07:00"),
                 OffsetDateTime.parse("2026-10-02T00:00:00+07:00"));
+    }
+
+    @Test
+    void septemberDemoHasCorrectDaysAndMatchesOverallBorrowCount() {
+        stubCounts(43, 0, 2, 0);
+        when(repository.activity(any(), any(), any(), any())).thenReturn(
+                new LoanReportRepository.Activity(43, 0, List.of(
+                        new LoanReportRepository.DayBorrowCount(LocalDate.of(2026, 9, 10), 25),
+                        new LoanReportRepository.DayBorrowCount(LocalDate.of(2026, 9, 11), 18),
+                        new LoanReportRepository.DayBorrowCount(LocalDate.of(2026, 9, 12), 0))));
+        var report = service.report(LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 12));
+        assertThat(report.dailyLoans()).containsExactly(
+                new com.duanttcsn5.library.dto.report.LoanReportResponse.DailyLoanCount(LocalDate.of(2026, 9, 10), 25),
+                new com.duanttcsn5.library.dto.report.LoanReportResponse.DailyLoanCount(LocalDate.of(2026, 9, 11), 18),
+                new com.duanttcsn5.library.dto.report.LoanReportResponse.DailyLoanCount(LocalDate.of(2026, 9, 12), 0));
+        assertThat(report.dailyLoans().stream().mapToLong(day -> day.borrowCount()).sum())
+                .isEqualTo(report.totalBorrowed());
+    }
+
+    @Test
+    void emptyRangeIncludesZeroColumnsAndZeroOverallCount() {
+        stubCounts(0, 0, 0, 0);
+        var report = service.report(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 7));
+        assertThat(report.dailyLoans()).hasSize(7).allMatch(day -> day.borrowCount() == 0);
+        assertThat(report.totalBorrowed()).isZero();
     }
 
     @Test

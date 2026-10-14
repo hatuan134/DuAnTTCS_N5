@@ -6,6 +6,8 @@ import com.duanttcsn5.library.repository.LoanReportRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -17,6 +19,7 @@ import java.time.ZoneId;
 public class LoanReportService {
     public static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
+    private static final Logger log = LoggerFactory.getLogger(LoanReportService.class);
     private final LoanReportRepository repository;
     private final Clock clock;
 
@@ -52,12 +55,34 @@ public class LoanReportService {
         // Queue statistics are an operational snapshot, independent of the loan date range.
         OffsetDateTime queueSnapshotAt = OffsetDateTime.now(clock.withZone(VIETNAM_ZONE));
 
-        var activity = repository.activity(from, untilExclusive);
+        long reportStart = System.nanoTime();
+        var activity = repository.activity(startDate, endDate, from, untilExclusive);
+        long activityDone = System.nanoTime();
         var open = repository.openAndOverdue(endStart, untilExclusive);
+        long openDone = System.nanoTime();
         double overdueRate = open.open() == 0 ? 0.0
                 : Math.round(open.overdue() * 10000.0 / open.open()) / 100.0;
+        var topBooks = repository.topBooks(from, untilExclusive);
+        long booksDone = System.nanoTime();
+        var topQueued = repository.topQueuedBooks(queueSnapshotAt);
+        long queueDone = System.nanoTime();
+        log.debug("S4-07.3 report timings (ms): activity={} open={} topBooks={} queues={} total={}",
+                millis(activityDone - reportStart), millis(openDone - activityDone),
+                millis(booksDone - openDone), millis(queueDone - booksDone),
+                millis(queueDone - reportStart));
+        if (queueDone - reportStart >= 3_000_000_000L) {
+            log.warn("S4-07.3 báo cáo vượt 3000ms: {}ms, {} đến {}",
+                    millis(queueDone - reportStart), startDate, endDate);
+        }
+        var daily = activity.dailyBorrowed().stream()
+                .map(row -> new LoanReportResponse.DailyLoanCount(row.date(), row.borrowCount()))
+                .toList();
         return new LoanReportResponse(startDate, endDate, activity.borrowed(), activity.returned(),
-                open.open(), open.overdue(), overdueRate, repository.topBooks(from, untilExclusive),
-                queueSnapshotAt, repository.topQueuedBooks(queueSnapshotAt));
+                open.open(), open.overdue(), overdueRate, topBooks, daily,
+                queueSnapshotAt, topQueued);
+    }
+
+    private static long millis(long nanos) {
+        return nanos / 1_000_000L;
     }
 }
