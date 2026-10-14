@@ -30,6 +30,21 @@ if (-not (Test-Path (Join-Path $Frontend 'node_modules'))) {
     }
 }
 
+# Free port 5173 if lingering from a previous session
+try {
+    $port5173 = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+    if ($port5173) {
+        $pids = $port5173 | ForEach-Object { $_.OwningProcess } | Select-Object -Unique
+        foreach ($pidToKill in $pids) {
+            Write-Host "Port 5173 dang duoc su dung boi PID $pidToKill. Tu dong giai phong port..." -ForegroundColor Yellow
+            Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Seconds 1
+    }
+} catch {
+    # Ignore any inspection failure
+}
+
 Write-Host 'Frontend READY target: http://localhost:5173' -ForegroundColor Cyan
 & npm.cmd run dev -- --port 5173 --strictPort
 exit $LASTEXITCODE
