@@ -11,7 +11,7 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { formatVnd } from '../s3-07-returns/ReturnFeeDetails'
 import IncidentRecordCard from './IncidentRecordCard'
-import { incidentService, incidentTypeLabel, validateIncidentFiles, type IncidentItem, type IncidentPreview, type IncidentRecord, type IncidentType } from './incidentService'
+import { incidentService, incidentTypeLabel, validateCompensationAdjustment, validateIncidentFiles, type IncidentItem, type IncidentPreview, type IncidentRecord, type IncidentType } from './incidentService'
 
 export default function BookIncidentsPage() {
   if (getCurrentUser()?.role !== 'LIBRARIAN') return <p role="alert">Chỉ Thủ thư được ghi nhận và xem sự cố sách mất/hỏng nặng.</p>
@@ -27,6 +27,9 @@ function IncidentWorkspace() {
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null)
   const [descriptionError, setDescriptionError] = useState(''), [fileError, setFileError] = useState('')
+  const [adjusting, setAdjusting] = useState(false), [amount, setAmount] = useState(''), [reason, setReason] = useState('')
+  const [adjustmentError, setAdjustmentError] = useState('')
+  function resetAdjustment() { setAdjusting(false); setAmount(''); setReason(''); setAdjustmentError('') }
   const inFlight = useRef(false)
   useEffect(() => {
     const allocated = files.map(file => URL.createObjectURL(file)); setUrls(allocated)
@@ -49,15 +52,18 @@ function IncidentWorkspace() {
     const invalidFiles = validateIncidentFiles(files); setFileError(invalidFiles)
     if (invalidDescription || invalidFiles) return
     setBusy(true); setFeedback(null)
-    try { setPreview(await incidentService.preview(selected.itemId, type)) }
+    try { resetAdjustment(); setPreview(await incidentService.preview(selected.itemId, type)) }
     catch (error) { setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Chưa thể tính khoản bồi thường.') }) }
     finally { setBusy(false) }
   }
   async function confirm() {
     if (!preview || inFlight.current) return
+    const invalid = adjusting ? validateCompensationAdjustment(preview.compensationVnd, amount, reason) : ''
+    setAdjustmentError(invalid)
+    if (invalid) return
     inFlight.current = true; setBusy(true); setFeedback(null)
     try {
-      const result = await incidentService.confirm(preview, description, files)
+      const result = await incidentService.confirm(preview, description, files, adjusting ? { amount, reason } : undefined)
       setSaved(result); setHistory(values => [result, ...values.filter(value => value.id !== result.id)])
       setItems(values => values.filter(value => value.itemId !== result.item.itemId))
       setSelected(null); setPreview(null); setFiles([])
@@ -112,7 +118,7 @@ function IncidentWorkspace() {
       <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy}>Xem khoản bồi thường</Button>
         <Button type="button" variant="secondary" disabled={busy} onClick={() => { setSelected(null); setFiles([]) }}>Hủy chọn</Button></div>
     </form></Card>}
-    {preview && <Modal label="Xác nhận sự cố sách" alert busy={busy} onClose={() => { if (!busy) setPreview(null) }}>
+    {preview && <Modal label="Xác nhận sự cố sách" alert busy={busy} onClose={() => { if (!busy) { resetAdjustment(); setPreview(null) } }}>
       <div className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-5 shadow-xl">
         <h2 className="text-lg font-semibold">Xác nhận sách {incidentTypeLabel(preview.type)}</h2>
         <p className="break-words text-sm">{preview.item.readerName} · {preview.item.loanNumber} · {preview.item.barcode}</p>
@@ -122,10 +128,24 @@ function IncidentWorkspace() {
           <div><dt>Bồi thường tự tính</dt><dd className="font-semibold text-red-700">{formatVnd(preview.compensationVnd)}</dd></div>
           <div><dt>Phí trễ hạn</dt><dd>{formatVnd(preview.overdueFee.amountVnd ?? 0)} · {preview.overdueFee.overdueDays} ngày mở cửa</dd></div>
         </dl>
+        <section className="space-y-3 rounded-xl border border-slate-200 p-3">
+          {!adjusting ? <Button variant="secondary" disabled={busy} onClick={() => { setAdjusting(true); setAmount(String(preview.compensationVnd)); setReason(''); setAdjustmentError('') }}>Điều chỉnh số tiền bồi thường</Button> : <>
+            <Input label="Số tiền bồi thường đề xuất (VND) *" inputMode="numeric" value={amount} disabled={busy} maxLength={16}
+              onChange={e => { setAmount(e.target.value); setAdjustmentError('') }} />
+            <p className="text-xs text-slate-500">Số nguyên từ 0 đến 10.000.000 đồng khi điều chỉnh. Không cần Quản lý phê duyệt.</p>
+            <label htmlFor="adjustment-reason" className="block text-sm font-semibold">Lý do điều chỉnh (bắt buộc khi đổi tiền)</label>
+            <textarea id="adjustment-reason" value={reason} rows={3} maxLength={1900} disabled={busy}
+              onChange={e => { setReason(e.target.value); setAdjustmentError('') }} className="w-full rounded-xl border border-slate-300 p-3 text-sm" />
+            {adjustmentError && <p role="alert" className="text-sm text-red-700">{adjustmentError}</p>}
+            <p className="break-words text-sm">Trước điều chỉnh: <strong>{formatVnd(preview.compensationVnd)}</strong> · Sau điều chỉnh: <strong>{validateCompensationAdjustment(preview.compensationVnd, amount, reason) ? 'Chưa hợp lệ' : formatVnd(Number(amount))}</strong></p>
+            {Number(amount) !== preview.compensationVnd && reason.trim() && <p className="whitespace-pre-wrap break-words text-sm">Lý do: {reason.trim()}</p>}
+            <Button variant="secondary" disabled={busy} onClick={resetAdjustment}>Hủy điều chỉnh</Button>
+          </>}
+        </section>
         <p className="whitespace-pre-wrap break-words text-sm">{description}</p>
         <p className="text-sm">Đính kèm {files.length} ảnh. Bản sao sẽ chuyển sang Đã loại khỏi kho. Các bản khác chưa xử lý vẫn được mượn; phiếu chỉ đóng khi không còn bản đang mượn.</p>
         <p className="text-sm text-red-700">Sự cố đã xác nhận không được sửa hoặc xóa. Phí đã ghi nhận, đã thu và đã miễn giữ nguyên.</p>
-        <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => setPreview(null)}>Quay lại</Button>
+        <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => { resetAdjustment(); setPreview(null) }}>Quay lại</Button>
           <Button variant="danger" loading={busy} onClick={() => void confirm()}>Xác nhận ghi nhận sự cố</Button></div>
       </div>
     </Modal>}

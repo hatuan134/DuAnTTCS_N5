@@ -33,14 +33,14 @@ const item={itemId:1,loanId:2,loanNumber:'PM-2',readerId:3,readerName:'Bình',ba
 const preview={item,type:'LOST',factor:2,compensationVnd:200000,token:'token',overdueFee:{amountVnd:0,overdueDays:0}}
 const record={...preview,id:9,item:{...item,copyStatus:'REMOVED'},photos:[]}
 function fixture(role='LIBRARIAN',failure='',pending=false){
- const slots=[];let cursor=0,tree,resolve;const calls=[]
+ const slots=[];let cursor=0,tree,resolve,payload;const calls=[]
  const hooks={...react,useState(v){const i=cursor++;if(!(i in slots))slots[i]=v;return[slots[i],n=>{slots[i]=typeof n==='function'?n(slots[i]):n}]},useRef(v){const i=cursor++;return slots[i]??={current:v}},useEffect(){}}
  const component=fn=>({__esModule:true,default:fn})
- const imports={react:hooks,'react-router-dom':{Link:()=>null},'../../core/auth/authStorage':{getCurrentUser:()=>({role})},'../s1-02-user-management/accountService':{getApiErrorMessage:e=>e.message},'../s3-01-loans/loanService':{formatLoanTimestamp:s=>s},'../s3-07-returns/ReturnFeeDetails':{formatVnd:s=>`${s} VND`},'./IncidentRecordCard':component(()=>null),'./incidentService':{...logic,incidentService:{async search(){calls.push('search');return[item]},async preview(){calls.push('preview');if(failure==='preview')throw Error('Thiếu giá');return preview},async confirm(){calls.push('confirm');if(failure==='confirm')throw Error('Phiếu đã đóng');if(pending)return new Promise(r=>{resolve=r});return record},async history(){return[record]}}}}
+ const imports={react:hooks,'react-router-dom':{Link:()=>null},'../../core/auth/authStorage':{getCurrentUser:()=>({role})},'../s1-02-user-management/accountService':{getApiErrorMessage:e=>e.message},'../s3-01-loans/loanService':{formatLoanTimestamp:s=>s},'../s3-07-returns/ReturnFeeDetails':{formatVnd:s=>`${s} VND`},'./IncidentRecordCard':component(()=>null),'./incidentService':{...logic,incidentService:{async search(){calls.push('search');return[item]},async preview(){calls.push('preview');if(failure==='preview')throw Error('Thiếu giá');return preview},async confirm(...args){payload=args;calls.push('confirm');if(failure==='confirm')throw Error('Phiếu đã đóng');if(pending)return new Promise(r=>{resolve=r});return record},async history(){return[record]}}}}
  for(const name of ['Button','Card','Input','FeedbackAlert','Modal','PageHeader'])imports[`../../components/ui/${name}`]=component(()=>null)
  const page=load('BookIncidentsPage.tsx',imports).default()
  function render(){cursor=0;tree=typeof page.type==='function'?page.type(page.props):page;return tree}render()
- return{render,calls,find:p=>nodes(tree,p)[0],button:s=>nodes(tree,n=>n.props?.children===s)[0],forms:()=>nodes(tree,n=>n.type==='form'),resolve:()=>resolve?.(record)}
+ return{render,calls,payload:()=>payload,find:p=>nodes(tree,p)[0],button:s=>nodes(tree,n=>n.props?.children===s)[0],forms:()=>nodes(tree,n=>n.type==='form'),resolve:()=>resolve?.(record)}
 }
 const event={preventDefault(){}}
 async function select(f){await f.forms()[0].props.onSubmit(event);f.render();f.button('Chọn bản sách').props.onClick();f.render()}
@@ -52,3 +52,35 @@ test('preview failure retains form and shows API feedback',async()=>{const f=fix
 test('success removes processed copy and dismissal preserves result',async()=>{const f=fixture();await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();await f.button('Xác nhận ghi nhận sự cố').props.onClick();await flush();f.render();assert.equal(f.calls.filter(v=>v==='confirm').length,1);assert.equal(f.button('Chọn bản sách'),undefined);f.find(n=>n.props?.tone==='success').props.onDismiss();f.render();assert.ok(f.find(n=>n.props?.record?.id===9))})
 test('rapid double confirmation sends one request and keeps busy modal',async()=>{const f=fixture('LIBRARIAN','',true);await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();const b=f.button('Xác nhận ghi nhận sự cố');b.props.onClick();b.props.onClick();f.render();assert.equal(f.calls.filter(v=>v==='confirm').length,1);assert.equal(f.find(n=>n.props?.label==='Xác nhận sự cố sách').props.busy,true);f.resolve();await flush();f.render();assert.ok(f.find(n=>n.props?.record?.id===9))})
 test('failed confirmation preserves input and closes stale preview',async()=>{const f=fixture('LIBRARIAN','confirm');await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();await f.button('Xác nhận ghi nhận sự cố').props.onClick();await flush();f.render();assert.ok(f.find(n=>n.props?.message==='Phiếu đã đóng'));assert.equal(f.find(n=>n.type==='textarea').props.value,'Mất sách khi di chuyển');assert.equal(f.find(n=>n.props?.label==='Xác nhận sự cố sách'),undefined)})
+
+
+test('adjustment accepts whole VND increases, decreases, zero and ceiling; rejects format, amount and reason',()=>{
+  for(const amount of ['250000','350000','0','10000000']) assert.equal(logic.validateCompensationAdjustment(300000,amount,' Lý do '),'')
+  assert.equal(logic.validateCompensationAdjustment(300000,'300000',''),'')
+  for(const amount of ['', '-1','1.5','1e3','NaN','250.000','250,000','10000001']) assert.ok(logic.validateCompensationAdjustment(300000,amount,'Lý do'))
+  for(const reason of ['', '  ', '\t\n', 'x'.repeat(1901)]) assert.ok(logic.validateCompensationAdjustment(300000,'250000',reason))
+})
+test('adjustment sends proposed amount and reason, not the computed snapshot or price',async()=>{
+  let sent;class Form{values=[];append(...args){this.values.push(args)}}
+  const m=load('incidentService.ts',{'../../core/api/apiClient':{apiClient:{async post(...args){sent=args;return{data:{id:9}}}}}},{FormData:Form})
+  await m.incidentService.confirm({item:{itemId:7},type:'DAMAGED',token:'reviewed'},' Hỏng ',[],{amount:'250000',reason:' Lý do '})
+  assert.deepEqual(sent[1].values.slice(-2),[['proposedCompensationVnd','250000'],['adjustmentReason','Lý do']])
+  assert.equal(sent[1].values.some(([key])=>['coverPrice','factor','automaticCompensationVnd'].includes(key)),false)
+})
+async function reviewAdjustment(f){await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();f.button('Điều chỉnh số tiền bồi thường').props.onClick();f.render()}
+function fillAdjustment(f,amount,reason){f.find(n=>n.props?.label==='Số tiền bồi thường đề xuất (VND) *').props.onChange({target:{value:amount}});f.render();f.find(n=>n.props?.id==='adjustment-reason').props.onChange({target:{value:reason}});f.render()}
+test('changed amount requires reason and prevents request until valid',async()=>{
+  const f=fixture();await reviewAdjustment(f);fillAdjustment(f,'150000','   ')
+  await f.button('Xác nhận ghi nhận sự cố').props.onClick();f.render()
+  assert.equal(f.calls.includes('confirm'),false);assert.ok(f.find(n=>n.props?.role==='alert'))
+  fillAdjustment(f,'150000','Sách còn phục hồi được');await f.button('Xác nhận ghi nhận sự cố').props.onClick();await flush();f.render()
+  assert.equal(f.payload()[3].amount,'150000');assert.equal(f.payload()[3].reason,'Sách còn phục hồi được')
+})
+test('cancel adjustment preserves incident form, preview and automatic amount',async()=>{
+  const f=fixture();await reviewAdjustment(f);fillAdjustment(f,'0','Miễn bồi thường')
+  f.button('Hủy điều chỉnh').props.onClick();f.render()
+  assert.ok(f.button('Điều chỉnh số tiền bồi thường'));assert.equal(f.find(n=>n.type==='textarea').props.value,'Mất sách khi di chuyển')
+  assert.ok(f.find(n=>n.props?.label==='Xác nhận sự cố sách'))
+  await f.button('Xác nhận ghi nhận sự cố').props.onClick();await flush()
+  assert.equal(f.payload()[3],undefined)
+})

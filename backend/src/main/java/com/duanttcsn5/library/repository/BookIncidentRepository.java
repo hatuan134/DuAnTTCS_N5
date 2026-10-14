@@ -58,13 +58,23 @@ public class BookIncidentRepository {
                 + " · " + item.loanNumber() + " · " + item.barcode(),amount,item.itemId());
     }
     public Long insert(Item item,String type,String description,BigDecimal factor,long amount,Long feeId,
-                       Long actor,String actorName,OffsetDateTime at) {
+                       Long actor,String actorName,OffsetDateTime at,long automatic,String adjustmentReason) {
         return jdbc.queryForObject("""
                 INSERT INTO book_incidents(item_id,copy_id,reader_user_id,incident_type,description,cover_price,
-                  factor,compensation_vnd,compensation_fee_id,actor_user_id,actor_name,recorded_at,before_status,after_status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'BORROWED','REMOVED') RETURNING id
+                  factor,compensation_vnd,compensation_fee_id,actor_user_id,actor_name,recorded_at,before_status,after_status,automatic_compensation_vnd,adjustment_reason)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'BORROWED','REMOVED',?,?) RETURNING id
                 """,Long.class,item.itemId(),item.copyId(),item.readerId(),type,description,item.coverPrice(),
-                factor,amount,feeId,actor,actorName,at);
+                factor,amount,feeId,actor,actorName,at,automatic,adjustmentReason);
+    }
+    public void adjustmentAudit(Long id,Item item,BigDecimal factor,long before,long after,String reason,Long actor,String actorName) {
+        // PostgreSQL constructs JSON safely; the audit participates in the incident transaction.
+        jdbc.update("""
+                INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,after_data,created_at)
+                VALUES (?,'COMPENSATION_ADJUSTED','BOOK_INCIDENT',?,
+                  jsonb_build_object('itemId',CAST(? AS bigint),'coverPrice',CAST(? AS numeric),
+                    'factor',CAST(? AS numeric),'beforeAmountVnd',CAST(? AS bigint),'afterAmountVnd',CAST(? AS bigint),
+                    'reason',CAST(? AS text),'actorUserId',CAST(? AS bigint),'actorName',CAST(? AS text)),CURRENT_TIMESTAMP)
+                """,actor,id.toString(),item.itemId(),item.coverPrice(),factor,before,after,reason,actor,actorName);
     }
     public int close(Item item,String type,OffsetDateTime at,Long actor,String actorName) {
         return jdbc.update("""
@@ -91,12 +101,12 @@ public class BookIncidentRepository {
                 (rs,n)->new Image(rs.getString("content_type"),rs.getBytes("image_data")),incidentId,imageId).stream().findFirst();
     }
     public record Row(Long id,Long itemId,String type,String description,BigDecimal price,BigDecimal factor,
-                      long amount,Long feeId,String actor,OffsetDateTime at,String before,String after) {}
+                      long amount,Long feeId,String actor,OffsetDateTime at,String before,String after,long automatic,String reason,Long actorId) {}
     public Optional<Row> row(Long id) {
         return jdbc.query("SELECT * FROM book_incidents WHERE id=?",(rs,n)->new Row(rs.getLong("id"),rs.getLong("item_id"),
                 rs.getString("incident_type"),rs.getString("description"),rs.getBigDecimal("cover_price"),rs.getBigDecimal("factor"),
                 rs.getLong("compensation_vnd"),rs.getLong("compensation_fee_id"),rs.getString("actor_name"),
-                rs.getObject("recorded_at",OffsetDateTime.class),rs.getString("before_status"),rs.getString("after_status")),id).stream().findFirst();
+                rs.getObject("recorded_at",OffsetDateTime.class),rs.getString("before_status"),rs.getString("after_status"),rs.getLong("automatic_compensation_vnd"),rs.getString("adjustment_reason"),rs.getLong("actor_user_id")),id).stream().findFirst();
     }
     public List<Long> incidentIds(String query) {
         return jdbc.query("""

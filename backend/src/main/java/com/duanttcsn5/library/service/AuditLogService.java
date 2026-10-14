@@ -423,6 +423,7 @@ public class AuditLogService {
             case "SHELF" -> "Kệ";
             case "LIBRARY_WEEKLY_SCHEDULE" -> "Lịch làm việc";
             case "LIBRARY_CLOSED_DATE" -> "Ngày đóng cửa";
+            case "BOOK_INCIDENT" -> "Sự cố sách";
             default -> entityType;
         };
     }
@@ -438,6 +439,7 @@ public class AuditLogService {
 
     private String actionLabel(String action) {
         return switch (action) {
+            case "COMPENSATION_ADJUSTED" -> "Điều chỉnh tiền bồi thường";
             case "LOGIN_SUCCESS" -> "Đăng nhập thành công";
             case "LOGIN_FAILED" -> "Đăng nhập thất bại";
             case "ACCOUNT_TEMP_LOCKED" -> "Khóa tạm tài khoản";
@@ -473,6 +475,10 @@ public class AuditLogService {
 
     private String buildDetail(String action, JsonNode afterData, JsonNode beforeData) {
         return switch (action) {
+            case "COMPENSATION_ADJUSTED" -> "Điều chỉnh bồi thường từ " + valueOrDash(afterData,"beforeAmountVnd")
+                    + " VND thành " + valueOrDash(afterData,"afterAmountVnd") + " VND. Giá bìa: "
+                    + valueOrDash(afterData,"coverPrice") + " VND; hệ số: " + valueOrDash(afterData,"factor")
+                    + ". Lý do: " + valueOrDash(afterData,"reason") + ". Người thực hiện: " + valueOrDash(afterData,"actorName") + ".";
             case "LOGIN_SUCCESS" -> "Đăng nhập thành công vào hệ thống.";
             case "LOGIN_FAILED" -> loginFailedDetail(afterData);
             case "ACCOUNT_TEMP_LOCKED" -> "Tài khoản bị khóa tạm đến " + valueOrDash(afterData, "lockedUntil") + ".";

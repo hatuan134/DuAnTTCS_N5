@@ -70,7 +70,7 @@ public class BookIncidentService {
         return fee;
     }
     private String token(Item item,String type,BigDecimal factor,long amount,ReturnFeeAssessment fee) {
-        // Price/rate/calendar/fee changes require a fresh review. No client amount is trusted.
+        // Price/rate/calendar/fee changes require a fresh review. The computed snapshot is always recalculated on the server.
         String value=item.itemId()+"|"+type+"|"+item.coverPrice().stripTrailingZeros().toPlainString()+"|"
                 +factor.stripTrailingZeros().toPlainString()+"|"+amount+"|"+fee.amountVnd()+"|"+fee.overdueDays()+"|"
                 +fee.dailyRateVnd()+"|"+fee.feeId()+"|"+fee.excludedDates()+"|"+fee.weeklySchedule()+"|"+fee.closedDates();
@@ -87,6 +87,11 @@ public class BookIncidentService {
     }
     @Transactional(isolation=Isolation.READ_COMMITTED,rollbackFor=Exception.class)
     public Incident confirm(Long itemId,String type,String description,String previewToken,List<MultipartFile> files,Long actorId) {
+        return confirm(itemId,type,description,previewToken,files,actorId,null,null);
+    }
+    @Transactional(isolation=Isolation.READ_COMMITTED,rollbackFor=Exception.class)
+    public Incident confirm(Long itemId,String type,String description,String previewToken,List<MultipartFile> files,
+                            Long actorId,String proposedCompensationVnd,String adjustmentReason) {
         User actor=actor(actorId,false); type=type(type);
         description=description==null?"":description.trim();
         if(description.isEmpty() || description.length()>1900)
@@ -108,8 +113,10 @@ public class BookIncidentService {
             throw error(HttpStatus.CONFLICT,"INCIDENT_PREVIEW_CHANGED","Giá, hệ số hoặc phí trễ hạn đã thay đổi. Vui lòng xem lại trước khi xác nhận.");
         if(!configuration.getRecordedReturnFees(item.loanId()).containsKey(item.itemId()))
             fee=configuration.recordReturnFee(item.itemId(),item.readerId(),fee);
-        Long feeId=incidents.compensation(item,type,amount);
-        Long id=incidents.insert(item,type,description,factor,amount,feeId,actorId,actor.getFullName(),at);
+        var adjustment=IncidentCalculator.adjustment(amount,proposedCompensationVnd,adjustmentReason);
+        Long feeId=incidents.compensation(item,type,adjustment.amount());
+        Long id=incidents.insert(item,type,description,factor,adjustment.amount(),feeId,actorId,actor.getFullName(),at,amount,adjustment.reason());
+        if(adjustment.amount()!=amount) incidents.adjustmentAudit(id,item,factor,amount,adjustment.amount(),adjustment.reason(),actorId,actor.getFullName());
         for(var image:images) incidents.photo(id,image.filename(),image.contentType(),image.data());
         if(incidents.close(item,type,at,actorId,actor.getFullName())!=1)
             throw error(HttpStatus.CONFLICT,"INCIDENT_SAVE_FAILED","Không thể đóng lượt mượn; toàn bộ giao dịch được hủy.");
@@ -129,7 +136,7 @@ public class BookIncidentService {
         Item item=incidents.item(row.itemId()).orElseThrow(()->error(HttpStatus.NOT_FOUND,"ITEM_NOT_FOUND","Không tìm thấy bản sách."));
         return new Incident(row.id(),item,row.type(),row.description(),row.price(),row.factor(),row.amount(),row.feeId(),
                 configuration.getRecordedReturnFees(item.loanId()).get(item.itemId()),row.actor(),row.at(),row.before(),row.after(),
-                incidents.loanStatus(item.loanId()),incidents.photos(id));
+                incidents.loanStatus(item.loanId()),incidents.photos(id),row.automatic(),row.reason(),row.actorId());
     }
     @Transactional(readOnly=true)
     public Image image(Long id,Long imageId,Long actorId) {

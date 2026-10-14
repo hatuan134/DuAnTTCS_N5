@@ -16,6 +16,7 @@ export interface IncidentRecord {
   id: number; item: IncidentItem; type: IncidentType; description: string; coverPrice: number
   factor: number; compensationVnd: number; compensationFeeId: number; overdueFee: ReturnFeeAssessment
   actorName: string; recordedAt: string; beforeStatus: string; afterStatus: string; loanStatus: string
+  automaticCompensationVnd: number; adjustmentReason: string | null; actorUserId: number
   photos: { id: number; filename: string; contentType: string }[]
 }
 export const incidentTypeLabel = (type: IncidentType) => type === 'LOST' ? 'Mất' : 'Hỏng nặng'
@@ -29,10 +30,11 @@ export const incidentService = {
   async preview(itemId: number, type: IncidentType): Promise<IncidentPreview> {
     return (await apiClient.get<IncidentPreview>('/book-incidents/preview', { params: { itemId, type } })).data
   },
-  async confirm(preview: IncidentPreview, description: string, files: File[]): Promise<IncidentRecord> {
+  async confirm(preview: IncidentPreview, description: string, files: File[], adjustment?: { amount: string; reason: string }): Promise<IncidentRecord> {
     const form = new FormData()
     form.append('itemId', String(preview.item.itemId)); form.append('type', preview.type)
     form.append('description', description.trim()); form.append('previewToken', preview.token)
+    if (adjustment) { form.append('proposedCompensationVnd', adjustment.amount.trim()); form.append('adjustmentReason', adjustment.reason.trim()) }
     for (const file of files) form.append('files', file)
     return (await apiClient.post<IncidentRecord>('/book-incidents', form, { headers: { 'Content-Type': undefined } })).data
   },
@@ -55,4 +57,14 @@ export function parseFactor(value: string): number | null {
   if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null
   const result = Number(normalized)
   return result > 0 && result <= 9999999999.99 ? result : null
+}
+
+export const MAX_ADJUSTED_VND = 10_000_000
+export function validateCompensationAdjustment(automatic: number, amount: string, reason: string): string {
+  const value = amount.trim()
+  if (!/^[0-9]{1,16}$/.test(value) || !Number.isSafeInteger(Number(value))) return 'Nhập số nguyên VND không âm, không dùng dấu phân cách.'
+  if (Number(value) === automatic) return ''
+  if (Number(value) > MAX_ADJUSTED_VND) return 'Số tiền sau điều chỉnh không được vượt 10.000.000 đồng.'
+  if (!reason.trim() || reason.trim().length > 1900) return 'Khi đổi tiền, phải nhập lý do từ 1 đến 1.900 ký tự.'
+  return ''
 }
