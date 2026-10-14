@@ -53,7 +53,7 @@ public class FeePaymentRepository {
         var all = jdbc.query("""
                 SELECT id, CASE WHEN compensation_item_id IS NOT NULL THEN 'COMPENSATION' WHEN return_item_id IS NULL THEN 'RECORDED' ELSE 'OVERDUE' END AS fee_type,
                        description, amount_vnd, paid_amount_vnd, waived_amount_vnd
-                FROM reader_fees WHERE reader_user_id = ? ORDER BY id
+                FROM reader_fees WHERE reader_user_id = ? AND NOT EXISTS (SELECT 1 FROM book_incidents i JOIN book_incident_adjustments a ON a.incident_id=i.id WHERE i.compensation_fee_id=reader_fees.id AND a.status='CONFIRMED') ORDER BY id
                 """ + (lock ? " FOR UPDATE" : ""), (rs, n) -> new Fee(rs.getLong("id"),
                 rs.getString("fee_type"), rs.getString("description"), rs.getLong("amount_vnd"),
                 rs.getLong("paid_amount_vnd"), rs.getLong("waived_amount_vnd"),

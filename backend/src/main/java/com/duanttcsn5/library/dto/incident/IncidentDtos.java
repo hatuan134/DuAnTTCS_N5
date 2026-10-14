@@ -19,5 +19,12 @@ public final class IncidentDtos {
                            ReturnFeeAssessment overdueFee, String actorName, OffsetDateTime recordedAt,
                            String beforeStatus, String afterStatus, String loanStatus, List<Photo> photos,
                            long automaticCompensationVnd, String adjustmentReason, Long actorUserId) {}
+    public record AdjustmentRequest(String reason, String caseType, String targetStatus) {}
+    public record Adjustment(Long id, String number, Long incidentId, String reason, String caseType,
+        String targetStatus, String status, String requesterName, OffsetDateTime requestedAt,
+        String confirmerName, OffsetDateTime confirmedAt, Long reversedVnd, Long cancelledDebtVnd,
+        Long refundDueVnd, String beforeData, String afterData) {}
+    public record AdjustmentPreview(long reversedVnd, long cancelledDebtVnd, long refundDueVnd,
+        String copyStatus, String loanStatus) {}
     public record Image(String contentType, byte[] data) {}
 }

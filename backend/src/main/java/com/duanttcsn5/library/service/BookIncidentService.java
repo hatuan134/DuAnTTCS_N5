@@ -42,6 +42,13 @@ public class BookIncidentService {
         IncidentCalculator.validateFactor(factors.lost()); IncidentCalculator.validateFactor(factors.damaged());
         incidents.updateFactors(factors,actorId); return incidents.factors(false);
     }
+    private User adjustmentActor(Long id,boolean confirm) {
+        User user=id==null?null:users.findById(id).orElse(null);
+        Set<String> roles=confirm?Set.of("LIBRARY_MANAGER","ADMIN"):Set.of("LIBRARIAN","LIBRARY_MANAGER","ADMIN");
+        if(user==null || !"ACTIVE".equals(user.getStatus()) || user.getRole()==null || !roles.contains(user.getRole().getCode()))
+            throw error(HttpStatus.FORBIDDEN,"FORBIDDEN",confirm?"Chỉ Quản lý hoặc Admin được xác nhận bút toán.":"Bạn không có quyền xem hoặc lập bút toán.");
+        return user;
+    }
     private String query(String value) {
         String q=value==null?"":value.trim();
         if(q.length()>255) throw error(HttpStatus.BAD_REQUEST,"INVALID_SEARCH","Nội dung tìm kiếm tối đa 255 ký tự.");
@@ -107,7 +114,7 @@ public class BookIncidentService {
         long amount=IncidentCalculator.amount(item.coverPrice(),factor);
         // Stabilize reader debt before inserting the overdue/compensation fees, as the payment flow does.
         incidents.lockReader(item.readerId());
-        OffsetDateTime at=OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        OffsetDateTime at=incidents.now();
         ReturnFeeAssessment fee=fee(item,at,true);
         if(previewToken==null || !token(item,type,factor,amount,fee).equals(previewToken))
             throw error(HttpStatus.CONFLICT,"INCIDENT_PREVIEW_CHANGED","Giá, hệ số hoặc phí trễ hạn đã thay đổi. Vui lòng xem lại trước khi xác nhận.");
@@ -127,10 +134,10 @@ public class BookIncidentService {
     }
     @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
     public List<Incident> history(String query,Long actorId) {
-        actor(actorId,false); return incidents.incidentIds(query(query)).stream().map(this::detailInternal).toList();
+        adjustmentActor(actorId,false); return incidents.incidentIds(query(query)).stream().map(this::detailInternal).toList();
     }
     @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
-    public Incident detail(Long id,Long actorId) { actor(actorId,false); return detailInternal(id); }
+    public Incident detail(Long id,Long actorId) { adjustmentActor(actorId,false); return detailInternal(id); }
     private Incident detailInternal(Long id) {
         var row=incidents.row(id).orElseThrow(()->error(HttpStatus.NOT_FOUND,"INCIDENT_NOT_FOUND","Không tìm thấy nhật ký sự cố."));
         Item item=incidents.item(row.itemId()).orElseThrow(()->error(HttpStatus.NOT_FOUND,"ITEM_NOT_FOUND","Không tìm thấy bản sách."));
@@ -140,7 +147,79 @@ public class BookIncidentService {
     }
     @Transactional(readOnly=true)
     public Image image(Long id,Long imageId,Long actorId) {
-        actor(actorId,false); return incidents.image(id,imageId).orElseThrow(()->error(HttpStatus.NOT_FOUND,"IMAGE_NOT_FOUND","Không tìm thấy ảnh sự cố."));
+        adjustmentActor(actorId,false); return incidents.image(id,imageId).orElseThrow(()->error(HttpStatus.NOT_FOUND,"IMAGE_NOT_FOUND","Không tìm thấy ảnh sự cố."));
+    }
+    private AdjustmentRequest validate(AdjustmentRequest request) {
+        if(request==null || request.reason()==null || request.reason().isBlank() || request.reason().trim().length()>1900)
+            throw error(HttpStatus.BAD_REQUEST,"INVALID_ADJUSTMENT_REASON","Nhập lý do điều chỉnh từ 1 đến 1.900 ký tự.");
+        if(!Set.of("MISTAKEN","FOUND","REASSESSED").contains(Objects.toString(request.caseType(),""))
+            || !Set.of("BORROWED","AVAILABLE","REPAIR").contains(Objects.toString(request.targetStatus(),"")))
+            throw error(HttpStatus.BAD_REQUEST,"INVALID_ADJUSTMENT","Chọn trường hợp và trạng thái sau điều chỉnh hợp lệ.");
+        return new AdjustmentRequest(request.reason().trim(),request.caseType(),request.targetStatus());
+    }
+    private Incident lockAdjustmentIncident(Long id) {
+        Incident value=detailInternal(id);
+        Long bookId=loans.lockTitleForReturn(value.item().itemId(),value.item().barcode()).orElseThrow();
+        loans.lockReturnCandidate(value.item().itemId(),value.item().barcode());
+        loans.lockPendingQueueForReturn(bookId); loans.lockCopyForReturn(value.item().copyId()); incidents.lockReader(value.item().readerId()); incidents.lockIncident(id);
+        return detailInternal(id);
+    }
+    private void reversible(Incident incident) {
+        if(!"REMOVED".equals(incident.item().copyStatus()) || !incident.type().equals(incident.item().resolutionReason())
+           || !incident.recordedAt().equals(incident.item().closedAt()))
+            throw error(HttpStatus.CONFLICT,"INCIDENT_CHANGED","Sự cố đã đảo hoặc trạng thái không còn khớp giao dịch gốc.");
+    }
+    @Transactional(readOnly=true)
+    public List<Adjustment> adjustments(Long id,Long actorId) {
+        adjustmentActor(actorId,false); detailInternal(id); return incidents.adjustments(id);
+    }
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+    public AdjustmentPreview adjustmentPreview(Long id,String target,Long actorId) {
+        adjustmentActor(actorId,false); Incident i=detailInternal(id); reversible(i);
+        if(!Set.of("BORROWED","AVAILABLE","REPAIR").contains(Objects.toString(target,"")))
+            throw error(HttpStatus.BAD_REQUEST,"INVALID_ADJUSTMENT","Chọn trạng thái hợp lệ.");
+        long paid=incidents.paid(i.compensationFeeId(),false);
+        String projectedCopy=target;
+        if("AVAILABLE".equals(target) && loans.findEligiblePendingForReturn(incidents.bookId(i.item().copyId()),
+            incidents.now().atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate()).isPresent()) projectedCopy="HELD";
+        return new AdjustmentPreview(i.compensationVnd(),i.compensationVnd()-paid,paid,projectedCopy,incidents.projectedLoanStatus(i.item(),target));
+    }
+    @Transactional(isolation=Isolation.READ_COMMITTED,rollbackFor=Exception.class)
+    public Adjustment requestAdjustment(Long id,AdjustmentRequest request,Long actorId) {
+        User actor=adjustmentActor(actorId,false); request=validate(request);
+        Incident i=lockAdjustmentIncident(id); reversible(i);
+        if("FOUND".equals(request.caseType()) && !"LOST".equals(i.type()))
+            throw error(HttpStatus.BAD_REQUEST,"INVALID_ADJUSTMENT","Chỉ sự cố Mất được chọn Tìm lại sách đã báo mất.");
+        if(!incidents.adjustments(id).isEmpty()) throw error(HttpStatus.CONFLICT,"ADJUSTMENT_EXISTS","Sự cố đã có bút toán điều chỉnh. Vui lòng xem lịch sử.");
+        Long requestId=incidents.requestAdjustment(id,request,actorId,actor.getFullName());
+        incidents.requestedAdjustmentAudit(requestId,actorId);
+        return incidents.adjustments(id).get(0);
+    }
+    @Transactional(isolation=Isolation.READ_COMMITTED,rollbackFor=Exception.class)
+    public Adjustment confirmAdjustment(Long id,Long adjustmentId,Long actorId) {
+        User actor=adjustmentActor(actorId,true); Incident i=lockAdjustmentIncident(id);
+        Adjustment a=incidents.adjustments(id).stream().filter(x->x.id().equals(adjustmentId)).findFirst()
+            .orElseThrow(()->error(HttpStatus.NOT_FOUND,"ADJUSTMENT_NOT_FOUND","Không tìm thấy bút toán của sự cố này."));
+        if(!"PENDING".equals(a.status())) throw error(HttpStatus.CONFLICT,"ADJUSTMENT_CONFIRMED","Bút toán đã xác nhận; không được đảo lần nữa.");
+        reversible(i); incidents.paid(i.compensationFeeId(),true);
+        String before=incidents.snapshot(i.item());
+        OffsetDateTime at=incidents.now();
+        String copyStatus=a.targetStatus();
+        if("AVAILABLE".equals(copyStatus)) {
+            Long bookId=loans.lockTitleForReturn(i.item().itemId(),i.item().barcode()).orElseThrow();
+            loans.lockPendingQueueForReturn(bookId);
+            var next=loans.findEligiblePendingForReturn(bookId,at.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate());
+            if(next.isPresent()) {
+                if(loans.allocateReturnedCopy(next.get().id(),bookId,i.item().copyId(),at,configuration.calculateReservationPickupDeadline(at))!=1)
+                    throw error(HttpStatus.CONFLICT,"QUEUE_CHANGED","Hàng đợi đã thay đổi; toàn bộ điều chỉnh được hủy.");
+                copyStatus="HELD";
+            }
+        }
+        String projected=incidents.projectedSnapshot(i.item(),a.targetStatus(),copyStatus,at,actorId,actor.getFullName());
+        incidents.confirmAdjustment(a.id(),actorId,actor.getFullName(),before,projected,at);
+        incidents.applyAdjustment(i.item(),a,at,actorId,actor.getFullName(),copyStatus);
+        String after=incidents.snapshot(i.item()); incidents.adjustmentAudit(a,actorId,before,after);
+        return incidents.adjustments(id).get(0);
     }
     private ApiException error(HttpStatus status,String code,String message) { return new ApiException(status,code,message); }
 }
