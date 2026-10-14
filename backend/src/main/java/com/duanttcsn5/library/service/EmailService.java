@@ -291,6 +291,23 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    public void sendRawHtmlEmail(String toEmail, String subject, String htmlContent) throws Exception {
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            log.warn("JavaMailSender is unavailable; email '{}' not sent to {}", subject, toEmail);
+            return;
+        }
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        helper.setFrom(mailFrom);
+        helper.setTo(toEmail);
+        helper.setSubject(subject);
+        helper.setText(htmlContent, true);
+        mailSender.send(message);
+        log.info("Email '{}' sent successfully to {}", subject, toEmail);
+    }
+
     private boolean sleepBeforeRetry() {
         if (retryDelayMs <= 0) {
             return true;
