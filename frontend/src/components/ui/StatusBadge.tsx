@@ -25,6 +25,11 @@ const styles: Record<string, string> = {
   CANCELLED: 'border-slate-200 bg-slate-100 text-slate-600',
   EXPIRED: 'border-slate-200 bg-slate-100 text-slate-600',
   REMOVED: 'border-slate-200 bg-slate-100 text-slate-600',
+  SENT: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  FAILED: 'border-red-200 bg-red-50 text-red-700',
+  SKIPPED: 'border-amber-200 bg-amber-50 text-amber-700',
+  DUE_IN_2_DAYS: 'border-sky-200 bg-sky-50 text-sky-700',
+  DUE_TODAY: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
 const labels: Record<string, string> = {
@@ -49,6 +54,11 @@ const labels: Record<string, string> = {
   CANCELLED: 'Đã hủy',
   EXPIRED: 'Hết hạn',
   REMOVED: 'Đã loại',
+  SENT: 'Đã gửi thành công',
+  FAILED: 'Gửi thất bại',
+  SKIPPED: 'Đã bỏ qua',
+  DUE_IN_2_DAYS: 'Còn 2 ngày tới hạn',
+  DUE_TODAY: 'Đến hạn hôm nay',
 }
 
 export default function StatusBadge({
