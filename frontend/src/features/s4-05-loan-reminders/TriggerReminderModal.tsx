@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Send, Eye, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Send, Eye, RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -33,6 +33,7 @@ export default function TriggerReminderModal({
   const [preview, setPreview] = useState<LoanReminderPreviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LoanReminderExecutionResult | null>(null)
+  const [simulateFailure, setSimulateFailure] = useState(false)
 
   const [previewItem, setPreviewItem] = useState<LoanReminderGroupDto | null>(null)
 
@@ -60,7 +61,7 @@ export default function TriggerReminderModal({
     setSubmitting(true)
     setError(null)
     try {
-      const res = await loanReminderService.trigger(targetDate)
+      const res = await loanReminderService.trigger({ targetDate, simulateFailure })
       setResult(res)
       onSuccess()
     } catch (err: any) {
@@ -77,24 +78,42 @@ export default function TriggerReminderModal({
       <Modal onClose={onClose} label="Chạy thử và kích hoạt gửi email nhắc nhở">
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
             <div>
               <h2 className="text-lg font-bold text-slate-800">Kích hoạt gửi nhắc nhở mượn trả</h2>
               <p className="text-sm text-slate-500">
                 Xem trước danh sách bạn đọc đủ điều kiện (trước hạn, đến hạn, quá hạn 1, 7, 30 ngày) và thực hiện gửi
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="target-date" className="text-xs font-semibold text-slate-600">
-                Ngày tính mốc:
-              </label>
-              <input
-                id="target-date"
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="target-date" className="text-xs font-semibold text-slate-600">
+                  Ngày tính mốc:
+                </label>
+                <input
+                  id="target-date"
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="run-mode" className="text-xs font-semibold text-slate-600">
+                  Chế độ:
+                </label>
+                <select
+                  id="run-mode"
+                  value={simulateFailure ? 'SIMULATE_FAILURE' : 'LIVE'}
+                  onChange={(e) => setSimulateFailure(e.target.value === 'SIMULATE_FAILURE')}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="LIVE">Gửi thực tế qua Email</option>
+                  <option value="SIMULATE_FAILURE">Kiểm thử (Mô phỏng lỗi & Thử lại)</option>
+                </select>
+              </div>
+
               <Button
                 variant="secondary"
                 size="sm"
@@ -109,6 +128,15 @@ export default function TriggerReminderModal({
 
           {/* Body */}
           <div className="flex-1 overflow-auto p-6 space-y-4">
+            {simulateFailure && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-purple-200 bg-purple-50/80 p-3.5 text-xs text-purple-900 shadow-sm">
+                <Info className="h-4 w-4 shrink-0 text-purple-600 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Chế độ kiểm thử nghiệp vụ (Sandbox):</span> Hệ thống sẽ mô phỏng lần gửi đầu tiên bị lỗi mạng/từ chối để kiểm tra quy trình đưa vào <em>"Chờ gửi lại"</em>, tự động thử lại tối đa 3 lần và ghi nhật ký đối soát, mà không gửi thư spam tới email thật của bạn đọc.
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
@@ -246,10 +274,14 @@ export default function TriggerReminderModal({
               variant="primary"
               onClick={handleTrigger}
               disabled={loading || submitting || !preview || preview.reminders.length === 0}
-              className="inline-flex items-center gap-2"
+              className={simulateFailure ? '!border-purple-600 !bg-purple-600 hover:!bg-purple-700 !text-white' : ''}
             >
               <Send className="h-4 w-4" />
-              {submitting ? 'Đang gửi...' : 'Xác nhận gửi nhắc ngay'}
+              {submitting
+                ? 'Đang xử lý...'
+                : simulateFailure
+                ? 'Chạy kiểm thử kịch bản gửi lại'
+                : 'Xác nhận gửi nhắc ngay'}
             </Button>
           </div>
         </div>

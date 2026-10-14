@@ -6,6 +6,7 @@ import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderGroupDto
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderItemDto;
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderLogResponse;
 import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderPreviewResponse;
+import com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderRetryExecutionResult;
 import com.duanttcsn5.library.repository.LoanReminderRepository;
 import com.duanttcsn5.library.repository.LoanReminderRepository.EligibleLoanItemRow;
 import tools.jackson.databind.ObjectMapper;
@@ -13,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.text.NumberFormat;
 import java.time.LocalDate;
@@ -67,12 +67,21 @@ public class LoanReminderService {
         return new LoanReminderPreviewResponse(targetDate, groups.size(), totalItems, grandTotalFee, groups);
     }
 
-    @Transactional
     public LoanReminderExecutionResult processDailyReminders(
             LocalDate date,
             String triggeredBy,
             Long triggeredByUserId,
             String triggeredByUserName
+    ) {
+        return processDailyReminders(date, triggeredBy, triggeredByUserId, triggeredByUserName, false);
+    }
+
+    public LoanReminderExecutionResult processDailyReminders(
+            LocalDate date,
+            String triggeredBy,
+            Long triggeredByUserId,
+            String triggeredByUserName,
+            Boolean simulateFailure
     ) {
         LocalDate targetDate = date != null ? date : LocalDate.now(VN_ZONE);
         List<LoanReminderGroupDto> groups = buildReminderGroups(targetDate);
@@ -83,23 +92,25 @@ public class LoanReminderService {
         int totalItemsCount = 0;
         long grandTotalFee = groups.stream().mapToLong(LoanReminderGroupDto::totalEstimatedFeeVnd).sum();
 
+        boolean shouldSimulateFailure = Boolean.TRUE.equals(simulateFailure);
+
         for (LoanReminderGroupDto group : groups) {
             totalItemsCount += group.items().size();
 
             // 1. Prevent duplicate sending on the same day for the same group (idempotent)
             if (repository.isAlreadySentToday(targetDate, group.readerId(), group.reminderGroup())) {
-                log.info("Reminder already sent today for readerId={} group={}; skipping", group.readerId(), group.reminderGroup());
+                log.info("Reminder already sent or pending retry today for readerId={} group={}; skipping", group.readerId(), group.reminderGroup());
                 skippedCount++;
                 continue;
             }
 
-            // 2. Validate email
+            // 2. Validate email: permanent invalid email is skipped immediately and NOT put into retry queue
             String email = group.recipientEmail() != null ? group.recipientEmail().trim() : "";
             if (email.isBlank() || !EMAIL_PATTERN.matcher(email).matches()) {
                 log.warn("Invalid or missing email for readerId={}: '{}'", group.readerId(), email);
                 try {
-                    recordLog(targetDate, group, "SKIPPED", "Địa chỉ email không hợp lệ hoặc bị trống",
-                            triggeredBy, triggeredByUserId, triggeredByUserName);
+                    recordInitialLog(targetDate, group, "SKIPPED", "Địa chỉ email không hợp lệ hoặc bị trống",
+                            triggeredBy, triggeredByUserId, triggeredByUserName, false);
                 } catch (Exception ex) {
                     log.error("Failed to record skipped log for readerId={}: {}", group.readerId(), ex.getMessage());
                 }
@@ -107,11 +118,20 @@ public class LoanReminderService {
                 continue;
             }
 
-            // 3. Attempt email dispatch (strictly do not create any new receivable or db record in reader_fees)
+            // 3. Attempt initial email dispatch
+            if (shouldSimulateFailure) {
+                log.info("Simulating initial email failure for readerId={} group={}", group.readerId(), group.reminderGroup());
+                String errorReason = "Mô phỏng lỗi gửi thư tạm thời (để kiểm thử cơ chế tự động thử lại)";
+                recordInitialLog(targetDate, group, "PENDING_RETRY", errorReason,
+                        triggeredBy, triggeredByUserId, triggeredByUserName, true);
+                failedCount++;
+                continue;
+            }
+
             try {
                 emailService.sendRawHtmlEmail(email, group.subject(), group.emailContentHtml());
-                recordLog(targetDate, group, "SENT", null,
-                        triggeredBy, triggeredByUserId, triggeredByUserName);
+                recordInitialLog(targetDate, group, "SENT", null,
+                        triggeredBy, triggeredByUserId, triggeredByUserName, false);
                 sentCount++;
                 log.info("Sent reminder email to {} for group {} with total estimated fee {} VND",
                         email, group.reminderGroup(), group.totalEstimatedFeeVnd());
@@ -119,14 +139,11 @@ public class LoanReminderService {
                 log.error("Failed to send reminder email to {} for group {}: {}", email, group.reminderGroup(), ex.getMessage(), ex);
                 String reason = ex.getMessage();
                 if (reason != null && reason.contains("smtp.gmail.com")) {
-                    reason = "Không thể kết nối đến máy chủ gửi email SMTP. Vui lòng kiểm tra cấu hình MAIL_USERNAME / MAIL_PASSWORD: " + reason;
+                    reason = "Không thể kết nối đến máy chủ gửi email SMTP: " + reason;
                 }
-                try {
-                    recordLog(targetDate, group, "FAILED", reason,
-                            triggeredBy, triggeredByUserId, triggeredByUserName);
-                } catch (Exception logEx) {
-                    log.error("Failed to record failed log for readerId={}: {}", group.readerId(), logEx.getMessage());
-                }
+                // Temporary dispatch failure is placed in PENDING_RETRY queue for up to 3 automatic retries
+                recordInitialLog(targetDate, group, "PENDING_RETRY", reason,
+                        triggeredBy, triggeredByUserId, triggeredByUserName, true);
                 failedCount++;
             }
         }
@@ -143,6 +160,99 @@ public class LoanReminderService {
         );
     }
 
+    /**
+     * Process pending retries for failed emails (max 3 retries).
+     * Stops immediately upon success or after 3 failed attempts (marking FAILED_MAX_RETRIES).
+     * Preserves original book list and estimated fee content.
+     */
+    public LoanReminderRetryExecutionResult processPendingRetries(
+            Long specificLogId,
+            Boolean simulateFailure,
+            Long triggeredByUserId,
+            String triggeredByUserName
+    ) {
+        List<LoanReminderLogResponse> pendingLogs;
+        if (specificLogId != null) {
+            var opt = repository.findLogById(specificLogId);
+            if (opt.isPresent() && "PENDING_RETRY".equals(opt.get().status())) {
+                pendingLogs = List.of(opt.get());
+            } else {
+                pendingLogs = List.of();
+            }
+        } else {
+            pendingLogs = repository.findPendingRetryLogs();
+        }
+
+        int succeededCount = 0;
+        int stillPendingCount = 0;
+        int maxRetriesReachedCount = 0;
+        boolean shouldSimulateFailure = Boolean.TRUE.equals(simulateFailure);
+
+        for (LoanReminderLogResponse logItem : pendingLogs) {
+            int currentRetry = logItem.retryCount();
+            int newRetryCount = currentRetry + 1;
+            int attemptNumber = currentRetry + 2; // Attempt 1 was initial, attempt 2 is retry 1, etc.
+            String triggerSource = triggeredByUserName != null ? "MANUAL_RETRY (" + triggeredByUserName + ")" : "AUTO_RETRY";
+
+            if (shouldSimulateFailure) {
+                String errorMsg = "Mô phỏng lỗi thử lại lần " + newRetryCount;
+                if (newRetryCount >= logItem.maxRetries()) {
+                    repository.updateLogRetryStatus(logItem.id(), "FAILED_MAX_RETRIES", newRetryCount, errorMsg);
+                    maxRetriesReachedCount++;
+                } else {
+                    repository.updateLogRetryStatus(logItem.id(), "PENDING_RETRY", newRetryCount, errorMsg);
+                    stillPendingCount++;
+                }
+                repository.insertRetryAttempt(logItem.id(), attemptNumber, "FAILED", errorMsg, triggerSource);
+                continue;
+            }
+
+            try {
+                // Send with preserved original subject and email content!
+                emailService.sendRawHtmlEmail(logItem.recipientEmail(), logItem.subject(), logItem.emailContent());
+                repository.updateLogRetryStatus(logItem.id(), "SENT", newRetryCount, null);
+                repository.insertRetryAttempt(logItem.id(), attemptNumber, "SUCCESS", null, triggerSource);
+                succeededCount++;
+                log.info("Retry attempt {} succeeded for logId={}", newRetryCount, logItem.id());
+            } catch (Exception ex) {
+                String reason = ex.getMessage();
+                if (reason != null && reason.length() > 900) {
+                    reason = reason.substring(0, 900) + "...";
+                }
+                log.warn("Retry attempt {} failed for logId={}: {}", newRetryCount, logItem.id(), reason);
+
+                if (newRetryCount >= logItem.maxRetries()) {
+                    repository.updateLogRetryStatus(logItem.id(), "FAILED_MAX_RETRIES", newRetryCount, reason);
+                    maxRetriesReachedCount++;
+                } else {
+                    repository.updateLogRetryStatus(logItem.id(), "PENDING_RETRY", newRetryCount, reason);
+                    stillPendingCount++;
+                }
+                repository.insertRetryAttempt(logItem.id(), attemptNumber, "FAILED", reason, triggerSource);
+            }
+        }
+
+        return new LoanReminderRetryExecutionResult(
+                pendingLogs.size(),
+                succeededCount,
+                stillPendingCount,
+                maxRetriesReachedCount
+        );
+    }
+
+    public List<LoanReminderLogResponse> getLogs(
+            LocalDate date,
+            String reminderGroup,
+            String status,
+            String search,
+            String cardNumber,
+            int page,
+            int size
+    ) {
+        int offset = Math.max(0, page) * Math.max(1, size);
+        return repository.findLogs(date, reminderGroup, status, search, cardNumber, offset, size);
+    }
+
     public List<LoanReminderLogResponse> getLogs(
             LocalDate date,
             String reminderGroup,
@@ -150,12 +260,15 @@ public class LoanReminderService {
             int page,
             int size
     ) {
-        int offset = Math.max(0, page) * Math.max(1, size);
-        return repository.findLogs(date, reminderGroup, status, offset, size);
+        return getLogs(date, reminderGroup, status, null, null, page, size);
+    }
+
+    public long countLogs(LocalDate date, String reminderGroup, String status, String search, String cardNumber) {
+        return repository.countLogs(date, reminderGroup, status, search, cardNumber);
     }
 
     public long countLogs(LocalDate date, String reminderGroup, String status) {
-        return repository.countLogs(date, reminderGroup, status);
+        return countLogs(date, reminderGroup, status, null, null);
     }
 
     private List<LoanReminderGroupDto> buildReminderGroups(LocalDate targetDate) {
@@ -245,6 +358,7 @@ public class LoanReminderService {
             result.add(new LoanReminderGroupDto(
                     first.readerId(),
                     first.readerName(),
+                    first.readerCardNumber(),
                     first.readerEmail(),
                     groupType,
                     itemDtos,
@@ -480,14 +594,15 @@ public class LoanReminderService {
         );
     }
 
-    private void recordLog(
+    private void recordInitialLog(
             LocalDate targetDate,
             LoanReminderGroupDto group,
             String status,
             String errorMessage,
             String triggeredBy,
             Long triggeredByUserId,
-            String triggeredByUserName
+            String triggeredByUserName,
+            boolean isRetryableFailure
     ) {
         String loanNumbers = group.items().stream().map(LoanReminderItemDto::loanNumber).distinct().collect(Collectors.joining(", "));
         String bookTitles = group.items().stream().map(LoanReminderItemDto::bookTitle).distinct().collect(Collectors.joining("; "));
@@ -503,14 +618,17 @@ public class LoanReminderService {
             safeError = safeError.substring(0, 900) + "...";
         }
 
-        repository.insertLog(
+        Long logId = repository.insertLog(
                 targetDate,
                 group.readerId(),
                 group.readerName(),
+                group.readerCardNumber(),
                 group.recipientEmail(),
                 group.reminderGroup(),
                 group.items().size(),
                 group.totalEstimatedFeeVnd(),
+                0, // Initial send is 0 retries
+                3, // Max 3 retries
                 loanNumbers,
                 bookTitles,
                 itemsDetailJson,
@@ -523,6 +641,20 @@ public class LoanReminderService {
                 triggeredByUserName,
                 false
         );
+
+        // Record attempt #1 in audit log attempts table
+        if (logId != null) {
+            String attemptStatus = "SENT".equals(status) ? "SUCCESS" : ("SKIPPED".equals(status) ? "SKIPPED" : "FAILED");
+            if (!"SKIPPED".equals(status)) {
+                repository.insertRetryAttempt(
+                        logId,
+                        1,
+                        "SENT".equals(status) ? "SUCCESS" : "FAILED",
+                        safeError,
+                        triggeredBy != null ? triggeredBy : "SYSTEM_SCHEDULED"
+                );
+            }
+        }
     }
 
     private String formatCurrency(long amount) {

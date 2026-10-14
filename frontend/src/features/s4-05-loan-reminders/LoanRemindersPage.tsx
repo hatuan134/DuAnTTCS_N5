@@ -22,15 +22,19 @@ export default function LoanRemindersPage() {
   const [filterDate, setFilterDate] = useState<string>('')
   const [filterGroup, setFilterGroup] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [filterCardNumber, setFilterCardNumber] = useState<string>('')
 
   // Pagination
   const [page, setPage] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const pageSize = 15
 
-  // Modals
+  // Modals & Action states
   const [showTriggerModal, setShowTriggerModal] = useState(false)
   const [selectedLogForPreview, setSelectedLogForPreview] = useState<LoanReminderLog | null>(null)
+  const [retrying, setRetrying] = useState(false)
+  const [retryResultMsg, setRetryResultMsg] = useState<string | null>(null)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -40,6 +44,8 @@ export default function LoanRemindersPage() {
         date: filterDate || undefined,
         reminderGroup: filterGroup || undefined,
         status: filterStatus || undefined,
+        search: searchTerm.trim() || undefined,
+        cardNumber: filterCardNumber.trim() || undefined,
         page,
         size: pageSize,
       })
@@ -50,11 +56,39 @@ export default function LoanRemindersPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterDate, filterGroup, filterStatus, page])
+  }, [filterDate, filterGroup, filterStatus, searchTerm, filterCardNumber, page])
 
   useEffect(() => {
     fetchLogs()
   }, [fetchLogs])
+
+  const handleRetryPendingBatch = async () => {
+    setRetrying(true)
+    setRetryResultMsg(null)
+    try {
+      const res = await loanReminderService.retryPending()
+      setRetryResultMsg(res.executionSummary)
+      fetchLogs()
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Lỗi khi thực hiện thử lại các email chờ')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  const handleRetrySingle = async (logId: number) => {
+    setRetrying(true)
+    setRetryResultMsg(null)
+    try {
+      const res = await loanReminderService.retrySingle(logId)
+      setRetryResultMsg(res.executionSummary)
+      fetchLogs()
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Lỗi khi thử lại email này')
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const formatDate = (isoString?: string) => {
     if (!isoString) return '-'
@@ -71,18 +105,27 @@ export default function LoanRemindersPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Quản lý gửi email nhắc nhở mượn trả"
-        description="Theo dõi lịch sử gửi email nhắc sách sắp đến hạn (còn 2 ngày), đến hạn hôm nay, và nhắc quá hạn (1, 7, 30 ngày) kèm phí tạm tính. Hỗ trợ chạy thử và gửi email tức thời cho bạn đọc."
+        title="Quản lý gửi email nhắc nhở & Đối soát thử lại"
+        description="Theo dõi lịch sử gửi email nhắc sách, tự động gửi lại email thất bại tối đa 3 lần và đối soát nhật ký khi bạn đọc phản ánh chưa nhận được thư."
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="secondary"
               onClick={fetchLogs}
-              disabled={loading}
+              disabled={loading || retrying}
               className="inline-flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Làm mới
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleRetryPendingBatch}
+              disabled={loading || retrying}
+              className="inline-flex items-center gap-2 text-purple-700 border-purple-300 hover:bg-purple-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} />
+              {retrying ? 'Đang gửi lại...' : 'Thử lại email chờ'}
             </Button>
             <Button
               variant="primary"
@@ -96,17 +139,60 @@ export default function LoanRemindersPage() {
         }
       />
 
+      {/* Retry Result Banner if any */}
+      {retryResultMsg && (
+        <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm text-purple-800">
+          <div className="flex items-center gap-2 font-medium">
+            <RefreshCw className="h-4 w-4 text-purple-600" />
+            <span>{retryResultMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRetryResultMsg(null)}
+            className="text-xs text-purple-600 underline font-semibold"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
       {/* Filter Toolbar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div className="flex items-center gap-2 font-medium text-slate-700">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex items-center gap-1.5 font-medium text-slate-700">
             <Filter className="h-4 w-4 text-blue-600" />
-            <span>Bộ lọc:</span>
+            <span>Tìm kiếm:</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Tên hoặc email bạn đọc..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setPage(0)
+              }}
+              className="w-48 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Mã thẻ (VD: CARD-2026...)"
+              value={filterCardNumber}
+              onChange={(e) => {
+                setFilterCardNumber(e.target.value)
+                setPage(0)
+              }}
+              className="w-44 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
 
           <div className="flex items-center gap-2">
             <label htmlFor="filter-date" className="text-xs text-slate-500">
-              Ngày gửi:
+              Ngày:
             </label>
             <input
               id="filter-date"
@@ -122,7 +208,7 @@ export default function LoanRemindersPage() {
 
           <div className="flex items-center gap-2">
             <label htmlFor="filter-group" className="text-xs text-slate-500">
-              Nhóm nhắc:
+              Nhóm:
             </label>
             <select
               id="filter-group"
@@ -157,18 +243,22 @@ export default function LoanRemindersPage() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="SENT">Gửi thành công</option>
-              <option value="FAILED">Thất bại</option>
+              <option value="PENDING_RETRY">Chờ gửi lại</option>
+              <option value="FAILED_MAX_RETRIES">Thất bại sau 3 lần thử</option>
+              <option value="FAILED">Thất bại (Gốc)</option>
               <option value="SKIPPED">Đã bỏ qua</option>
             </select>
           </div>
 
-          {(filterDate || filterGroup || filterStatus) && (
+          {(filterDate || filterGroup || filterStatus || searchTerm || filterCardNumber) && (
             <button
               type="button"
               onClick={() => {
                 setFilterDate('')
                 setFilterGroup('')
                 setFilterStatus('')
+                setSearchTerm('')
+                setFilterCardNumber('')
                 setPage(0)
               }}
               className="text-xs font-semibold text-blue-600 hover:underline"
@@ -212,7 +302,7 @@ export default function LoanRemindersPage() {
                     <th className="px-5 py-3.5 text-right">Phí tạm tính</th>
                     <th className="px-5 py-3.5 text-center">Trạng thái</th>
                     <th className="px-5 py-3.5">Kích hoạt bởi</th>
-                    <th className="px-5 py-3.5 text-right">Chi tiết</th>
+                    <th className="px-5 py-3.5 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
@@ -225,6 +315,11 @@ export default function LoanRemindersPage() {
                       <td className="px-5 py-3.5">
                         <div className="font-semibold text-slate-800">{log.readerName}</div>
                         <div className="text-xs text-slate-500">{log.recipientEmail || 'Không có email'}</div>
+                        {log.readerCardNumber && (
+                          <div className="text-xs font-medium text-blue-600 mt-0.5">
+                            Mã thẻ: {log.readerCardNumber}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <StatusBadge status={log.reminderGroup} />
@@ -248,6 +343,16 @@ export default function LoanRemindersPage() {
                       </td>
                       <td className="px-5 py-3.5 text-center whitespace-nowrap">
                         <StatusBadge status={log.status} />
+                        {log.status === 'PENDING_RETRY' && (
+                          <div className="text-xs text-purple-700 font-medium mt-1">
+                            Đã thử: {log.retryCount}/3 lần
+                          </div>
+                        )}
+                        {log.status === 'FAILED_MAX_RETRIES' && (
+                          <div className="text-xs text-rose-700 font-bold mt-1">
+                            Đã đủ 3 lần thử
+                          </div>
+                        )}
                         {log.errorMessage && (
                           <div className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={log.errorMessage}>
                             {log.errorMessage}
@@ -262,15 +367,29 @@ export default function LoanRemindersPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setSelectedLogForPreview(log)}
-                          className="inline-flex items-center gap-1.5"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Xem email
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {log.status === 'PENDING_RETRY' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleRetrySingle(log.id)}
+                              disabled={retrying}
+                              className="inline-flex items-center gap-1 text-xs text-purple-700 border-purple-200 hover:bg-purple-50"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${retrying ? 'animate-spin' : ''}`} />
+                              Gửi lại
+                            </Button>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setSelectedLogForPreview(log)}
+                            className="inline-flex items-center gap-1.5"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Xem chi tiết
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -306,9 +425,15 @@ export default function LoanRemindersPage() {
           subject={selectedLogForPreview.subject}
           recipientName={selectedLogForPreview.readerName}
           recipientEmail={selectedLogForPreview.recipientEmail}
+          recipientCardNumber={selectedLogForPreview.readerCardNumber}
           htmlContent={selectedLogForPreview.emailContent}
           reminderGroup={selectedLogForPreview.reminderGroup}
           totalEstimatedFeeVnd={selectedLogForPreview.totalEstimatedFeeVnd}
+          status={selectedLogForPreview.status}
+          errorMessage={selectedLogForPreview.errorMessage}
+          retryCount={selectedLogForPreview.retryCount}
+          maxRetries={selectedLogForPreview.maxRetries}
+          attempts={selectedLogForPreview.attempts}
         />
       )}
     </div>

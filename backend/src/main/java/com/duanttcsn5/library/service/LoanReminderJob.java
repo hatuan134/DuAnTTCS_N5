@@ -41,4 +41,27 @@ public class LoanReminderJob {
             log.error("Scheduled reminder job encountered an error: {}", ex.getMessage(), ex);
         }
     }
+
+    /**
+     * S4-05.3: Automatically retry failed reminder emails up to 3 times.
+     * Runs periodically to retry emails in PENDING_RETRY status.
+     */
+    @Scheduled(cron = "0 */30 * * * *", zone = "Asia/Ho_Chi_Minh")
+    public void runPendingRetries() {
+        log.info("Running automatic retry job for pending failed loan reminders");
+        try {
+            var result = reminderService.processPendingRetries(
+                    null,
+                    false,
+                    null,
+                    "Hệ thống (Tự động thử lại)"
+            );
+            if (result.totalPending() > 0) {
+                log.info("Retry job completed: totalPending={}, successful={}, stillPending={}, exhausted={}",
+                        result.totalPending(), result.successfulRetries(), result.stillPending(), result.exhaustedRetries());
+            }
+        } catch (Exception ex) {
+            log.error("Scheduled retry job encountered an error: {}", ex.getMessage(), ex);
+        }
+    }
 }
