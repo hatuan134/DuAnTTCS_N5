@@ -206,6 +206,9 @@ public class LoanReminderService {
                 ? String.format("Bạn có <strong>%d</strong> cuốn sách sắp đến hạn trả vào ngày <strong>%s</strong> (sau 2 ngày nữa). Vui lòng sắp xếp mang sách tới thư viện trả đúng hạn để tránh phát sinh phí trễ hạn.", items.size(), formattedIn2Days)
                 : String.format("Bạn có <strong>%d</strong> cuốn sách đến hạn trả <strong>hôm nay</strong> (ngày <strong>%s</strong>). Vui lòng mang sách tới quầy thư viện trả trong ngày hôm nay.", items.size(), formattedDate);
 
+        String statusBadgeText = isDueIn2Days ? "Còn 2 ngày" : "Đến hạn hôm nay";
+        String statusColor = isDueIn2Days ? "#2563eb" : "#d97706";
+
         StringBuilder rows = new StringBuilder();
         int idx = 1;
         for (LoanReminderItemDto item : items) {
@@ -219,11 +222,11 @@ public class LoanReminderService {
                     <td style="padding: 10px;">%s</td>
                     <td style="padding: 10px; text-align: center; color: #475569;">%s</td>
                     <td style="padding: 10px; text-align: center; font-weight: 600; color: #2563eb;">%s</td>
-                    <td style="padding: 10px; text-align: center;">0 ngày</td>
-                    <td style="padding: 10px; text-align: right; font-weight: 500;">0 đ</td>
+                    <td style="padding: 10px; text-align: center; font-weight: 600; color: %s;">%s</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 500; color: #16a34a;">0 đ (Trong hạn)</td>
                 </tr>
                 """, idx++, escapeHtml(item.loanNumber()), escapeHtml(item.bookTitle()),
-                    escapeHtml(item.copyBarcode()), dueStr));
+                    escapeHtml(item.copyBarcode()), dueStr, statusColor, statusBadgeText));
         }
 
         return String.format("""
@@ -263,8 +266,8 @@ public class LoanReminderService {
                                     <th>Tên sách</th>
                                     <th style="text-align: center;">Mã vạch</th>
                                     <th style="text-align: center;">Hạn trả</th>
-                                    <th style="text-align: center;">Số ngày trễ</th>
-                                    <th style="text-align: right;">Phí tạm tính</th>
+                                    <th style="text-align: center;">Tình trạng</th>
+                                    <th style="text-align: right;">Phí phạt phát sinh</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -272,7 +275,7 @@ public class LoanReminderService {
                             </tbody>
                         </table>
                         <p style="margin-top: 24px; font-size: 13px; color: #64748b;">
-                            * Lưu ý: Đối với các phiếu mượn chưa quá hạn, số ngày trễ bằng 0 và phí trễ hạn bằng 0 VND. Bạn đọc hãy mang sách tới trả đúng hạn để bảo đảm quyền lợi mượn sách.
+                            * Lưu ý: Toàn bộ sách trên đều đang trong thời hạn mượn hợp lệ và chưa phát sinh bất kỳ khoản phí phạt nào. Bạn đọc hãy mang sách tới trả đúng hạn để bảo đảm quyền lợi mượn sách.
                         </p>
                     </div>
                     <div class="footer">

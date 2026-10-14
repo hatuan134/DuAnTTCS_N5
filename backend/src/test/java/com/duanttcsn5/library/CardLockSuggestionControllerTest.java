@@ -59,7 +59,10 @@ class CardLockSuggestionControllerTest {
         service = context.getBean(com.duanttcsn5.library.service.CardLockSuggestionService.class);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
-    @AfterEach void close() { context.close(); }
+    @AfterEach void close() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        context.close();
+    }
 
     private void token(String roleCode) {
         var jwt = Jwt.withTokenValue("test-token").header("alg", "HS256")
@@ -70,6 +73,15 @@ class CardLockSuggestionControllerTest {
         when(context.getBean(UserRepository.class).findById(12L)).thenReturn(Optional.of(reader));
     }
 
+    private void setSecurityContext(String roleCode) {
+        var principal = new UserPrincipal(12L, "12@example.com", "Test User", roleCode, 0);
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal,
+                null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + roleCode))
+        );
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+    }
 
     @Test void allSuggestionOperationsDenyGuestsAndOtherRoles() throws Exception {
         for(String role: new String[]{"READER","LIBRARIAN","ADMIN"}) {
@@ -84,12 +96,17 @@ class CardLockSuggestionControllerTest {
         verifyNoInteractions(service);
     }
     @Test void managerCanReadSettingsAndList() throws Exception {
-        token("LIBRARY_MANAGER");
+        setSecurityContext("LIBRARY_MANAGER");
         when(service.settings()).thenReturn(new com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Settings(100000,OffsetDateTime.now(),12L,null));
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        token("LIBRARY_MANAGER");
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/library-cards/lock-suggestions/settings").header("Authorization","Bearer test-token"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.debtThresholdVnd").value(100000));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/library-cards/lock-suggestions?history=true&page=2&size=20").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        setSecurityContext("LIBRARY_MANAGER");
         verify(service).list(true,2,20);
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
     @Test void invalidThresholdAndMissingDecisionReasonAreRejected() throws Exception {
         token("LIBRARY_MANAGER");
@@ -102,8 +119,14 @@ class CardLockSuggestionControllerTest {
     @Test void managerDecisionUsesAuthenticatedActorId() throws Exception {
         token("LIBRARY_MANAGER");
         mvc.perform(post("/api/v1/library-cards/lock-suggestions/5/ignore").header("Authorization","Bearer test-token").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Theo dõi thêm\"}")).andExpect(status().isOk());
+        setSecurityContext("LIBRARY_MANAGER");
         verify(service).ignore(eq(5L),any(),eq(12L));
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        token("LIBRARY_MANAGER");
         mvc.perform(post("/api/v1/library-cards/lock-suggestions/5/accept").header("Authorization","Bearer test-token").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Quá hạn\",\"endsAt\":null}")).andExpect(status().isOk());
+        setSecurityContext("LIBRARY_MANAGER");
         verify(service).accept(eq(5L),any(),eq(12L),anyString());
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 }

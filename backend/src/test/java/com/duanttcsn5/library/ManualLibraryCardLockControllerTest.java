@@ -59,7 +59,10 @@ class ManualLibraryCardLockControllerTest {
         service = context.getBean(LibraryCardService.class);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
-    @AfterEach void close() { context.close(); }
+    @AfterEach void close() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        context.close();
+    }
 
     private void token(String roleCode) {
         var jwt = Jwt.withTokenValue("test-token").header("alg", "HS256")
@@ -68,6 +71,14 @@ class ManualLibraryCardLockControllerTest {
         User reader = new User(); reader.setId(12L); reader.setStatus("ACTIVE");
         Role role = new Role(); role.setCode(roleCode); reader.setRole(role);
         when(context.getBean(UserRepository.class).findById(12L)).thenReturn(Optional.of(reader));
+
+        var principal = new UserPrincipal(12L, "12@example.com", "Test User", roleCode, 0);
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal,
+                null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + roleCode))
+        );
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request(String body) {
@@ -97,6 +108,7 @@ class ManualLibraryCardLockControllerTest {
         token("LIBRARY_MANAGER");
         mvc.perform(request("{\"reason\":\"Vi phạm\",\"endsAt\":\"2026-10-21T10:00:00+07:00\",\"actorId\":999}")
                 .header("Authorization", "Bearer test-token")).andExpect(status().isOk());
+        token("LIBRARY_MANAGER");
         verify(service).lockCard(eq(5L), argThat(r -> "Vi phạm".equals(r.reason()) && r.endsAt() != null), eq(12L), anyString());
     }
 }

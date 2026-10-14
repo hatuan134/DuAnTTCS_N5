@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class FeeReductionDecisionControllerTest {
     static final String ROOT = "/api/v1/overdue-fees/reduction-requests/2";
-    @Configuration @EnableWebMvc
+    @Configuration @EnableWebMvc @org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
     @Import({SecurityConfig.class, FeeReductionController.class, GlobalExceptionHandler.class,
             JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
     static class Config {

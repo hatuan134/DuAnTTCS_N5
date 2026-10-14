@@ -115,8 +115,52 @@ class LoanReminderServiceTest {
         assertEquals(2, group.items().size());
         assertTrue(group.emailContentHtml().contains("Mắt biếc"));
         assertTrue(group.emailContentHtml().contains("Tôi thấy hoa vàng trên cỏ xanh"));
-        assertTrue(group.emailContentHtml().contains("0 ngày"));
-        assertTrue(group.emailContentHtml().contains("0 đ"));
+        assertTrue(group.emailContentHtml().contains("Còn 2 ngày"));
+        assertTrue(group.emailContentHtml().contains("0 đ (Trong hạn)"));
+    }
+
+    @Test
+    void testEmailContentDueTodayContainsOptimizedStatusAndFootnote() {
+        OffsetDateTime dueToday = targetDate.atTime(15, 0).atOffset(VN_OFFSET);
+
+        EligibleLoanItemRow item = new EligibleLoanItemRow(
+                1L, 101L, "PM-001", 10L, "Nguyễn Văn A", "vana@example.com",
+                201L, "Chí Phèo", "BAR-001", dueToday
+        );
+
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
+
+        LoanReminderPreviewResponse preview = service.getPreview(targetDate);
+        LoanReminderGroupDto group = preview.reminders().get(0);
+
+        assertEquals("DUE_TODAY", group.reminderGroup());
+        assertTrue(group.emailContentHtml().contains("Đến hạn hôm nay"));
+        assertTrue(group.emailContentHtml().contains("0 đ (Trong hạn)"));
+        assertTrue(group.emailContentHtml().contains("Toàn bộ sách trên đều đang trong thời hạn mượn hợp lệ"));
+    }
+
+    @Test
+    void testBlankOrNullEmailIsSkippedSafely() throws Exception {
+        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
+
+        EligibleLoanItemRow itemNullEmail = new EligibleLoanItemRow(
+                1L, 101L, "PM-001", 10L, "Bạn Đọc Email Null", null,
+                201L, "Sách 1", "BAR-001", dueToday
+        );
+        EligibleLoanItemRow itemEmptyEmail = new EligibleLoanItemRow(
+                2L, 102L, "PM-002", 11L, "Bạn Đọc Email Rỗng", "   ",
+                202L, "Sách 2", "BAR-002", dueToday
+        );
+
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(itemNullEmail, itemEmptyEmail));
+        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
+
+        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "SYSTEM_SCHEDULED", null, "Hệ thống");
+
+        assertEquals(2, result.totalRecipients());
+        assertEquals(0, result.sentCount());
+        assertEquals(2, result.skippedCount());
+        verify(emailService, never()).sendRawHtmlEmail(any(), any(), any());
     }
 
     @Test
