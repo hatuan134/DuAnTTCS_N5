@@ -43,18 +43,38 @@ public class BookIncidentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.confirm(itemId,type,description,previewToken,files,actor.id(),proposedCompensationVnd,adjustmentReason));
     }
     @GetMapping
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
     public List<Incident> history(@RequestParam(defaultValue="") String query,@AuthenticationPrincipal UserPrincipal actor) {
         return service.history(query,actor.id());
     }
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
     public Incident detail(@PathVariable Long id,@AuthenticationPrincipal UserPrincipal actor) { return service.detail(id,actor.id()); }
     @GetMapping("/{id}/images/{imageId}")
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
     public ResponseEntity<byte[]> image(@PathVariable Long id,@PathVariable Long imageId,@AuthenticationPrincipal UserPrincipal actor) {
         Image image=service.image(id,imageId,actor.id());
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType())).cacheControl(CacheControl.noStore())
                 .header("X-Content-Type-Options","nosniff").body(image.data());
+    }
+    @GetMapping("/{id}/adjustments")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
+    public List<Adjustment> adjustments(@PathVariable Long id,@AuthenticationPrincipal UserPrincipal actor) {
+        return service.adjustments(id,actor.id());
+    }
+    @GetMapping("/{id}/adjustment-preview")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
+    public AdjustmentPreview adjustmentPreview(@PathVariable Long id,@RequestParam String targetStatus,@AuthenticationPrincipal UserPrincipal actor) {
+        return service.adjustmentPreview(id,targetStatus,actor.id());
+    }
+    @PostMapping("/{id}/adjustments")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
+    public ResponseEntity<Adjustment> requestAdjustment(@PathVariable Long id,@RequestBody AdjustmentRequest request,@AuthenticationPrincipal UserPrincipal actor) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.requestAdjustment(id,request,actor.id()));
+    }
+    @PostMapping("/{id}/adjustments/{adjustmentId}/confirm")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER','ADMIN')")
+    public Adjustment confirmAdjustment(@PathVariable Long id,@PathVariable Long adjustmentId,@AuthenticationPrincipal UserPrincipal actor) {
+        return service.confirmAdjustment(id,adjustmentId,actor.id());
     }
 }

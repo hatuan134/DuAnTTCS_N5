@@ -243,3 +243,15 @@ test('partial receipt prints only collected allocations and the historical remai
   assert.match(html, /4.000 VND/); assert.match(html, /26.000 VND/); assert.doesNotMatch(html, /10.000 VND|15.000 VND|5.000 VND/)
   assert.match(html, /vẫn còn nợ phí/); assert.doesNotMatch(html, /Đã thu đủ các khoản phí/)
 })
+
+
+test('legacy fee load failure uses temporary feedback and preserves fixed recovery state after dismissal', async () => {
+  const c=collector({detail:async()=>{throw new Error('Lỗi API thử nghiệm')}})
+  await c.select()
+  let tree=c.render()
+  const notice=find(tree,e=>e.props?.tone==='error'&&e.props?.message==='Lỗi API thử nghiệm')
+  assert.ok(notice)
+  notice.props.onDismiss();tree=c.render()
+  assert.equal(find(tree,e=>e.props?.tone==='error'&&e.props?.message==='Lỗi API thử nghiệm'),null)
+  assert.ok(find(tree,e=>e.props?.role==='status'&&String(e.props.children).includes('Chưa tải được khoản phí')))
+})

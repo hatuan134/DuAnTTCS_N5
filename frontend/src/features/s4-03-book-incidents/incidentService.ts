@@ -23,7 +23,31 @@ export const incidentTypeLabel = (type: IncidentType) => type === 'LOST' ? 'Mấ
 export function closureLabel(reason?: string | null): string {
   return reason === 'LOST' ? 'Mất' : reason === 'DAMAGED' ? 'Hỏng' : reason === 'MIXED_INCIDENT' ? 'Mất và Hỏng' : 'Đã trả'
 }
+export interface IncidentAdjustment {
+  id: number; number: string; incidentId: number; reason: string; caseType: string; targetStatus: string
+  status: 'PENDING' | 'CONFIRMED'; requesterName: string; requestedAt: string
+  confirmerName: string | null; confirmedAt: string | null; reversedVnd: number | null
+  cancelledDebtVnd: number | null; refundDueVnd: number | null; beforeData: string | null; afterData: string | null
+}
+export interface AdjustmentPreview {
+  reversedVnd: number; cancelledDebtVnd: number; refundDueVnd: number; copyStatus: string; loanStatus: string
+}
+export const adjustmentStatusLabel = (status: string) => ({ BORROWED: 'Đang mượn', AVAILABLE: 'Sẵn sàng', REPAIR: 'Sửa chữa', HELD: 'Đang giữ cho người đặt trước', REMOVED: 'Đã loại khỏi kho' }[status] ?? status)
+export function validateReversalReason(reason: string): string {
+  return !reason.trim() || reason.trim().length > 1900 ? 'Nhập lý do điều chỉnh từ 1 đến 1.900 ký tự.' : ''
+}
 export const incidentService = {
+  async detail(id: number): Promise<IncidentRecord> { return (await apiClient.get<IncidentRecord>(`/book-incidents/${id}`)).data },
+  async adjustments(id: number): Promise<IncidentAdjustment[]> { return (await apiClient.get<IncidentAdjustment[]>(`/book-incidents/${id}/adjustments`)).data },
+  async adjustmentPreview(id: number, targetStatus: string): Promise<AdjustmentPreview> {
+    return (await apiClient.get<AdjustmentPreview>(`/book-incidents/${id}/adjustment-preview`, { params: { targetStatus } })).data
+  },
+  async requestAdjustment(id: number, reason: string, caseType: string, targetStatus: string): Promise<IncidentAdjustment> {
+    return (await apiClient.post<IncidentAdjustment>(`/book-incidents/${id}/adjustments`, { reason: reason.trim(), caseType, targetStatus })).data
+  },
+  async confirmAdjustment(id: number, adjustmentId: number): Promise<IncidentAdjustment> {
+    return (await apiClient.post<IncidentAdjustment>(`/book-incidents/${id}/adjustments/${adjustmentId}/confirm`)).data
+  },
   async factors(): Promise<Factors> { return (await apiClient.get<Factors>('/book-incidents/factors')).data },
   async updateFactors(value: Factors): Promise<Factors> { return (await apiClient.put<Factors>('/book-incidents/factors', value)).data },
   async search(query: string): Promise<IncidentItem[]> { return (await apiClient.get<IncidentItem[]>('/book-incidents/open-items', { params: { query } })).data },

@@ -36,7 +36,11 @@ export function FeeCollector() {
   const [receipt, setReceipt] = useState<FeeReceipt | null>(null)
   const [receiptLoading, setReceiptLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
-  const [loadError, setLoadError] = useState('')
+  const [loadError, setLoadErrorState] = useState('')
+  function setLoadError(message: string) {
+    setLoadErrorState(message)
+    if (message) setFeedback({ tone: 'error', message })
+  }
   const inFlight = useRef(false)
   const request = useRef<FullFeePaymentRequest | PartialFeePaymentRequest | null>(null)
   const version = useRef(0)
@@ -135,7 +139,7 @@ export function FeeCollector() {
       </div>
     </Card>
     {loading && <LoadingState />}
-    {loadError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
+    {loadError && <p role="status" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chưa tải được khoản phí. Chọn lại bạn đọc hoặc bấm Tải lại để thử lại.</p>}
     {collection && <>
       <Card className="p-5">
         <div className="flex flex-col justify-between gap-4 sm:flex-row">

@@ -14,10 +14,15 @@ import IncidentRecordCard from './IncidentRecordCard'
 import { incidentService, incidentTypeLabel, validateCompensationAdjustment, validateIncidentFiles, type IncidentItem, type IncidentPreview, type IncidentRecord, type IncidentType } from './incidentService'
 
 export default function BookIncidentsPage() {
-  if (getCurrentUser()?.role !== 'LIBRARIAN') return <p role="alert">Chỉ Thủ thư được ghi nhận và xem sự cố sách mất/hỏng nặng.</p>
+  if (!['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert">Bạn không có quyền xem sự cố sách mất/hỏng nặng.</p>
   return <IncidentWorkspace />
 }
 function IncidentWorkspace() {
+  const isLibrarian = getCurrentUser()?.role === 'LIBRARIAN'
+  function updateIncident(value: IncidentRecord) {
+    setSaved(old => old?.id === value.id ? value : old && old.item.loanId === value.item.loanId ? { ...old, loanStatus: value.loanStatus } : old)
+    setHistory(old => old.map(row => row.id === value.id ? value : row.item.loanId === value.item.loanId ? { ...row, loanStatus: value.loanStatus } : row))
+  }
   const [query, setQuery] = useState(''), [items, setItems] = useState<IncidentItem[]>([])
   const [searched, setSearched] = useState(false), [busy, setBusy] = useState(false)
   const [selected, setSelected] = useState<IncidentItem | null>(null), [type, setType] = useState<IncidentType>('LOST')
@@ -83,6 +88,7 @@ function IncidentWorkspace() {
   return <div className="space-y-5">
     <PageHeader title="Sách mất hoặc hỏng nặng" description="Ghi nhận từng bản sách, giữ nguyên các khoản phí đã thu/miễn và loại bản sao khỏi kho." />
     {feedback && <FeedbackAlert {...feedback} onDismiss={() => setFeedback(null)} />}
+    {isLibrarian && <>
     <Card className="p-5"><form onSubmit={search} className="flex flex-col items-end gap-3 sm:flex-row">
       <Input label="Tìm phiếu mượn đang mở" value={query} maxLength={255} disabled={busy} onChange={e => setQuery(e.target.value)} placeholder="Mã phiếu, mã bản sao, thẻ hoặc tên bạn đọc" />
       <Button type="submit" disabled={busy} className="shrink-0">Tìm phiếu</Button>
@@ -95,6 +101,7 @@ function IncidentWorkspace() {
       <p className="text-sm">Giá bìa: {item.coverPrice && item.coverPrice > 0 ? formatVnd(item.coverPrice) : 'Chưa có giá hợp lệ'}</p>
       <Button variant="secondary" disabled={busy} onClick={() => select(item)}>{selected?.itemId === item.itemId ? 'Đang chọn' : 'Chọn bản sách'}</Button>
     </Card>)}</div>
+    </>}
     {selected && <Card className="p-5"><form onSubmit={review} className="space-y-4">
       <h3 className="break-words font-semibold">Ghi nhận cho {selected.barcode} · {selected.bookTitle}</h3>
       <div><label htmlFor="incident-type" className="mb-2 block text-sm font-semibold">Loại sự cố *</label>
@@ -149,7 +156,7 @@ function IncidentWorkspace() {
           <Button variant="danger" loading={busy} onClick={() => void confirm()}>Xác nhận ghi nhận sự cố</Button></div>
       </div>
     </Modal>}
-    {saved && <section className="space-y-3"><h2 className="text-lg font-semibold">Kết quả ghi nhận</h2><IncidentRecordCard record={saved} /></section>}
+    {saved && <section className="space-y-3"><h2 className="text-lg font-semibold">Kết quả ghi nhận</h2><IncidentRecordCard record={saved} onUpdated={updateIncident} /></section>}
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Nhật ký sự cố</h2>
       <Card className="p-5"><form onSubmit={loadHistory} className="flex flex-col items-end gap-3 sm:flex-row">
@@ -157,8 +164,8 @@ function IncidentWorkspace() {
         <Button type="submit" variant="secondary" disabled={busy} className="shrink-0">Xem nhật ký</Button>
       </form><p className="mt-2 text-xs text-slate-500">Hiển thị tối đa 100 sự cố mới nhất khớp tìm kiếm.</p></Card>
       {historyLoaded && history.length === 0 && <p role="status">Không có sự cố khớp tìm kiếm.</p>}
-      {history.filter(record => record.id !== saved?.id).map(record => <IncidentRecordCard key={record.id} record={record} />)}
+      {history.filter(record => record.id !== saved?.id).map(record => <IncidentRecordCard key={record.id} record={record} onUpdated={updateIncident} />)}
     </section>
-    <Link to="/fee-payments" className="inline-block text-sm text-blue-700 underline">Đi tới Thu phí và biên lai</Link>
+    {isLibrarian && <Link to="/fee-payments" className="inline-block text-sm text-blue-700 underline">Đi tới Thu phí và biên lai</Link>}
   </div>
 }

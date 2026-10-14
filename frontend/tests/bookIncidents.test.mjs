@@ -46,7 +46,11 @@ const event={preventDefault(){}}
 async function select(f){await f.forms()[0].props.onSubmit(event);f.render();f.button('Chọn bản sách').props.onClick();f.render()}
 function describe(f){f.find(n=>n.type==='textarea').props.onChange({target:{value:'Mất sách khi di chuyển'}});f.render()}
 const flush=()=>new Promise(r=>setImmediate(r))
-test('unsupported roles cannot mount data workspace',()=>{for(const role of ['READER','LIBRARY_MANAGER','ADMIN']){const f=fixture(role);assert.deepEqual(f.calls,[]);assert.equal(f.find(n=>n.props?.role==='alert').props.role,'alert')}})
+test('unsupported roles cannot mount data workspace',()=>{for(const role of ['READER','UNKNOWN']){const f=fixture(role);assert.deepEqual(f.calls,[]);assert.equal(f.find(n=>n.props?.role==='alert').props.role,'alert')}})
+test('manager and admin can view incident history without recording new incidents',()=>{
+ for(const role of ['LIBRARY_MANAGER','ADMIN']) { const f=fixture(role);assert.equal(f.forms().length,1);assert.equal(f.button('Tìm phiếu'),undefined);assert.ok(f.button('Xem nhật ký')) }
+})
+
 test('description required without sending preview',async()=>{const f=fixture();await select(f);await f.forms()[1].props.onSubmit(event);f.render();assert.deepEqual(f.calls,['search']);assert.ok(f.find(n=>n.props?.id==='description-error'))})
 test('preview failure retains form and shows API feedback',async()=>{const f=fixture('LIBRARIAN','preview');await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();assert.ok(f.find(n=>n.props?.message==='Thiếu giá'));assert.ok(f.find(n=>n.type==='textarea'))})
 test('success removes processed copy and dismissal preserves result',async()=>{const f=fixture();await select(f);describe(f);await f.forms()[1].props.onSubmit(event);f.render();await f.button('Xác nhận ghi nhận sự cố').props.onClick();await flush();f.render();assert.equal(f.calls.filter(v=>v==='confirm').length,1);assert.equal(f.button('Chọn bản sách'),undefined);f.find(n=>n.props?.tone==='success').props.onDismiss();f.render();assert.ok(f.find(n=>n.props?.record?.id===9))})

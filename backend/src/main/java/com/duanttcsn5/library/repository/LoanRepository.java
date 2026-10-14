@@ -335,7 +335,7 @@ public class LoanRepository {
         return jdbc.queryForObject("""
                 SELECT COALESCE(SUM(amount_vnd - paid_amount_vnd - waived_amount_vnd), 0)
                 FROM reader_fees
-                WHERE reader_user_id = ? AND paid_amount_vnd + waived_amount_vnd < amount_vnd
+                WHERE reader_user_id = ? AND NOT EXISTS (SELECT 1 FROM book_incidents i JOIN book_incident_adjustments a ON a.incident_id=i.id WHERE i.compensation_fee_id=reader_fees.id AND a.status='CONFIRMED') AND paid_amount_vnd + waived_amount_vnd < amount_vnd
                 """, BigDecimal.class, readerId);
     }
 

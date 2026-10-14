@@ -2,6 +2,8 @@ import type { AuditLogItem } from './auditLogService'
 
 // Display labels only. API action codes, filter values and stored logs stay unchanged.
 const actionLabels: Record<string, string> = {
+  "INCIDENT_ADJUSTMENT_REQUESTED": "Lập bút toán điều chỉnh sự cố",
+  "INCIDENT_REVERSED": "Xác nhận đảo sự cố sách",
   "COMPENSATION_ADJUSTED": "Điều chỉnh tiền bồi thường",
   "LOGIN_SUCCESS": "Đăng nhập thành công",
   "LOGIN_FAILED": "Đăng nhập thất bại",
@@ -53,6 +55,7 @@ const actionLabels: Record<string, string> = {
 }
 
 const entityLabels: Record<string, string> = {
+  "BOOK_INCIDENT_ADJUSTMENT": "Bút toán điều chỉnh sự cố",
   "BOOK_INCIDENT": "Sự cố sách",
   "USER": "Tài khoản người dùng",
   "LOGIN_ATTEMPT": "Phiên đăng nhập",

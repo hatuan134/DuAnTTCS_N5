@@ -10,7 +10,7 @@ const feature: FeatureModule = {
     { path: 'compensation-settings', element: <CompensationSettingsPage /> },
   ],
   navItems: [
-    { label: 'Sách mất hoặc hỏng nặng', to: '/book-incidents', icon: AlertTriangle, order: 190, roles: ['LIBRARIAN'] },
+    { label: 'Sách mất hoặc hỏng nặng', to: '/book-incidents', icon: AlertTriangle, order: 190, roles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
     { label: 'Hệ số bồi thường', to: '/compensation-settings', icon: Settings2, order: 191, roles: ['LIBRARY_MANAGER', 'ADMIN'] },
   ],
 }
