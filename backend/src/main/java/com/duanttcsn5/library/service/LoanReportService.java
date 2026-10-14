@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
 @Service
@@ -48,11 +49,15 @@ public class LoanReportService {
         var endStart = endDate.atStartOfDay(VIETNAM_ZONE).toOffsetDateTime();
         var untilExclusive = endDate.plusDays(1).atStartOfDay(VIETNAM_ZONE).toOffsetDateTime();
 
+        // Queue statistics are an operational snapshot, independent of the loan date range.
+        OffsetDateTime queueSnapshotAt = OffsetDateTime.now(clock.withZone(VIETNAM_ZONE));
+
         var activity = repository.activity(from, untilExclusive);
         var open = repository.openAndOverdue(endStart, untilExclusive);
         double overdueRate = open.open() == 0 ? 0.0
                 : Math.round(open.overdue() * 10000.0 / open.open()) / 100.0;
         return new LoanReportResponse(startDate, endDate, activity.borrowed(), activity.returned(),
-                open.open(), open.overdue(), overdueRate, repository.topBooks(from, untilExclusive));
+                open.open(), open.overdue(), overdueRate, repository.topBooks(from, untilExclusive),
+                queueSnapshotAt, repository.topQueuedBooks(queueSnapshotAt));
     }
 }

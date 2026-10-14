@@ -1,6 +1,7 @@
 package com.duanttcsn5.library.service;
 
 import com.duanttcsn5.library.dto.report.LoanReportResponse.TopBorrowedBook;
+import com.duanttcsn5.library.dto.report.LoanReportResponse.TopQueuedBook;
 import com.duanttcsn5.library.exception.ApiException;
 import com.duanttcsn5.library.repository.LoanReportRepository;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ class LoanReportServiceTest {
         when(repository.activity(any(), any())).thenReturn(new LoanReportRepository.Activity(borrowed, returned));
         when(repository.openAndOverdue(any(), any())).thenReturn(new LoanReportRepository.OpenAndOverdue(open, overdue));
         when(repository.topBooks(any(), any())).thenReturn(List.of());
+        when(repository.topQueuedBooks(any())).thenReturn(List.of());
     }
 
     @Test
@@ -43,6 +45,8 @@ class LoanReportServiceTest {
         assertThat(report.overdueLoans()).isEqualTo(20);
         assertThat(report.overdueRate()).isEqualTo(25.0);
         assertThat(report.topBooks()).containsExactly(new TopBorrowedBook(4, "Cơ sở dữ liệu", 65, 3));
+        assertThat(report.queueSnapshotAt()).isEqualTo(OffsetDateTime.parse("2026-10-14T10:00:00+07:00"));
+        verify(repository).topQueuedBooks(OffsetDateTime.parse("2026-10-14T10:00:00+07:00"));
         verify(repository).activity(OffsetDateTime.parse("2026-09-15T00:00:00+07:00"),
                 OffsetDateTime.parse("2026-10-15T00:00:00+07:00"));
         verify(repository).openAndOverdue(OffsetDateTime.parse("2026-10-14T00:00:00+07:00"),
@@ -87,4 +91,20 @@ class LoanReportServiceTest {
         stubCounts(0, 0, 0, 0);
         assertThat(nearMidnight.report(null, null).endDate()).isEqualTo(LocalDate.of(2026, 10, 14));
     }
+
+    @Test
+    void queueIsCurrentSnapshotEvenWhenLoanReportDatesChange() {
+        stubCounts(65, 30, 12, 2);
+        when(repository.topQueuedBooks(any())).thenReturn(
+                List.of(new TopQueuedBook(4, "Cơ sở dữ liệu", 12, 3)));
+
+        var earlier = service.report(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
+        var later = service.report(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 14));
+
+        assertThat(earlier.topQueuedBooks()).containsExactly(new TopQueuedBook(4, "Cơ sở dữ liệu", 12, 3));
+        assertThat(later.topQueuedBooks()).isEqualTo(earlier.topQueuedBooks());
+        assertThat(later.queueSnapshotAt()).isEqualTo(earlier.queueSnapshotAt());
+        verify(repository, times(2)).topQueuedBooks(OffsetDateTime.parse("2026-10-14T10:00:00+07:00"));
+    }
+
 }
