@@ -16,13 +16,20 @@ public record LibraryCardResponse(
         LocalDate issuedAt,
         LocalDate expiresAt,
         String status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        LibraryCardLockResponse manualLock,
+        java.math.BigDecimal unpaidFees
 ) {
     public static LibraryCardResponse fromEntity(LibraryCard card, String memberCode) {
         return fromEntity(card, memberCode, card.getStatus());
     }
 
     public static LibraryCardResponse fromEntity(LibraryCard card, String memberCode, String status) {
+        return fromEntity(card, memberCode, status, OffsetDateTime.now(), java.math.BigDecimal.ZERO);
+    }
+
+    public static LibraryCardResponse fromEntity(LibraryCard card, String memberCode, String status,
+                                                OffsetDateTime now, java.math.BigDecimal unpaidFees) {
         return new LibraryCardResponse(
                 card.getId(),
                 card.getCardNumber(),
@@ -34,7 +41,9 @@ public record LibraryCardResponse(
                 card.getIssuedAt(),
                 card.getExpiresAt(),
                 status,
-                card.getCreatedAt()
+                card.getCreatedAt(),
+                LibraryCardLockResponse.fromEntity(card, now),
+                unpaidFees == null ? java.math.BigDecimal.ZERO : unpaidFees
         );
     }
 }

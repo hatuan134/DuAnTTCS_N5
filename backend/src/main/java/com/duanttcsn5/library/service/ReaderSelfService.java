@@ -229,6 +229,7 @@ public class ReaderSelfService {
     private ReaderSelfProfileResponse toResponse(User user,
                                                  ReaderProfile profile,
                                                  LibraryCard card) {
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         return new ReaderSelfProfileResponse(
                 user.getId(),
                 user.getFullName(),
@@ -243,7 +244,10 @@ public class ReaderSelfService {
                 card == null ? null : card.getCardType().getName(),
                 card == null ? null : card.getIssuedAt(),
                 card == null ? null : card.getExpiresAt(),
-                card == null ? null : card.getStatus());
+                card == null ? null : LibraryCardService.resolveCardStatus(card,
+                        now.toLocalDate(), now),
+                com.duanttcsn5.library.dto.librarycard.LibraryCardLockResponse.fromEntity(card,
+                        now));
     }
 
     private boolean safeEquals(String left, String right) {

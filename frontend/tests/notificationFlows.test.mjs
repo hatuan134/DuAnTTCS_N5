@@ -271,3 +271,24 @@ for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-er
     if (scenario === 'duplicate') { assert.equal(lookups.length, 1); assert.equal(writes.length, 1) }
   })
 }
+
+test('old copy-created notice never reappears after a newer edit-success notice expires', async () => {
+  const CopyEditor = () => null, CopyBadge = () => null, RepairPanel = () => null
+  const copy = { id: 5, bookId: 2, barcode: 'LIB-005', bookTitle: 'Mắt biếc', status: 'AVAILABLE',
+    warehouseCode: 'K1', warehouseName: 'Kho 1', shelfCode: 'A1', shelfName: 'Kệ A1', notes: '' }
+  const p = page('../src/features/s2-02-book-copies/BookCopyDetailPage.tsx', {
+    'react-router-dom': { Link: () => null, useParams: () => ({ copyId: '5' }),
+      useLocation: () => ({ state: { created: true, generatedBarcode: 'LIB-005' } }) },
+    '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
+    './bookCopyService': { bookCopyService: { getCopy: async () => copy }, copyError: e => ({ message: e.message }) },
+    './BookCopyStatusBadge': { __esModule: true, default: CopyBadge },
+    './RepairBookCopyPanel': { __esModule: true, default: RepairPanel },
+    './EditBookCopyForm': { __esModule: true, default: CopyEditor },
+  })
+  await settle(); p.render(); assert.match(p.notice().props.message, /Đã tạo bản sao/)
+  find(p.tree(), n => n.props?.children === 'Sửa thông tin và vị trí').props.onClick(); p.render()
+  find(p.tree(), n => n.type === CopyEditor).props.onSaved(copy); p.render()
+  assert.match(p.notice().props.message, /Đã cập nhật/)
+  verifyTimer(p)
+  p.render(); assert.equal(p.notice(), undefined, 'older created message must not return')
+})

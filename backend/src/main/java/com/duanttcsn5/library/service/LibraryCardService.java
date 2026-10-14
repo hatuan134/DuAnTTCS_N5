@@ -122,7 +122,8 @@ public class LibraryCardService {
                         readerProfileRepository.findById(card.getUser().getId())
                                 .map(ReaderProfile::getMemberCode)
                                 .orElse("-"),
-                        resolveCardStatus(card, today, now)))
+                        resolveCardStatus(card, today, now), now,
+                        libraryCardRepository.sumUnpaidFees(card.getUser().getId())))
                 .toList();
     }
 
@@ -257,7 +258,8 @@ public class LibraryCardService {
                         card.getCardType().getName(),
                         card.getIssuedAt(),
                         card.getExpiresAt(),
-                        resolveCardStatus(card, today, now)))
+                        resolveCardStatus(card, today, now),
+                        com.duanttcsn5.library.dto.librarycard.LibraryCardLockResponse.fromEntity(card, now)))
                 .orElseGet(() -> new MyLibraryCardResponse(
                         profile.getUserId(),
                         profile.getUser().getFullName(),
@@ -269,7 +271,45 @@ public class LibraryCardService {
                         null,
                         null,
                         null,
+                        null,
                         null));
+    }
+
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public LibraryCardResponse lockCard(Long cardId,
+            com.duanttcsn5.library.dto.librarycard.LockLibraryCardRequest request,
+            Long actorId, String ipAddress) {
+        String reason = request == null || request.reason() == null ? "" : request.reason().strip();
+        if (reason.isBlank() || reason.length() > 1000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOCK_REASON",
+                    "Bắt buộc nhập lý do khóa thẻ, tối đa 1000 ký tự.");
+        }
+        if (cardId == null || cardId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_CARD_ID", "Mã thẻ không hợp lệ.");
+        Long readerId = libraryCardRepository.findReaderId(cardId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND", "Không tìm thấy thẻ thư viện."));
+        libraryCardRepository.lockReaderForTransactions(readerId);
+        LibraryCard card = libraryCardRepository.findByIdForUpdate(cardId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "LIBRARY_CARD_NOT_FOUND", "Không tìm thấy thẻ thư viện."));
+        OffsetDateTime startedAt = OffsetDateTime.now(LIBRARY_ZONE).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        if (card.hasActiveManualLock(startedAt) || "LOCKED".equalsIgnoreCase(card.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "LIBRARY_CARD_ALREADY_LOCKED",
+                    "Thẻ đang có lệnh khóa còn hiệu lực. Không thể tạo khóa trùng.");
+        }
+        OffsetDateTime endsAt = request.endsAt() == null ? null : request.endsAt().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        if (endsAt != null && (endsAt.getYear() < 1 || endsAt.getYear() > 9999
+                || !endsAt.isAfter(startedAt))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOCK_EXPIRY",
+                    "Thời điểm hết hạn khóa phải hợp lệ và sau thời điểm bắt đầu khóa.");
+        }
+        card.applyManualLock(reason, startedAt, endsAt, actorId);
+        libraryCardRepository.saveAndFlush(card);
+        auditLogService.logLibraryCardLocked(actorId, card, ipAddress);
+        return LibraryCardResponse.fromEntity(card,
+                readerProfileRepository.findById(readerId).map(ReaderProfile::getMemberCode).orElse("-"),
+                resolveCardStatus(card, startedAt.toLocalDate(), startedAt), startedAt,
+                libraryCardRepository.sumUnpaidFees(readerId));
     }
 
     public static String resolveCardStatus(LibraryCard card, LocalDate today, OffsetDateTime now) {
@@ -284,7 +324,8 @@ public class LibraryCardService {
             return "DISABLED";
         }
 
-        if ("LOCKED".equalsIgnoreCase(card.getStatus())
+        if (card.hasActiveManualLock(now)
+                || "LOCKED".equalsIgnoreCase(card.getStatus())
                 || (user != null && "LOCKED".equalsIgnoreCase(user.getStatus()))
                 || (user != null && user.getLockedUntil() != null && user.getLockedUntil().isAfter(now))) {
             return "LOCKED";

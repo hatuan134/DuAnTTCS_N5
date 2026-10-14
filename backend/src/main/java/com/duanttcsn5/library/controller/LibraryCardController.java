@@ -80,6 +80,15 @@ public class LibraryCardController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{cardId}/lock")
+    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public ResponseEntity<LibraryCardResponse> lockCard(@PathVariable Long cardId,
+            @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.LockLibraryCardRequest request,
+            @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest servletRequest) {
+        return ResponseEntity.ok(libraryCardService.lockCard(cardId, request,
+                principal.id(), servletRequest.getRemoteAddr()));
+    }
+
     @GetMapping("/me")
     @PreAuthorize("hasRole('READER')")
     public ResponseEntity<MyLibraryCardResponse> getMyCard(

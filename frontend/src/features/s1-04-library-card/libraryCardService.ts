@@ -11,6 +11,14 @@ export interface PendingReaderApplication {
   submittedAt: string
 }
 
+export interface ManualCardLock {
+  active: boolean
+  reason: string
+  startedAt: string
+  endsAt: string | null
+  actorUserId: number | null
+}
+
 export interface LibraryCard {
   id: number
   cardNumber: string
@@ -23,6 +31,8 @@ export interface LibraryCard {
   expiresAt: string
   status: string
   createdAt: string
+  manualLock?: ManualCardLock | null
+  unpaidFees: number
 }
 
 export interface MyLibraryCard {
@@ -37,6 +47,7 @@ export interface MyLibraryCard {
   issuedAt?: string | null
   expiresAt?: string | null
   cardStatus?: string | null
+  manualLock?: ManualCardLock | null
 }
 
 export interface PendingFilters {
@@ -78,6 +89,11 @@ export const libraryCardService = {
     reason: string,
   ): Promise<void> => {
     await apiClient.post(`/library-cards/${userId}/reject`, { reason })
+  },
+
+  lockCard: async (cardId: number, reason: string, endsAt: string | null): Promise<LibraryCard> => {
+    const response = await apiClient.post<LibraryCard>(`/library-cards/${cardId}/lock`, { reason, endsAt })
+    return response.data
   },
 
   getMine: async (): Promise<MyLibraryCard> => {

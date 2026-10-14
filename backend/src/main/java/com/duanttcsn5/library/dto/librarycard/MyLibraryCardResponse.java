@@ -13,6 +13,7 @@ public record MyLibraryCardResponse(
         String cardTypeName,
         LocalDate issuedAt,
         LocalDate expiresAt,
-        String cardStatus
+        String cardStatus,
+        LibraryCardLockResponse manualLock
 ) {
 }
