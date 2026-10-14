@@ -33,6 +33,13 @@ import java.util.Set;
 
 @Service
 public class BookReservationService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReadyPickupNotificationService pickupNotifications;
+
+    private void wakePickupEmails() {
+        if (pickupNotifications != null) pickupNotifications.wakeAfterCommit();
+    }
+
     private static final Set<String> QUEUE_FILTER_STATUSES = Set.of(
             "PENDING", "READY_FOR_PICKUP", "FULFILLED", "CANCELLED", "EXPIRED");
     private static final int MAX_ACTIVE_RESERVATIONS = 3;
@@ -82,12 +89,15 @@ public class BookReservationService {
                     && reservation.getBookCopy() != null ? reservation.getPickupDeadline() : null;
             return new MyBookReservationResponse(reservation.getId(), reservation.getBook().getId(),
                     reservation.getBook().getTitle(), reservation.getStatus(), reservation.getReservedAt(),
-                    position, deadline);
+                    position, deadline,
+                    "READY_FOR_PICKUP".equals(reservation.getStatus()) && pickupNotifications != null
+                            ? pickupNotifications.pickupLocation() : null);
         }).toList();
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookReservationResponse reserve(Long bookId, Long readerId) {
+        wakePickupEmails();
         if (readerId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
                     "Bạn chưa đăng nhập. Vui lòng đăng nhập để đặt giữ đầu sách.");
@@ -150,6 +160,7 @@ public class BookReservationService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookReservationBatchResponse reserveMany(Long bookId, Long readerId, int quantity) {
+        wakePickupEmails();
         if (readerId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED",
                     "Bạn chưa đăng nhập. Vui lòng đăng nhập để đặt giữ đầu sách.");
@@ -303,6 +314,7 @@ public class BookReservationService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public void cancelMine(Long reservationId, Long readerId) {
+        wakePickupEmails();
         if (readerId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập để huỷ đơn.");
         }
@@ -388,6 +400,7 @@ public class BookReservationService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public CancelBookReservationResponse cancelByStaff(Long reservationId, Long actorId, String reason) {
+        wakePickupEmails();
         if (actorId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "LOGIN_REQUIRED", "Vui lòng đăng nhập để huỷ đơn.");
         }

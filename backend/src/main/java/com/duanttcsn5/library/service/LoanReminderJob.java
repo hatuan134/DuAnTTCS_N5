@@ -56,9 +56,9 @@ public class LoanReminderJob {
                     null,
                     "Hệ thống (Tự động thử lại)"
             );
-            if (result.totalPending() > 0) {
+            if (result.totalProcessed() > 0) {
                 log.info("Retry job completed: totalPending={}, successful={}, stillPending={}, exhausted={}",
-                        result.totalPending(), result.successfulRetries(), result.stillPending(), result.exhaustedRetries());
+                        result.totalProcessed(), result.succeededCount(), result.stillPendingCount(), result.maxRetriesReachedCount());
             }
         } catch (Exception ex) {
             log.error("Scheduled retry job encountered an error: {}", ex.getMessage(), ex);

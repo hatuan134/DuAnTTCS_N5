@@ -9,5 +9,11 @@ public record MyBookReservationResponse(
         String status,
         OffsetDateTime reservedAt,
         Long queuePosition,
-        OffsetDateTime pickupDeadline
-) {}
+        OffsetDateTime pickupDeadline,
+        String pickupLocation
+) {
+    public MyBookReservationResponse(Long id, Long bookId, String bookTitle, String status,
+            OffsetDateTime reservedAt, Long queuePosition, OffsetDateTime pickupDeadline) {
+        this(id, bookId, bookTitle, status, reservedAt, queuePosition, pickupDeadline, null);
+    }
+}

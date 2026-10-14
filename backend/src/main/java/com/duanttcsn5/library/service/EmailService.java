@@ -315,6 +315,42 @@ public class EmailService {
         log.info("Email '{}' sent successfully to {}", subject, toEmail);
     }
 
+    /** Strict transport for S4-06.1: missing SMTP is a failure, never simulated success. */
+    public void sendRawHtmlEmailStrict(String toEmail, String subject, String htmlContent, long remainingMs)
+            throws Exception {
+        JavaMailSender sender = mailSenderProvider.getIfAvailable();
+        if (sender == null || mailFrom == null || mailFrom.isBlank()) {
+            throw new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình.");
+        }
+        if (sender instanceof org.springframework.mail.javamail.JavaMailSenderImpl source) {
+            if (source.getUsername() == null || source.getUsername().isBlank()
+                    || source.getPassword() == null || source.getPassword().isBlank()) {
+                throw new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình.");
+            }
+            // Copy per attempt instead of mutating the shared sender used by older features.
+            var bounded = new org.springframework.mail.javamail.JavaMailSenderImpl();
+            bounded.setHost(source.getHost()); bounded.setPort(source.getPort());
+            bounded.setProtocol(source.getProtocol()); bounded.setUsername(source.getUsername());
+            bounded.setPassword(source.getPassword()); bounded.setDefaultEncoding(source.getDefaultEncoding());
+            var properties = new java.util.Properties();
+            properties.putAll(source.getJavaMailProperties());
+            long timeout = Math.max(1, Math.min(5000, (remainingMs - 500) / 4));
+            for (String key : java.util.List.of("mail.smtp.connectiontimeout", "mail.smtp.timeout", "mail.smtp.writetimeout")) {
+                long configured = timeout;
+                try { configured = Long.parseLong(properties.getProperty(key, Long.toString(timeout))); }
+                catch (NumberFormatException ignored) { /* bounded default */ }
+                properties.setProperty(key, Long.toString(Math.max(1, Math.min(timeout, configured))));
+            }
+            bounded.setJavaMailProperties(properties);
+            sender = bounded;
+        }
+        MimeMessage message = sender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        helper.setFrom(mailFrom); helper.setTo(toEmail); helper.setSubject(subject);
+        helper.setText(htmlContent, true);
+        sender.send(message);
+    }
+
     private boolean sleepBeforeRetry() {
         if (retryDelayMs <= 0) {
             return true;

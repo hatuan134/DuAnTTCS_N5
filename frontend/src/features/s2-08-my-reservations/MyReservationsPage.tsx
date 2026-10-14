@@ -190,7 +190,10 @@ export default function MyReservationsPage() {
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
                     {item.status === 'READY_FOR_PICKUP' && item.pickupDeadline
-                      ? <time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
+                      ? <><time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
+                        <p className="mt-1 max-w-xs whitespace-normal break-words text-xs font-normal text-slate-600">
+                          {item.pickupLocation || 'Chưa khai báo quầy nhận. Vui lòng liên hệ thủ thư.'}
+                        </p></>
                       : '—'}
                   </td>
                   <td className="px-5 py-4">

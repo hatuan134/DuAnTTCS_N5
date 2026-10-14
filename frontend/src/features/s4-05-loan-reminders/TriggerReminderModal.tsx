@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Send, Eye, RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import { Send, Eye, RefreshCw, CheckCircle2, Info } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -32,6 +33,8 @@ export default function TriggerReminderModal({
   const [submitting, setSubmitting] = useState(false)
   const [preview, setPreview] = useState<LoanReminderPreviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [successNotice, setSuccessNotice] = useState<string | null>(null)
+  const [previewFailed, setPreviewFailed] = useState(false)
   const [result, setResult] = useState<LoanReminderExecutionResult | null>(null)
   const [simulateFailure, setSimulateFailure] = useState(false)
 
@@ -41,10 +44,12 @@ export default function TriggerReminderModal({
     setLoading(true)
     setError(null)
     setResult(null)
+    setPreviewFailed(false)
     try {
       const data = await loanReminderService.getPreview(dateStr)
       setPreview(data)
     } catch (err: any) {
+      setPreviewFailed(true)
       setError(err?.response?.data?.message || err?.message || 'Không thể tải danh sách xem trước')
     } finally {
       setLoading(false)
@@ -52,6 +57,8 @@ export default function TriggerReminderModal({
   }
 
   useEffect(() => {
+    setError(null)
+    setSuccessNotice(null)
     if (isOpen) {
       loadPreview(targetDate)
     }
@@ -63,6 +70,7 @@ export default function TriggerReminderModal({
     try {
       const res = await loanReminderService.trigger({ targetDate, simulateFailure })
       setResult(res)
+      setSuccessNotice(`Đã xử lý lượt gửi: ${res.sentCount} thành công, ${res.failedCount} lỗi, ${res.skippedCount} bỏ qua.`)
       onSuccess()
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Không thể thực hiện gửi email nhắc nhở')
@@ -137,18 +145,14 @@ export default function TriggerReminderModal({
               </div>
             )}
 
-            {error && (
-              <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
-                <p>{error}</p>
-              </div>
-            )}
+            {error && <FeedbackAlert tone="error" message={error} onDismiss={() => setError(null)} />}
+            {successNotice && <FeedbackAlert tone={result?.failedCount ? 'warning' : 'success'} message={successNotice} onDismiss={() => setSuccessNotice(null)} />}
 
             {result && (
               <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
                 <div>
-                  <p className="font-semibold">Đã hoàn thành lượt chạy gửi email nhắc nhở!</p>
+                  <p className="font-semibold">Kết quả lượt chạy gửi email</p>
                   <p className="mt-1">
                     Tổng số bạn đọc: <strong>{result.totalRecipients}</strong> | Gửi thành công:{' '}
                     <strong className="text-emerald-700">{result.sentCount}</strong> | Thất bại:{' '}
@@ -166,7 +170,7 @@ export default function TriggerReminderModal({
 
             {loading ? (
               <LoadingState />
-            ) : !preview || preview.reminders.length === 0 ? (
+            ) : previewFailed ? <p role="status" className="text-sm text-slate-600">Chưa tải được danh sách xem trước. Nhấn nút tải lại để thử lại.</p> : !preview || preview.reminders.length === 0 ? (
               <EmptyState
                 title="Không có phiếu mượn nào cần gửi nhắc"
                 description={`Không tìm thấy phiếu mượn nào thuộc các mốc nhắc (còn 2 ngày, đến hạn hôm nay, hoặc quá hạn đúng 1, 7, 30 ngày) vào ngày ${targetDate}.`}
