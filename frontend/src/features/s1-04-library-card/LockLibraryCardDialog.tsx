@@ -26,10 +26,11 @@ export function validateLockForm(reason: string, indefinite: boolean, endsAt: st
   return ''
 }
 
-export default function LockLibraryCardDialog({ card, onClose, onLocked }: {
+export default function LockLibraryCardDialog({ card, onClose, onLocked, initialReason = '', onConfirmLock }: {
   card: LibraryCard; onClose: () => void; onLocked: (card: LibraryCard) => void
+  initialReason?: string; onConfirmLock?: (reason: string, endsAt: string | null) => Promise<LibraryCard>
 }) {
-  const [reason, setReason] = useState('')
+  const [reason, setReason] = useState(initialReason)
   const [indefinite, setIndefinite] = useState(false)
   const [endsAt, setEndsAt] = useState(sevenDaysLater)
   const [submitting, setSubmitting] = useState(false)
@@ -42,8 +43,9 @@ export default function LockLibraryCardDialog({ card, onClose, onLocked }: {
     if (invalid) { setNotice(invalid); return }
     pending.current = true; setSubmitting(true)
     try {
-      const result = await libraryCardService.lockCard(card.id, reason.trim(),
-        indefinite ? null : `${endsAt}:00+07:00`)
+      const end = indefinite ? null : `${endsAt}:00+07:00`
+      const result = onConfirmLock ? await onConfirmLock(reason.trim(), end)
+        : await libraryCardService.lockCard(card.id, reason.trim(), end)
       onLocked(result)
     } catch (error) { setNotice(getApiErrorMessage(error, 'Không thể khóa thẻ. Vui lòng thử lại.')) }
     finally { pending.current = false; setSubmitting(false) }

@@ -2,12 +2,12 @@ import type { NavItem } from '../types/feature'
 
 const groups = [
   { id: 'overview', label: 'Tổng quan', paths: ['/dashboard'] },
-  { id: 'people', label: 'Người dùng', paths: ['/users', '/readers', '/library-cards', '/change-password'] },
+  { id: 'people', label: 'Người dùng', paths: ['/users', '/readers', '/library-cards', '/card-lock-suggestions', '/change-password'] },
   { id: 'books', label: 'Quản lý sách', paths: ['/cataloging', '/authors', '/categories'] },
   { id: 'warehouse', label: 'Kho', paths: ['/warehouse-shelves'] },
   { id: 'loans', label: 'Mượn trả', paths: ['/loans', '/loans/direct', '/loans/search', '/loans/rejections', '/loans/receive-return', '/loans/overdue', '/my-borrowed-books', '/overdue-fees/reduction-requests/pending', '/fee-payments'] },
   { id: 'reservations', label: 'Đặt giữ', paths: ['/reservations/ready-for-pickup', '/my-reservations', '/manager/auto-cancellations'] },
-  { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/audit-log'] },
+  { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/card-lock-suggestion-settings', '/audit-log'] },
 ]
 
 export function visibleNavigation(items: NavItem[], role?: string) {

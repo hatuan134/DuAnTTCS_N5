@@ -42,6 +42,7 @@ class ManualLibraryCardUnlockControllerTest {
     @Import({SecurityConfig.class, LibraryCardController.class, GlobalExceptionHandler.class,
             JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
     static class Config {
+        @Bean com.duanttcsn5.library.service.CardLockSuggestionService suggestions() { return mock(com.duanttcsn5.library.service.CardLockSuggestionService.class); }
         @Bean LibraryCardService reservations() { return mock(LibraryCardService.class); }
         @Bean JwtService jwtService() { return mock(JwtService.class); }
         @Bean UserRepository users() { return mock(UserRepository.class); }
