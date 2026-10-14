@@ -28,6 +28,9 @@ export interface BookReservationBatch {
 }
 
 export interface MyBookReservation {
+  cancellationReason?: string | null
+  cancelledAt?: string | null
+  cancelledBySystem?: boolean
   pickupLocation?: string | null
   id: number
   bookId: number

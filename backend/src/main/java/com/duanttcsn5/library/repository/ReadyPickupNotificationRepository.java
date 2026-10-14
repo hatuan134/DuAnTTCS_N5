@@ -17,7 +17,15 @@ public class ReadyPickupNotificationRepository {
     public record Event(long id, long reservationId, String recipientEmail, String readerName,
                         String bookTitle, OffsetDateTime pickupDeadline, String pickupLocation,
                         OffsetDateTime eventAt, OffsetDateTime sendBefore, String status,
-                        int attemptCount, String notificationType) {
+                        int attemptCount, String notificationType, Long bookId,
+                        String cancellationReason, OffsetDateTime cancelledAt) {
+        public Event(long id, long reservationId, String recipientEmail, String readerName,
+                     String bookTitle, OffsetDateTime pickupDeadline, String pickupLocation,
+                     OffsetDateTime eventAt, OffsetDateTime sendBefore, String status,
+                     int attemptCount, String notificationType) {
+            this(id,reservationId,recipientEmail,readerName,bookTitle,pickupDeadline,pickupLocation,
+                    eventAt,sendBefore,status,attemptCount,notificationType,null,null,null);
+        }
         public Event(long id, long reservationId, String recipientEmail, String readerName,
                      String bookTitle, OffsetDateTime pickupDeadline, String pickupLocation,
                      OffsetDateTime eventAt, OffsetDateTime sendBefore, String status, int attemptCount) {
@@ -28,7 +36,27 @@ public class ReadyPickupNotificationRepository {
     public record ReminderCandidate(long reservationId, String status, String recipientEmail,
                                     String readerName, String bookTitle, OffsetDateTime pickupDeadline,
                                     boolean converted, String notificationStatus) {}
-    public record ReservationState(String status, OffsetDateTime pickupDeadline, boolean converted) {}
+    public record ReservationState(String status, OffsetDateTime pickupDeadline, boolean converted,
+                                   String cancellationReason, OffsetDateTime cancelledAt,
+                                   Long cancelledBy, String cancelledByName) {
+        public ReservationState(String status, OffsetDateTime pickupDeadline, boolean converted) {
+            this(status,pickupDeadline,converted,null,null,null,null);
+        }
+    }
+    public record CancellationCandidate(long reservationId, long bookId, String bookTitle,
+                                        String readerName, String recipientEmail, String status,
+                                        OffsetDateTime pickupDeadline, boolean converted) {}
+    public Optional<CancellationCandidate> cancellationCandidate(long id) {
+        return jdbc.query("""
+                SELECT r.id,r.book_id,b.title,u.full_name,u.email,r.status,r.pickup_deadline,
+                    EXISTS(SELECT 1 FROM loans l WHERE l.reservation_id=r.id)
+                    OR EXISTS(SELECT 1 FROM loan_items i WHERE i.source_reservation_id=r.id) AS converted
+                FROM book_reservations r JOIN books b ON b.id=r.book_id JOIN users u ON u.id=r.reader_id
+                WHERE r.id=?
+                """, (rs,n)->new CancellationCandidate(rs.getLong("id"),rs.getLong("book_id"),
+                rs.getString("title"),rs.getString("full_name"),rs.getString("email"),rs.getString("status"),
+                rs.getObject("pickup_deadline",OffsetDateTime.class),rs.getBoolean("converted")),id).stream().findFirst();
+    }
 
     // Called ONLY inside the worker transaction. A lock lasts through SMTP + result recording.
     public Optional<Event> lockNext(Long reservationId, OffsetDateTime now) {
@@ -47,7 +75,9 @@ public class ReadyPickupNotificationRepository {
                 rs.getString("recipient_email"),rs.getString("reader_name"),rs.getString("book_title"),
                 rs.getObject("pickup_deadline",OffsetDateTime.class),rs.getString("pickup_location"),
                 rs.getObject("event_at",OffsetDateTime.class),rs.getObject("send_before",OffsetDateTime.class),
-                rs.getString("status"),rs.getInt("attempt_count"),rs.getString("notification_type")),args).stream().findFirst();
+                rs.getString("status"),rs.getInt("attempt_count"),rs.getString("notification_type"),
+                (Long)rs.getObject("book_id"),rs.getString("cancellation_reason"),
+                rs.getObject("cancelled_at",OffsetDateTime.class)),args).stream().findFirst();
     }
     // Commit a durable claim before contacting SMTP. A crash never turns an accepted email into a resend.
     public void claim(Event event,OffsetDateTime started,boolean simulated,Long actorId) {
@@ -67,7 +97,7 @@ public class ReadyPickupNotificationRepository {
         jdbc.update("""
                 WITH abandoned AS (
                     SELECT id FROM ready_pickup_notifications WHERE status='SENDING' AND (send_before<=?
-                        OR (notification_type='LAST_DAY_REMINDER' AND EXISTS (
+                        OR (notification_type IN ('LAST_DAY_REMINDER','PICKUP_EXPIRED_CANCELLATION') AND EXISTS (
                             SELECT 1 FROM ready_pickup_notification_attempts a
                             WHERE a.notification_id=ready_pickup_notifications.id
                               AND a.attempt_number=ready_pickup_notifications.attempt_count
@@ -86,12 +116,14 @@ public class ReadyPickupNotificationRepository {
     }
     public Optional<ReservationState> lockReservation(long reservationId) {
         return jdbc.query("""
-                SELECT r.status,r.pickup_deadline,
+                SELECT r.status,r.pickup_deadline,r.cancellation_reason,r.cancelled_at,r.cancelled_by,r.cancelled_by_name,
                     EXISTS(SELECT 1 FROM loans l WHERE l.reservation_id=r.id)
                     OR EXISTS(SELECT 1 FROM loan_items i WHERE i.source_reservation_id=r.id) AS converted
                 FROM book_reservations r WHERE r.id=? FOR UPDATE OF r
                 """, (rs,n) -> new ReservationState(rs.getString("status"),
-                rs.getObject("pickup_deadline",OffsetDateTime.class),rs.getBoolean("converted")),
+                rs.getObject("pickup_deadline",OffsetDateTime.class),rs.getBoolean("converted"),
+                rs.getString("cancellation_reason"),rs.getObject("cancelled_at",OffsetDateTime.class),
+                (Long)rs.getObject("cancelled_by"),rs.getString("cancelled_by_name")),
                 reservationId).stream().findFirst();
     }
     public boolean isLatest(Event event) {
@@ -168,7 +200,9 @@ public class ReadyPickupNotificationRepository {
                 rs.getObject("event_at",OffsetDateTime.class),rs.getObject("send_before",OffsetDateTime.class),
                 rs.getObject("sent_at",OffsetDateTime.class),rs.getObject("completed_at",OffsetDateTime.class),
                 rs.getString("status"),rs.getInt("attempt_count"),rs.getString("subject"),rs.getString("email_content"),
-                rs.getString("error_code"),rs.getString("error_message"),attempts(rs.getLong("id"))),reservationId);
+                rs.getString("error_code"),rs.getString("error_message"),attempts(rs.getLong("id")),
+                (Long)rs.getObject("book_id"),rs.getString("cancellation_reason"),
+                rs.getObject("cancelled_at",OffsetDateTime.class)),reservationId);
     }
     private List<Attempt> attempts(long id) {
         return jdbc.query("SELECT * FROM ready_pickup_notification_attempts WHERE notification_id=? ORDER BY attempt_number",

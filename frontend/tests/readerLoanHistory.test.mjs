@@ -169,6 +169,7 @@ const fail = async () => { throw new Error('Lỗi API kiểm thử') }
 const pickup = { pickupService: { list: fail, queue: fail, detail: fail }, pickupRoles: ['LIBRARIAN'],
   formatPickupDate: v => v, reservationFilterStatuses: [], reservationStatusLabel: v => v }
 const common = {
+  './PickupEmailHistoryDialog': { __esModule: true, default: () => null },
   'react-router-dom': router, '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
   './CancelReservationPanel': { __esModule: true, default: () => null, CancellationNotice: () => null },
   './CreateReservationLoanPanel': { __esModule: true, default: () => null },

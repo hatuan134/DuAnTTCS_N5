@@ -95,6 +95,7 @@ function verifyTimer(p) {
 }
 for (const fail of [false, true]) test(`old auto-cancellation manual scan ${fail ? 'failure' : 'success'} uses 3000ms notification`, async () => {
   const p = page('../src/features/s3-06-auto-cancellations/AutoCancelledReservationsPage.tsx', {
+    '../s2-09-ready-pickup/PickupCancellationTrialPanel': { __esModule: true, default: () => null },
     './autoCancellationService': { autoCancellationService: {
       getLast30Days: async () => [], getLatestRun: async () => null,
       triggerRun: async () => { if (fail) throw { response: { data: { message: 'Quét thất bại.' } } }

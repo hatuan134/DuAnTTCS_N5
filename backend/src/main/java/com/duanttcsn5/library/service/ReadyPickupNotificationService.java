@@ -52,6 +52,9 @@ public class ReadyPickupNotificationService {
     private String lastDaySendTime="07:00";
     @Value("${app.mail.max-attempts:3}")
     private int reminderMaxAttempts=3;
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl="http://localhost:5173";
+    public static final String CANCELLATION_TYPE="PICKUP_EXPIRED_CANCELLATION";
 
     @Autowired
     public ReadyPickupNotificationService(ReadyPickupNotificationRepository repository,EmailService emails,
@@ -143,6 +146,10 @@ public class ReadyPickupNotificationService {
     private void attempt(Event event,boolean simulateFailure,Long actorId) {
         OffsetDateTime started=now();
         var state=repository.lockReservation(event.reservationId()).orElse(null);
+        if (CANCELLATION_TYPE.equals(event.notificationType())) {
+            attemptCancellation(event,state,started,simulateFailure,actorId);
+            return;
+        }
         String location=event.pickupLocation()==null?pickupLocation:event.pickupLocation();
         boolean reminder="LAST_DAY_REMINDER".equals(event.notificationType());
         String subject=reminder ? lastDaySubject(event.reservationId()) : "Sách đã sẵn sàng để nhận — Đơn #"+event.reservationId();
@@ -212,6 +219,109 @@ public class ReadyPickupNotificationService {
                         "Không xác định được SMTP đã nhận thư hay chưa. Không tự gửi lại để tránh trùng.",started,false,actorId);
             }
         }
+    }
+    private void attemptCancellation(Event event,ReadyPickupNotificationRepository.ReservationState state,
+                                     OffsetDateTime started,boolean simulated,Long actorId) {
+        String subject=cancellationSubject(event.reservationId());
+        String html=cancellationContent(event.readerName(),event.reservationId(),event.bookTitle(),
+                event.pickupDeadline(),event.cancelledAt(),event.bookId());
+        repository.saveContent(event.id(),null,subject,html);
+        if (state==null || !"CANCELLED".equals(state.status()) || state.converted()
+                || state.cancelledBy()!=null || !"Hệ thống".equals(state.cancelledByName())
+                || !ReservationAutoCancellationService.OVERDUE_CANCELLATION_REASON.equals(state.cancellationReason())
+                || !ReservationAutoCancellationService.OVERDUE_CANCELLATION_REASON.equals(event.cancellationReason())
+                || event.cancelledAt()==null || state.cancelledAt()==null
+                || !state.cancelledAt().toInstant().equals(event.cancelledAt().toInstant())
+                || event.pickupDeadline()==null || state.pickupDeadline()==null
+                || !state.pickupDeadline().toInstant().equals(event.pickupDeadline().toInstant())
+                || !event.cancelledAt().isAfter(event.pickupDeadline()) || !now().isAfter(event.pickupDeadline())) {
+            finish(event,"SKIPPED","CANCELLATION_EVENT_CHANGED","Đơn không còn khớp sự kiện hệ thống hủy do quá hạn nhận.",started,false,actorId);
+            return;
+        }
+        if (event.bookId()==null || !validFrontendUrl()) {
+            finish(event,"FAILED","INVALID_REBOOK_URL","Chưa có đường dẫn đặt giữ lại hợp lệ. Kiểm tra FRONTEND_URL.",started,false,actorId);return;
+        }
+        if (!validEmail(event.recipientEmail())) {
+            finish(event,"SKIPPED","INVALID_EMAIL","Bạn đọc chưa có email hợp lệ. Đơn vẫn Đã hủy; có thể xem hướng dẫn trên trang cá nhân.",started,false,actorId);return;
+        }
+        if (event.attemptCount()>=3) {
+            finish(event,"FAILED","SMTP_RETRY_EXHAUSTED","Đã hết 3 lượt gửi email hủy; không gửi lại.",started,false,actorId);return;
+        }
+        if (simulated) { retryCancellation(event,"SIMULATED_FAILURE",started,true,actorId);return; }
+        try {
+            emails.sendRawHtmlEmailStrict(event.recipientEmail().trim(),subject,html,30000L);
+            finish(event,"SENT",null,null,started,false,actorId);
+        } catch (MailAuthenticationException e) {
+            finish(event,"FAILED","SMTP_AUTH_FAILED","SMTP từ chối xác thực. Kiểm tra cấu hình email.",started,false,actorId);
+        } catch (MailPreparationException e) {
+            finish(event,"FAILED","SMTP_NOT_CONFIGURED","Chưa cấu hình đầy đủ SMTP; email hủy chưa được gửi.",started,false,actorId);
+        } catch (Exception e) {
+            Integer reply=smtpReply(e);
+            // Retry only when the connection failed before sending, or SMTP explicitly rejected temporarily.
+            if ((e instanceof org.springframework.mail.MailSendException send && send.getFailedMessages().isEmpty())
+                    || (reply!=null && reply>=400 && reply<500)) {
+                retryCancellation(event,"SMTP_TEMPORARY_FAILURE",started,false,actorId);
+            } else finish(event,"FAILED",reply!=null && reply>=500?"SMTP_REJECTED":"DELIVERY_UNCERTAIN",
+                    reply!=null && reply>=500?"SMTP từ chối thư. Kiểm tra email và cấu hình gửi.":
+                            "Không xác định được SMTP đã nhận thư hay chưa. Không tự gửi lại để tránh trùng.",started,false,actorId);
+        }
+    }
+    private void retryCancellation(Event event,String code,OffsetDateTime started,boolean simulated,Long actorId) {
+        OffsetDateTime finished=now();
+        boolean exhausted=event.attemptCount()+1>=3;
+        repository.complete(event,exhausted?"FAILED":"RETRY",exhausted?"SMTP_RETRY_EXHAUSTED":code,
+                exhausted?"Đã hết 3 lượt gửi email hủy; kết quả được lưu trong lịch sử.":
+                        simulated?"Mô phỏng lỗi tạm thời; chưa gửi thư thật.":"SMTP gặp lỗi tạm thời; sẽ thử lại, tối đa 3 lượt tổng cộng.",
+                started,finished,exhausted?finished:finished.plusSeconds(event.attemptCount()==0?5:10),simulated,actorId);
+    }
+    private boolean validFrontendUrl() {
+        try {
+            java.net.URI uri=java.net.URI.create(frontendUrl);
+            return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost()!=null && uri.getUserInfo()==null && uri.getQuery()==null && uri.getFragment()==null;
+        } catch (RuntimeException e) { return false; }
+    }
+    public static String cancellationSubject(long id) { return "Đơn đặt giữ đã hủy do quá hạn nhận — Đơn #"+id; }
+    public String cancellationContent(String reader,long id,String book,OffsetDateTime deadline,
+                                      OffsetDateTime cancelledAt,Long bookId) {
+        String link=validFrontendUrl() && bookId!=null ? frontendUrl.replaceAll("/+$","")+"/catalog/books/"+bookId+"#reserve-book" : "";
+        String date=deadline==null?"Chưa khai báo":DATE.format(deadline.atZoneSameInstant(ZONE));
+        String cancelled=cancelledAt==null?"Chưa ghi nhận":DATE.format(cancelledAt.atZoneSameInstant(ZONE));
+        return """
+                <!doctype html><html lang="vi"><head><meta charset="UTF-8"></head>
+                <body style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.6">
+                <h2>Thư viện LIBRA — Hủy do quá hạn nhận</h2><p>Kính gửi %s,</p>
+                <p>Đơn đặt giữ <strong>#%d</strong> đã chuyển sang <strong>Đã hủy</strong> vì bạn chưa đến nhận sách trước hạn.</p>
+                <p>Tên sách: <strong>%s</strong><br>Lý do hủy: <strong>Quá hạn nhận</strong>
+                <br>Hạn cuối nhận: <strong>%s (giờ Việt Nam, UTC+07:00)</strong>
+                <br>Thời điểm hủy: <strong>%s (giờ Việt Nam, UTC+07:00)</strong></p>
+                <h3>Hướng dẫn đặt giữ lại</h3><ol>
+                <li>Mở <a href="%s">trang chi tiết sách và chức năng đặt giữ</a>, đăng nhập tài khoản Bạn đọc.</li>
+                <li>Kiểm tra thẻ, tình trạng sách và chọn “Đặt giữ”. Đơn mới được tạo theo quy trình hiện có.</li>
+                <li>Nếu còn bản rảnh, thư viện cấp bản theo quy trình; nếu chưa có bản rảnh, đơn mới vào cuối hàng đợi, không giữ vị trí cũ.</li></ol>
+                <p>Việc đặt lại phụ thuộc vào tình trạng sách và điều kiện sử dụng thẻ tại thời điểm thực hiện:
+                tài khoản hoạt động, thẻ hợp lệ và còn hạn, không bị khóa; chưa mượn đầu sách này,
+                không có đơn đang hiệu lực cho cùng đầu sách và còn trong giới hạn tối đa 3 đơn đặt giữ đang hiệu lực.</p>
+                <p>Nếu thẻ bị khóa hoặc hết hạn, vui lòng liên hệ thủ thư để được xử lý hoặc gia hạn trước khi đặt lại.</p>
+                <p>Email được gửi tự động từ Thư viện LIBRA.</p></body></html>
+                """.formatted(escape(reader),id,escape(book),escape(date),escape(cancelled),escape(link));
+    }
+    public com.duanttcsn5.library.dto.book.PickupCancellationDtos.Preview previewCancellation(long id,OffsetDateTime checkTime) {
+        validateId(id);
+        var candidate=repository.cancellationCandidate(id).orElseThrow(()->new ApiException(
+                HttpStatus.NOT_FOUND,"RESERVATION_NOT_FOUND","Không tìm thấy đơn đặt giữ."));
+        OffsetDateTime actual=now(), point=checkTime==null?actual:checkTime.atZoneSameInstant(ZONE).toOffsetDateTime();
+        boolean ready="READY_FOR_PICKUP".equals(candidate.status()) && !candidate.converted();
+        boolean eligible=ready && candidate.pickupDeadline()!=null && point.isAfter(candidate.pickupDeadline());
+        boolean canRun=eligible && !point.isAfter(actual) && actual.isAfter(candidate.pickupDeadline());
+        String reason=!ready?"Đơn đã nhận, đã hủy hoặc không còn Chờ nhận.":candidate.pickupDeadline()==null?
+                "Đơn chưa có hạn cuối nhận sách.":!eligible?"Đơn chưa quá hạn tại thời điểm xem trước.":point.isAfter(actual)?
+                "Mốc tương lai chỉ xem trước. Không hủy đơn, không gửi email và không ghi lịch sử.":
+                "Đơn đã quá hạn theo giờ thực tế. Có thể xác nhận hủy và gửi email.";
+        return new com.duanttcsn5.library.dto.book.PickupCancellationDtos.Preview(id,candidate.bookId(),candidate.bookTitle(),
+                candidate.readerName(),candidate.recipientEmail(),candidate.status(),candidate.pickupDeadline(),point,actual,
+                eligible,canRun,reason,cancellationSubject(id),cancellationContent(candidate.readerName(),id,candidate.bookTitle(),
+                candidate.pickupDeadline(),point,candidate.bookId()));
     }
     private static Integer smtpReply(Throwable error) {
         java.util.Set<Throwable> visited=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
