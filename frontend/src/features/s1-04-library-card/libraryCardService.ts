@@ -35,6 +35,29 @@ export interface LibraryCard {
   unpaidFees: number
 }
 
+export interface CardLockHistory {
+  id: number
+  cardNumber: string
+  action: 'LOCK' | 'UNLOCK'
+  actorUserId: number | null
+  actorName: string
+  performedAt: string
+  reason: string
+  lockStartedAt: string
+  lockEndsAt: string | null
+  lockReason: string
+  lockActorUserId: number | null
+  lockActorName: string
+  previousStatus: string
+  resultingStatus: string
+}
+
+export interface LibraryCardDetails {
+  card: LibraryCard
+  lockActorName: string
+  history: CardLockHistory[]
+}
+
 export interface MyLibraryCard {
   userId: number
   fullName: string
@@ -93,6 +116,16 @@ export const libraryCardService = {
 
   lockCard: async (cardId: number, reason: string, endsAt: string | null): Promise<LibraryCard> => {
     const response = await apiClient.post<LibraryCard>(`/library-cards/${cardId}/lock`, { reason, endsAt })
+    return response.data
+  },
+
+  getDetails: async (cardId: number): Promise<LibraryCardDetails> => {
+    const response = await apiClient.get<LibraryCardDetails>(`/library-cards/${cardId}`)
+    return response.data
+  },
+
+  unlockCard: async (cardId: number, reason: string, lockStartedAt: string): Promise<LibraryCard> => {
+    const response = await apiClient.post<LibraryCard>(`/library-cards/${cardId}/unlock`, { reason, lockStartedAt })
     return response.data
   },
 

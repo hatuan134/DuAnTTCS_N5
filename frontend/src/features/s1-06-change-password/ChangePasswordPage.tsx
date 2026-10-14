@@ -162,7 +162,7 @@ export default function ChangePasswordPage() {
     void profileService.getMine().then(updated => {
       setProfileData(current => current ? { ...current, cardStatus: updated.cardStatus, manualLock: updated.manualLock } : current)
     }).catch(error => setProfileError(getApiErrorMessage(error, 'Không tải được trạng thái thẻ.')))
-  })
+  }, true)
   const cardStatusLabel = getCardStatusLabel(profileData)
 
   const handleProfileSubmit = async (

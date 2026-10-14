@@ -18,6 +18,7 @@ const actionLabels: Record<string, string> = {
   "READER_CONTACT_UPDATED": "Cập nhật thông tin liên hệ",
   "READER_PASSWORD_CHANGED": "Đổi mật khẩu",
   "LIBRARY_CARD_MANUALLY_LOCKED": "Khóa thẻ thủ công",
+  "LIBRARY_CARD_MANUALLY_UNLOCKED": "Mở khóa thẻ thủ công",
   "LIBRARY_CARD_ISSUED": "Cấp thẻ thư viện",
   "READER_APPLICATION_REJECTED": "Từ chối hồ sơ bạn đọc",
   "CARD_TYPE_CREATED": "Tạo chính sách mượn",

@@ -1,3 +1,4 @@
+import LibraryCardDetailsDialog from './LibraryCardDetailsDialog'
 import LockLibraryCardDialog from './LockLibraryCardDialog'
 import ManualCardLockDetails from './ManualCardLockDetails'
 import useCardLockExpiry from './useCardLockExpiry'
@@ -84,6 +85,7 @@ export default function LibraryCardsPage() {
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
 
   const canLock = currentUser?.role === 'LIBRARY_MANAGER'
+  const [detailsCardId, setDetailsCardId] = useState<number | null>(null)
   const [lockCard, setLockCard] = useState<LibraryCard | null>(null)
   const [issuedSearch, setIssuedSearch] = useState('')
   const [pending, setPending] = useState<PendingReaderApplication[]>([])
@@ -376,6 +378,7 @@ export default function LibraryCardsPage() {
                   <p className="text-sm">{card.cardTypeName} · Hết hạn: {formatDate(card.expiresAt)}</p>
                   <p className="text-sm">Nợ phí: {Number(card.unpaidFees || 0).toLocaleString('vi-VN')} ₫</p>
                   <ManualCardLockDetails lock={card.manualLock} />
+                  <Button type="button" variant="secondary" onClick={() => setDetailsCardId(card.id)}>Chi tiết thẻ</Button>
                   {canLock && <Button type="button" variant="danger" disabled={card.manualLock?.active || card.status === 'LOCKED'}
                     onClick={() => { setError(''); setSuccess(''); setLockCard(card) }}>Khóa thẻ</Button>}
                 </article>)}
@@ -391,7 +394,7 @@ export default function LibraryCardsPage() {
                     <th className="px-4 py-3">Nợ phí</th>
                     <th className="px-4 py-3">Hết hạn</th>
                     <th className="px-4 py-3">Trạng thái / Lệnh khóa</th>
-                    {canLock && <th className="px-4 py-3 text-right">Thao tác</th>}
+                    <th className="px-4 py-3 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -407,10 +410,12 @@ export default function LibraryCardsPage() {
                       <td className="px-4 py-4">{formatDate(card.expiresAt)}</td>
                       <td className="max-w-xs px-4 py-4"><StatusBadge status={getCardDisplayStatus(card)} />
                         <div className="mt-2"><ManualCardLockDetails lock={card.manualLock} /></div></td>
-                      {canLock && <td className="px-4 py-4"><TableActions>
+                      <td className="px-4 py-4"><TableActions>
+                        <TableActionButton onClick={() => setDetailsCardId(card.id)}>Chi tiết thẻ</TableActionButton>
+                        {canLock &&
                         <TableActionButton tone="danger" disabled={card.manualLock?.active || card.status === 'LOCKED'}
-                          onClick={() => { setError(''); setSuccess(''); setLockCard(card) }}>Khóa thẻ</TableActionButton>
-                      </TableActions></td>}
+                          onClick={() => { setError(''); setSuccess(''); setLockCard(card) }}>Khóa thẻ</TableActionButton>}
+                      </TableActions></td>
                     </tr>
                   ))}
                 </tbody>
@@ -427,6 +432,10 @@ export default function LibraryCardsPage() {
           )}
         </div>
       )}
+
+      {detailsCardId !== null && <LibraryCardDetailsDialog key={detailsCardId} cardId={detailsCardId}
+        onClose={() => setDetailsCardId(null)}
+        onUpdated={card => setIssued(current => current.map(item => item.id === card.id ? card : item))} />}
 
       {lockCard && <LockLibraryCardDialog key={lockCard.id} card={lockCard} onClose={() => setLockCard(null)}
         onLocked={card => {

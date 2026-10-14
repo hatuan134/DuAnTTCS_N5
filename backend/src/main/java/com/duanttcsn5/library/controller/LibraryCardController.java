@@ -89,6 +89,22 @@ public class LibraryCardController {
                 principal.id(), servletRequest.getRemoteAddr()));
     }
 
+    @GetMapping("/{cardId}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<com.duanttcsn5.library.dto.librarycard.LibraryCardDetailsResponse> getCardDetails(
+            @PathVariable Long cardId) {
+        return ResponseEntity.ok(libraryCardService.getCardDetails(cardId));
+    }
+
+    @PostMapping("/{cardId}/unlock")
+    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    public ResponseEntity<LibraryCardResponse> unlockCard(@PathVariable Long cardId,
+            @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.UnlockLibraryCardRequest request,
+            @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest servletRequest) {
+        return ResponseEntity.ok(libraryCardService.unlockCard(cardId, request,
+                principal.id(), servletRequest.getRemoteAddr()));
+    }
+
     @GetMapping("/me")
     @PreAuthorize("hasRole('READER')")
     public ResponseEntity<MyLibraryCardResponse> getMyCard(
