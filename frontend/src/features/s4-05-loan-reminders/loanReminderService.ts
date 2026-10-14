@@ -1,5 +1,12 @@
 import { apiClient } from '../../core/api/apiClient'
 
+export type ReminderGroupType =
+  | 'DUE_IN_2_DAYS'
+  | 'DUE_TODAY'
+  | 'OVERDUE_1_DAY'
+  | 'OVERDUE_7_DAYS'
+  | 'OVERDUE_30_DAYS'
+
 export interface LoanReminderItemDto {
   itemId: number
   loanId: number
@@ -9,6 +16,7 @@ export interface LoanReminderItemDto {
   copyBarcode: string
   dueDate: string
   daysOverdue: number
+  openOverdueDays?: number
   estimatedFeeVnd: number
 }
 
@@ -16,8 +24,9 @@ export interface LoanReminderGroupDto {
   readerId: number
   readerName: string
   recipientEmail: string
-  reminderGroup: 'DUE_IN_2_DAYS' | 'DUE_TODAY'
+  reminderGroup: ReminderGroupType
   items: LoanReminderItemDto[]
+  totalEstimatedFeeVnd?: number
   subject: string
   emailContentHtml: string
   alreadySentToday: boolean
@@ -27,6 +36,7 @@ export interface LoanReminderPreviewResponse {
   targetDate: string
   totalRecipients: number
   totalItems: number
+  grandTotalEstimatedFeeVnd?: number
   reminders: LoanReminderGroupDto[]
 }
 
@@ -37,6 +47,7 @@ export interface LoanReminderExecutionResult {
   failedCount: number
   skippedCount: number
   totalItemsCount: number
+  grandTotalEstimatedFeeVnd?: number
   triggeredBy: string
 }
 
@@ -46,8 +57,9 @@ export interface LoanReminderLog {
   readerId: number
   readerName: string
   recipientEmail: string
-  reminderGroup: 'DUE_IN_2_DAYS' | 'DUE_TODAY' | string
+  reminderGroup: ReminderGroupType | string
   loanItemCount: number
+  totalEstimatedFeeVnd?: number
   loanNumbers: string
   bookTitles: string
   itemsDetail: string

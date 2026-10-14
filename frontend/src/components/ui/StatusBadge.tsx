@@ -30,6 +30,9 @@ const styles: Record<string, string> = {
   SKIPPED: 'border-amber-200 bg-amber-50 text-amber-700',
   DUE_IN_2_DAYS: 'border-sky-200 bg-sky-50 text-sky-700',
   DUE_TODAY: 'border-amber-200 bg-amber-50 text-amber-700',
+  OVERDUE_1_DAY: 'border-orange-200 bg-orange-50 text-orange-700',
+  OVERDUE_7_DAYS: 'border-red-200 bg-red-50 text-red-700',
+  OVERDUE_30_DAYS: 'border-rose-300 bg-rose-100 text-rose-800 font-bold',
 }
 
 const labels: Record<string, string> = {
@@ -59,6 +62,9 @@ const labels: Record<string, string> = {
   SKIPPED: 'Đã bỏ qua',
   DUE_IN_2_DAYS: 'Còn 2 ngày tới hạn',
   DUE_TODAY: 'Đến hạn hôm nay',
+  OVERDUE_1_DAY: 'Quá hạn 1 ngày',
+  OVERDUE_7_DAYS: 'Quá hạn 7 ngày',
+  OVERDUE_30_DAYS: 'Quá hạn 30 ngày',
 }
 
 export default function StatusBadge({

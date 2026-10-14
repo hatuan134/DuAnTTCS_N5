@@ -71,8 +71,8 @@ export default function LoanRemindersPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Quản lý gửi email nhắc nhở đến hạn"
-        description="Theo dõi lịch sử gửi email nhắc sách sắp đến hạn (còn 2 ngày) và đến hạn hôm nay. Hỗ trợ chạy thử và gửi email tức thời cho bạn đọc."
+        title="Quản lý gửi email nhắc nhở mượn trả"
+        description="Theo dõi lịch sử gửi email nhắc sách sắp đến hạn (còn 2 ngày), đến hạn hôm nay, và nhắc quá hạn (1, 7, 30 ngày) kèm phí tạm tính. Hỗ trợ chạy thử và gửi email tức thời cho bạn đọc."
         action={
           <div className="flex items-center gap-3">
             <Button
@@ -136,6 +136,9 @@ export default function LoanRemindersPage() {
               <option value="">Tất cả các nhóm</option>
               <option value="DUE_IN_2_DAYS">Còn 2 ngày tới hạn</option>
               <option value="DUE_TODAY">Đến hạn hôm nay</option>
+              <option value="OVERDUE_1_DAY">Quá hạn 1 ngày</option>
+              <option value="OVERDUE_7_DAYS">Quá hạn 7 ngày</option>
+              <option value="OVERDUE_30_DAYS">Quá hạn 30 ngày</option>
             </select>
           </div>
 
@@ -206,6 +209,7 @@ export default function LoanRemindersPage() {
                     <th className="px-5 py-3.5">Bạn đọc</th>
                     <th className="px-5 py-3.5">Nhóm nhắc</th>
                     <th className="px-5 py-3.5">Số sách / Phiếu mượn</th>
+                    <th className="px-5 py-3.5 text-right">Phí tạm tính</th>
                     <th className="px-5 py-3.5 text-center">Trạng thái</th>
                     <th className="px-5 py-3.5">Kích hoạt bởi</th>
                     <th className="px-5 py-3.5 text-right">Chi tiết</th>
@@ -232,6 +236,15 @@ export default function LoanRemindersPage() {
                         <div className="text-xs text-slate-500 line-clamp-1 max-w-xs" title={log.bookTitles}>
                           {log.bookTitles}
                         </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                        {typeof log.totalEstimatedFeeVnd === 'number' && log.totalEstimatedFeeVnd > 0 ? (
+                          <div className="font-bold text-rose-600">
+                            {log.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">0 đ</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-center whitespace-nowrap">
                         <StatusBadge status={log.status} />
@@ -295,6 +308,7 @@ export default function LoanRemindersPage() {
           recipientEmail={selectedLogForPreview.recipientEmail}
           htmlContent={selectedLogForPreview.emailContent}
           reminderGroup={selectedLogForPreview.reminderGroup}
+          totalEstimatedFeeVnd={selectedLogForPreview.totalEstimatedFeeVnd}
         />
       )}
     </div>

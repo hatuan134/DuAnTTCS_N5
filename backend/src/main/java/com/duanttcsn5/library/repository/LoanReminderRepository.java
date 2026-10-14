@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -40,11 +39,20 @@ public class LoanReminderRepository {
     ) {}
 
     /**
-     * Find active, unreturned loan items due either on targetDate (DUE_TODAY)
-     * or on targetDate + 2 days (DUE_IN_2_DAYS), evaluated in Vietnam time.
+     * Find active, unreturned loan items due on:
+     * - targetDate + 2 days (DUE_IN_2_DAYS)
+     * - targetDate (DUE_TODAY)
+     * - targetDate - 1 day (OVERDUE_1_DAY)
+     * - targetDate - 7 days (OVERDUE_7_DAYS)
+     * - targetDate - 30 days (OVERDUE_30_DAYS)
+     * evaluated in Vietnam time. Excludes non-qualifying days, returned and closed items.
      */
     public List<EligibleLoanItemRow> findEligibleItemsForDate(LocalDate targetDate) {
         LocalDate in2Days = targetDate.plusDays(2);
+        LocalDate overdue1 = targetDate.minusDays(1);
+        LocalDate overdue7 = targetDate.minusDays(7);
+        LocalDate overdue30 = targetDate.minusDays(30);
+
         String sql = """
             SELECT li.id AS item_id,
                    li.loan_id,
@@ -64,10 +72,7 @@ public class LoanReminderRepository {
             WHERE li.returned_at IS NULL
               AND (li.resolution_reason IS NULL OR li.resolution_reason NOT IN ('RETURNED', 'LOST', 'DAMAGED'))
               AND (c.status = 'BORROWED')
-              AND (
-                  (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = ?
-                  OR (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = ?
-              )
+              AND (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date IN (?, ?, ?, ?, ?)
             ORDER BY l.borrower_user_id ASC, li.due_date ASC, li.id ASC
             """;
 
@@ -82,7 +87,8 @@ public class LoanReminderRepository {
                 rs.getString("book_title"),
                 rs.getString("copy_barcode"),
                 rs.getObject("due_date", OffsetDateTime.class)
-        ), Date.valueOf(targetDate), Date.valueOf(in2Days));
+        ), Date.valueOf(in2Days), Date.valueOf(targetDate),
+           Date.valueOf(overdue1), Date.valueOf(overdue7), Date.valueOf(overdue30));
     }
 
     public boolean isAlreadySentToday(LocalDate reminderDate, Long readerId, String reminderGroup) {
@@ -105,6 +111,7 @@ public class LoanReminderRepository {
             String recipientEmail,
             String reminderGroup,
             int loanItemCount,
+            long totalEstimatedFeeVnd,
             String loanNumbers,
             String bookTitles,
             String itemsDetailJson,
@@ -120,11 +127,12 @@ public class LoanReminderRepository {
         String sql = """
             INSERT INTO loan_reminder_logs (
                 reminder_date, reader_id, reader_name, recipient_email,
-                reminder_group, loan_item_count, loan_numbers, book_titles,
+                reminder_group, loan_item_count, total_estimated_fee_vnd,
+                loan_numbers, book_titles,
                 items_detail, subject, email_content, status, error_message,
                 triggered_by, triggered_by_user_id, triggered_by_user_name,
                 is_dry_run, sent_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """;
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -136,21 +144,22 @@ public class LoanReminderRepository {
             ps.setString(4, recipientEmail);
             ps.setString(5, reminderGroup);
             ps.setInt(6, loanItemCount);
-            ps.setString(7, loanNumbers);
-            ps.setString(8, bookTitles);
-            ps.setString(9, itemsDetailJson != null ? itemsDetailJson : "[]");
-            ps.setString(10, subject);
-            ps.setString(11, emailContent);
-            ps.setString(12, status);
-            ps.setString(13, errorMessage);
-            ps.setString(14, triggeredBy);
+            ps.setLong(7, totalEstimatedFeeVnd);
+            ps.setString(8, loanNumbers);
+            ps.setString(9, bookTitles);
+            ps.setString(10, itemsDetailJson != null ? itemsDetailJson : "[]");
+            ps.setString(11, subject);
+            ps.setString(12, emailContent);
+            ps.setString(13, status);
+            ps.setString(14, errorMessage);
+            ps.setString(15, triggeredBy);
             if (triggeredByUserId != null) {
-                ps.setLong(15, triggeredByUserId);
+                ps.setLong(16, triggeredByUserId);
             } else {
-                ps.setNull(15, java.sql.Types.BIGINT);
+                ps.setNull(16, java.sql.Types.BIGINT);
             }
-            ps.setString(16, triggeredByUserName);
-            ps.setBoolean(17, isDryRun);
+            ps.setString(17, triggeredByUserName);
+            ps.setBoolean(18, isDryRun);
             return ps;
         }, keyHolder);
 
@@ -193,6 +202,7 @@ public class LoanReminderRepository {
                 rs.getString("recipient_email"),
                 rs.getString("reminder_group"),
                 rs.getInt("loan_item_count"),
+                rs.getLong("total_estimated_fee_vnd"),
                 rs.getString("loan_numbers"),
                 rs.getString("book_titles"),
                 rs.getString("items_detail"),

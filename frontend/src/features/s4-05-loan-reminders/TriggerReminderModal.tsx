@@ -79,9 +79,9 @@ export default function TriggerReminderModal({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Kích hoạt gửi nhắc nhở đến hạn</h2>
+              <h2 className="text-lg font-bold text-slate-800">Kích hoạt gửi nhắc nhở mượn trả</h2>
               <p className="text-sm text-slate-500">
-                Xem trước danh sách bạn đọc đủ điều kiện và thực hiện chạy gửi email thử nghiệm hoặc tức thời
+                Xem trước danh sách bạn đọc đủ điều kiện (trước hạn, đến hạn, quá hạn 1, 7, 30 ngày) và thực hiện gửi
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -126,6 +126,11 @@ export default function TriggerReminderModal({
                     <strong className="text-emerald-700">{result.sentCount}</strong> | Thất bại:{' '}
                     <strong className="text-red-700">{result.failedCount}</strong> | Bỏ qua (đã gửi hoặc email lỗi):{' '}
                     <strong className="text-amber-700">{result.skippedCount}</strong>
+                    {typeof result.grandTotalEstimatedFeeVnd === 'number' && result.grandTotalEstimatedFeeVnd > 0 && (
+                      <span>
+                        {' '}| Tổng phí tạm tính: <strong>{result.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ</strong>
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -136,17 +141,22 @@ export default function TriggerReminderModal({
             ) : !preview || preview.reminders.length === 0 ? (
               <EmptyState
                 title="Không có phiếu mượn nào cần gửi nhắc"
-                description={`Không tìm thấy phiếu mượn nào có hạn trả còn 2 ngày hoặc đến hạn vào ngày ${targetDate}.`}
+                description={`Không tìm thấy phiếu mượn nào thuộc các mốc nhắc (còn 2 ngày, đến hạn hôm nay, hoặc quá hạn đúng 1, 7, 30 ngày) vào ngày ${targetDate}.`}
               />
             ) : (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <span>
-                    Tổng số email sẽ tạo: <strong>{preview.totalRecipients}</strong> | Tổng số cuốn sách:{' '}
+                    Tổng số email: <strong>{preview.totalRecipients}</strong> | Tổng số cuốn sách:{' '}
                     <strong>{preview.totalItems}</strong>
+                    {typeof preview.grandTotalEstimatedFeeVnd === 'number' && preview.grandTotalEstimatedFeeVnd > 0 && (
+                      <span className="ml-2 text-rose-700 font-semibold">
+                        | Tổng phí tạm tính: {preview.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs text-slate-500">
-                    * Các email đã gửi thành công trước đó trong ngày sẽ tự động được bỏ qua
+                    * Các email đã gửi thành công trong ngày sẽ tự động được bỏ qua
                   </span>
                 </div>
 
@@ -157,6 +167,7 @@ export default function TriggerReminderModal({
                         <th className="px-4 py-3">Bạn đọc</th>
                         <th className="px-4 py-3">Nhóm nhắc</th>
                         <th className="px-4 py-3">Danh sách sách mượn</th>
+                        <th className="px-4 py-3 text-right">Phí tạm tính</th>
                         <th className="px-4 py-3 text-center">Trạng thái ngày</th>
                         <th className="px-4 py-3 text-right">Xem email</th>
                       </tr>
@@ -168,7 +179,7 @@ export default function TriggerReminderModal({
                             <div className="font-semibold text-slate-800">{group.readerName}</div>
                             <div className="text-xs text-slate-500">{group.recipientEmail || 'Không có email'}</div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <StatusBadge status={group.reminderGroup} />
                           </td>
                           <td className="px-4 py-3">
@@ -177,11 +188,25 @@ export default function TriggerReminderModal({
                                 <div key={it.itemId} className="text-slate-700">
                                   <span className="font-medium text-blue-600">{it.loanNumber}</span>: {it.bookTitle} (
                                   <span className="text-slate-500">{it.copyBarcode}</span>)
+                                  {it.daysOverdue > 0 && (
+                                    <span className="ml-1 text-rose-600 font-medium">
+                                      - Quá hạn {it.daysOverdue} ngày ({it.estimatedFeeVnd.toLocaleString('vi-VN')} đ)
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            {typeof group.totalEstimatedFeeVnd === 'number' && group.totalEstimatedFeeVnd > 0 ? (
+                              <div className="font-bold text-rose-600">
+                                {group.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-400">0 đ</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
                             {group.alreadySentToday ? (
                               <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                                 Đã gửi hôm nay
@@ -192,7 +217,7 @@ export default function TriggerReminderModal({
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
                             <Button
                               variant="secondary"
                               size="sm"
@@ -240,6 +265,7 @@ export default function TriggerReminderModal({
           recipientEmail={previewItem.recipientEmail}
           htmlContent={previewItem.emailContentHtml}
           reminderGroup={previewItem.reminderGroup}
+          totalEstimatedFeeVnd={previewItem.totalEstimatedFeeVnd}
         />
       )}
     </>
