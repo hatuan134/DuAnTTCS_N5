@@ -479,7 +479,23 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {isTemporarilyLocked && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Tài khoản tạm khóa đến {lockedUntilLabel}. Vui lòng quay lại sau thời điểm này.</p>}
+              {isTemporarilyLocked && (
+                <div role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <p>Tài khoản tạm khóa đến {lockedUntilLabel}. Vui lòng quay lại sau thời điểm này.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      storeLoginState(normalizedEmail, null)
+                      setLockedUntil(null)
+                      setFailedLoginAttempts(null)
+                      setError('')
+                    }}
+                    className="mt-2 block text-xs font-semibold text-blue-700 underline hover:text-blue-900 cursor-pointer"
+                  >
+                    Đã được quản trị viên mở khóa? Bấm vào đây để thử đăng nhập lại ngay
+                  </button>
+                </div>
+              )}
 
               {error && (
                 <FeedbackAlert
