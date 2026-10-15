@@ -11,7 +11,15 @@ import java.util.List;
 public class OverdueDebtReportRepository {
     private final JdbcTemplate jdbc;
     public OverdueDebtReportRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
-    public record ReaderFacts(Long readerId, String cardNumber, String fullName, String phone, BigDecimal debt) {}
+    public record ReaderFacts(Long readerId, String cardNumber, String fullName, String phone, BigDecimal debt, Long cardTypeId) {
+        public ReaderFacts(Long readerId, String cardNumber, String fullName, String phone, BigDecimal debt) {
+            this(readerId,cardNumber,fullName,phone,debt,null);
+        }
+    }
+    public List<CardTypeOption> cardTypes() {
+        return jdbc.query("SELECT id,name,is_active FROM card_types ORDER BY name,id",
+            (rs,n)->new CardTypeOption(rs.getLong("id"),rs.getString("name"),rs.getBoolean("is_active")));
+    }
     public record Item(Long readerId, OffsetDateTime dueAt) {}
 
     public List<Item> overdueItems(OffsetDateTime todayStart) {
@@ -32,19 +40,23 @@ public class OverdueDebtReportRepository {
                     WHERE i.compensation_fee_id=f.id AND a.status='CONFIRMED')
                 GROUP BY f.reader_user_id
             )
-            SELECT u.id, c.card_number, u.full_name, u.phone, COALESCE(d.debt,0) AS debt
+            SELECT u.id, c.card_number, c.card_type_id, u.full_name, u.phone, COALESCE(d.debt,0) AS debt
             FROM users u LEFT JOIN library_cards c ON c.user_id=u.id LEFT JOIN debt d ON d.reader_user_id=u.id
             WHERE d.debt>0 OR EXISTS (SELECT 1 FROM loans l JOIN loan_items li ON li.loan_id=l.id
                 WHERE l.borrower_user_id=u.id AND li.returned_at IS NULL AND li.due_date < ?)
             ORDER BY COALESCE(c.card_number,''), u.id
             """, (rs,n) -> new ReaderFacts(rs.getLong("id"),rs.getString("card_number"),rs.getString("full_name"),
-                rs.getString("phone"),rs.getBigDecimal("debt")),todayStart);
+                rs.getString("phone"),rs.getBigDecimal("debt"),rs.getObject("card_type_id",Long.class)),todayStart);
     }
     public Long start(Long actor,String name,OffsetDateTime time,String filter) {
+        return start(actor,name,time,filter,Filter.ALL,null);
+    }
+    public Long start(Long actor,String name,OffsetDateTime time,String description,Filter filter,String cardTypeName) {
         return jdbc.queryForObject("""
-            INSERT INTO overdue_debt_exports(actor_user_id,actor_name,requested_at,default_filter)
-            VALUES (?,?,?,?) RETURNING id
-            """,Long.class,actor,name,time,filter);
+            INSERT INTO overdue_debt_exports(actor_user_id,actor_name,requested_at,default_filter,
+                min_overdue_days,card_type_id,card_type_name)
+            VALUES (?,?,?,?,?,?,?) RETURNING id
+            """,Long.class,actor,name,time,description,filter.minOverdueDays(),filter.cardTypeId(),cardTypeName);
     }
     public void finish(Long id,String status,int count,OffsetDateTime snapshotAt,OffsetDateTime completedAt) {
         int updated=jdbc.update("""
@@ -60,6 +72,7 @@ public class OverdueDebtReportRepository {
             """,(rs,n)->new ExportLog(rs.getLong("id"),rs.getString("actor_name"),
                 rs.getObject("requested_at",OffsetDateTime.class),rs.getObject("snapshot_at",OffsetDateTime.class),
                 rs.getObject("completed_at",OffsetDateTime.class),rs.getString("default_filter"),
-                rs.getInt("record_count"),rs.getString("status")),size,offset);
+                rs.getInt("record_count"),rs.getString("status"),rs.getObject("min_overdue_days",Integer.class),
+                rs.getObject("card_type_id",Long.class),rs.getString("card_type_name")),size,offset);
     }
 }

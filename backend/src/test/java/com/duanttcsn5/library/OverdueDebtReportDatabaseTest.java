@@ -23,14 +23,14 @@ class OverdueDebtReportDatabaseTest {
         connection.setAutoCommit(false);jdbc=new JdbcTemplate(new SingleConnectionDataSource(connection,true));
         // PostgreSQL searches pg_temp before public: the actual repository SQL runs against these fixtures only.
         jdbc.execute("CREATE TEMP TABLE users(id BIGINT PRIMARY KEY, full_name TEXT, phone TEXT)");
-        jdbc.execute("CREATE TEMP TABLE library_cards(user_id BIGINT UNIQUE,card_number TEXT)");
+        jdbc.execute("CREATE TEMP TABLE library_cards(user_id BIGINT UNIQUE,card_number TEXT,card_type_id BIGINT)");
         jdbc.execute("CREATE TEMP TABLE loans(id BIGINT PRIMARY KEY,borrower_user_id BIGINT)");
         jdbc.execute("CREATE TEMP TABLE loan_items(id BIGINT,loan_id BIGINT,due_date TIMESTAMPTZ,returned_at TIMESTAMPTZ)");
         jdbc.execute("CREATE TEMP TABLE reader_fees(id BIGINT,reader_user_id BIGINT,amount_vnd BIGINT,paid_amount_vnd BIGINT,waived_amount_vnd BIGINT)");
         jdbc.execute("CREATE TEMP TABLE book_incidents(id BIGINT,compensation_fee_id BIGINT)");
         jdbc.execute("CREATE TEMP TABLE book_incident_adjustments(incident_id BIGINT,status TEXT)");
         jdbc.update("INSERT INTO users VALUES (1,'Nguyễn Văn A','0901'),(2,'Chỉ nợ','0902'),(3,'Chỉ quá hạn','0903'),(4,'Bình thường','0904')");
-        jdbc.update("INSERT INTO library_cards VALUES (1,'001'),(2,'002'),(3,'003'),(4,'004')");
+        jdbc.update("INSERT INTO library_cards VALUES (1,'001',1),(2,'002',1),(3,'003',2),(4,'004',2)");
         jdbc.update("INSERT INTO loans VALUES (11,1),(12,1),(13,3),(14,4)");
         jdbc.update("""
             INSERT INTO loan_items VALUES

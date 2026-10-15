@@ -38,6 +38,10 @@ export default function ExportHistoryPage() {
           <div className="flex flex-wrap items-start justify-between gap-2"><h2 className="break-words font-semibold text-slate-900">{log.actorName}</h2>
             <span className={`rounded-lg px-3 py-1 text-xs font-semibold ${log.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-800' : log.status === 'FAILED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{statuses[log.status]}</span></div>
           <dl className="grid gap-3 text-sm sm:grid-cols-3"><div><dt className="text-slate-500">Yêu cầu xuất</dt><dd className="mt-1">{formatTime(log.requestedAt)}</dd></div><div><dt className="text-slate-500">Thời điểm chốt</dt><dd className="mt-1">{log.snapshotAt ? formatTime(log.snapshotAt) : 'Chưa lấy được dữ liệu'}</dd></div><div><dt className="text-slate-500">Số lượng bạn đọc</dt><dd className="mt-1 font-semibold">{log.recordCount.toLocaleString('vi-VN')}</dd></div></dl>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt className="text-slate-500">Số ngày trễ tối thiểu</dt><dd className="mt-1 font-medium">{log.minOverdueDays ?? 'Không giới hạn'}</dd></div>
+            <div><dt className="text-slate-500">Loại thẻ</dt><dd className="mt-1 break-words font-medium">{log.cardTypeName ?? 'Tất cả'}</dd></div>
+          </dl>
           <p className="break-words text-sm leading-6 text-slate-600"><span className="font-medium">Điều kiện lọc: </span>{log.defaultFilter}</p>
         </article>)}</div><TablePagination page={page + 1} totalItems={data.totalItems} totalPages={Math.max(1, Math.ceil(data.totalItems / data.size))} pageSize={data.size} onPageChange={next => setPage(next - 1)} /></>
           : <div className="p-4"><EmptyState title="Chưa có lịch sử xuất" description="Mỗi lần nhấn Xuất Excel sẽ tạo một bản ghi tại đây." /></div>}

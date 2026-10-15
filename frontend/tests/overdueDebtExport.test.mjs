@@ -13,12 +13,15 @@ function load(path, imports, globals = {}) {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
  }).outputText, ctx); return ctx.exports
 }
+const reportHelpers = load('../src/features/s4-08-overdue-debt-export/reportService.ts', {
+ '../../core/api/apiClient': { apiClient: {} },
+})
 function find(node, predicate) {
  if (!node || typeof node !== 'object') return null
  if (Array.isArray(node)) { for (const child of node) { const hit = find(child, predicate); if (hit) return hit } return null }
  return predicate(node) ? node : find(node.props?.children, predicate)
 }
-function fixture(role, service = {}) {
+function fixture(role, service = {}, path = '../src/features/s4-08-overdue-debt-export/OverdueDebtExportPage.tsx') {
  let cursor = 0; const slots = [], effects = []
  const hooks = { ...react,
   useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
@@ -35,11 +38,15 @@ function fixture(role, service = {}) {
   '../../components/ui/EmptyState': component(stub), '../../components/ui/TablePagination': component(stub),
   '../../hooks/useTablePagination': component(items => ({ pageItems: items, goToPage() {} })),
   '../s1-02-user-management/accountService': { getApiErrorMessage: (e, fallback) => e.message || fallback },
-  './reportService': { formatTime: x => x, formatMoney: x => String(x), ...service },
+  './reportService': { ...reportHelpers, getFilterOptions: async () => [], formatTime: x => x, formatMoney: x => String(x), ...service },
  }
- const Page = load('../src/features/s4-08-overdue-debt-export/OverdueDebtExportPage.tsx', imports, { AbortController }).default
+ const Page = load(path, imports, { AbortController }).default
  let tree
  return { render() { cursor = 0; tree = Page(); effects.splice(0).forEach(f => f()); return tree },
+  input() { return find(tree, n => n.props?.id === 'minimum-overdue-days') },
+  select() { return find(tree, n => n.props?.id === 'report-card-type') },
+  reset() { return find(tree, n => Array.isArray(n.props?.children) && n.props.children.includes('Xóa bộ lọc')) },
+  tree() { return tree },
   exportButton() { return find(tree, n => n.props?.action)?.props.action }, notice() { return find(tree, n => n.type === Feedback) } }
 }
 const data = { readers: [{ readerId: 1, cardNumber: '001', fullName: 'Nguyễn Văn A', phone: '0901', overdueBooks: 3, maxOverdueDays: 15, outstandingVnd: 75000 }], totalReaders: 1, snapshotAt: '2026-10-15' }
@@ -82,4 +89,73 @@ test('download service POST, server filename and blob JSON errors', async () => 
  const error = { isAxiosError: true, response: { data: new Blob([JSON.stringify({ message: 'Không có quyền' })]) } }
  api.post = async () => { throw error }
  await assert.rejects(service.exportExcel(), value => value === error && value.response.data.message === 'Không có quyền')
+})
+
+
+for (const value of ['-1', '1.5', 'abc', '1e3', '+1', '2147483648']) test(`invalid minimum ${value} blocks preview and export`, async () => {
+ let previews = 0, exports = 0
+ const f = fixture('LIBRARY_MANAGER', { getPreview: async () => { previews++; return data }, exportExcel: async () => { exports++ } })
+ f.render(); await settle(); f.render()
+ f.input().props.onChange({ target: { value } }); f.render(); await settle(); f.render()
+ assert.equal(previews, 1); assert.equal(f.input().props['aria-invalid'], true)
+ assert.equal(f.exportButton().props.disabled, true)
+ f.exportButton().props.onClick(); assert.equal(exports, 0)
+})
+for (const minimum of ['', '0', '1', '7', '30']) test(`minimum ${minimum || 'blank'} and card type reach preview and Excel identically`, async () => {
+ const previews = [], exports = []
+ const f = fixture('LIBRARY_MANAGER', {
+  getFilterOptions: async () => [{ id: 5, name: 'Sinh viên', active: true }, { id: 6, name: 'Cũ', active: false }],
+  getPreview: async (signal, filters) => { previews.push(filters); return data },
+  exportExcel: async filters => { exports.push(filters); return { filename: 'demo.xlsx', content: new Blob(['PK']) } }, saveDownload() {},
+ })
+ f.render(); await settle(); f.render()
+ f.input().props.onChange({ target: { value: minimum } }); f.select().props.onChange({ target: { value: '5' } })
+ f.render(); assert.equal(f.exportButton().props.disabled, true)
+ await settle(); f.render(); f.exportButton().props.onClick(); await settle(); f.render()
+ const expected = { ...(minimum === '' ? {} : { minOverdueDays: Number(minimum) }), cardTypeId: 5 }
+ assert.deepEqual({ ...previews.at(-1) }, expected); assert.deepEqual({ ...exports[0] }, expected)
+ f.reset().props.onClick(); f.render(); await settle(); f.render()
+ assert.equal(f.input().props.value, ''); assert.equal(f.select().props.value, '')
+ assert.deepEqual({ ...previews.at(-1) }, {})
+ assert.equal(f.exportButton().props.disabled, false)
+})
+test('rapid changes cancel older preview and never export stale results', async () => {
+ const requests = []
+ const f = fixture('LIBRARY_MANAGER', { getPreview: (signal, filters) => new Promise(resolve => requests.push({ signal, filters, resolve })) })
+ f.render()
+ f.input().props.onChange({ target: { value: '7' } }); f.render()
+ f.input().props.onChange({ target: { value: '30' } }); f.render()
+ assert.equal(requests[0].signal.aborted, true); assert.equal(requests[1].signal.aborted, true)
+ requests[2].resolve({ ...data, totalReaders: 0, readers: [] }); await settle(); f.render()
+ requests[1].resolve(data); requests[0].resolve(data); await settle(); f.render()
+ assert.equal(f.exportButton().props.disabled, false)
+ assert.match(JSON.stringify(f.tree()), /Không có bạn đọc phù hợp/)
+ assert.doesNotMatch(JSON.stringify(f.tree()), /Nguyễn Văn A/)
+})
+test('filter options failure keeps a retry message and reports API error', async () => {
+ const f = fixture('LIBRARY_MANAGER', { getPreview: async () => data, getFilterOptions: async () => { throw Error('Lỗi loại thẻ') } })
+ f.render(); await settle(); f.render()
+ assert.equal(f.select().props.disabled, true); assert.equal(f.notice().props.message, 'Lỗi loại thẻ')
+})
+test('download API sends both filter parameters rather than unfiltered request', async () => {
+ let captured
+ const service = load('../src/features/s4-08-overdue-debt-export/reportService.ts', {
+  '../../core/api/apiClient': { apiClient: { post: async (...args) => {
+   captured = args; return { data: new Blob(['PK']), headers: { 'content-disposition': 'attachment; filename="DanhSachQuaHan_NoPhi_15-10-2026.xlsx"' } }
+  } } },
+ }, { Blob, Intl, Date })
+ await service.exportExcel({ minOverdueDays: 7, cardTypeId: 5 })
+ assert.deepEqual(captured[2].params, { minOverdueDays: 7, cardTypeId: 5 })
+})
+
+test('history shows zero threshold and the stored card type name without a current lookup', async () => {
+ const f = fixture('LIBRARY_MANAGER', { getHistory: async () => ({ items: [{
+  id: 1, actorName: 'Quản lý', requestedAt: '2026-10-15', snapshotAt: '2026-10-15',
+  recordCount: 12, status: 'SUCCESS', defaultFilter: 'Bộ lọc đã lưu',
+  minOverdueDays: 0, cardTypeId: 5, cardTypeName: 'Sinh viên tại thời điểm xuất',
+ }], totalItems: 1, size: 20 }) }, '../src/features/s4-08-overdue-debt-export/ExportHistoryPage.tsx')
+ f.render(); await settle(); f.render()
+ assert.match(JSON.stringify(f.tree()), /Sinh viên tại thời điểm xuất/)
+ assert.match(JSON.stringify(f.tree()), /Số ngày trễ tối thiểu/)
+ assert.doesNotMatch(JSON.stringify(f.tree()), /Không giới hạn/)
 })

@@ -93,6 +93,30 @@ class OverdueDebtReportControllerTest {
         }
         verifyNoInteractions(reports);
     }
+    @Test void filtersAreValidatedAndForwardedForBothEndpoints() throws Exception {
+        token("LIBRARY_MANAGER");
+        var filter=new Filter(7,2L);
+        var time=java.time.OffsetDateTime.parse("2026-10-15T00:01:00+07:00");
+        when(reports.preview(12L,filter)).thenReturn(new Snapshot(time,"Sinh viên",List.of(),0));
+        when(reports.export(12L,filter)).thenReturn(new Download("DanhSachQuaHan_NoPhi_15-10-2026.xlsx",new byte[]{80,75}));
+        mvc.perform(get(URL).param("minOverdueDays","7").param("cardTypeId","2").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        mvc.perform(post(URL+"/export").param("minOverdueDays","7").param("cardTypeId","2").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        verify(reports).preview(12L,filter);verify(reports).export(12L,filter);
+        reset(reports);
+        for(String value:List.of("-1","1.5","abc","2147483648")) {
+            mvc.perform(get(URL).param("minOverdueDays",value).header("Authorization","Bearer test-token")).andExpect(status().isBadRequest());
+            mvc.perform(post(URL+"/export").param("minOverdueDays",value).header("Authorization","Bearer test-token")).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(reports);
+    }
+    @Test void filterOptionsArePrivate() throws Exception {
+        mvc.perform(get(URL+"/filter-options")).andExpect(status().isUnauthorized());
+        for(String role:List.of("READER","LIBRARIAN","ADMIN")) {
+            token(role);
+            mvc.perform(get(URL+"/filter-options").header("Authorization","Bearer test-token")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(reports);
+    }
     @Test void managerReceivesNonCacheableReportFileAndHistory() throws Exception {
         token("LIBRARY_MANAGER");
         var time=java.time.OffsetDateTime.parse("2026-10-15T00:01:00+07:00");

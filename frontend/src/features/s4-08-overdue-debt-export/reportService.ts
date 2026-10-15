@@ -1,6 +1,12 @@
 import axios from 'axios'
 import { apiClient } from '../../core/api/apiClient'
 
+export interface ReportFilters { minOverdueDays?: number; cardTypeId?: number }
+export interface CardTypeOption { id: number; name: string; active: boolean }
+export function minimumDaysError(value: string) {
+  return value === '' || (/^[0-9]+$/.test(value) && Number(value) <= 2147483647)
+    ? '' : 'Nhập số nguyên từ 0 đến 2147483647 hoặc để trống.'
+}
 export interface ReaderDebt {
   readerId: number; cardNumber: string | null; fullName: string; phone: string | null
   overdueBooks: number; maxOverdueDays: number; outstandingVnd: number
@@ -8,19 +14,22 @@ export interface ReaderDebt {
 export interface Snapshot { snapshotAt: string; defaultFilter: string; readers: ReaderDebt[]; totalReaders: number }
 export interface ExportLog {
   id: number; actorName: string; requestedAt: string; snapshotAt: string | null; completedAt: string | null
-  defaultFilter: string; recordCount: number; status: 'PROCESSING' | 'SUCCESS' | 'FAILED'
+  defaultFilter: string; minOverdueDays: number | null; cardTypeId: number | null; cardTypeName: string | null; recordCount: number; status: 'PROCESSING' | 'SUCCESS' | 'FAILED'
 }
 export interface ExportHistory { items: ExportLog[]; page: number; size: number; totalItems: number }
 const base = '/reports/overdue-debts'
-export async function getPreview(signal?: AbortSignal) {
-  return (await apiClient.get<Snapshot>(base, { signal })).data
+export async function getPreview(signal?: AbortSignal, filters: ReportFilters = {}) {
+  return (await apiClient.get<Snapshot>(base, { signal, params: filters })).data
+}
+export async function getFilterOptions(signal?: AbortSignal) {
+  return (await apiClient.get<CardTypeOption[]>(`${base}/filter-options`, { signal })).data
 }
 export async function getHistory(page: number, signal?: AbortSignal) {
   return (await apiClient.get<ExportHistory>(`${base}/history`, { params: { page, size: 20 }, signal })).data
 }
-export async function exportExcel() {
+export async function exportExcel(filters: ReportFilters = {}) {
   try {
-    const response = await apiClient.post<Blob>(`${base}/export`, null, { responseType: 'blob' })
+    const response = await apiClient.post<Blob>(`${base}/export`, null, { responseType: 'blob', params: filters })
     const disposition = String(response.headers['content-disposition'] ?? '')
     const filename = disposition.match(/filename="?(DanhSachQuaHan_NoPhi_\d{2}-\d{2}-\d{4}\.xlsx)"?/)?.[1]
     if (!filename || !response.data.size) throw new Error('Không nhận được tệp Excel hợp lệ.')

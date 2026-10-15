@@ -15,17 +15,26 @@ public class OverdueDebtReportController {
     private final OverdueDebtReportService service;
     public OverdueDebtReportController(OverdueDebtReportService service) { this.service=service; }
     @GetMapping
-    public ResponseEntity<Snapshot> preview(@AuthenticationPrincipal UserPrincipal actor) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.preview(actor==null?null:actor.id()));
+    public ResponseEntity<Snapshot> preview(@AuthenticationPrincipal UserPrincipal actor,
+            @RequestParam(required=false) String minOverdueDays,@RequestParam(required=false) String cardTypeId) {
+        var filter=Filter.parse(minOverdueDays,cardTypeId);
+        var result=filter.equals(Filter.ALL)?service.preview(actor==null?null:actor.id()):service.preview(actor==null?null:actor.id(),filter);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
     // POST: every request intentionally creates an audit entry; no GET prefetch/download cache.
     @PostMapping("/export")
-    public ResponseEntity<byte[]> export(@AuthenticationPrincipal UserPrincipal actor) {
-        var download=service.export(actor==null?null:actor.id());
+    public ResponseEntity<byte[]> export(@AuthenticationPrincipal UserPrincipal actor,
+            @RequestParam(required=false) String minOverdueDays,@RequestParam(required=false) String cardTypeId) {
+        var filter=Filter.parse(minOverdueDays,cardTypeId);
+        var download=filter.equals(Filter.ALL)?service.export(actor==null?null:actor.id()):service.export(actor==null?null:actor.id(),filter);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
             .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(download.filename()).build().toString())
             .header("X-Content-Type-Options","nosniff").body(download.content());
+    }
+    @GetMapping("/filter-options")
+    public ResponseEntity<java.util.List<CardTypeOption>> cardTypes(@AuthenticationPrincipal UserPrincipal actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.cardTypes(actor==null?null:actor.id()));
     }
     @GetMapping("/history")
     public ResponseEntity<History> history(@AuthenticationPrincipal UserPrincipal actor,
