@@ -8,7 +8,7 @@ const groups = [
   { id: 'loans', label: 'Mượn trả', paths: ['/loans', '/loans/direct', '/loans/search', '/loans/rejections', '/loans/receive-return', '/loans/overdue', '/my-borrowed-books', '/overdue-fees/reduction-requests/pending', '/fee-payments', '/loans/reminders'] },
   { id: 'reservations', label: 'Đặt giữ', paths: ['/reservations/ready-for-pickup', '/my-reservations', '/manager/auto-cancellations'] },
   { id: 'reports', label: 'Báo cáo', paths: ['/reports/loans', '/reports/overdue-debts', '/reports/overdue-debts/history'] },
-  { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/card-lock-suggestion-settings', '/audit-log'] },
+  { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/card-lock-suggestion-settings', '/audit-log', '/permission-review'] },
 ]
 
 export function visibleNavigation(items: NavItem[], role?: string) {

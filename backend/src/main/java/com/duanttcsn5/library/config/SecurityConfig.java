@@ -54,6 +54,8 @@ public class SecurityConfig {
                                 "/api/v1/books/public/**",
                                 "/error")
                         .permitAll()
+                        .requestMatchers("/api/v1/permission-review", "/api/v1/permission-review/**")
+                        .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/readers/*/loan-history",
                                 "/api/v1/readers/*/loan-history/export")
                         .hasAnyRole("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN")
