@@ -32,12 +32,19 @@ public class OverdueDebtReportService {
         this.snapshots=snapshots;this.audit=audit;this.repository=repository;this.users=users;this.writer=writer;this.clock=clock;
     }
     public Snapshot preview(Long actor) { manager(actor);return snapshots.snapshot(now()); }
-    public Download export(Long actor) {
+    public Snapshot preview(Long actor,Filter filter) { manager(actor);return snapshots.snapshot(now(),filter); }
+    public java.util.List<CardTypeOption> cardTypes(Long actor) { manager(actor);return repository.cardTypes(); }
+    public Download export(Long actor) { return export(actor,Filter.ALL); }
+    public Download export(Long actor,Filter filter) {
         String name=manager(actor);
-        Long logId=audit.start(actor,name,now()); // Fail closed: no file without a durable audit entry.
+        String typeName=filter.cardTypeId()==null?null:repository.cardTypes().stream()
+            .filter(t->t.id().equals(filter.cardTypeId())).findFirst()
+            .orElseThrow(()->new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CARD_TYPE",
+                "Loại thẻ không còn tồn tại. Vui lòng tải lại danh sách loại thẻ.")).name();
+        Long logId=filter.equals(Filter.ALL)?audit.start(actor,name,now()):audit.start(actor,name,now(),filter,typeName); // Fail closed: no file without a durable audit entry.
         Snapshot snapshot=null;
         try {
-            snapshot=snapshots.snapshot(now());
+            snapshot=filter.equals(Filter.ALL)?snapshots.snapshot(now()):snapshots.snapshot(now(),filter);
             byte[] content=writer.create(snapshot.readers());
             String date=snapshot.snapshotAt().atZoneSameInstant(OverdueDebtSnapshotService.ZONE)
                 .format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));

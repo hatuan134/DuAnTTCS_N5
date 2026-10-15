@@ -35,6 +35,55 @@ class OverdueDebtReportServiceTest {
         when(snapshots.snapshot(any())).thenReturn(data);
         when(audit.start(eq(12L),eq("Quản lý A"),any())).thenReturn(44L);
     }
+    @Test void filteredExportUsesSameRowsAsPreviewAndAuditsBothConditions() throws Exception {
+        var filter=new Filter(7,2L);
+        when(repository.cardTypes()).thenReturn(List.of(new CardTypeOption(2L,"Sinh viên",false)));
+        when(snapshots.snapshot(any(),eq(filter))).thenReturn(data);
+        when(audit.start(eq(12L),eq("Quản lý A"),any(),eq(filter),eq("Sinh viên"))).thenReturn(45L);
+        when(writer.create(data.readers())).thenReturn(new OverdueDebtXlsx().create(data.readers()));
+        var preview=service.preview(12L,filter);
+        var file=service.export(12L,filter);
+        verify(writer).create(preview.readers());
+        verify(audit).start(eq(12L),eq("Quản lý A"),any(),eq(filter),eq("Sinh viên"));
+        verify(audit).finish(eq(45L),eq("SUCCESS"),eq(preview.totalReaders()),eq(at),any());
+        assertThat(file.filename()).isEqualTo("DanhSachQuaHan_NoPhi_15-10-2026.xlsx");
+        String sheet=null;
+        try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(file.content()))) {
+            java.util.zip.ZipEntry entry;
+            while((entry=zip.getNextEntry())!=null) if(entry.getName().equals("xl/worksheets/sheet1.xml"))
+                sheet=new String(zip.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+        }
+        assertThat(sheet).isNotNull();
+        var factory=javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl",true);
+        var xml=factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(sheet.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        var rows=xml.getElementsByTagName("row");
+        assertThat(rows.getLength()).isEqualTo(preview.totalReaders()+1);
+        for(int i=0;i<preview.readers().size();i++) {
+            var row=preview.readers().get(i);
+            var cells=((org.w3c.dom.Element)rows.item(i+1)).getElementsByTagName("c");
+            assertThat(cells.getLength()).isEqualTo(6);
+            assertThat(cells.item(0).getTextContent()).isEqualTo(row.cardNumber());
+            assertThat(cells.item(1).getTextContent()).isEqualTo(row.fullName());
+            assertThat(cells.item(2).getTextContent()).isEqualTo(row.phone());
+            assertThat(cells.item(3).getTextContent()).isEqualTo(Long.toString(row.overdueBooks()));
+            assertThat(cells.item(4).getTextContent()).isEqualTo(Long.toString(row.maxOverdueDays()));
+            assertThat(new BigDecimal(cells.item(5).getTextContent())).isEqualByComparingTo(row.outstandingVnd());
+        }
+    }
+    @Test void missingCardTypeCannotFallBackToUnfilteredExport() {
+        when(repository.cardTypes()).thenReturn(List.of());
+        assertThatThrownBy(()->service.export(12L,new Filter(7,999L))).isInstanceOf(ApiException.class);
+        verifyNoInteractions(audit,snapshots,writer);
+    }
+    @Test void filteredFailureRetainsAuditAndReturnsNoWorkbook() throws Exception {
+        var filter=new Filter(0,null);
+        when(snapshots.snapshot(any(),eq(filter))).thenReturn(data);
+        when(audit.start(eq(12L),eq("Quản lý A"),any(),eq(filter),isNull())).thenReturn(46L);
+        when(writer.create(any())).thenThrow(new IOException("test"));
+        assertThatThrownBy(()->service.export(12L,filter)).isInstanceOf(ApiException.class);
+        verify(audit).finish(eq(46L),eq("FAILED"),eq(1),eq(at),any());
+    }
     @Test void vietnamFilenameAndSuccessAuditBeforeReturningBytes() throws Exception {
         when(writer.create(data.readers())).thenReturn(new byte[]{1,2,3});
         var result=service.export(12L);
