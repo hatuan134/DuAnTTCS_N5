@@ -120,7 +120,7 @@ test('changed debt conflict refreshes amount before another confirmation', async
   await c.select(); await c.pay(); assert.equal(reads, 2); assert.match(c.html(), /10\.000 VND/); assert.doesNotMatch(c.html(), /30\.000 VND/)
 })
 test('other roles cannot open collection page', () => {
-  for (const role of ['ADMIN', 'LIBRARY_MANAGER', 'READER']) { const c = collector({ role }); assert.match(renderToStaticMarkup(c.module.default()), /Chỉ Thủ thư/) }
+  for (const role of ['LIBRARY_MANAGER', 'READER']) { const c = collector({ role }); assert.match(renderToStaticMarkup(c.module.default()), /Chỉ Thủ thư/) }
 })
 test('receipt has code, time, reader, three allocations, total and collector; HTML is escaped', () => {
   const h = harness(), m = load('FeeReceiptDialog.tsx', { ...imports(h), '../../components/ui/Modal': component(({ children }) => children), './feePaymentService': { feeTypeLabel: () => 'Khoản phí' } })

@@ -42,7 +42,7 @@ export default function IncidentRecordCard({ record, onUpdated }: { record: Inci
     <p className="whitespace-pre-wrap break-words text-sm">{record.description}</p>
     <p className="text-xs text-slate-500">Các khoản đã thu/miễn giữ nguyên. Sự cố đã xác nhận không được sửa hoặc xóa.</p>
     <p className="text-sm">Bản sao hiện tại: {adjustmentStatusLabel(record.item.copyStatus)}</p>
-    {getCurrentUser()?.role === 'LIBRARIAN' && <Link className="inline-block text-sm text-blue-700 underline" to="/fee-payments">Xem khoản phải thu trong Thu phí và biên lai</Link>}
+    {['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '') && <Link className="inline-block text-sm text-blue-700 underline" to="/fee-payments">Xem khoản phải thu trong Thu phí và biên lai</Link>}
     <IncidentAdjustmentPanel record={record} onUpdated={value => onUpdated?.(value)} />
     {record.photos.length > 0 && <div><Button variant="secondary" disabled={loading} onClick={() => setShowPhotos(v => !v)}>{loading ? 'Đang tải ảnh...' : showPhotos ? 'Ẩn ảnh' : `Xem ${record.photos.length} ảnh`}</Button></div>}
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}

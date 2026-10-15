@@ -14,7 +14,7 @@ const feature: FeatureModule = {
       to: '/reports/loans',
       icon: BarChart3,
       order: 260,
-      roles: ['LIBRARY_MANAGER'],
+      roles: ['LIBRARY_MANAGER', 'ADMIN'],
     },
   ],
 }

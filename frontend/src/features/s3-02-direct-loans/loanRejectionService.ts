@@ -35,7 +35,7 @@ export interface LoanRejectionPage {
 export const loanRejectionService = {
   async page(page: number, cardNumber: string): Promise<LoanRejectionPage> {
     const result = await apiClient.get<LoanRejectionPage>('/loans/rejections', {
-      params: { page, size: 20, cardNumber: cardNumber.trim() },
+      params: { page, size: 10, cardNumber: cardNumber.trim() },
     })
     return result.data
   },

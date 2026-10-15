@@ -84,7 +84,7 @@ class CardLockSuggestionControllerTest {
     }
 
     @Test void allSuggestionOperationsDenyGuestsAndOtherRoles() throws Exception {
-        for(String role: new String[]{"READER","LIBRARIAN","ADMIN"}) {
+        for(String role: new String[]{"READER","LIBRARIAN"}) {
             token(role);
             String[] paths={"/lock-suggestions","/lock-suggestions/settings","/lock-suggestions/5"};
             for(String path:paths) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/library-cards"+path).header("Authorization","Bearer test-token")).andExpect(status().isForbidden());

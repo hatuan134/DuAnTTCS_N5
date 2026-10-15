@@ -1,10 +1,11 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {readFileSync} from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import {createRequire} from 'node:module'
-const require=createRequire(import.meta.url),react=require('react'),component=fn=>({__esModule:true,default:fn})
+const require=createS4Require(import.meta.url),react=require('react'),component=fn=>({__esModule:true,default:fn})
 function load(file,imports={}){const ctx={exports:{},require:key=>imports[key]??require(key)};vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/features/s4-03-book-incidents/'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx.exports}
 function find(tree,pred){if(!tree||typeof tree!=='object')return null;if(Array.isArray(tree)){for(const n of tree){const r=find(n,pred);if(r)return r}return null}return pred(tree)?tree:find(tree.props?.children,pred)}
 const logic=load('incidentService.ts',{'../../core/api/apiClient':{apiClient:{}}})

@@ -34,6 +34,7 @@ class DirectLoanConfirmationServiceTest {
         books = mock(BookRepository.class); copies = mock(BookCopyRepository.class);
         reservations = mock(BookReservationRepository.class); cards = mock(LibraryCardRepository.class);
         users = mock(UserRepository.class); loans = mock(LoanRepository.class);
+        when(loans.nextLoanNumber()).thenReturn("PM-000001");
         var configuration = mock(LibraryConfigurationService.class);
         service = new LoanService(books, reservations, copies, cards, users, loans, configuration,
                 Clock.fixed(at.toInstant(), ZoneId.of("Asia/Ho_Chi_Minh")));

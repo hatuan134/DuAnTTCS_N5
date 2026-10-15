@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useEffect, useRef, useState } from 'react'
 import { Download, FileCheck2, Play, RefreshCw, ShieldCheck, Upload, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -213,7 +214,7 @@ export function PermissionReviewWorkspace() {
           <input type="file" accept=".json,application/json" disabled={importing} aria-invalid={Boolean(fileError)} aria-describedby={fileError ? 'review-file-error' : undefined}
             onChange={event => { const selected = event.target.files?.[0]; event.currentTarget.value = ''; void chooseFile(selected) }} className="sr-only" />
         </span></label>
-      {fileError && <p id="review-file-error" role="alert" className="break-words text-sm text-red-700">{fileError}</p>}
+      {fileError && <TimedFieldMessage id="review-file-error" className="break-words text-sm text-red-700">{fileError}</TimedFieldMessage>}
       {file && <p className="break-words text-sm text-slate-600">{filename} · {file.kind === 'SIMULATION' ? 'Mô phỏng riêng' : 'Kiểm thử hồi quy'} · {file.checks.length} trường hợp</p>}
       <Button type="button" disabled={!file || importing || !data} loading={importing} onClick={() => void importFile()}><FileCheck2 size={17} />Lưu biên bản</Button>
     </Card>
@@ -238,7 +239,7 @@ export function PermissionReviewWorkspace() {
           {!report.currentFingerprint && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Biên bản thuộc bản code khác. Cần chạy lại để xác nhận trạng thái hiện tại.</p>}
           <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">Người chạy kiểm thử</dt><dd className="break-words font-medium">{report.summary.executedBy}</dd></div><div><dt className="text-slate-500">Nguồn kiểm thử</dt><dd className="break-words font-medium">{report.summary.sourceReference}</dd></div><div><dt className="text-slate-500">Người nhập biên bản</dt><dd className="break-words font-medium">{report.summary.importedBy}</dd></div><div><dt className="text-slate-500">Thời điểm nhập</dt><dd>{formatReviewTime(report.summary.importedAt)}</dd></div></dl>
           <div className="grid gap-3 sm:grid-cols-3"><Metric label="Sai lệch phát hiện" value={report.summary.detectedCount} /><Metric label="Đã khắc phục" value={report.summary.fixedCount} /><Metric label="Chưa đạt" value={report.summary.failedCount} warning={report.summary.failedCount > 0} /></div>
-          {coverageError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{coverageError}</p>}
+          {coverageError && <TimedFieldMessage className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{coverageError}</TimedFieldMessage>}
           {coverage && <div className="space-y-3 rounded-xl border border-slate-200 p-4">
             <div className="grid gap-3 sm:grid-cols-2"><Metric label="API đã kiểm thử / tổng API" value={coverage.coveredApis} /><Metric label={'Trường hợp vai trò / ' + coverage.requiredRoleCases} value={coverage.coveredRoleCases} /></div>
             <p className="text-sm">{coverage.coveredApis} / {coverage.totalApis} API · {coverage.passedCases} đạt · {coverage.failedCases} chưa đạt · {coverage.unresolvedFindings} sai lệch chưa xử lý</p>

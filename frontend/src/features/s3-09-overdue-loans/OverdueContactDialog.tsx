@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import AccessibleModal from '../../components/ui/Modal'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -99,7 +100,7 @@ export default function OverdueContactDialog({ loanId, loanNumber, canRecord, on
                   aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? 'overdue-contact-error' : undefined}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
                 <p className="mt-1 text-xs text-slate-500">{note.length}/1000 ký tự</p>
-                {fieldError && <p id="overdue-contact-error" role="alert" className="mt-1 text-sm text-red-700">{fieldError}</p>}
+                {fieldError && <TimedFieldMessage id="overdue-contact-error" className="mt-1 text-sm text-red-700">{fieldError}</TimedFieldMessage>}
               </div>
               <Button type="submit" size="sm" loading={saving} disabled={!note.trim()}><PhoneCall size={15} /> Lưu lần liên hệ</Button>
             </form>

@@ -1,3 +1,4 @@
+import LoanLookupPanel from '../s3-01-loans/LoanLookupPanel'
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ChevronDown, ChevronUp, RefreshCcw, Search } from 'lucide-react'
@@ -82,9 +83,9 @@ export default function LoanRejectionsPage() {
     <Card className="p-4 sm:p-6">
       <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-semibold text-slate-700">
-          Tìm theo mã thẻ
+          Tìm theo mã thẻ, tên hoặc số điện thoại
           <input className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            value={draft} maxLength={100} onChange={(event) => setDraft(event.target.value)} placeholder="Nhập mã thẻ cần tra cứu" />
+            value={draft} maxLength={100} onChange={(event) => setDraft(event.target.value)} placeholder="Nhập tên bạn đọc, số điện thoại, mã thẻ hoặc mã phiếu" />
         </label>
         <div className="flex flex-wrap gap-2">
           <Button type="submit"><Search size={16} className="mr-2 inline" />Tìm kiếm</Button>
@@ -93,9 +94,12 @@ export default function LoanRejectionsPage() {
           </Button>
         </div>
       </form>
-      {filter && <p className="mt-3 text-xs text-slate-600">Đang lọc mã thẻ chứa: <strong>{filter}</strong></p>}
+      {filter && <p className="mt-3 text-xs text-slate-600">Đang lọc theo: <strong>{filter}</strong></p>}
     </Card>
 
+    <LoanLookupPanel externalKeyword={filter} revision={reload} onSelectReader={number => {
+      setDraft(number); setFilter(number); setPage(0); setDetailId(null); setDetail(null)
+    }} />
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-4">
         <h2 className="font-semibold text-slate-900">Lịch sử kiểm tra và quyết định</h2>

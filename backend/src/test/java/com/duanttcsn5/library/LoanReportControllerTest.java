@@ -83,7 +83,7 @@ class LoanReportControllerTest {
     @Test
     void onlyLibraryManagerMayReadReport() throws Exception {
         mvc.perform(get(URL)).andExpect(status().isUnauthorized());
-        for (String role : new String[]{"READER", "LIBRARIAN", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARIAN"}) {
             token(role);
             mvc.perform(get(URL).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isForbidden());

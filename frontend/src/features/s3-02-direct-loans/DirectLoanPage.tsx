@@ -1,3 +1,4 @@
+import LoanLookupPanel from '../s3-01-loans/LoanLookupPanel'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Button from '../../components/ui/Button'
@@ -22,6 +23,7 @@ export default function DirectLoanPage() {
   const [loading, setLoading] = useState(false)
   const [confirmationLocked, setConfirmationLocked] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [lookupRevision, setLookupRevision] = useState(0)
   const requestId = useRef(0)
   const immediate = useRef(false)
   const explicitRequest = useRef<string | null>(null)
@@ -75,7 +77,11 @@ export default function DirectLoanPage() {
   if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Bạn không có quyền kiểm tra bạn đọc tại quầy.</p>
 
   return <div className="space-y-5">
-    <PageHeader title="Cho mượn tại quầy" description="Nhập hoặc quét mã thẻ để kiểm tra bạn đọc và số sách có thể mượn thêm." />
+    <PageHeader title="Cho mượn tại quầy" description="Tìm bạn đọc bằng tên, số điện thoại hoặc mã thẻ; chọn từ phiếu có sẵn hoặc danh sách bạn đọc." />
+    <LoanLookupPanel disabled={confirmationLocked} revision={lookupRevision} onSelectReader={number => {
+      if (confirmationLocked) return
+      immediate.current = true; setCardNumber(number); setRevision(value => value + 1)
+    }} />
     {apiError && <FeedbackAlert message={apiError} tone="error" onDismiss={() => setApiError('')} />}
     <Card className="p-4 sm:p-6">
       <form onSubmit={submit} noValidate className="space-y-3">
@@ -123,7 +129,7 @@ export default function DirectLoanPage() {
     {result && <DirectLoanItemsPanel key={`${result.readerId}:${result.cardNumber}:${revision}`} reader={result}
       isManager={['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')}
       requireOverride={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
-      onLockChange={setConfirmationLocked} onCreated={(data) => setResult(data.reader)}
+      onLockChange={setConfirmationLocked} onCreated={(data) => { setResult(data.reader); setLookupRevision(value => value + 1) }}
       onNewLoan={() => { setConfirmationLocked(false); immediate.current = true; setRevision((value) => value + 1) }} />}
     <p className="text-sm leading-6 text-slate-500">{confirmationLocked
       ? 'Lượt mượn đang được xác nhận. Giữ nguyên mã thẻ và danh sách để nhận đúng kết quả.'

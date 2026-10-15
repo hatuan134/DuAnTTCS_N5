@@ -18,7 +18,7 @@ export default function OverdueFeeDetailPage() {
   const user = getCurrentUser()
   if (!loanRoles.includes(user?.role ?? '')) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Bạn không có quyền xem khoản phí trễ hạn.</p>
   if (!Number.isSafeInteger(id) || id < 1) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Mã khoản phí không hợp lệ.</p>
-  return <FeeDetails key={`${user?.id}:${id}`} id={id} librarian={user?.role === 'LIBRARIAN'} manager={user?.role === 'LIBRARY_MANAGER'} />
+  return <FeeDetails key={`${user?.id}:${id}`} id={id} librarian={['LIBRARIAN', 'ADMIN'].includes(user?.role ?? '')} manager={['LIBRARY_MANAGER', 'ADMIN'].includes(user?.role ?? '')} />
 }
 
 function FeeDetails({ id, librarian, manager }: { id: number; librarian: boolean; manager: boolean }) {

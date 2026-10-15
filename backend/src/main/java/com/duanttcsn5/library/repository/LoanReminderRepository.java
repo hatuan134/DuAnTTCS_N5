@@ -232,7 +232,7 @@ public class LoanReminderRepository {
                 rs.getInt("attempt_number"),
                 rs.getObject("attempted_at", OffsetDateTime.class),
                 rs.getString("status"),
-                rs.getString("error_message"),
+                com.duanttcsn5.library.service.LoanReminderFailureMessages.message(rs.getString("error_message")),
                 rs.getString("triggered_by")
         ), reminderLogId);
     }
@@ -256,7 +256,7 @@ public class LoanReminderRepository {
                     rs.getInt("attempt_number"),
                     rs.getObject("attempted_at", OffsetDateTime.class),
                     rs.getString("status"),
-                    rs.getString("error_message"),
+                    com.duanttcsn5.library.service.LoanReminderFailureMessages.message(rs.getString("error_message")),
                     rs.getString("triggered_by")
             );
             map.computeIfAbsent(logId, k -> new ArrayList<>()).add(dto);
@@ -433,7 +433,7 @@ public class LoanReminderRepository {
                 rs.getString("subject"),
                 rs.getString("email_content"),
                 rs.getString("status"),
-                rs.getString("error_message"),
+                com.duanttcsn5.library.service.LoanReminderFailureMessages.message(rs.getString("error_message")),
                 rs.getString("triggered_by"),
                 rs.getString("triggered_by_user_name"),
                 rs.getBoolean("is_dry_run"),

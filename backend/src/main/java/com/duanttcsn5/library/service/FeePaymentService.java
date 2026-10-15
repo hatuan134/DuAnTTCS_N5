@@ -133,7 +133,7 @@ public class FeePaymentService {
         User actor = users.findById(id).orElseThrow(() -> error(HttpStatus.UNAUTHORIZED,
                 "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
         if (!"ACTIVE".equals(actor.getStatus()) || actor.getRole() == null
-                || !"LIBRARIAN".equals(actor.getRole().getCode())) throw error(HttpStatus.FORBIDDEN,
+                || !java.util.Set.of("LIBRARIAN", "ADMIN").contains(actor.getRole().getCode())) throw error(HttpStatus.FORBIDDEN,
                 "FEE_PAYMENT_ROLE_REQUIRED", "Chỉ Thủ thư được thu phí và xem, in lại biên lai.");
         return actor;
     }

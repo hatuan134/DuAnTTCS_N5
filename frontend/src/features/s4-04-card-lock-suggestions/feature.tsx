@@ -10,8 +10,8 @@ const feature: FeatureModule = {
     { path: 'card-lock-suggestion-settings', element: <Settings /> },
   ],
   navItems: [
-    { label: 'Đề xuất khóa thẻ', to: '/card-lock-suggestions', icon: ShieldAlert, order: 200, roles: ['LIBRARY_MANAGER'] },
-    { label: 'Ngưỡng nợ phí', to: '/card-lock-suggestion-settings', icon: Settings2, order: 201, roles: ['LIBRARY_MANAGER'] },
+    { label: 'Đề xuất khóa thẻ', to: '/card-lock-suggestions', icon: ShieldAlert, order: 200, roles: ['LIBRARY_MANAGER', 'ADMIN'] },
+    { label: 'Ngưỡng nợ phí', to: '/card-lock-suggestion-settings', icon: Settings2, order: 201, roles: ['LIBRARY_MANAGER', 'ADMIN'] },
   ],
 }
 export default feature

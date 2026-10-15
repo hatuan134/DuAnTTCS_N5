@@ -13,7 +13,7 @@ import { formatTime, getHistory, type ExportHistory } from './reportService'
 
 const statuses = { SUCCESS: 'Tạo tệp thành công', FAILED: 'Xuất thất bại', PROCESSING: 'Đang xử lý / chưa hoàn tất' }
 export default function ExportHistoryPage() {
-  const allowed = getCurrentUser()?.role === 'LIBRARY_MANAGER'
+  const allowed = ['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [data, setData] = useState<ExportHistory | null>(null), [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true), [revision, setRevision] = useState(0), [notice, setNotice] = useState('')
   useEffect(() => {

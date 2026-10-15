@@ -1,10 +1,11 @@
+import { createS4Require } from './s4TestImports.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
-const require = createRequire(import.meta.url)
+const require = createS4Require(import.meta.url)
 function load(file, imports) {
   const code = ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -41,6 +42,6 @@ test('history supports filtering, paging and detail', async () => {
   await loanRejectionService.detail(42)
   assert.equal(calls[0].url, '/loans/rejections')
   assert.equal(calls[0].config.params.cardNumber, 'TV-0012')
-  assert.equal(calls[0].config.params.size, 20)
+  assert.equal(calls[0].config.params.size, 10)
   assert.equal(calls[1].url, '/loans/rejections/42')
 })

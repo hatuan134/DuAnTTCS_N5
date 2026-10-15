@@ -1,3 +1,4 @@
+import LoanLookupPanel from '../s3-01-loans/LoanLookupPanel'
 import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import ReturnFeeDetails, { formatVnd } from './ReturnFeeDetails'
 import { useEffect, useRef, useState } from 'react'
@@ -29,6 +30,7 @@ export default function ReceiveReturnPage() {
   }
   function decide(accepted: boolean) { decisionRef.current?.(accepted); decisionRef.current = null; setDecision(null) }
   const [barcode, setBarcode] = useState('')
+  const [lookupRevision, setLookupRevision] = useState(0)
   const [fieldError, setFieldError] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ReturnLookup | null>(null)
@@ -81,11 +83,11 @@ export default function ReceiveReturnPage() {
     setBarcode(value); setResult(null); setNotice(null); setFieldError(''); setBusy(false)
   }
 
-  async function lookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function lookup(event?: FormEvent<HTMLFormElement>, selectedBarcode?: string) {
+    event?.preventDefault()
     if (!allowed || finished.current || request.current || confirmation.current || decisionRef.current) return
     setResult(null); setNotice(null)
-    const code = barcode.trim()
+    const code = (selectedBarcode ?? barcode).trim()
     const error = validateReturnBarcode(code)
     setFieldError(error)
     if (error) { setNotice({ message: error, tone: 'warning' }); focusBarcode(true); return }
@@ -128,6 +130,7 @@ export default function ReceiveReturnPage() {
       const data = await returnService.confirm(preview.barcode, preview.itemId!)
       if (!mounted.current) return
       record(returnSessionSuccess(preview, data))
+      setLookupRevision(value => value + 1)
       setResult(null); setBarcode(''); setFieldError('')
       setNotice({ message: data.message, tone: 'success' })
     } catch (error) {
@@ -263,6 +266,10 @@ export default function ReceiveReturnPage() {
       </form>
       <p className="mt-3 text-xs leading-5 text-slate-500">Ngày giờ theo Việt Nam. Mỗi cuốn được xác nhận riêng; mã sai không làm mất các kết quả trước.</p>
     </Card>
+    <LoanLookupPanel disabled={busy || confirming || Boolean(decision)} revision={lookupRevision} onSelectCopy={code => {
+      if (busy || confirming || decision) return
+      changeBarcode(code); void lookup(undefined, code)
+    }} />
     {notice && <FeedbackAlert message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />}
     {busy && <p role="status" className="text-sm text-blue-700">Đang tìm phiếu mượn theo mã vạch…</p>}
     {!busy && result && <Card className="p-5">

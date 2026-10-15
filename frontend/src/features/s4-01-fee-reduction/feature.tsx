@@ -12,6 +12,6 @@ const feature: FeatureModule = {
     { path: 'overdue-fees/reduction-requests/pending', element: <PendingFeeReductionsPage /> },
   ],
   navItems: [{ label: 'Đề nghị miễn giảm phí', to: '/overdue-fees/reduction-requests/pending',
-    icon: ClipboardCheck, order: 170, roles: ['LIBRARY_MANAGER'] }],
+    icon: ClipboardCheck, order: 170, roles: ['LIBRARY_MANAGER', 'ADMIN'] }],
 }
 export default feature

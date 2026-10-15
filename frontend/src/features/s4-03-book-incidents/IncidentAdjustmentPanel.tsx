@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useRef, useState } from 'react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -106,7 +107,7 @@ export default function IncidentAdjustmentPanel({ record, onUpdated }: { record:
         <label className="block space-y-1 text-sm"><span>Lý do điều chỉnh *</span>
           <textarea value={reason} rows={3} maxLength={1900} disabled={busy} aria-invalid={!!formError} onChange={event => { setReason(event.target.value); setFormError('') }} className="w-full rounded-xl border border-slate-300 p-3" />
         </label>
-        {formError && <p role="alert" className="text-sm text-red-700">{formError}</p>}
+        {formError && <TimedFieldMessage className="text-sm text-red-700">{formError}</TimedFieldMessage>}
         <Button type="submit" disabled={busy}>Xem trước bút toán</Button>
       </form>}
       {loaded && !entry && record.item.copyStatus !== 'REMOVED' && <p>Không có bút toán. Trạng thái sách không phù hợp để lập điều chỉnh.</p>}

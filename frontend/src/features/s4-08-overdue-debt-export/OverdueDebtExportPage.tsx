@@ -14,7 +14,7 @@ import { exportExcel, formatMoney, formatTime, getPreview, getFilterOptions, min
 
 const columns = ['Mã thẻ', 'Họ tên', 'Số điện thoại', 'Số cuốn quá hạn', 'Số ngày trễ dài nhất', 'Tổng phí đang nợ']
 export default function OverdueDebtExportPage() {
-  const allowed = getCurrentUser()?.role === 'LIBRARY_MANAGER'
+  const allowed = ['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const [data, setData] = useState<Snapshot | null>(null)
   const [minimum, setMinimum] = useState(''), [cardType, setCardType] = useState('')
   const [options, setOptions] = useState<CardTypeOption[]>([]), [optionsFailed, setOptionsFailed] = useState(false)

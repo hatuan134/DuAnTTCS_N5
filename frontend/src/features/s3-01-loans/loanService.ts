@@ -49,6 +49,8 @@ export interface LoanSearchItem {
 }
 
 export interface LoanSearchResult {
+  readerId?: number | null
+  readerPhone?: string | null
   id: number
   loanNumber: string
   cardNumber: string | null
@@ -88,7 +90,18 @@ export function formatLoanTimestamp(value: string | null, dateOnly = false): str
   }).format(date)
 }
 
+export interface ReaderLoanLookupPage {
+  items: { readerId: number; readerName: string; readerPhone: string | null; cardNumber: string | null }[]
+  page: number
+  size: number
+  total: number
+}
+
 export const loanService = {
+  searchReaders: async (keyword: string, page = 0): Promise<ReaderLoanLookupPage> => {
+    const response = await apiClient.get<ReaderLoanLookupPage>('/loans/readers', { params: { keyword, page } })
+    return response.data
+  },
   search: async (code: string, page = 0, filters?: LoanSearchFilters): Promise<LoanSearchPage> => {
     const response = await apiClient.get<LoanSearchPage>('/loans/search', {
       params: {

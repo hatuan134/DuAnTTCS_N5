@@ -1,3 +1,4 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -6,7 +7,7 @@ import { webcrypto } from 'node:crypto'
 import ts from 'typescript'
 import { createRequire } from 'node:module'
 import { renderToStaticMarkup } from 'react-dom/server'
-const require = createRequire(import.meta.url), react = require('react')
+const require = createS4Require(import.meta.url), react = require('react')
 const root = new URL('../src/features/s3-02-direct-loans/', import.meta.url)
 function load(file, imports = {}, extra = {}) {
   const code = ts.transpileModule(readFileSync(new URL(file, root), 'utf8'), {

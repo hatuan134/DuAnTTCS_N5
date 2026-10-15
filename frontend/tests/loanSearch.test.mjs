@@ -1,261 +1,124 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { createRequire } from 'node:module'
-import { renderToStaticMarkup } from 'react-dom/server'
-
-const require = createRequire(import.meta.url)
-const react = require('react')
-const root = new URL('../src/features/s3-01-loans/', import.meta.url)
-
-function load(file, imports = {}) {
-  const compiled = ts.transpileModule(readFileSync(new URL(file, root), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText
+const require = createRequire(import.meta.url), react = require('react')
+function load(file, imports) {
   const ctx = { exports: {}, require: name => imports[name] ?? require(name) }
-  vm.runInNewContext(compiled, ctx)
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: false },
+  }).outputText, ctx)
   return ctx.exports
 }
-
-const items = [
-  { id: 10, loanNumber: 'PM-0010', cardNumber: 'CARD-01', readerName: 'Nguyễn An',
-    borrowedAt: '2026-10-01T08:00:00+07:00', status: 'PARTIALLY_RETURNED', items: [
-      { barcode: 'COPY-01', bookTitle: 'Mắt biếc', dueAt: '2026-10-15T08:00:00+07:00', status: 'BORROWED' },
-      { barcode: 'COPY-02', bookTitle: 'Dế Mèn', dueAt: null, status: 'RETURNED' },
-    ] },
-  { id: 11, loanNumber: 'PM-0011', cardNumber: 'CARD-01', readerName: 'Nguyễn An',
-    borrowedAt: '2026-09-01T08:00:00+07:00', status: 'RETURNED', items: [
-      { barcode: 'COPY-01', bookTitle: 'Mắt biếc', dueAt: '2026-09-15T08:00:00+07:00', status: 'RETURNED' },
-    ] },
-]
-function find(tree, predicate) {
-  if (tree === null || typeof tree !== 'object') return null
-  if (predicate(tree)) return tree
-  for (const child of react.Children.toArray(tree.props?.children)) {
-    const result = find(child, predicate)
-    if (result) return result
-  }
-  return null
+function all(node, predicate, out = []) {
+  if (!node || typeof node !== 'object') return out
+  if (Array.isArray(node)) { node.forEach(n => all(n, predicate, out)); return out }
+  if (predicate(node)) out.push(node)
+  all(node.props?.children, predicate, out); return out
 }
-function InputStub(props) { return react.createElement('input', { ...props, label: undefined }) }
-function ButtonStub({ children, loading, ...props }) {
-  return react.createElement('button', { ...props, disabled: props.disabled || loading }, children)
+function text(node) {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(text).join(' ')
+  return node?.props ? text(node.props.children) : ''
 }
-function CardStub({ children, className }) { return react.createElement('div', { className }, children) }
-function AlertStub({ message, tone }) { return react.createElement('p', { 'data-tone': tone }, message) }
-function PaginationStub() { return null }
-
-function pageFixture({ role = 'LIBRARIAN', reject = false, initialTotal = 2, emptyReasons = {} } = {}) {
-  const hooks = { ...react }
-  const slots = [], effects = [], calls = []
-  let cursor = 0
-  hooks.useState = initial => {
-    const index = cursor++
-    if (!(index in slots)) slots[index] = { value: initial }
-    return [slots[index].value, value => {
-      slots[index].value = typeof value === 'function' ? value(slots[index].value) : value
-    }]
+const loan = { id: 7, loanNumber: 'PM-000007', cardNumber: 'THE-07', readerName: 'Nguyễn An', readerPhone: '0901234567', borrowedAt: '2026-10-01T08:00:00+07:00', status: 'PARTIALLY_RETURNED', items: [
+  { barcode: 'COPY-01', bookTitle: 'Mắt biếc', dueAt: '2026-10-15T08:00:00+07:00', status: 'BORROWED' },
+  { barcode: 'COPY-02', bookTitle: 'Dế Mèn', dueAt: null, status: 'RETURNED' },
+] }
+const settle = () => new Promise(resolve => setImmediate(resolve))
+function fixture(props = {}, behavior = {}) {
+  const slots = [], effects = [], calls = []; let cursor = 0, tree
+  const hooks = { ...react,
+    useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = { value: initial }; return [slots[i].value, value => { slots[i].value = typeof value === 'function' ? value(slots[i].value) : value }] },
+    useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial } },
+    useEffect(fn, deps) { const i = cursor++, previous = slots[i]; if (!previous || deps.some((v, j) => !Object.is(v, previous.deps[j]))) { slots[i] = { deps }; effects.push(() => { previous?.cleanup?.(); slots[i].cleanup = fn() }) } },
   }
-  hooks.useRef = initial => slots[cursor++] ??= { current: initial }
-  hooks.useEffect = (fn, deps) => {
-    const index = cursor++, old = slots[index]
-    if (!old || deps.some((v, i) => !Object.is(v, old.deps[i]))) {
-      slots[index] = { deps, cleanup: old?.cleanup }
-      effects.push(() => { old?.cleanup?.(); slots[index].cleanup = fn() })
-    }
+  const api = {
+    search: async (keyword, page, filters) => { calls.push({ mode: 'loans', keyword, page, filters }); return behavior.search ? behavior.search(keyword, page, filters) : { items: [loan], page, size: 10, total: 21 } },
+    searchReaders: async (keyword, page) => { calls.push({ mode: 'readers', keyword, page }); return { items: [{ readerId: 99, readerName: 'Bạn đọc mới', readerPhone: '0907777777', cardNumber: 'THE-99' }], page, size: 10, total: 1 } },
   }
-  const serviceModule = load('loanService.ts', { '../../core/api/apiClient': { apiClient: {} } })
-  const Page = load('LoanSearchPage.tsx', {
-    react: hooks,
-    'react-router-dom': { Link: ({ children, to }) => react.createElement('a', { href: to }, children) },
-    '../../components/ui/Button': { __esModule: true, default: ButtonStub },
-    '../../components/ui/Card': { __esModule: true, default: CardStub },
-    '../../components/ui/FeedbackAlert': { __esModule: true, default: AlertStub },
-    '../../components/ui/Input': { __esModule: true, default: InputStub },
-    '../../components/ui/TablePagination': { __esModule: true, default: PaginationStub },
-    '../../components/ui/LoadingState': { __esModule: true, default: () => react.createElement('p', {}, 'Đang tìm') },
-    '../../components/ui/PageHeader': { __esModule: true, default: ({ title }) => react.createElement('h1', {}, title) },
-    '../../core/auth/authStorage': { getCurrentUser: () => ({ role }) },
+  const Panel = load('../src/features/s3-01-loans/LoanLookupPanel.tsx', {
+    react: hooks, 'react-router-dom': { Link: 'a' },
+    '../../components/ui/Button': { default: 'button' }, '../../components/ui/Card': { default: 'article' },
+    '../../components/ui/FeedbackAlert': { default: 'feedback' }, '../../components/ui/Input': { default: 'input' },
+    '../../components/ui/TablePagination': { default: 'pagination' },
     '../s1-02-user-management/accountService': { getApiErrorMessage: e => e.message },
-    './loanService': { ...serviceModule, loanService: { search: async (code, page = 0, filters) => {
-      calls.push({ code, page, filters: { ...filters } })
-      if (reject) throw new Error('Không thể tra cứu')
-      if (Object.hasOwn(emptyReasons, code)) return {
-        items: [], page, size: 20, total: 0, emptyReason: emptyReasons[code],
-      }
-      const filtered = items.filter(loan =>
-        (!filters?.fromDate || loan.borrowedAt.slice(0, 10) >= filters.fromDate)
-        && (!filters?.toDate || loan.borrowedAt.slice(0, 10) <= filters.toDate)
-        && (!filters?.status || loan.status === filters.status))
-      return { items: filtered, page, size: 20, total: filters?.fromDate || filters?.toDate || filters?.status ? filtered.length : initialTotal }
-    } } },
+    './loanService': { loanService: api, formatLoanTimestamp: value => value || 'Chưa có thông tin' },
   }).default
-  function tree() {
-    cursor = 0
-    const result = Page()
-    for (const effect of effects.splice(0)) effect()
-    return result
+  const f = {
+    calls,
+    render() { cursor = 0; tree = Panel(props); effects.splice(0).forEach(fn => fn()); return tree },
+    async flush() { for (let i = 0; i < 3; i++) { await settle(); f.render() } },
+    find(predicate) { return all(tree, predicate)[0] },
+    nodes(predicate) { return all(tree, predicate) },
+    input(label, value) { const input = f.find(n => n.type === 'input' && n.props.label === label); assert.ok(input, label); input.props.onChange({ target: { value } }); f.render() },
+    click(label) { const button = f.find(n => n.type === 'button' && text(n).trim() === label); assert.ok(button, label); button.props.onClick?.(); f.render() },
+    submit() { f.find(n => n.type === 'form').props.onSubmit({ preventDefault() {} }); f.render() },
+    text: () => text(tree),
+    unmount() { slots.forEach(slot => slot?.cleanup?.()) },
   }
-  function html() { return renderToStaticMarkup(tree()) }
-  function enterCode(value) {
-    find(tree(), element => element.type === InputStub && element.props.required)?.props.onChange({ target: { value } })
-  }
-  function search() { find(tree(), element => element.type === 'form').props.onSubmit({ preventDefault() {} }) }
-  function filter(id, value) {
-    find(tree(), element => element.props?.id === id).props.onChange({ target: { value } })
-  }
-  function clear() {
-    find(tree(), element => element.type === ButtonStub && element.props.children === 'Xóa bộ lọc').props.onClick()
-  }
-  return { tree, html, enterCode, search, filter, clear, calls,
-    unmount() { for (const slot of slots) slot?.cleanup?.() } }
+  f.render(); return f
 }
-async function settle() {
-  await new Promise(resolve => setImmediate(resolve))
-  await new Promise(resolve => setImmediate(resolve))
-}
-
-test('client passes combined query and omits blank filters, retaining page', async () => {
-  const calls = []
-  const service = load('loanService.ts', { '../../core/api/apiClient': { apiClient: { async get(url, opts) {
-    calls.push([url, opts]); return { data: { items: [], page: 0, size: 20, total: 0 } }
-  } } } })
-  await service.loanService.search('CARD-01', 2, { fromDate: '2026-10-01', toDate: '', status: 'BORROWED' })
-  assert.equal(calls[0][0], '/loans/search')
-  assert.equal(calls[0][1].params.code, 'CARD-01')
-  assert.equal(calls[0][1].params.page, 2)
-  assert.equal(calls[0][1].params.fromDate, '2026-10-01')
-  assert.equal(calls[0][1].params.status, 'BORROWED')
-  assert.equal(Object.hasOwn(calls[0][1].params, 'toDate'), false)
+test('opening lists existing loans without requiring a search, with phone and ten-item pagination', async () => {
+  const f = fixture(); await f.flush()
+  assert.equal(f.calls[0].keyword, ''); assert.equal(f.calls[0].page, 0)
+  assert.match(f.text(), /Nguyễn An/); assert.match(f.text(), /0901234567/)
+  const pagination = f.find(n => n.type === 'pagination')
+  assert.equal(pagination.props.pageSize, 10); assert.equal(pagination.props.totalPages, 3)
+  f.unmount()
 })
-
-for (const code of ['CARD-01', 'COPY-01', 'PM-0010']) {
-  test(`search ${code} shows unique loans and full item histories`, async () => {
-    const p = pageFixture(); p.enterCode(`  ${code}  `); p.search(); await settle()
-    assert.equal(p.calls[0].code, code)
-    for (const value of ['PM-0010', 'PM-0011', 'Mắt biếc', 'Dế Mèn', 'Đã trả một phần']) {
-      assert.ok(p.html().includes(value), value)
-    }
-    assert.match(p.html(), /2 phiếu mượn/)
-    p.unmount()
-  })
-}
-
-test('fromDate, toDate, status, combined filter and clearing retain search code and refresh total', async () => {
-  const p = pageFixture(); p.enterCode('CARD-01'); p.search(); await settle()
-  p.filter('loan-from-date', '2026-09-15'); await settle()
-  assert.equal(p.calls.at(-1).filters.fromDate, '2026-09-15')
-  assert.equal(p.calls.at(-1).page, 0)
-  assert.match(p.html(), /1 phiếu mượn/)
-  p.filter('loan-to-date', '2026-10-09'); await settle()
-  assert.equal(p.calls.at(-1).filters.toDate, '2026-10-09')
-  p.filter('loan-status', 'PARTIALLY_RETURNED'); await settle()
-  assert.equal(p.calls.at(-1).filters.status, 'PARTIALLY_RETURNED')
-  assert.deepEqual(p.calls.map(c => c.code), ['CARD-01', 'CARD-01', 'CARD-01', 'CARD-01'])
-  p.clear(); await settle()
-  assert.deepEqual(p.calls.at(-1).filters, { fromDate: '', toDate: '', status: '' })
-  assert.equal(p.calls.at(-1).page, 0)
-  assert.match(p.html(), /2 phiếu mượn/)
-  p.unmount()
+for (const keyword of ['Nguyễn An', '090 123 4567', 'THE-07', 'COPY-01', 'PM-000007', '']) test(`search ${keyword || '(all)'} preserves full loan item history`, async () => {
+  const f = fixture(); await f.flush(); f.input('Tìm phiếu mượn hoặc bạn đọc', ` ${keyword} `); f.submit(); await f.flush()
+  assert.equal(f.calls.at(-1).keyword, keyword); assert.match(f.text(), /Mắt biếc/); assert.match(f.text(), /Dế Mèn/)
+  f.unmount()
 })
-
-test('date end only, status only and all statuses are allowed', async () => {
-  const p = pageFixture(); p.enterCode('CARD-01'); p.search(); await settle()
-  p.filter('loan-to-date', '2026-09-15'); await settle()
-  assert.equal(p.calls.at(-1).filters.toDate, '2026-09-15')
-  p.clear(); await settle()
-  p.filter('loan-status', 'RETURNED'); await settle()
-  assert.equal(p.calls.at(-1).filters.status, 'RETURNED')
-  p.filter('loan-status', ''); await settle()
-  assert.equal(p.calls.at(-1).filters.status, '')
-  p.unmount()
+test('paging keeps keyword and applied date/status filters; a new query resets to page one', async () => {
+  const f = fixture({ showFilters: true }); await f.flush()
+  f.input('Tìm phiếu mượn hoặc bạn đọc', 'Nguyễn'); f.input('Từ ngày mượn', '2026-10-01'); f.input('Đến ngày mượn', '2026-10-15')
+  f.find(n => n.type === 'select').props.onChange({ target: { value: 'BORROWED' } }); f.render(); f.submit(); await f.flush()
+  f.find(n => n.type === 'pagination').props.onPageChange(2); f.render(); await f.flush()
+  assert.equal(f.calls.at(-1).page, 1); assert.equal(f.calls.at(-1).keyword, 'Nguyễn'); assert.equal(f.calls.at(-1).filters.status, 'BORROWED')
+  f.submit(); await f.flush(); assert.equal(f.calls.at(-1).page, 0)
 })
-
-test('invalid dates prevent API calls and show transient red error', async () => {
-  const p = pageFixture(); p.enterCode('CARD-01'); p.search(); await settle()
-  p.filter('loan-from-date', '2026-10-09'); await settle()
-  const before = p.calls.length
-  p.filter('loan-to-date', '2026-10-01')
-  assert.equal(p.calls.length, before)
-  assert.match(p.html(), /Từ ngày không được lớn hơn Đến ngày/)
-  assert.match(p.html(), /data-tone="error"/)
-  p.filter('loan-to-date', '2026-10-09'); await settle()
-  assert.equal(p.calls.length, before + 1)
-  p.unmount()
+test('invalid date range and long keyword produce dismissible error without a request', async () => {
+  const f = fixture({ showFilters: true }); await f.flush(); const count = f.calls.length
+  f.input('Từ ngày mượn', '2026-10-20'); f.input('Đến ngày mượn', '2026-10-01'); f.submit()
+  assert.match(f.find(n => n.type === 'feedback').props.message, /Từ ngày/); assert.equal(f.calls.length, count)
+  f.input('Tìm phiếu mượn hoặc bạn đọc', 'x'.repeat(101)); f.submit(); assert.match(f.find(n => n.type === 'feedback').props.message, /100/)
 })
-
-test('changing a filter on page two resets to first page, paging keeps filters', async () => {
-  const p = pageFixture({ initialTotal: 21 }); p.enterCode('CARD-01'); p.search(); await settle()
-  const next = find(p.tree(), el => el.type === PaginationStub)
-  next.props.onPageChange(2); await settle()
-  assert.equal(p.calls.at(-1).page, 1)
-  p.filter('loan-status', 'RETURNED'); await settle()
-  assert.equal(p.calls.at(-1).page, 0)
-  assert.equal(p.calls.at(-1).filters.status, 'RETURNED')
-  p.unmount()
+test('empty results retain search and recovery guidance', async () => {
+  const f = fixture({}, { search: async () => ({ items: [], total: 0, size: 10, page: 0 }) }); await f.flush()
+  assert.ok(f.find(n => n.type === 'form')); assert.match(f.text(), /Thử tìm bằng tên/)
 })
-
-test('validation errors, API failures, and reader access', async () => {
-  const p = pageFixture()
-  p.enterCode(' '); p.search()
-  assert.match(p.html(), /1 đến 100 ký tự/)
-  p.enterCode('X'.repeat(101)); p.search()
-  assert.equal(p.calls.length, 0)
-  p.unmount()
-  const failed = pageFixture({ reject: true }); failed.enterCode('PM-0010'); failed.search(); await settle()
-  assert.match(failed.html(), /data-tone="error"/)
-  assert.doesNotMatch(failed.html(), /PM-0011/)
-  failed.unmount()
-  const reader = pageFixture({ role: 'READER' }); assert.match(reader.html(), /không có quyền/)
-  assert.equal(reader.calls.length, 0)
-  reader.unmount()
+test('API error dismissal leaves a retry control and never fabricates results', async () => {
+  const f = fixture({}, { search: async () => { throw Error('Mất kết nối') } }); await f.flush()
+  const notice = f.find(n => n.type === 'feedback'); assert.match(notice.props.message, /Mất kết nối/)
+  notice.props.onDismiss(); f.render(); assert.equal(f.find(n => n.type === 'feedback'), undefined); assert.match(f.text(), /Thử lại/)
 })
-
-for (const [code, reason, explanation] of [
-  ['UNKNOWN-01', 'CODE_NOT_FOUND', 'không tồn tại'],
-  ['CARD-0X', 'CODE_NOT_FOUND', 'không tồn tại'],
-  ['CARD-WITHOUT-LOANS', 'NO_LOANS_FOR_CODE', 'có tồn tại'],
-  ['COPY-WITHOUT-HISTORY', 'NO_LOANS_FOR_CODE', 'có tồn tại'],
-  ['CARD-FILTERED', 'NO_LOANS_MATCH_FILTERS', 'không có phiếu nào đáp ứng bộ lọc'],
-]) {
-  test(`S3-08.4 ${reason} (${code}): clear corrective guidance without hiding search`, async () => {
-    const p = pageFixture({ emptyReasons: { [code]: reason } })
-    p.enterCode(code); p.search(); await settle()
-    assert.match(p.html(), /Không tìm thấy phiếu phù hợp/)
-    assert.ok(p.html().includes(explanation), p.html())
-    assert.match(p.html(), /mã thẻ thư viện/)
-    assert.match(p.html(), /mã vạch bản sao sách/)
-    assert.match(p.html(), /mã phiếu mượn/)
-    assert.match(p.html(), /Sửa mã ở phía trên rồi nhấn/)
-    assert.ok(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code'))
-    assert.match(p.html(), /Tra cứu/)
-    assert.doesNotMatch(p.html(), /PM-0011/)
-    p.unmount()
-  })
-}
-
-test('S3-08.4: typo can be edited in place and searched again without losing input', async () => {
-  const p = pageFixture({ emptyReasons: { 'CARD-0X': 'CODE_NOT_FOUND' } })
-  p.enterCode('CARD-0X'); p.search(); await settle()
-  assert.equal(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code').props.value, 'CARD-0X')
-  p.enterCode('CARD-01')
-  assert.equal(find(p.tree(), el => el.type === InputStub && el.props.id === 'loan-search-code').props.value, 'CARD-01')
-  p.search(); await settle()
-  assert.deepEqual(p.calls.map(call => call.code), ['CARD-0X', 'CARD-01'])
-  assert.doesNotMatch(p.html(), /Không tìm thấy phiếu phù hợp/)
-  assert.match(p.html(), /PM-0010/)
-  p.unmount()
+test('return selection offers only outstanding copies and collapses list without confirming', async () => {
+  const selected = []; const f = fixture({ onSelectCopy: code => selected.push(code) }); await f.flush()
+  assert.equal(f.nodes(n => n.type === 'button' && text(n) === 'Chọn để nhận trả').length, 1)
+  f.click('Chọn để nhận trả'); assert.deepEqual(selected, ['COPY-01']); assert.match(f.text(), /Hiện danh sách để chọn tiếp/)
 })
-
-test('S3-08.4: filtered-out results explain filters and preserve a way to clear them', async () => {
-  const p = pageFixture()
-  p.enterCode('CARD-01'); p.search(); await settle()
-  p.filter('loan-status', 'EMPTY'); await settle()
-  assert.match(p.html(), /Không tìm thấy phiếu phù hợp/)
-  assert.match(p.html(), /Không có phiếu mượn nào phù hợp với mã hoặc bộ lọc/)
-  p.clear(); await settle()
-  assert.match(p.html(), /PM-0010/)
-  p.unmount()
+test('direct lending can select a reader who has no previous loan', async () => {
+  const selected = []; const f = fixture({ onSelectReader: number => selected.push(number) }); await f.flush()
+  f.click('Tìm bạn đọc kể cả chưa mượn'); await f.flush(); assert.equal(f.calls.at(-1).mode, 'readers')
+  f.click('Chọn bạn đọc'); assert.deepEqual(selected, ['THE-99'])
+})
+test('slow obsolete search cannot replace a newer result', async () => {
+  const pending = []
+  const f = fixture({}, { search: () => new Promise(resolve => pending.push(resolve)) })
+  f.input('Tìm phiếu mượn hoặc bạn đọc', 'Mới'); f.submit(); await settle(); f.render()
+  pending.at(-1)({ items: [{ ...loan, readerName: 'Kết quả mới' }], total: 1, page: 0, size: 10 }); await f.flush()
+  pending[0]({ items: [{ ...loan, readerName: 'Kết quả cũ' }], total: 1, page: 0, size: 10 }); await f.flush()
+  assert.match(f.text(), /Kết quả mới/); assert.doesNotMatch(f.text(), /Kết quả cũ/)
+})
+test('reader access is denied before rendering the staff search panel', () => {
+  const Page = load('../src/features/s3-01-loans/LoanSearchPage.tsx', {
+    '../../components/ui/PageHeader': { default: () => null }, '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'READER' }) },
+    './LoanLookupPanel': { default: () => { throw Error('must not mount') } }, './loanService': { loanRoles: ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'] },
+  }).default
+  assert.match(text(Page()), /không có quyền/)
 })

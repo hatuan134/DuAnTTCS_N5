@@ -12,7 +12,7 @@ import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { cardLockSuggestionService, suggestionMoney, suggestionReason, suggestionStatus, type SuggestionPage, type SuggestionDecision } from './cardLockSuggestionService'
 import CardLockSuggestionDetailsDialog from './CardLockSuggestionDetailsDialog'
 export default function CardLockSuggestionsPage() {
-  if (getCurrentUser()?.role !== 'LIBRARY_MANAGER') return <p role="alert">Chỉ Quản lý thư viện được xem và quyết định đề xuất khóa thẻ.</p>
+  if (!['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert">Chỉ Quản lý thư viện được xem và quyết định đề xuất khóa thẻ.</p>
   return <Suggestions />
 }
 function Suggestions() {

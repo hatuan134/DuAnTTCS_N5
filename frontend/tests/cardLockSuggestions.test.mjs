@@ -1,10 +1,11 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
-const require = createRequire(import.meta.url), react = require('react')
+const require = createS4Require(import.meta.url), react = require('react')
 function load(path, imports = {}, extra = {}) {
   const context = { exports: {}, require: n => imports[n] ?? require(n), ...extra }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
@@ -65,7 +66,7 @@ test('threshold accepts integer VND, zero and upper boundary; rejects fractions 
 test('large total debt formats without losing integer precision', () => {
   assert.equal(helpers.suggestionMoney('9007199254740993'), '9.007.199.254.740.993 ₫')
 })
-for (const role of ['ADMIN', 'LIBRARIAN', 'READER']) test(`${role} sees permission state and makes no suggestion API request`, () => {
+for (const role of ['LIBRARIAN', 'READER']) test(`${role} sees permission state and makes no suggestion API request`, () => {
   let calls = 0
   const p = page('CardLockSuggestionsPage.tsx', { list() { calls++ } }, {}, role)
   assert.match(text(p.tree()), /Chỉ Quản lý thư viện/); assert.equal(calls, 0)

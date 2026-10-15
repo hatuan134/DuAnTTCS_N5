@@ -1,6 +1,6 @@
 {
-  "version": "S4-09.2-v1",
-  "decision": "PO chốt ngày 15/10/2026: mở rộng toàn hệ thống; Admin tách nhiệm vụ; giữ API chưa có UI; database thử riêng PostgreSQL 5433. S4-09.1 giữ nguyên.",
+  "version": "S4-00.1-v1",
+  "decision": "S4-00.1: Admin có toàn quyền chức năng quản trị và nghiệp vụ của nhân viên; giữ validation, điều kiện nghiệp vụ và phạm vi dữ liệu cá nhân Bạn đọc.",
   "roles": [
     {
       "code": "ADMIN",
@@ -236,7 +236,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -255,7 +255,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -274,7 +274,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -293,7 +293,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -388,7 +388,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -426,7 +426,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1072,7 +1072,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1091,7 +1091,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1110,7 +1110,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1129,7 +1129,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1148,7 +1148,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1186,7 +1186,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1205,7 +1205,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1224,7 +1224,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1243,7 +1243,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1434,7 +1434,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1453,7 +1453,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1472,7 +1472,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -2669,7 +2669,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3087,7 +3087,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3106,7 +3106,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3125,7 +3125,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3144,7 +3144,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3163,7 +3163,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -3695,13 +3695,32 @@
         "PUT"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
       },
       "condition": "Giữ quyền Quản lý thư viện duy nhất của cấu hình đề xuất khóa thẻ theo source và nguyên tắc tách nhiệm vụ đã chốt.",
       "mutating": true
+    },
+    {
+      "id": "LoanController.searchReaders",
+      "module": "LOANS",
+      "label": "Tìm bạn đọc tại quầy bằng tên, số điện thoại hoặc mã thẻ",
+      "controller": "LoanController",
+      "handler": "searchReaders",
+      "path": "/api/v1/loans/readers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
     }
   ]
 }

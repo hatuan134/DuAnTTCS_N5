@@ -97,12 +97,23 @@ public class LoanRejectionRepository {
 
     public LoanRejectionPageResponse page(String cardNumber, int page, int size) {
         String filter = cardNumber == null || cardNumber.isBlank() ? null : cardNumber.strip();
-        long total = jdbc.queryForObject("SELECT COUNT(*) FROM loan_rejections WHERE (?::text IS NULL OR card_number ILIKE '%' || ? || '%')",
-                Long.class, filter, filter);
-        List<LoanRejectionResponse> headers = jdbc.query(FIELDS + """
-                WHERE (?::text IS NULL OR card_number ILIKE '%' || ? || '%')
-                ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?
-                """, this::map, filter, filter, size, (long) page * size);
+        String predicate = """
+                WHERE (?::text IS NULL OR strpos(lower(card_number), lower(?)) > 0
+                    OR strpos(lower(reader_name), lower(?)) > 0
+                    OR EXISTS (SELECT 1 FROM users reader WHERE reader.id = loan_rejections.reader_user_id
+                        AND (strpos(lower(reader.full_name), lower(?)) > 0
+                          OR (?::text ~ '^[+0-9 .()/-]*[0-9][+0-9 .()/-]*$'
+                            AND strpos(regexp_replace(coalesce(reader.phone, ''), '[^0-9]', '', 'g'),
+                                       regexp_replace(?::text, '[^0-9]', '', 'g')) > 0)))
+                    OR EXISTS (SELECT 1 FROM loans l WHERE l.id = loan_rejections.loan_id
+                        AND strpos(lower(l.loan_number), lower(?)) > 0))
+                """;
+        Object[] args = {filter, filter, filter, filter, filter, filter, filter};
+        long total = jdbc.queryForObject("SELECT COUNT(*) FROM loan_rejections " + predicate, Long.class, args);
+        Object[] paged = java.util.Arrays.copyOf(args, args.length + 2);
+        paged[args.length] = size; paged[args.length + 1] = (long) page * size;
+        List<LoanRejectionResponse> headers = jdbc.query(FIELDS + predicate
+                + " ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?", this::map, paged);
         return new LoanRejectionPageResponse(headers.stream().map(this::withReasons).toList(), page, size, total);
     }
 

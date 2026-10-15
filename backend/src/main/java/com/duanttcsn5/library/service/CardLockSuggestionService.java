@@ -40,11 +40,11 @@ public class CardLockSuggestionService {
         return overdue ? (excessive ? "BOTH":"OVERDUE") : (excessive ? "DEBT":null);
     }
     @Transactional(readOnly=true)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Settings settings() { return suggestions.settings(); }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Settings updateSettings(UpdateSettings request,Long actor) {
         manager(actor);
         BigDecimal value=request==null?null:request.debtThresholdVnd();
@@ -66,7 +66,7 @@ public class CardLockSuggestionService {
         suggestions.checkedAt(now());
     }
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Page list(boolean history,int page,int size) {
         if(page<0 || size<1 || size>100) throw error(HttpStatus.BAD_REQUEST,"INVALID_PAGE","Trang phải từ 0, số dòng từ 1 đến 100.");
         suggestions.lockScan(); refreshLocked();
@@ -74,7 +74,7 @@ public class CardLockSuggestionService {
         return new Page(suggestions.list(history,size,(long)page*size),page,size,total,(total+size-1)/size,suggestions.settings());
     }
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Detail detail(Long id) {
         suggestions.lockScan(); LibraryCard card=lockedSuggestionCard(id);
         Facts facts=facts(card,suggestions.settings().debtThresholdVnd()); reconcile(card,facts,now());
@@ -82,7 +82,7 @@ public class CardLockSuggestionService {
                 facts.evidence(),facts.days(),facts.debt(),facts.threshold(),facts.reason());
     }
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Decision accept(Long id,LockLibraryCardRequest request,Long actor,String ip) {
         String actorName=manager(actor); String reason=validReason(request==null?null:request.reason());
         OffsetDateTime end=request==null?null:request.endsAt();
@@ -97,7 +97,7 @@ public class CardLockSuggestionService {
         return new Decision(get(id),locked,true,"Đã chấp nhận đề xuất và khóa thẻ. Trả sách và thu phí vẫn được phép.");
     }
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public Decision ignore(Long id,Ignore request,Long actor) {
         String actorName=manager(actor);String reason=validReason(request==null?null:request.reason());
         suggestions.lockScan();LibraryCard card=lockedSuggestionCard(id);requirePending(id);
@@ -158,7 +158,7 @@ public class CardLockSuggestionService {
     }
     private String manager(Long id) {
         var actor=id==null?null:users.findById(id).orElse(null);
-        if(actor==null || actor.getRole()==null || !"LIBRARY_MANAGER".equals(actor.getRole().getCode())
+        if(actor==null || actor.getRole()==null || !Set.of("LIBRARY_MANAGER", "ADMIN").contains(actor.getRole().getCode())
                 || !"ACTIVE".equals(actor.getStatus()) || (actor.getLockedUntil()!=null && actor.getLockedUntil().isAfter(now())))
             throw error(HttpStatus.FORBIDDEN,"LIBRARY_MANAGER_REQUIRED","Chỉ Quản lý thư viện đang hoạt động được thực hiện thao tác này.");
         return actor.getFullName();

@@ -51,7 +51,7 @@ function fixture(role, service = {}, path = '../src/features/s4-08-overdue-debt-
 }
 const data = { readers: [{ readerId: 1, cardNumber: '001', fullName: 'Nguyễn Văn A', phone: '0901', overdueBooks: 3, maxOverdueDays: 15, outstandingVnd: 75000 }], totalReaders: 1, snapshotAt: '2026-10-15' }
 const settle = () => new Promise(resolve => setImmediate(resolve))
-for (const role of ['READER', 'LIBRARIAN', 'ADMIN', null]) test(`role ${role} never loads private preview`, () => {
+for (const role of ['READER', 'LIBRARIAN', null]) test(`role ${role} never loads private preview`, () => {
  let calls = 0; const f = fixture(role, { getPreview() { calls++ } }); f.render(); assert.equal(calls, 0)
 })
 test('export locks immediately against duplicate clicks and success uses shared feedback', async () => {

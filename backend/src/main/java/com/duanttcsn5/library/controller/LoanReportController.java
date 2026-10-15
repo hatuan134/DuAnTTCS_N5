@@ -22,7 +22,7 @@ public class LoanReportController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanReportResponse> get(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {

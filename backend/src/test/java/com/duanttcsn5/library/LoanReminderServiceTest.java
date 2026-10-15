@@ -391,10 +391,10 @@ class LoanReminderServiceTest {
                 eq(targetDate), eq(10L), anyString(), any(), eq("reader@example.com"),
                 anyString(), anyInt(), eq(0L), eq(0), eq(3), anyString(), anyString(),
                 anyString(), anyString(), anyString(), eq("PENDING_RETRY"),
-                eq("SMTP connection refused"), eq("SYSTEM_SCHEDULED"), any(), any(), anyBoolean()
+                eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("SMTP connection refused")), eq("SYSTEM_SCHEDULED"), any(), any(), anyBoolean()
         );
         verify(repository).insertRetryAttempt(
-                eq(2001L), eq(1), eq("FAILED"), eq("SMTP connection refused"),
+                eq(2001L), eq(1), eq("FAILED"), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("SMTP connection refused")),
                 eq("SYSTEM_SCHEDULED")
         );
     }
@@ -447,9 +447,9 @@ class LoanReminderServiceTest {
         assertEquals(1, retryResult.maxRetriesReachedCount(), "Should mark as exhausted after 3rd retry failure");
 
         // Attempt #4 recorded
-        verify(repository).insertRetryAttempt(eq(101L), eq(4), eq("FAILED"), eq("Mailbox unavailable"), eq("MANUAL_RETRY (Thủ thư A)"));
+        verify(repository).insertRetryAttempt(eq(101L), eq(4), eq("FAILED"), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("Mailbox unavailable")), eq("MANUAL_RETRY (Thủ thư A)"));
         // Status updated to FAILED_MAX_RETRIES, retry_count = 3
-        verify(repository).updateLogRetryStatus(eq(101L), eq("FAILED_MAX_RETRIES"), eq(3), eq("Mailbox unavailable"));
+        verify(repository).updateLogRetryStatus(eq(101L), eq("FAILED_MAX_RETRIES"), eq(3), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("Mailbox unavailable")));
     }
 
     @Test

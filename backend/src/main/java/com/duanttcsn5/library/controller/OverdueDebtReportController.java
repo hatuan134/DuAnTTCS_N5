@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/reports/overdue-debts")
-@PreAuthorize("hasRole('LIBRARY_MANAGER')")
+@PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
 public class OverdueDebtReportController {
     private final OverdueDebtReportService service;
     public OverdueDebtReportController(OverdueDebtReportService service) { this.service=service; }

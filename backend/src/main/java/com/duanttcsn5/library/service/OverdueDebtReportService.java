@@ -14,7 +14,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 
 @Service
-@PreAuthorize("hasRole('LIBRARY_MANAGER')")
+@PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
 public class OverdueDebtReportService {
     private final OverdueDebtSnapshotService snapshots;
     private final OverdueDebtExportAuditService audit;
@@ -67,7 +67,7 @@ public class OverdueDebtReportService {
     }
     private String manager(Long id) {
         var user=id==null?null:users.findById(id).orElse(null);
-        if(user==null || user.getRole()==null || !"LIBRARY_MANAGER".equals(user.getRole().getCode())
+        if(user==null || user.getRole()==null || !java.util.Set.of("LIBRARY_MANAGER", "ADMIN").contains(user.getRole().getCode())
                 || !"ACTIVE".equals(user.getStatus()) || (user.getLockedUntil()!=null && user.getLockedUntil().isAfter(now())))
             throw new ApiException(HttpStatus.FORBIDDEN,"LIBRARY_MANAGER_REQUIRED","Chỉ Quản lý thư viện đang hoạt động được xem và xuất danh sách này.");
         return user.getFullName();

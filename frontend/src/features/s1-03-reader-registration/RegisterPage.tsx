@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
@@ -472,9 +473,7 @@ export default function RegisterPage() {
                       />
                     </div>
                     {emailError && (
-                      <p id="register-email-error" role="alert" className="mt-1 text-xs text-red-600 font-medium">
-                        {emailError}
-                      </p>
+                      <TimedFieldMessage id="register-email-error" className="mt-1 text-xs text-red-600 font-medium">{emailError}</TimedFieldMessage>
                     )}
                     <p className="mt-1 text-xs text-slate-400">
                       Mã bạn đọc sẽ được hệ thống tự sinh sau khi đăng ký thành công.
@@ -598,7 +597,7 @@ export default function RegisterPage() {
                           )}
                         </button>
                       </div>
-                      {passwordTouched && validateRegistrationPassword(password) && <p role="alert" className="mt-1 text-xs text-red-700">{validateRegistrationPassword(password)}</p>}
+                      {passwordTouched && validateRegistrationPassword(password) && <TimedFieldMessage className="mt-1 text-xs text-red-700">{validateRegistrationPassword(password) || undefined}</TimedFieldMessage>}
                       <p id="register-password-hint" className="mt-1 text-xs text-slate-500">Mật khẩu phải có ít nhất 8 ký tự, bao gồm ít nhất một chữ cái và một chữ số.</p>
                     </div>
 
@@ -644,7 +643,7 @@ export default function RegisterPage() {
                     </div>
                   </div>
 
-                  {confirmTouched && password !== confirmPassword && <p id="register-confirm-error" role="alert" className="text-xs text-red-700">Mật khẩu xác nhận không khớp.</p>}
+                  {confirmTouched && password !== confirmPassword && <TimedFieldMessage id="register-confirm-error" className="text-xs text-red-700" >Mật khẩu xác nhận không khớp.</TimedFieldMessage>}
                   {/* Nút gửi */}
                   <button
                     type="submit"

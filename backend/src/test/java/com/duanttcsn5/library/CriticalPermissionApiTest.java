@@ -111,7 +111,7 @@ class CriticalPermissionApiTest {
 
     @Test void documentHasFourRolesAndAllEightyFourEndpointsAreMappedAndCompared() {
         var inspection = inspector.inspect();
-        assertEquals(84, inspection.reviewedFunctions());
+        assertEquals(85, inspection.reviewedFunctions());
         assertEquals(0, inspection.unresolvedFunctions());
         assertEquals(0, inspection.differentFunctions(), () -> inspection.entries().stream()
                 .filter(ReviewedEntry::different).map(value -> value.policy().id()).toList().toString());

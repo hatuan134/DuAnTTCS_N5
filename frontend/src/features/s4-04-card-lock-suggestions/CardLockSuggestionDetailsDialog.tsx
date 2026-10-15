@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Modal from '../../components/ui/Modal'
@@ -66,7 +67,7 @@ export default function CardLockSuggestionDetailsDialog({ id, onClose, onChanged
               <textarea id="ignore-suggestion-reason" required maxLength={1000} rows={3} value={reason} disabled={busy}
                 aria-invalid={!!fieldError} aria-describedby={fieldError ? 'ignore-suggestion-error' : undefined}
                 onChange={e => { setReason(e.target.value); setFieldError('') }} className="w-full rounded-xl border border-slate-300 p-3 text-sm" />
-              {fieldError && <p id="ignore-suggestion-error" role="alert" className="text-sm text-red-700">{fieldError}</p>}
+              {fieldError && <TimedFieldMessage id="ignore-suggestion-error" className="text-sm text-red-700">{fieldError}</TimedFieldMessage>}
               <p className="text-sm text-slate-600">Đề xuất không sinh lại trong cùng đợt vi phạm; quyết định và lý do được lưu trong lịch sử.</p>
               <div className="flex flex-wrap gap-2"><Button type="submit" loading={busy}>Xác nhận bỏ qua</Button><Button type="button" variant="secondary" disabled={busy} onClick={() => setIgnoring(false)}>Hủy bỏ qua</Button></div>
             </form>}

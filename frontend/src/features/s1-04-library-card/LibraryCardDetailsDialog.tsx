@@ -29,7 +29,7 @@ export default function LibraryCardDetailsDialog({ cardId, onClose, onUpdated }:
   const [feedback, setFeedback] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const flight = useRef(false)
-  const canUnlock = getCurrentUser()?.role === 'LIBRARY_MANAGER'
+  const canUnlock = ['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   useEffect(() => {
     let active = true
     setLoading(true); setLoadFailed(false)
