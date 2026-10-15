@@ -7,7 +7,7 @@ const groups = [
   { id: 'warehouse', label: 'Kho', paths: ['/warehouse-shelves'] },
   { id: 'loans', label: 'Mượn trả', paths: ['/loans', '/loans/direct', '/loans/search', '/loans/rejections', '/loans/receive-return', '/loans/overdue', '/my-borrowed-books', '/overdue-fees/reduction-requests/pending', '/fee-payments', '/loans/reminders'] },
   { id: 'reservations', label: 'Đặt giữ', paths: ['/reservations/ready-for-pickup', '/my-reservations', '/manager/auto-cancellations'] },
-  { id: 'reports', label: 'Báo cáo', paths: ['/reports/loans'] },
+  { id: 'reports', label: 'Báo cáo', paths: ['/reports/loans', '/reports/overdue-debts', '/reports/overdue-debts/history'] },
   { id: 'settings', label: 'Quản trị', paths: ['/borrow-policy', '/library-calendar', '/card-lock-suggestion-settings', '/audit-log'] },
 ]
 
