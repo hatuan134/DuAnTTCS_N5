@@ -42,12 +42,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class CriticalPermissionApiTest {
     @Configuration @EnableWebMvc @EnableWebSecurity
     @Import({SecurityConfig.class, JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class,
-            RestAccessDeniedHandler.class, GlobalExceptionHandler.class, PermissionReviewCatalog.class,
+            RestAccessDeniedHandler.class, GlobalExceptionHandler.class,
             PermissionReviewInspector.class, ReaderController.class, LibraryCardController.class,
             LoanController.class, BookReservationController.class, FeePaymentController.class,
             FeeReductionController.class, BookCopyController.class, BookIncidentController.class,
             OverdueContactController.class, LibraryConfigurationController.class})
     static class Config {
+        @Bean PermissionReviewCatalog catalog(ObjectMapper mapper) throws Exception { return new PermissionReviewCatalog(mapper, "permissions/S4-09.1-policy.json"); }
         @Bean ObjectMapper mapper() { return new ObjectMapper(); }
         @Bean JwtService jwt() { return mock(JwtService.class); }
         @Bean UserRepository users() { return mock(UserRepository.class); }

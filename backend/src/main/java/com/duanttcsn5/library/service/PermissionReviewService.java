@@ -64,23 +64,27 @@ public class PermissionReviewService {
         List<CaseResult> results = new ArrayList<>();
         for (EvidenceCase test : report.checks()) {
             PolicyEntry entry = catalog.find(test.endpointId()).orElseThrow(() -> invalid("API không thuộc phạm vi: " + test.endpointId()));
-            if (!keys.add(test.endpointId() + ":" + test.role() + ":" + test.scenario())) throw invalid("Biên bản chứa trường hợp kiểm thử trùng lặp.");
+            if (!keys.add(test.endpointId() + ":" + test.httpMethod() + ":" + test.role() + ":" + test.scenario())) throw invalid("Biên bản chứa trường hợp kiểm thử trùng lặp.");
+            if (report.schemaVersion() == 2 && (test.httpMethod() == null || !entry.httpMethods().contains(test.httpMethod()))) {
+                throw invalid("Biên bản toàn hệ thống thiếu hoặc sai phương thức HTTP: " + test.endpointId());
+            }
             int required;
             try { required = catalog.requiredStatus(entry, test.role(), test.scenario(), test.expectedStatus()); }
             catch (IllegalArgumentException exception) { throw invalid(exception.getMessage()); }
             if (test.expectedStatus() != required) throw invalid("Kết quả mong đợi không khớp bảng quyền: " + test.endpointId() + " / " + test.role());
-            if (test.detectedAt().isBefore(report.startedAt()) || test.testedAt().isAfter(report.completedAt())
+            if ((report.schemaVersion() == 1 && test.detectedAt().isBefore(report.startedAt())) || test.testedAt().isBefore(report.startedAt()) || test.testedAt().isAfter(report.completedAt())
                     || test.detectedAt().isAfter(test.testedAt())) throw invalid("Thời điểm phát hiện/kiểm thử lại không nằm trong lần chạy.");
-            boolean denied = required == 401 || required == 403 || required == 404;
-            boolean passed = test.actualStatus() == required
-                    && (!entry.mutating() || !denied || Boolean.TRUE.equals(test.resourceUnchanged()));
+            boolean denied = required == 401 || required == 403 || required == 404 || required == 405;
+            boolean passed = (report.schemaVersion() == 1 || Boolean.TRUE.equals(test.assertionsPassed()))
+                    && test.actualStatus() == required
+                    && (!denied || Boolean.TRUE.equals(test.resourceUnchanged()));
             boolean foundBefore = test.beforeStatus() != null && test.beforeStatus() != required;
             if (foundBefore && passed && (test.correction() == null || test.correction().isBlank())) {
                 throw invalid("Sai lệch đã khắc phục phải có nội dung sửa và bằng chứng kiểm thử lại.");
             }
             String outcome = !passed ? "OPEN" : foundBefore ? "FIXED" : "PASS";
             results.add(new CaseResult(test, entry.module(), entry.label(),
-                    "ANONYMOUS".equals(test.role()) ? "LOGIN_REQUIRED" : entry.rules().get(test.role()), outcome, passed));
+                    "ANONYMOUS".equals(test.role()) ? (entry.rules().containsValue("PUBLIC") ? "PUBLIC" : "LOGIN_REQUIRED") : entry.rules().get(test.role()), outcome, passed));
         }
         Long id;
         try { id = repository.insert(report, results, actorId, actor.getFullName()); }

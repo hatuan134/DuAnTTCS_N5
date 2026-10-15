@@ -56,4 +56,44 @@ public class PermissionReviewRepository {
                 rs.getObject("imported_at", OffsetDateTime.class), rs.getObject("completed_at", OffsetDateTime.class),
                 rs.getInt("case_count"), rs.getInt("detected_count"), rs.getInt("fixed_count"), rs.getInt("failed_count"));
     }
+
+    public void createJob(UUID key, Long actor, String name, String fingerprint) {
+        jdbc.update("INSERT INTO permission_review_jobs(run_key,state,message,requested_by_user_id,requested_by_name,fingerprint) VALUES (?,'STARTING','Đang chuẩn bị database kiểm thử riêng.',?,?,?)", key, actor, name, fingerprint);
+    }
+    public Optional<RunState> job(UUID key) {
+        return jdbc.query("SELECT * FROM permission_review_jobs WHERE run_key=?", runMapper(), key).stream().findFirst();
+    }
+    public Optional<RunState> latestJob() {
+        return jdbc.query("SELECT * FROM permission_review_jobs ORDER BY started_at DESC LIMIT 1", runMapper()).stream().findFirst();
+    }
+    public void running(UUID key) {
+        jdbc.update("UPDATE permission_review_jobs SET state='RUNNING',message='Đang kiểm thử API bằng bốn vai trò và người chưa đăng nhập.' WHERE run_key=?", key);
+    }
+    public void finishJob(UUID key, String state, String message, Long reportId) {
+        jdbc.update("UPDATE permission_review_jobs SET state=?,message=?,report_id=?,finished_at=CURRENT_TIMESTAMP WHERE run_key=?", state, message, reportId, key);
+    }
+    public void cleanupWarning(UUID key) {
+        jdbc.update("UPDATE permission_review_jobs SET message=message || ' Chưa xóa được database thử; xem hướng dẫn dọn đúng database của lần chạy.' WHERE run_key=?",key);
+    }
+    public boolean serverExecuted(Long reportId, UUID runKey, String fingerprint) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM permission_review_jobs WHERE report_id=? AND run_key=? AND fingerprint=? AND state='SUCCEEDED')", Boolean.class, reportId, runKey, fingerprint));
+    }
+    public void recoverInterruptedJobs() {
+        jdbc.update("UPDATE permission_review_jobs SET state='FAILED',message='Máy chủ đã khởi động lại trước khi ghi nhận kết quả. Vui lòng chạy lại.',finished_at=CURRENT_TIMESTAMP WHERE state IN ('STARTING','RUNNING')");
+    }
+    public Optional<Completion> completion(Long reportId) {
+        return jdbc.query("SELECT * FROM permission_review_completions WHERE report_id=?", (rs,n) -> new Completion(rs.getLong("report_id"),rs.getString("confirmed_by_name"),rs.getObject("confirmed_at",OffsetDateTime.class),rs.getString("fingerprint")), reportId).stream().findFirst();
+    }
+    public void complete(Long reportId, Long actor, String name, String fingerprint, int cases) {
+        jdbc.update("INSERT INTO permission_review_completions(report_id,confirmed_by_user_id,confirmed_by_name,fingerprint,role_case_count) VALUES (?,?,?,?,?)",reportId,actor,name,fingerprint,cases);
+    }
+    public void lockReport(Long id) {
+        jdbc.queryForList("SELECT id FROM permission_review_runs WHERE id=? FOR UPDATE",id);
+    }
+    public List<ReportSummary> sprintReports(String policyVersion) {
+        return jdbc.query("SELECT * FROM permission_review_runs WHERE policy_version LIKE 'S4-09.%' ORDER BY imported_at,id",summaryMapper());
+    }
+    private RowMapper<RunState> runMapper() {
+        return (rs,n) -> new RunState(rs.getObject("run_key",UUID.class),rs.getString("state"),rs.getString("message"),rs.getString("requested_by_name"),rs.getObject("started_at",OffsetDateTime.class),rs.getObject("finished_at",OffsetDateTime.class),rs.getObject("report_id",Long.class));
+    }
 }

@@ -155,7 +155,7 @@ public class LoanReminderRepository {
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            PreparedStatement ps = connection.prepareStatement(sql, new String[]{"id"});
             ps.setDate(1, Date.valueOf(reminderDate));
             ps.setLong(2, readerId);
             ps.setString(3, readerName);

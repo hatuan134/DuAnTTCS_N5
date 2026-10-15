@@ -14,7 +14,7 @@ function load(name, imports = {}, globals = {}) {
   }).outputText, context)
   return context.exports
 }
-const policy = JSON.parse(readFileSync(new URL('../../backend/src/main/resources/permissions/S4-09.1-policy.json', import.meta.url)))
+const policy = JSON.parse(readFileSync(new URL('../../backend/src/main/resources/permissions/S4-09.2-policy.json', import.meta.url)))
 const inspection = { policyVersion: policy.version, roles: policy.roles, modules: policy.modules, fingerprint: 'a'.repeat(64),
   decision: policy.decision, inspectedAt: '2026-10-15T02:41:00Z', reviewedFunctions: policy.entries.length,
   differentFunctions: 0, unresolvedFunctions: 0, entries: policy.entries.map(entry => ({ policy: entry, guard: "hasRole('LIBRARIAN')", mapped: true,
@@ -38,12 +38,12 @@ test('uses authenticated API client for review and reports, without accepting ca
   assert.deepEqual(calls.map(call => call[1]), ['/permission-review', '/permission-review/reports', '/permission-review/reports/1', '/permission-review/reports'])
   assert.equal(calls[1][2].params.page, 2); assert.equal(calls[3][2], report); assert.ok(!('actorId' in calls[3][2]))
 })
-test('module, keyword and discrepancy filters compose and cover all five priority groups', () => {
+test('module, keyword and discrepancy filters compose and cover all reviewed system modules', () => {
   for (const module of policy.modules) assert.ok(service.selectEntries(inspection, module.code, '', false).length)
   assert.equal(service.selectEntries(inspection, 'FEES', 'collect-full', false).length, 1)
   assert.equal(service.selectEntries(inspection, 'STOCK', 'collect-full', false).length, 0)
   assert.equal(service.selectEntries(inspection, '', '', true).length, 0)
-  const changed = { ...inspection, entries: [{ ...inspection.entries[0], different: true }, ...inspection.entries.slice(1)] }
+  const changed = { ...inspection, entries: [{ ...inspection.entries[0], different: true, roles: inspection.entries[0].roles.map((role, i) => ({ ...role, matches: i !== 0 })) }, ...inspection.entries.slice(1)] }
   assert.equal(service.selectEntries(changed, '', '', true).length, 1)
 })
 test('malformed or empty evidence is rejected and simulated results retain their identity', () => {
@@ -93,7 +93,9 @@ function harness(api = {}) {
   }
   const module = load('PermissionReviewPage.tsx', imports('ADMIN', {
     inspect: async () => inspection, reports: async () => ({ items: [], page: 0, size: 10, totalItems: 0 }),
-    detail: async () => detail, importReport: async () => detail, ...api,
+    detail: async () => detail, importReport: async () => detail,
+    latestRun: async () => null, coverage: async () => ({ totalApis: 191, coveredApis: 1, requiredRoleCases: 764, coveredRoleCases: 1, passedCases: 1, failedCases: 0, unresolvedFindings: 0, missing: [], eligible: false, reasons: ['Còn thiếu kiểm thử'], completion: null }),
+    exportReport: async () => ({ report: detail, coverage: {}, sprintReports: [] }), ...api,
   }, hooks), { AbortController, File: class {} })
   function render() { cursor = 0; tree = module.PermissionReviewWorkspace(); for (const effect of pending.splice(0)) effect(); return tree }
   render()
@@ -142,4 +144,29 @@ test('closing the report early never remounts its temporary notification outside
   page.modal().props.onClose(); page.render()
   assert.equal(page.modal(), undefined); assert.equal(page.notice(), undefined)
   page.unmount()
+})
+
+
+test('role and comparison-state filters distinguish unknown rights from a concrete mismatch', () => {
+  const row = inspection.entries[0]
+  const sample = { ...inspection, entries: [{ ...row, different: true, roles: row.roles.map(role => ({ ...role, matches: false, documented: role.role === 'READER' ? 'UNKNOWN' : role.documented })) }] }
+  assert.equal(service.selectEntries(sample, '', '', false, 'READER', 'UNKNOWN').length, 1)
+  assert.equal(service.selectEntries(sample, '', '', false, 'ADMIN', 'UNKNOWN').length, 0)
+  assert.equal(service.selectEntries(sample, '', '', false, 'ADMIN', 'DIFFERENT').length, 1)
+})
+test('server-run, progress, coverage, confirmation and export use protected review URLs', async () => {
+  const calls = [], api = load('permissionReviewService.ts', { '../../core/api/apiClient': { apiClient: {
+    get: async (...args) => { calls.push(['GET', ...args]); return { data: null } },
+    post: async (...args) => { calls.push(['POST', ...args]); return { data: {} } },
+  } } }).permissionReviewService
+  await api.startRun(); await api.latestRun(); await api.runStatus('run-key'); await api.coverage(7); await api.complete(7); await api.exportReport(7)
+  assert.deepEqual(calls.map(call => call[1]), ['/permission-review/runs', '/permission-review/runs/latest', '/permission-review/runs/run-key', '/permission-review/reports/7/coverage', '/permission-review/reports/7/complete', '/permission-review/reports/7/export'])
+  assert.equal(calls[0].length, 2)
+})
+test('a missing-coverage report keeps completion disabled', async () => {
+  const page = harness(); await settle(); page.render()
+  page.choose({ name: 'simulation.json', size: 2000, text: async () => JSON.stringify(report) }); await settle(); page.render()
+  page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.onClick(); await settle(); page.render(); await settle(); page.render()
+  const button = page.node(node => node.props?.children?.[1] === 'Xác nhận hoàn tất rà soát')
+  assert.equal(button.props.disabled, true); page.unmount()
 })

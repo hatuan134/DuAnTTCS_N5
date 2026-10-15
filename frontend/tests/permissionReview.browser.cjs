@@ -3,10 +3,10 @@ const { chromium } = require(process.env.LIBRA_PLAYWRIGHT_MODULE || 'playwright'
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict')
 const root = path.resolve(__dirname, '..'), port = Number(process.env.LIBRA_QA_PORT || 5183)
 const base = 'http://127.0.0.1:' + port
-const policy = JSON.parse(fs.readFileSync(path.join(root, '../backend/src/main/resources/permissions/S4-09.1-policy.json'), 'utf8'))
+const policy = JSON.parse(fs.readFileSync(path.join(root, '../backend/src/main/resources/permissions/S4-09.2-policy.json'), 'utf8'))
 function inspection(excess = false) {
   return { policyVersion: policy.version, decision: policy.decision, fingerprint: 'a'.repeat(64), inspectedAt: '2026-10-15T02:41:00Z',
-    roles: policy.roles, modules: policy.modules, reviewedFunctions: policy.entries.length, differentFunctions: excess ? 1 : 0, unresolvedFunctions: 0,
+    roles: policy.roles, modules: policy.modules, reviewedFunctions: policy.entries.length, totalApis: 191, undocumentedApis: [], differentFunctions: excess ? 1 : 0, unresolvedFunctions: 0,
     entries: policy.entries.map(entry => ({ policy: entry, mapped: true, guard: "hasRole('LIBRARIAN')", different: excess && entry.id === 'FeePaymentController.collect',
       roles: policy.roles.map(role => ({ role: role.code, documented: entry.rules[role.code], actualGate: excess && entry.id === 'FeePaymentController.collect' && role.code === 'READER' ? 'ALLOW' : entry.rules[role.code] === 'DENY' ? 'DENY' : 'ALLOW',
         matches: !(excess && entry.id === 'FeePaymentController.collect' && role.code === 'READER') })) })) }
@@ -31,12 +31,20 @@ async function authenticate(page, role) {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.LIBRA_BROWSER_EXECUTABLE || undefined,
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] })
   const page = await browser.newPage({ viewport: { width: 1366, height: 1000 } })
-  const errors = [], results = []; let role = 'ADMIN', excess = false, rejectImport = false, imports = 0, reviewReads = 0, saved = false
+  const errors = [], results = []; let role = 'ADMIN', excess = false, rejectImport = false, imports = 0, reviewReads = 0, saved = false, job = null, runRequests = 0, jobPolls = 0, eligible = false, confirmed = false, exports = 0
   page.on('pageerror', error => errors.push(error.message))
   await page.route('**/api/v1/**', async route => {
     const pathname = new URL(route.request().url()).pathname.replace('/api/v1', '')
     let data = [], status = 200
     if (pathname === '/auth/me') data = { id: 1, role, fullName: 'Người thử giao diện', email: 'ui@example.invalid' }
+    else if (pathname === '/permission-review/runs' && route.request().method() === 'POST') { runRequests++; job = { runKey: '00000000-0000-0000-0000-000000000001', state: 'RUNNING', message: 'Đang kiểm thử trên database riêng.', requestedBy: 'Quản trị thử', startedAt: '2030-01-01T00:00:00Z', finishedAt: null, reportId: null }; status = 202; data = job }
+    else if (pathname === '/permission-review/runs/latest') data = job
+    else if (pathname.startsWith('/permission-review/runs/')) { jobPolls++; job = { ...job, state: 'SUCCEEDED', message: 'Đã chạy xong kiểm thử.', reportId: 1 }; saved = true; data = job }
+    else if (pathname === '/permission-review/reports/1/coverage' || pathname === '/permission-review/reports/1/complete') {
+      if (pathname.endsWith('/complete')) confirmed = true
+      data = { totalApis: 191, coveredApis: eligible ? 191 : 1, requiredRoleCases: 764, coveredRoleCases: eligible ? 764 : 1, passedCases: eligible ? 975 : 1, failedCases: 0, unresolvedFindings: 0, matrixDifferences: 0, unknownFunctions: 0, currentSource: true, serverExecuted: eligible, eligible, missing: [], reasons: eligible ? [] : ['Còn thiếu kiểm thử theo vai trò.'], completion: confirmed ? { reportId: 1, confirmedBy: 'Quản trị thử', confirmedAt: '2030-01-01T00:01:00Z', fingerprint: 'a'.repeat(64) } : null }
+    }
+    else if (pathname === '/permission-review/reports/1/export') { exports++; data = { report: detail, coverage: { eligible }, sprintReports: [detail] } }
     else if (pathname === '/permission-review') { reviewReads++; data = inspection(excess) }
     else if (pathname === '/permission-review/reports' && route.request().method() === 'POST') {
       imports++; status = rejectImport ? 409 : 201; saved = !rejectImport
@@ -64,7 +72,7 @@ async function authenticate(page, role) {
       await page.getByLabel('Tìm chức năng hoặc API').fill('collect-full')
       await page.getByRole('heading', { name: 'Thu toàn bộ phí', exact: true }).waitFor()
       for (const label of policy.roles.map(value => value.name)) assert.ok(await page.getByText(label, { exact: true }).count() >= 1)
-      assert.equal(await page.getByText('1 / 84 thao tác khớp bộ lọc', { exact: true }).count(), 1)
+      assert.equal(await page.getByText('1 / 190 chức năng khớp bộ lọc', { exact: true }).count(), 1)
     })
     for (const width of [1366, 768, 390]) await check('Responsive matrix ' + width, async () => {
       await page.setViewportSize({ width, height: 1000 })
@@ -117,6 +125,51 @@ async function authenticate(page, role) {
       await page.locator('[data-feedback-tone=error]').waitFor()
       await page.clock.runFor(3000); assert.equal(await page.locator('[data-feedback-tone=error]').count(), 0)
       assert.ok(await page.getByRole('button', { name: 'Lưu biên bản', exact: true }).isEnabled())
+    })
+    await check('Role and comparison filters compose without hiding a discrepancy for the selected role', async () => {
+      await page.setViewportSize({ width: 1366, height: 1000 })
+      await page.getByLabel('Vai trò', { exact: true }).selectOption('READER')
+      await page.getByLabel('Trạng thái đối chiếu', { exact: true }).selectOption('DIFFERENT')
+      assert.equal(await page.getByRole('heading', { name: 'Thu toàn bộ phí', exact: true }).count(), 1)
+      await page.getByLabel('Vai trò', { exact: true }).selectOption('ADMIN')
+      await page.getByText('Không có sai lệch cổng quyền theo bộ lọc', { exact: true }).waitFor()
+      await page.getByLabel('Vai trò', { exact: true }).selectOption('')
+      await page.getByLabel('Trạng thái đối chiếu', { exact: true }).selectOption('')
+    })
+    await check('Partial imported evidence cannot confirm completion', async () => {
+      await page.getByRole('button', { name: 'Xem biên bản', exact: true }).first().click()
+      await page.getByText('Còn thiếu kiểm thử theo vai trò.', { exact: true }).waitFor()
+      assert.ok(await page.getByRole('button', { name: 'Xác nhận hoàn tất rà soát', exact: true }).isDisabled())
+      await page.getByRole('button', { name: 'Đóng biên bản', exact: true }).click()
+    })
+    await check('Run-all prevents double submit and polling opens a completed run', async () => {
+      await page.getByRole('button', { name: 'Chạy kiểm thử toàn bộ', exact: true }).click()
+      await page.getByText('Đang kiểm thử trên database riêng.', { exact: true }).waitFor()
+      assert.ok(await page.getByRole('button', { name: 'Chạy kiểm thử toàn bộ', exact: true }).isDisabled())
+      assert.equal(runRequests, 1)
+      await page.clock.runFor(2000)
+      await page.getByRole('button', { name: 'Xem kết quả kiểm thử', exact: true }).waitFor()
+      assert.equal(jobPolls, 1)
+    })
+    await check('Eligible run requires explicit confirmation and exports the full sprint report', async () => {
+      eligible = true
+      await page.getByRole('button', { name: 'Xem kết quả kiểm thử', exact: true }).click()
+      await page.getByRole('button', { name: 'Xác nhận hoàn tất rà soát', exact: true }).waitFor()
+      await page.getByRole('button', { name: 'Xác nhận hoàn tất rà soát', exact: true }).click()
+      await page.clock.runFor(4000)
+      assert.ok(await page.getByRole('button', { name: 'Đồng ý xác nhận', exact: true }).isVisible())
+      await page.setViewportSize({ width: 390, height: 844 }); await overflow()
+      if (process.env.LIBRA_QA_OUTPUT) await page.screenshot({ path: path.join(process.env.LIBRA_QA_OUTPUT, 'permission-review-confirm-390.png'), animations: 'disabled' })
+      await page.setViewportSize({ width: 1366, height: 1000 })
+      await page.getByRole('button', { name: 'Đồng ý xác nhận', exact: true }).click()
+      await page.getByText(/Đã xác nhận bởi Quản trị thử/).waitFor()
+      await page.clock.runFor(3000)
+      assert.ok(await page.getByRole('dialog').isVisible())
+      const download = page.waitForEvent('download')
+      await page.getByRole('button', { name: 'Xuất biên bản đầy đủ', exact: true }).click()
+      assert.match((await download).suggestedFilename(), /BienBan_S4-09\.2/)
+      assert.equal(exports, 1)
+      await page.getByRole('button', { name: 'Đóng biên bản', exact: true }).click()
     })
     for (role of ['READER', 'LIBRARIAN', 'LIBRARY_MANAGER']) await check(role + ' cannot navigate directly or see the review menu', async () => {
       const before = reviewReads; await authenticate(page, role); await page.goto(base + '/permission-review')

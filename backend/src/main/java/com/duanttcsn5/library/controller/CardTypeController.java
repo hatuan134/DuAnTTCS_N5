@@ -35,16 +35,19 @@ public class CardTypeController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<CardTypeResponse>> getAllCardTypes() {
         return ResponseEntity.ok(cardTypeService.getAllCardTypes());
     }
 
     @GetMapping("/active")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<List<CardTypeResponse>> getActiveCardTypes() {
         return ResponseEntity.ok(cardTypeService.getActiveCardTypes());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<CardTypeResponse> getCardTypeById(@PathVariable Long id) {
         return ResponseEntity.ok(cardTypeService.getCardTypeById(id));
     }

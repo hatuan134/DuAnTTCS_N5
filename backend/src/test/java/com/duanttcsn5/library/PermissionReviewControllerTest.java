@@ -29,6 +29,8 @@ class PermissionReviewControllerTest {
     @Import({SecurityConfig.class, PermissionReviewController.class, GlobalExceptionHandler.class,
             JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
     static class Config {
+        @Bean com.duanttcsn5.library.service.PermissionReviewRunService runs() { return mock(com.duanttcsn5.library.service.PermissionReviewRunService.class); }
+        @Bean com.duanttcsn5.library.service.PermissionReviewCoverageService coverage() { return mock(com.duanttcsn5.library.service.PermissionReviewCoverageService.class); }
         @Bean PermissionReviewService service() { return mock(PermissionReviewService.class); }
         @Bean JwtService jwt() { return mock(JwtService.class); }
         @Bean UserRepository users() { return mock(UserRepository.class); }
@@ -51,20 +53,24 @@ class PermissionReviewControllerTest {
                 .subject("1").claim("tokenVersion", 0).build());
     }
     @Test void anonymousCannotReadMatrixReportListOrDetailsAndCannotImport() throws Exception {
-        for (String path : List.of("/api/v1/permission-review", "/api/v1/permission-review/reports", "/api/v1/permission-review/reports/1")) {
+        for (String path : List.of("/api/v1/permission-review", "/api/v1/permission-review/reports", "/api/v1/permission-review/reports/1", "/api/v1/permission-review/runs/latest", "/api/v1/permission-review/runs/00000000-0000-0000-0000-000000000001", "/api/v1/permission-review/reports/1/coverage", "/api/v1/permission-review/reports/1/export")) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
         mvc.perform(post("/api/v1/permission-review/reports").contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
+        for(String path:List.of("/api/v1/permission-review/runs","/api/v1/permission-review/reports/1/complete"))
+            mvc.perform(post(path)).andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
     }
     @Test void threeOtherRolesReceive403IncludingMalformedImportBody() throws Exception {
         for (String role : List.of("READER", "LIBRARIAN", "LIBRARY_MANAGER")) {
             token(role);
-            for (String path : List.of("/api/v1/permission-review", "/api/v1/permission-review/reports", "/api/v1/permission-review/reports/1")) {
+            for (String path : List.of("/api/v1/permission-review", "/api/v1/permission-review/reports", "/api/v1/permission-review/reports/1", "/api/v1/permission-review/runs/latest", "/api/v1/permission-review/runs/00000000-0000-0000-0000-000000000001", "/api/v1/permission-review/reports/1/coverage", "/api/v1/permission-review/reports/1/export")) {
                 mvc.perform(get(path).header("Authorization", "Bearer review")).andExpect(status().isForbidden());
             }
             mvc.perform(post("/api/v1/permission-review/reports").header("Authorization", "Bearer review")
                     .contentType("application/json").content("broken")).andExpect(status().isForbidden());
+            for(String path:List.of("/api/v1/permission-review/runs","/api/v1/permission-review/reports/1/complete","/api/v1/permission-review/reports/not-a-number/complete"))
+                mvc.perform(post(path).header("Authorization","Bearer review")).andExpect(status().isForbidden());
         }
         verifyNoInteractions(service);
     }
@@ -78,6 +84,11 @@ class PermissionReviewControllerTest {
         mvc.perform(post("/api/v1/permission-review/reports").header("Authorization", "Bearer review")
                 .contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/permission-review/runs").header("Authorization","Bearer review")).andExpect(status().isAccepted());
+        mvc.perform(get("/api/v1/permission-review/reports/1/coverage").header("Authorization","Bearer review")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/permission-review/reports/1/export").header("Authorization","Bearer review")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/permission-review/reports/1/complete").header("Authorization","Bearer review")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/permission-review/runs/not-a-uuid").header("Authorization","Bearer review")).andExpect(status().isBadRequest());
         verify(service, never()).importReport(any(), any());
     }
 }

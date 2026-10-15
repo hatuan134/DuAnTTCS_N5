@@ -162,7 +162,7 @@ public class BookIncidentRepository {
         return jdbc.queryForObject("""
             SELECT jsonb_build_object('item',to_jsonb(li)||jsonb_build_object('returned_at',CAST(? AS timestamptz),
               'returned_by',CAST(? AS bigint),'returned_by_name',CAST(? AS text),'resolution_reason',CAST(? AS text)),
-              'copy',to_jsonb(c)||jsonb_build_object('status',CAST(? AS text)), 'fee',to_jsonb(f),
+              'copy',to_jsonb(c)||jsonb_build_object('status',CAST(? AS text),'updated_at',CURRENT_TIMESTAMP), 'fee',to_jsonb(f),
               'loanStatus',CAST(? AS text))::text
             FROM loan_items li JOIN book_copies c ON c.id=li.book_copy_id
               JOIN reader_fees f ON f.compensation_item_id=li.id WHERE li.id=?

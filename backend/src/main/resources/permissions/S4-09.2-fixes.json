@@ -1,0 +1,120 @@
+{
+  "sourceReference": "DuAnTTCS_N5(7).zip; baseline chạy thật trên database PostgreSQL 15 tạm riêng. Không dùng dữ liệu mô phỏng.",
+  "originalControllerSha256": {
+    "backend/src/main/java/com/duanttcsn5/library/controller/AuthorController.java": "4792cc44c70bf23614185b69687e8dd12243415b8a02a364b28e1dce24b3abfa",
+    "backend/src/main/java/com/duanttcsn5/library/controller/CategoryController.java": "1d8916a90f1f28a79c8593ce80fc7a9ac933dbed876341777b89ca7f4fd73888",
+    "backend/src/main/java/com/duanttcsn5/library/controller/CardTypeController.java": "e259665781af7e86d7a8b51c4699d1071244b8313e6ef2c36e9025aa61c58527"
+  },
+  "findings": [
+    {
+      "endpointId": "AuthorController.getAllAuthors",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:15.801415899+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "AuthorController.getActiveAuthors",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:16.030723619+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "AuthorController.getAuthorById",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:16.198823454+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CardTypeController.getAllCardTypes",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:16.455566405+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CardTypeController.getActiveCardTypes",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:16.681018273+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CardTypeController.getCardTypeById",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:16.848134129+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CategoryController.getAllCategories",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:17.139234402+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CategoryController.getActiveCategories",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:17.392592438+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "CategoryController.getCategoryById",
+      "httpMethod": "GET",
+      "role": "READER",
+      "observedStatus": 200,
+      "expectedStatus": 403,
+      "verifiedAt": "2026-10-15T16:36:17.560214082+08:00",
+      "baselineFingerprint": "ba88939ec9916e58a5155228edbd95475a3db3acab5cbd7ca621371ba9741a45",
+      "correction": "Bổ sung @PreAuthorize cho API đọc danh mục theo bảng quyền PO S4-09.2; kiểm thử lại bằng JWT Bạn đọc thật."
+    },
+    {
+      "endpointId": "BookIncidentController.confirmAdjustment",
+      "httpMethod": "POST",
+      "role": "ADMIN",
+      "observedStatus": 500,
+      "expectedStatus": 200,
+      "verifiedAt": "2026-10-15T16:33:10.547984806+08:00",
+      "baselineFingerprint": "6708913a925acdf9f25ea6d1c0fa4317a29b5977eff3df70f5a6def526b7fee7",
+      "correction": "V60 giữ toàn bộ guard nghiệp vụ, loại cột GENERATED adjustment_number khỏi so sánh BEFORE UPDATE để Admin/Quản lý xác nhận hợp lệ. Đồng bộ updated_at trong ảnh chụp dự kiến với trigger cập nhật bản sao; không bỏ kiểm tra ảnh chụp sau giao dịch."
+    },
+    {
+      "endpointId": "BookIncidentController.confirmAdjustment",
+      "httpMethod": "POST",
+      "role": "LIBRARY_MANAGER",
+      "observedStatus": 500,
+      "expectedStatus": 200,
+      "verifiedAt": "2026-10-15T16:33:10.646225382+08:00",
+      "baselineFingerprint": "6708913a925acdf9f25ea6d1c0fa4317a29b5977eff3df70f5a6def526b7fee7",
+      "correction": "V60 giữ toàn bộ guard nghiệp vụ, loại cột GENERATED adjustment_number khỏi so sánh BEFORE UPDATE để Admin/Quản lý xác nhận hợp lệ. Đồng bộ updated_at trong ảnh chụp dự kiến với trigger cập nhật bản sao; không bỏ kiểm tra ảnh chụp sau giao dịch."
+    }
+  ]
+}

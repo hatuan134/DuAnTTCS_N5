@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class PermissionReviewController {
     private final PermissionReviewService service;
+    @org.springframework.beans.factory.annotation.Autowired private com.duanttcsn5.library.service.PermissionReviewRunService runs;
+    @org.springframework.beans.factory.annotation.Autowired private com.duanttcsn5.library.service.PermissionReviewCoverageService coverage;
     public PermissionReviewController(PermissionReviewService service) { this.service = service; }
 
     @GetMapping
@@ -34,5 +36,23 @@ public class PermissionReviewController {
     public ResponseEntity<ReportDetail> importReport(@Valid @RequestBody ImportReport report,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.importReport(report, principal.id()));
+    }
+
+    @PostMapping("/runs")
+    public ResponseEntity<RunState> startRun(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(runs.start(principal.id()));
+    }
+    @GetMapping("/runs/latest")
+    public ResponseEntity<RunState> latestRun() {return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(runs.latest());}
+    @GetMapping("/runs/{runKey}")
+    public ResponseEntity<RunState> runStatus(@PathVariable java.util.UUID runKey) {return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(runs.get(runKey));}
+    @GetMapping("/reports/{id}/coverage")
+    public ResponseEntity<Coverage> coverage(@PathVariable Long id) {return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(coverage.coverage(id));}
+    @PostMapping("/reports/{id}/complete")
+    public ResponseEntity<Coverage> complete(@PathVariable Long id,@AuthenticationPrincipal UserPrincipal principal) {return ResponseEntity.ok(coverage.complete(id,principal.id()));}
+    @GetMapping("/reports/{id}/export")
+    public ResponseEntity<ExportReport> export(@PathVariable Long id) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("Content-Disposition","attachment; filename=BienBan_S4-09.2_"+id+".json").body(coverage.export(id));
     }
 }

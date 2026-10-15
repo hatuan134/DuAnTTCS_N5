@@ -14,21 +14,26 @@ public class PermissionReviewCatalog {
     private final byte[] source;
     private final Map<String, PolicyEntry> entries;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public PermissionReviewCatalog(ObjectMapper mapper) throws IOException {
-        try (var stream = new ClassPathResource("permissions/S4-09.1-policy.json").getInputStream()) {
+        this(mapper, "permissions/S4-09.2-policy.json");
+    }
+
+    public PermissionReviewCatalog(ObjectMapper mapper, String resource) throws IOException {
+        try (var stream = new ClassPathResource(resource).getInputStream()) {
             source = stream.readAllBytes();
         }
         policy = mapper.readValue(source, Policy.class);
         Map<String, PolicyEntry> indexed = new LinkedHashMap<>();
         Set<String> roleCodes = Set.of("ADMIN", "LIBRARY_MANAGER", "LIBRARIAN", "READER");
-        Set<String> modes = Set.of("ALLOW", "DENY", "OWN", "OVERRIDE");
+        Set<String> modes = Set.of("ALLOW", "DENY", "OWN", "OVERRIDE", "PUBLIC", "IMMUTABLE");
         Set<String> moduleCodes = new HashSet<>();
         policy.modules().forEach(module -> moduleCodes.add(module.code()));
         for (PolicyEntry entry : policy.entries()) {
             if (indexed.put(entry.id(), entry) != null || !entry.rules().keySet().equals(roleCodes)
                     || !modes.containsAll(entry.rules().values()) || !moduleCodes.contains(entry.module())
                     || entry.httpMethods().isEmpty() || !entry.path().startsWith("/api/v1/")) {
-                throw new IllegalStateException("Bảng quyền S4-09.1 không hợp lệ: " + entry.id());
+                throw new IllegalStateException("Bảng quyền không hợp lệ: " + entry.id());
             }
         }
         entries = Collections.unmodifiableMap(indexed);
@@ -39,9 +44,15 @@ public class PermissionReviewCatalog {
     public Optional<PolicyEntry> find(String id) { return Optional.ofNullable(entries.get(id)); }
 
     public int requiredStatus(PolicyEntry entry, String role, String scenario, int successStatus) {
-        if ("ANONYMOUS".equals(role)) return 401;
+        boolean publicApi = entry.rules().values().stream().allMatch("PUBLIC"::equals);
+        if ("ANONYMOUS".equals(role) && !publicApi) return 401;
+        if (publicApi) {
+            if (successStatus < 200 || successStatus >= 300) throw new IllegalArgumentException("Luồng công khai hợp lệ cần kết quả 2xx.");
+            return successStatus;
+        }
         String mode = entry.rules().getOrDefault(role, "DENY");
         if ("DENY".equals(mode)) return 403;
+        if ("IMMUTABLE".equals(mode)) return 405;
         if ("OTHER_OWNER".equals(scenario)) {
             if (!"OWN".equals(mode)) throw new IllegalArgumentException("Không phải luồng sở hữu tài nguyên.");
             return 404;

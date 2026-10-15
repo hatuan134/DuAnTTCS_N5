@@ -28,6 +28,7 @@ public class PermissionReviewInspector {
     private final RequestMappingHandlerMapping mappings;
     private final SecurityFilterChain filterChain;
     private final ServletContext servletContext;
+    private final org.springframework.core.io.support.PathMatchingResourcePatternResolver resolver = new org.springframework.core.io.support.PathMatchingResourcePatternResolver();
     private static final Pattern ROLE_GUARD = Pattern.compile("has(?:Any)?Role\\(\\s*'[^']+'(?:\\s*,\\s*'[^']+')*\\s*\\)");
     private static final Pattern ROLE_VALUE = Pattern.compile("'([^']+)'");
 
@@ -66,11 +67,43 @@ public class PermissionReviewInspector {
             reviewed.add(new ReviewedEntry(entry, guard, roles, mapped,
                     roles.stream().anyMatch(role -> !role.matches())));
         }
+        List<String> undocumented = new ArrayList<>();
+        if (catalog.policy().version().startsWith("S4-09.2")) {
+            for (var mapping : mappings.getHandlerMethods().entrySet()) {
+                if (!mapping.getValue().getBeanType().getName().startsWith("com.duanttcsn5.library.")) continue;
+                for (String path : mapping.getKey().getPatternValues()) {
+                    if (!path.startsWith("/api/v1/")) continue;
+                    for (var verb : mapping.getKey().getMethodsCondition().getMethods()) {
+                        boolean documented = catalog.policy().entries().stream().anyMatch(e -> e.path().equals(path)
+                                && e.httpMethods().contains(verb.name())
+                                && e.controller().equals(mapping.getValue().getBeanType().getSimpleName())
+                                && e.handler().equals(mapping.getValue().getMethod().getName()));
+                        if (!documented) {
+                            String id = mapping.getValue().getBeanType().getSimpleName() + "." + mapping.getValue().getMethod().getName()
+                                    + ":" + verb.name() + ":" + path;
+                            undocumented.add(verb.name() + " " + path);
+                            Map<String, String> unknownRules = new LinkedHashMap<>();
+                            catalog.policy().roles().forEach(role -> unknownRules.put(role.code(), "UNKNOWN"));
+                            var policy = new PolicyEntry(id, "UNDOCUMENTED", "API chưa có trong tài liệu quyền",
+                                    mapping.getValue().getBeanType().getSimpleName(), mapping.getValue().getMethod().getName(),
+                                    path, List.of(verb.name()), unknownRules, "Cần PO quy định quyền và bổ sung kiểm thử trước khi hoàn tất.",
+                                    !verb.name().equals("GET"));
+                            String guard = effectiveGuard(mapping.getValue());
+                            reviewed.add(new ReviewedEntry(policy, guard, catalog.policy().roles().stream()
+                                    .map(role -> new RoleComparison(role.code(), "UNKNOWN", gate(guard, role.code()), false)).toList(), true, true));
+                        }
+                    }
+                }
+            }
+        }
+        List<ModuleOption> modules = new ArrayList<>(catalog.policy().modules());
+        if (!undocumented.isEmpty()) modules.add(new ModuleOption("UNDOCUMENTED", "Chưa có tài liệu quyền", 99));
         return new Inspection(catalog.policy().version(), catalog.policy().decision(), fingerprint(reviewed),
-                OffsetDateTime.now(), catalog.policy().roles(), catalog.policy().modules(), reviewed.size(),
+                OffsetDateTime.now(), catalog.policy().roles(), modules, reviewed.size(),
                 (int) reviewed.stream().filter(ReviewedEntry::different).count(),
                 (int) reviewed.stream().filter(entry -> entry.roles().stream()
-                        .anyMatch(role -> "UNKNOWN".equals(role.actualGate()))).count(), reviewed);
+                        .anyMatch(role -> "UNKNOWN".equals(role.actualGate()) || "UNKNOWN".equals(role.documented()))).count(), reviewed,
+                reviewed.stream().mapToInt(e -> e.policy().httpMethods().size()).sum(), List.copyOf(undocumented));
     }
 
     private String effectiveGuard(HandlerMethod handler) {
@@ -142,42 +175,21 @@ public class PermissionReviewInspector {
             for (ReviewedEntry entry : reviewed) {
                 digest.update((entry.policy().id() + ":" + entry.mapped() + ":" + entry.guard()).getBytes(StandardCharsets.UTF_8));
             }
-            for (String controller : catalog.policy().entries().stream().map(PolicyEntry::controller).distinct().sorted().toList()) {
-                String path = "/com/duanttcsn5/library/controller/" + controller + ".class";
-                try (var stream = getClass().getResourceAsStream(path)) {
-                    if (stream == null) throw new IllegalStateException("Thiếu bytecode controller: " + controller);
-                    digest.update(stream.readAllBytes());
+            Map<String, org.springframework.core.io.Resource> resources = new TreeMap<>();
+            for (String area : List.of("controller", "service", "security", "repository", "dto", "config", "entity")) {
+                for (var resource : resolver.getResources("classpath*:com/duanttcsn5/library/" + area + "/**/*.class")) {
+                    String uri = resource.getURI().toString();
+                    String key = uri.substring(uri.indexOf("com/duanttcsn5/library/"));
+                    if (uri.contains("test-classes")) continue;
+                    resources.putIfAbsent(key, resource);
                 }
             }
-            // Bind evidence to compiled security AND business guards, not just the role document.
-            for (Class<?> type : List.of(
-                    com.duanttcsn5.library.config.SecurityConfig.class,
-                    com.duanttcsn5.library.security.JwtAuthenticationFilter.class,
-                    com.duanttcsn5.library.security.JwtService.class,
-                    com.duanttcsn5.library.security.RestAuthenticationEntryPoint.class,
-                    com.duanttcsn5.library.security.RestAccessDeniedHandler.class,
-                    LoanService.class, ReaderRegistrationService.class, ReaderSelfService.class,
-                    LibraryCardService.class, CardLockSuggestionService.class, BookReservationService.class,
-                    ReservationAutoCancellationService.class, FeePaymentService.class, FeeReductionService.class,
-                    BookCopyService.class, BookIncidentService.class, OverdueContactService.class,
-                    com.duanttcsn5.library.repository.LoanRepository.class,
-                    com.duanttcsn5.library.repository.BookReservationRepository.class,
-                    com.duanttcsn5.library.repository.ReaderProfileRepository.class,
-                    com.duanttcsn5.library.repository.UserRepository.class,
-                    com.duanttcsn5.library.repository.LibraryCardRepository.class,
-                    com.duanttcsn5.library.repository.BookCopyRepository.class,
-                    com.duanttcsn5.library.repository.BookCopyLifecycleRepository.class,
-                    com.duanttcsn5.library.repository.FeePaymentRepository.class,
-                    com.duanttcsn5.library.repository.OverdueFeeRepository.class,
-                    com.duanttcsn5.library.repository.BookIncidentRepository.class,
-                    com.duanttcsn5.library.repository.CardLockSuggestionRepository.class,
-                    com.duanttcsn5.library.repository.OverdueContactRepository.class)) {
-                String path = "/" + type.getName().replace('.', '/') + ".class";
-                try (var stream = type.getResourceAsStream(path)) {
-                    if (stream == null) throw new IllegalStateException("Thiếu bytecode kiểm chứng: " + type.getSimpleName());
-                    digest.update(type.getName().getBytes(StandardCharsets.UTF_8));
-                    digest.update(stream.readAllBytes());
-                }
+            for (String pattern : List.of("classpath*:db/migration/*.sql", "classpath*:permissions/S4-09.2-fixes.json")) {
+                for (var resource : resolver.getResources(pattern)) resources.put("resource/"+resource.getFilename(),resource);
+            }
+            for (var resource : resources.entrySet()) {
+                digest.update(resource.getKey().getBytes(StandardCharsets.UTF_8));
+                try (var stream = resource.getValue().getInputStream()) { digest.update(stream.readAllBytes()); }
             }
             return HexFormat.of().formatHex(digest.digest());
         } catch (Exception exception) {
