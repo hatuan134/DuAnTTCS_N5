@@ -96,7 +96,7 @@ test('any payment, processed status or excessive amount disables approval previe
   }
 })
 test('only manager receives decision controls and processed requests receive none', () => {
-  for (const role of ['LIBRARIAN', 'ADMIN', 'READER']) assert.equal(actions({ role }).html(), '')
+  for (const role of ['LIBRARIAN', 'READER']) assert.equal(actions({ role }).html(), '')
   assert.equal(actions({ request: approved }).html(), '')
   assert.match(actions().html(), /Phê duyệt/); assert.match(actions().html(), /Từ chối/)
 })

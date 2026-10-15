@@ -24,17 +24,17 @@ public class BookIncidentController {
         return service.updateFactors(factors,actor.id());
     }
     @GetMapping("/open-items")
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public List<Item> search(@RequestParam(defaultValue="") String query,@AuthenticationPrincipal UserPrincipal actor) {
         return service.search(query,actor.id());
     }
     @GetMapping("/preview")
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public Preview preview(@RequestParam(required=false) Long itemId,@RequestParam(required=false) String type,@AuthenticationPrincipal UserPrincipal actor) {
         return service.preview(itemId,type,actor.id());
     }
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<Incident> confirm(@RequestParam(required=false) Long itemId,@RequestParam(required=false) String type,
             @RequestParam(required=false) String description,@RequestParam(required=false) String previewToken,
             @RequestParam(value="files",required=false) List<MultipartFile> files,

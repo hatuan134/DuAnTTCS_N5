@@ -66,7 +66,7 @@ class FeePaymentControllerTest {
         verifyNoInteractions(service);
     }
     @Test void nonLibrariansCannotSearchReadCollectOrReprint() throws Exception {
-        for (String role : new String[]{"ADMIN", "LIBRARY_MANAGER", "READER"}) {
+        for (String role : new String[]{"LIBRARY_MANAGER", "READER"}) {
             token(role); mvc.perform(collect(BODY)).andExpect(status().isForbidden());
             mvc.perform(get(ROOT + "/readers").param("query", "THE").header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
             mvc.perform(get(ROOT + "/readers/7").header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
@@ -107,7 +107,7 @@ class FeePaymentControllerTest {
     }
     @Test void partialEndpointRequiresValidJwtAndLibrarianRole() throws Exception {
         mvc.perform(post(ROOT + "/readers/7/collect-partial").contentType("application/json").content(PARTIAL_BODY)).andExpect(status().isUnauthorized());
-        for (String role : new String[]{"ADMIN", "LIBRARY_MANAGER", "READER"}) {
+        for (String role : new String[]{"LIBRARY_MANAGER", "READER"}) {
             token(role); mvc.perform(partialRequest(PARTIAL_BODY)).andExpect(status().isForbidden());
         }
         var user = token("LIBRARIAN"); user.setStatus("DISABLED");

@@ -348,6 +348,13 @@ public class LoanRepository {
                 """, (rs, index) -> rs.getString("loan_number"), reservationId, reservationId).stream().findFirst();
     }
 
+    /** Sequence values are never reused, including rolled back loan transactions. */
+    public String nextLoanNumber() {
+        Long value = jdbc.queryForObject("SELECT nextval('loan_number_seq')", Long.class);
+        if (value == null || value < 1) throw new IllegalStateException("Không cấp được mã phiếu mượn.");
+        return "PM-" + String.format(java.util.Locale.ROOT, "%06d", value);
+    }
+
     public Long insert(Long reservationId, Long readerId, Long actorId,
                        String loanNumber, OffsetDateTime borrowedAt) {
         return jdbc.queryForObject("""
@@ -500,16 +507,7 @@ public class LoanRepository {
      * card/loan/barcode matches never multiply the count.
      */
     public long countLoansByCode(String code) {
-        Long total = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM loans l
-                WHERE l.loan_number = ?
-                   OR EXISTS (SELECT 1 FROM library_cards card
-                              WHERE card.user_id = l.borrower_user_id AND card.card_number = ?)
-                   OR EXISTS (SELECT 1 FROM loan_items matched
-                              JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
-                              WHERE matched.loan_id = l.id AND matched_copy.barcode = ?)
-                """, Long.class, code, code, code);
-        return total == null ? 0L : total;
+        return countLoansByCode(code, null, null, null);
     }
 
     /** A loan number can exist even when additional search filters exclude its loan. */
@@ -523,7 +521,13 @@ public class LoanRepository {
     public record LoanSearchRow(Long loanId, String loanNumber, String cardNumber,
                                 String readerName, OffsetDateTime borrowedAt,
                                 Long itemId, String barcode, String bookTitle,
-                                OffsetDateTime dueAt, OffsetDateTime returnedAt, String resolutionReason) {
+                                OffsetDateTime dueAt, OffsetDateTime returnedAt, String resolutionReason,
+                                Long readerId, String readerPhone) {
+        public LoanSearchRow(Long loanId,String loanNumber,String cardNumber,String readerName,
+                OffsetDateTime borrowedAt,Long itemId,String barcode,String bookTitle,OffsetDateTime dueAt,
+                OffsetDateTime returnedAt,String resolutionReason) {
+            this(loanId,loanNumber,cardNumber,readerName,borrowedAt,itemId,barcode,bookTitle,dueAt,returnedAt,resolutionReason,null,null);
+        }
         public LoanSearchRow(Long loanId,String loanNumber,String cardNumber,String readerName,
                 OffsetDateTime borrowedAt,Long itemId,String barcode,String bookTitle,OffsetDateTime dueAt,OffsetDateTime returnedAt) {
             this(loanId,loanNumber,cardNumber,readerName,borrowedAt,itemId,barcode,bookTitle,dueAt,returnedAt,null);
@@ -536,47 +540,7 @@ public class LoanRepository {
      * A legacy empty loan is not classified as returned.
      */
     public List<LoanSearchRow> searchLoansByCode(String code, int limit, long offset) {
-        return jdbc.query("""
-                WITH matched_loans AS (
-                    SELECT l.id, l.borrowed_at,
-                           CASE WHEN EXISTS (SELECT 1 FROM loan_items open_item
-                                            WHERE open_item.loan_id = l.id AND open_item.returned_at IS NULL)
-                                  OR NOT EXISTS (SELECT 1 FROM loan_items any_item
-                                                 WHERE any_item.loan_id = l.id)
-                                THEN 0 ELSE 1 END AS status_order
-                    FROM loans l
-                    WHERE l.loan_number = ?
-                       OR EXISTS (SELECT 1 FROM library_cards matched_card
-                                  WHERE matched_card.user_id = l.borrower_user_id
-                                    AND matched_card.card_number = ?)
-                       OR EXISTS (SELECT 1 FROM loan_items matched
-                                  JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
-                                  WHERE matched.loan_id = l.id AND matched_copy.barcode = ?)
-                ), selected_loans AS (
-                    SELECT id, borrowed_at, status_order FROM matched_loans
-                    ORDER BY status_order ASC, borrowed_at DESC, id DESC
-                    LIMIT ? OFFSET ?
-                )
-                SELECT l.id AS loan_id, l.loan_number, card.card_number,
-                       reader.full_name AS reader_name, l.borrowed_at,
-                       li.id AS item_id, c.barcode, b.title AS book_title,
-                       li.due_date, li.returned_at, li.resolution_reason
-                FROM selected_loans selected
-                JOIN loans l ON l.id = selected.id
-                JOIN users reader ON reader.id = l.borrower_user_id
-                LEFT JOIN library_cards card ON card.user_id = l.borrower_user_id
-                LEFT JOIN loan_items li ON li.loan_id = l.id
-                LEFT JOIN book_copies c ON c.id = li.book_copy_id
-                LEFT JOIN books b ON b.id = c.book_id
-                ORDER BY selected.status_order ASC, selected.borrowed_at DESC,
-                         selected.id DESC, li.id ASC
-                """, (rs, index) -> new LoanSearchRow(
-                rs.getLong("loan_id"), rs.getString("loan_number"),
-                rs.getString("card_number"), rs.getString("reader_name"),
-                rs.getObject("borrowed_at", OffsetDateTime.class),
-                rs.getObject("item_id", Long.class), rs.getString("barcode"),
-                rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason")), code, code, code, limit, offset);
+        return searchLoansByCode(code, null, null, null, limit, offset);
     }
 
     /** The same predicate is used for count and page so totals cannot drift.
@@ -585,12 +549,18 @@ public class LoanRepository {
      * avoids truncating a timestamptz and preserves timestamp index usage.
      */
     private static final String FILTERED_LOAN_WHERE = """
-            WHERE (l.loan_number = ?
+            WHERE (?::text = '' OR strpos(lower(l.loan_number), lower(?)) > 0
                 OR EXISTS (SELECT 1 FROM library_cards matched_card
-                           WHERE matched_card.user_id = l.borrower_user_id AND matched_card.card_number = ?)
+                           WHERE matched_card.user_id = l.borrower_user_id
+                             AND strpos(lower(matched_card.card_number), lower(?)) > 0)
                 OR EXISTS (SELECT 1 FROM loan_items matched
                            JOIN book_copies matched_copy ON matched_copy.id = matched.book_copy_id
-                           WHERE matched.loan_id = l.id AND matched_copy.barcode = ?))
+                           WHERE matched.loan_id = l.id AND strpos(lower(matched_copy.barcode), lower(?)) > 0)
+                OR EXISTS (SELECT 1 FROM users matched_reader WHERE matched_reader.id = l.borrower_user_id
+                           AND (strpos(lower(matched_reader.full_name), lower(?)) > 0
+                             OR (?::text ~ '^[+0-9 .()/-]*[0-9][+0-9 .()/-]*$'
+                               AND strpos(regexp_replace(coalesce(matched_reader.phone, ''), '[^0-9]', '', 'g'),
+                                          regexp_replace(?::text, '[^0-9]', '', 'g')) > 0))))
               AND (?::timestamptz IS NULL OR l.borrowed_at >= ?::timestamptz)
               AND (?::timestamptz IS NULL OR l.borrowed_at < ?::timestamptz)
               AND (?::text IS NULL OR (CASE
@@ -615,7 +585,7 @@ public class LoanRepository {
                 : fromDate.atStartOfDay(LOAN_SEARCH_ZONE).toOffsetDateTime();
         OffsetDateTime endExclusive = toDate == null ? null
                 : toDate.plusDays(1).atStartOfDay(LOAN_SEARCH_ZONE).toOffsetDateTime();
-        return new Object[]{code, code, code, start, start, endExclusive, endExclusive, status, status};
+        return new Object[]{code, code, code, code, code, code, code, start, start, endExclusive, endExclusive, status, status};
     }
 
     public long countLoansByCode(String code, LocalDate fromDate, LocalDate toDate, String status) {
@@ -643,7 +613,7 @@ public class LoanRepository {
                     LIMIT ? OFFSET ?
                 )
                 SELECT l.id AS loan_id, l.loan_number, card.card_number,
-                       reader.full_name AS reader_name, l.borrowed_at,
+                       reader.full_name AS reader_name, reader.id AS reader_id, reader.phone AS reader_phone, l.borrowed_at,
                        li.id AS item_id, c.barcode, b.title AS book_title,
                        li.due_date, li.returned_at, li.resolution_reason
                 FROM selected_loans selected
@@ -666,7 +636,33 @@ public class LoanRepository {
                 rs.getObject("borrowed_at", OffsetDateTime.class),
                 rs.getObject("item_id", Long.class), rs.getString("barcode"),
                 rs.getString("book_title"), rs.getObject("due_date", OffsetDateTime.class),
-                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason")), args);
+                rs.getObject("returned_at", OffsetDateTime.class), rs.getString("resolution_reason"),
+                rs.getLong("reader_id"), rs.getString("reader_phone")), args);
+    }
+
+    private static final String READER_LOOKUP = """
+            FROM users u JOIN roles role ON role.id = u.role_id
+            LEFT JOIN library_cards card ON card.user_id = u.id
+            LEFT JOIN reader_profiles profile ON profile.user_id = u.id
+            WHERE role.code = 'READER' AND (?::text = ''
+                OR strpos(lower(u.full_name), lower(?)) > 0
+                OR strpos(lower(coalesce(card.card_number, '')), lower(?)) > 0
+                OR strpos(lower(coalesce(profile.member_code, '')), lower(?)) > 0
+                OR (?::text ~ '^[+0-9 .()/-]*[0-9][+0-9 .()/-]*$'
+                    AND strpos(regexp_replace(coalesce(u.phone, ''), '[^0-9]', '', 'g'),
+                               regexp_replace(?::text, '[^0-9]', '', 'g')) > 0))
+            """;
+
+    public com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse searchReaders(String keyword, int page) {
+        Object[] args = {keyword, keyword, keyword, keyword, keyword, keyword};
+        Long total = jdbc.queryForObject("SELECT count(*) " + READER_LOOKUP, Long.class, args);
+        Object[] paged = java.util.Arrays.copyOf(args, args.length + 2);
+        paged[args.length] = 10; paged[args.length + 1] = (long) page * 10;
+        var items = jdbc.query("SELECT u.id, u.full_name, u.phone, card.card_number " + READER_LOOKUP
+                + " ORDER BY u.full_name, u.id LIMIT ? OFFSET ?", (rs, n) ->
+                new com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse.Reader(
+                        rs.getLong("id"), rs.getString("full_name"), rs.getString("phone"), rs.getString("card_number")), paged);
+        return new com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse(items, page, 10, total == null ? 0 : total);
     }
 
     public List<LoanSummaryResponse> findAllForStaff() {

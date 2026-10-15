@@ -6,8 +6,13 @@ import java.util.List;
 /** One result per loan; all historical copy items remain visible beneath that loan. */
 public record LoanSearchResultResponse(
         Long id, String loanNumber, String cardNumber, String readerName,
-        OffsetDateTime borrowedAt, String status, List<Item> items
+        OffsetDateTime borrowedAt, String status, List<Item> items, Long readerId, String readerPhone
 ) {
+    public LoanSearchResultResponse(Long id, String loanNumber, String cardNumber, String readerName,
+            OffsetDateTime borrowedAt, String status, List<Item> items) {
+        this(id, loanNumber, cardNumber, readerName, borrowedAt, status, items, null, null);
+    }
+
     public LoanSearchResultResponse {
         items = List.copyOf(items);
     }

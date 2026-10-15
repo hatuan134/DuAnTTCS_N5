@@ -75,7 +75,7 @@ class FeeReductionControllerTest {
         verifyNoInteractions(service);
     }
     @Test void onlyLibrarianCanPostEvenWhenOtherRolesCallApiDirectly() throws Exception {
-        for (String role : new String[]{"READER", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARY_MANAGER"}) {
             token(role); mvc.perform(call(BODY)).andExpect(status().isForbidden());
         }
         verifyNoInteractions(service);
@@ -112,7 +112,7 @@ class FeeReductionControllerTest {
         mvc.perform(call(BODY)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REDUCTION_AMOUNT"));
     }
     @Test void pendingListIsManagerOnlyAndUsesExistingResponseContract() throws Exception {
-        for (String role : new String[]{"READER", "LIBRARIAN", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARIAN"}) {
             token(role); mvc.perform(get(PENDING).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isForbidden());
         }

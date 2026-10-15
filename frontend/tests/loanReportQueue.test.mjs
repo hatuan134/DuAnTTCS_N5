@@ -21,7 +21,7 @@ test('queue shows timestamp, reload and empty message without changing report ro
   assert.match(page, /Asia\/Ho_Chi_Minh/)
   assert.match(page, /setRefreshKey\(key => key \+ 1\)/)
   assert.match(page, /Chưa có đầu sách nào đang được đặt giữ/)
-  assert.match(page, /getCurrentUser\(\)\?\.role === 'LIBRARY_MANAGER'/)
+  assert.match(page, /\['LIBRARY_MANAGER', 'ADMIN'\]\.includes/)
   assert.match(page, /<Navigate to="\/dashboard" replace/)
 })
 

@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { useState, useEffect, useCallback } from 'react'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { Send, RefreshCw, Eye, Filter } from 'lucide-react'
@@ -58,7 +59,7 @@ export default function LoanRemindersPage() {
       setTotalElements(res.totalElements)
     } catch (err: any) {
       setLoadFailed(true)
-      setError(err?.response?.data?.message || err?.message || 'Không thể tải lịch sử gửi email nhắc nhở')
+      setError(getApiErrorMessage(err, 'Không thể tải lịch sử gửi email nhắc nhở'))
     } finally {
       setLoading(false)
     }
@@ -78,7 +79,7 @@ export default function LoanRemindersPage() {
       setRetryResultTone(feedback.tone)
       void fetchLogs()
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Lỗi khi thực hiện thử lại các email chờ')
+      setError(getApiErrorMessage(err, 'Lỗi khi thực hiện thử lại các email chờ'))
     } finally {
       setRetrying(false)
     }
@@ -94,7 +95,7 @@ export default function LoanRemindersPage() {
       setRetryResultTone(feedback.tone)
       void fetchLogs()
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Lỗi khi thử lại email này')
+      setError(getApiErrorMessage(err, 'Lỗi khi thử lại email này'))
     } finally {
       setRetrying(false)
     }

@@ -137,10 +137,7 @@ public class LoanReminderService {
                         email, group.reminderGroup(), group.totalEstimatedFeeVnd());
             } catch (Exception ex) {
                 log.error("Failed to send reminder email to {} for group {}: {}", email, group.reminderGroup(), ex.getMessage(), ex);
-                String reason = ex.getMessage();
-                if (reason != null && reason.contains("smtp.gmail.com")) {
-                    reason = "Không thể kết nối đến máy chủ gửi email SMTP: " + reason;
-                }
+                String reason = LoanReminderFailureMessages.from(ex);
                 // Temporary dispatch failure is placed in PENDING_RETRY queue for up to 3 automatic retries
                 recordInitialLog(targetDate, group, "PENDING_RETRY", reason,
                         triggeredBy, triggeredByUserId, triggeredByUserName, true);
@@ -215,10 +212,7 @@ public class LoanReminderService {
                 succeededCount++;
                 log.info("Retry attempt {} succeeded for logId={}", newRetryCount, logItem.id());
             } catch (Exception ex) {
-                String reason = ex.getMessage();
-                if (reason != null && reason.length() > 900) {
-                    reason = reason.substring(0, 900) + "...";
-                }
+                String reason = LoanReminderFailureMessages.from(ex);
                 log.warn("Retry attempt {} failed for logId={}: {}", newRetryCount, logItem.id(), reason);
 
                 if (newRetryCount >= logItem.maxRetries()) {

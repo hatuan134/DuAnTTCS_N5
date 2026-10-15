@@ -46,7 +46,7 @@ export default function LoanReportPage() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
   const [notice, setNotice] = useState('')
-  const allowed = getCurrentUser()?.role === 'LIBRARY_MANAGER'
+  const allowed = ['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   const dateError = !startDate || !endDate
     ? 'Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.'
     : startDate > endDate

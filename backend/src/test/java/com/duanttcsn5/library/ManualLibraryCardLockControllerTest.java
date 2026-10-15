@@ -88,8 +88,8 @@ class ManualLibraryCardLockControllerTest {
         mvc.perform(request("{\"reason\":\"Vi phạm\"}" )).andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
     }
-    @Test void onlyLibraryManagerCanLockIncludingAdminDenied() throws Exception {
-        for (String role : new String[]{"READER", "LIBRARIAN", "ADMIN"}) {
+    @Test void readerAndLibrarianCannotLock() throws Exception {
+        for (String role : new String[]{"READER", "LIBRARIAN"}) {
             token(role);
             mvc.perform(request("{\"reason\":\"Vi phạm\"}").header("Authorization", "Bearer test-token"))
                     .andExpect(status().isForbidden());

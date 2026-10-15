@@ -76,7 +76,7 @@ class FeeReductionDecisionControllerTest {
         verifyNoInteractions(service);
     }
     @Test void librarianAdminAndReaderCannotApproveOrRejectDirectly() throws Exception {
-        for (String role : new String[]{"LIBRARIAN", "ADMIN", "READER"}) {
+        for (String role : new String[]{"LIBRARIAN", "READER"}) {
             token(role);
             mvc.perform(call("approve", "{}")).andExpect(status().isForbidden());
             mvc.perform(call("reject", "{\"reason\":\"Lý do\"}")).andExpect(status().isForbidden());

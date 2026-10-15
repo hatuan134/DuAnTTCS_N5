@@ -15,8 +15,8 @@ import ReviewFeeReductionActions from './ReviewFeeReductionActions'
 
 export default function PendingFeeReductionsPage() {
   const user = getCurrentUser()
-  if (user?.role !== 'LIBRARY_MANAGER') return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Quản lý thư viện được xem danh sách đề nghị miễn giảm đang chờ duyệt.</p>
-  return <PendingRequests key={user.id} />
+  if (!['LIBRARY_MANAGER', 'ADMIN'].includes(user?.role ?? '')) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Quản lý thư viện được xem danh sách đề nghị miễn giảm đang chờ duyệt.</p>
+  return <PendingRequests key={user?.id} />
 }
 
 function PendingRequests() {

@@ -67,10 +67,10 @@ export function countOverdueLoanVouchers(items: OverdueLoanItem[]): number {
 export function describeOverdueFilter(filter: OverdueDaysFilter | null): string {
   if (!filter || (filter.minimum === null && filter.maximum === null)) return 'Tất cả mức quá hạn'
   if (filter.minimum !== null && filter.maximum !== null) {
-    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} đến ${filter.maximum} ngày mở cửa`
+    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} đến ${filter.maximum} ngày`
   }
   if (filter.minimum !== null) {
-    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} ngày mở cửa`
+    return `${filter.exclusiveMinimum ? 'Trên ' : 'Từ '}${filter.minimum} ngày`
   }
-  return `Tối đa ${filter.maximum} ngày mở cửa`
+  return `Tối đa ${filter.maximum} ngày`
 }

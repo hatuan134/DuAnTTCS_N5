@@ -1,10 +1,11 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
-const require=createRequire(import.meta.url), react=require('react')
+const require=createS4Require(import.meta.url), react=require('react')
 const root=new URL('../src/features/s4-03-book-incidents/',import.meta.url)
 function load(file,imports={},globals={}) {
   const ctx={exports:{},require:key=>imports[key]??require(key),...globals}
@@ -47,8 +48,8 @@ async function select(f){await f.forms()[0].props.onSubmit(event);f.render();f.b
 function describe(f){f.find(n=>n.type==='textarea').props.onChange({target:{value:'Mất sách khi di chuyển'}});f.render()}
 const flush=()=>new Promise(r=>setImmediate(r))
 test('unsupported roles cannot mount data workspace',()=>{for(const role of ['READER','UNKNOWN']){const f=fixture(role);assert.deepEqual(f.calls,[]);assert.equal(f.find(n=>n.props?.role==='alert').props.role,'alert')}})
-test('manager and admin can view incident history without recording new incidents',()=>{
- for(const role of ['LIBRARY_MANAGER','ADMIN']) { const f=fixture(role);assert.equal(f.forms().length,1);assert.equal(f.button('Tìm phiếu'),undefined);assert.ok(f.button('Xem nhật ký')) }
+test('manager can view incident history without recording new incidents',()=>{
+ for(const role of ['LIBRARY_MANAGER']) { const f=fixture(role);assert.equal(f.forms().length,1);assert.equal(f.button('Tìm phiếu'),undefined);assert.ok(f.button('Xem nhật ký')) }
 })
 
 test('description required without sending preview',async()=>{const f=fixture();await select(f);await f.forms()[1].props.onSubmit(event);f.render();assert.deepEqual(f.calls,['search']);assert.ok(f.find(n=>n.props?.id==='description-error'))})

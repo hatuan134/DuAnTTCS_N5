@@ -105,7 +105,7 @@ test('conflict keeps dialog open and reloads authoritative status without updati
   assert.match(d.notice().props.message, /không còn khóa/); assert.equal(d.saved.length, 0)
   assert.equal(d.button('Mở khóa thẻ'), undefined); assert.ok(d.button('Đóng'))
 })
-for (const role of ['ADMIN', 'LIBRARIAN', 'READER']) test(`${role} never sees unlock action`, async () => {
+for (const role of ['LIBRARIAN', 'READER']) test(`${role} never sees unlock action`, async () => {
   const d = dialog(async () => original, role); await settle(); d.render(); assert.equal(d.button('Mở khóa thẻ'), undefined); d.f.unmount()
 })
 test('load error produces feedback and retry without enabling an unlock from stale data', async () => {

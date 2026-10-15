@@ -1,3 +1,4 @@
+import TimedFieldMessage from './TimedFieldMessage'
 import { useId } from 'react'
 import type {
   InputHTMLAttributes,
@@ -74,9 +75,7 @@ export default function Input({
       </div>
 
       {error && (
-        <p id={`${inputId}-error`} className="mt-1.5 text-xs font-medium text-red-600">
-          {error}
-        </p>
+        <TimedFieldMessage id={`${inputId}-error`}>{error}</TimedFieldMessage>
       )}
     </div>
   )

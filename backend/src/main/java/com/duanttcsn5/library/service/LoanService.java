@@ -459,7 +459,7 @@ public class LoanService {
         }
         if (maxBooks < 0 || maxBooks > 10) throw new ApiException(HttpStatus.CONFLICT,
                 "LOAN_POLICY_NOT_CONFIGURED", "Loại thẻ chưa có giới hạn mượn hợp lệ từ 0 đến 10 sách.");
-        String loanNumber = "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
+        String loanNumber = loans.nextLoanNumber();
         Long loanId = loans.insert(reservationId, readerId, actorId, loanNumber, borrowedAt);
         loans.insertItem(loanId, copy.getId(), borrowedAt, dates.dueAt());
         // insertItem has succeeded and its existing trigger has changed the copy to BORROWED.
@@ -863,7 +863,7 @@ public class LoanService {
         var dates = calculateDates(card, borrowedAt);
         try {
             Long loanId = loans.insertDirect(readerId, actorId,
-                    "PM-" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT), borrowedAt,
+                    loans.nextLoanNumber(), borrowedAt,
                     request.requestId(), fingerprint);
             // Keep the scanned order in the loan while acquiring locks in a deterministic order.
             for (var identity : identities) loans.insertItem(loanId, identity.copyId(), borrowedAt, dates.dueAt());
@@ -1187,9 +1187,9 @@ public class LoanService {
                                                String fromDate, String toDate, String status) {
         requireStaff(actorId, "tra cứu phiếu mượn");
         String code = enteredCode == null ? "" : enteredCode.trim();
-        if (code.isEmpty() || code.length() > 100) {
+        if (code.length() > 100) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_CODE",
-                    "Vui lòng nhập mã thẻ, mã vạch hoặc mã phiếu từ 1 đến 100 ký tự.");
+                    "Từ khóa tìm kiếm không được vượt quá 100 ký tự.");
         }
         if (page < 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOAN_SEARCH_PAGE",
@@ -1209,7 +1209,7 @@ public class LoanService {
         }
         if ("ALL".equals(normalizedStatus) || normalizedStatus.isEmpty()) normalizedStatus = null;
         boolean hasFilters = start != null || end != null || normalizedStatus != null;
-        final int size = 20;
+        final int size = 10;
         long total = hasFilters
                 ? loans.countLoansByCode(code, start, end, normalizedStatus)
                 : loans.countLoansByCode(code);
@@ -1231,7 +1231,7 @@ public class LoanService {
             var items = entry.getValue();
             String loanStatus = LoanClosurePolicy.loan(items.stream().map(LoanSearchResultResponse.Item::status).toList());
             return new LoanSearchResultResponse(header.loanId(), header.loanNumber(), header.cardNumber(),
-                    header.readerName(), header.borrowedAt(), loanStatus, items);
+                    header.readerName(), header.borrowedAt(), loanStatus, items, header.readerId(), header.readerPhone());
         }).toList();
         // Determine the reason only for a genuinely empty search, never for a page beyond
         // the last result. The existing count/query/order and authorization stay intact.
@@ -1247,6 +1247,15 @@ public class LoanService {
             }
         }
         return new LoanSearchPageResponse(pageItems, page, size, total, emptyReason);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse searchReaders(String keyword, int page, Long actorId) {
+        requireStaff(actorId, "tìm bạn đọc tại quầy");
+        String value = keyword == null ? "" : keyword.strip();
+        if (value.length() > 100 || page < 0) throw new ApiException(HttpStatus.BAD_REQUEST,
+                "INVALID_READER_SEARCH", "Từ khóa tối đa 100 ký tự; số trang phải từ 0.");
+        return loans.searchReaders(value, page);
     }
 
     private static LocalDate parseLoanSearchDate(String raw) {

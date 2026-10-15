@@ -14,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/fee-payments")
-@PreAuthorize("hasRole('LIBRARIAN')")
+@PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
 public class FeePaymentController {
     private final FeePaymentService service;
     public FeePaymentController(FeePaymentService service) { this.service = service; }

@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
@@ -18,7 +19,7 @@ export default function BookIncidentsPage() {
   return <IncidentWorkspace />
 }
 function IncidentWorkspace() {
-  const isLibrarian = getCurrentUser()?.role === 'LIBRARIAN'
+  const isLibrarian = ['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')
   function updateIncident(value: IncidentRecord) {
     setSaved(old => old?.id === value.id ? value : old && old.item.loanId === value.item.loanId ? { ...old, loanStatus: value.loanStatus } : old)
     setHistory(old => old.map(row => row.id === value.id ? value : row.item.loanId === value.item.loanId ? { ...row, loanStatus: value.loanStatus } : row))
@@ -111,13 +112,13 @@ function IncidentWorkspace() {
       <div><label htmlFor="incident-description" className="mb-2 block text-sm font-semibold">Mô tả tình trạng sách *</label>
         <textarea id="incident-description" value={description} maxLength={1900} disabled={busy} rows={4} aria-invalid={!!descriptionError} aria-describedby={descriptionError ? 'description-error' : undefined}
           onChange={e => { setDescription(e.target.value); setDescriptionError('') }} className="w-full rounded-xl border border-slate-300 p-3 text-sm" placeholder="Mô tả việc mất sách hoặc mức độ hư hỏng..." />
-        {descriptionError && <p id="description-error" className="mt-1 text-sm text-red-700">{descriptionError}</p>}</div>
+        {descriptionError && <TimedFieldMessage id="description-error" className="mt-1 text-sm text-red-700">{descriptionError}</TimedFieldMessage>}</div>
       <Input type="file" label="Ảnh tình trạng sách (không bắt buộc)" accept="image/jpeg,image/png,image/webp" multiple disabled={busy} onChange={e => {
         const next = [...files, ...Array.from(e.target.files ?? [])]; const error = validateIncidentFiles(next)
         setFileError(error); if (!error) setFiles(next); e.target.value = ''
       }} />
       <p className="text-xs text-slate-500">Tối đa 5 ảnh JPEG/PNG/WebP tĩnh, 5 MB/ảnh và 25 triệu điểm ảnh. Có thể bỏ ảnh trước khi xác nhận.</p>
-      {fileError && <p role="alert" className="text-sm text-red-700">{fileError}</p>}
+      {fileError && <TimedFieldMessage className="text-sm text-red-700">{fileError}</TimedFieldMessage>}
       <div className="grid gap-3 sm:grid-cols-3">{files.map((file, index) => <figure key={`${file.name}:${index}`} className="min-w-0 rounded-lg border p-2">
         {urls[index] && <img src={urls[index]} alt={`Ảnh xem trước ${index + 1}`} className="h-32 w-full object-contain" />}<figcaption className="break-all text-xs">{file.name}</figcaption>
         <Button variant="ghost" type="button" disabled={busy} onClick={() => setFiles(values => values.filter((_, i) => i !== index))}>Bỏ ảnh</Button>
@@ -143,7 +144,7 @@ function IncidentWorkspace() {
             <label htmlFor="adjustment-reason" className="block text-sm font-semibold">Lý do điều chỉnh (bắt buộc khi đổi tiền)</label>
             <textarea id="adjustment-reason" value={reason} rows={3} maxLength={1900} disabled={busy}
               onChange={e => { setReason(e.target.value); setAdjustmentError('') }} className="w-full rounded-xl border border-slate-300 p-3 text-sm" />
-            {adjustmentError && <p role="alert" className="text-sm text-red-700">{adjustmentError}</p>}
+            {adjustmentError && <TimedFieldMessage className="text-sm text-red-700">{adjustmentError}</TimedFieldMessage>}
             <p className="break-words text-sm">Trước điều chỉnh: <strong>{formatVnd(preview.compensationVnd)}</strong> · Sau điều chỉnh: <strong>{validateCompensationAdjustment(preview.compensationVnd, amount, reason) ? 'Chưa hợp lệ' : formatVnd(Number(amount))}</strong></p>
             {Number(amount) !== preview.compensationVnd && reason.trim() && <p className="whitespace-pre-wrap break-words text-sm">Lý do: {reason.trim()}</p>}
             <Button variant="secondary" disabled={busy} onClick={resetAdjustment}>Hủy điều chỉnh</Button>

@@ -84,7 +84,7 @@ export default function LibraryCardsPage() {
   const currentUser = getCurrentUser()
   const allowed = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
 
-  const canLock = currentUser?.role === 'LIBRARY_MANAGER'
+  const canLock = ['LIBRARY_MANAGER', 'ADMIN'].includes(currentUser?.role ?? '')
   const [detailsCardId, setDetailsCardId] = useState<number | null>(null)
   const [lockCard, setLockCard] = useState<LibraryCard | null>(null)
   const [issuedSearch, setIssuedSearch] = useState('')

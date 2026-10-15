@@ -1,6 +1,6 @@
 {
-  "version": "S4-09.1-v1",
-  "decision": "Bảng quyền được người giao backlog chốt ngày 15/10/2026; Admin tách nhiệm vụ.",
+  "version": "S4-00.1-priority-v1",
+  "decision": "S4-00.1: Admin toàn quyền chức năng nhân viên; giữ điều kiện nghiệp vụ và quyền sở hữu dữ liệu cá nhân.",
   "roles": [
     {
       "code": "ADMIN",
@@ -191,7 +191,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -210,7 +210,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -229,7 +229,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -248,7 +248,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -343,7 +343,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -381,7 +381,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1027,7 +1027,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1046,7 +1046,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1065,7 +1065,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1084,7 +1084,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1103,7 +1103,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1141,7 +1141,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1160,7 +1160,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1179,7 +1179,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1198,7 +1198,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "ALLOW",
         "LIBRARIAN": "DENY",
         "READER": "DENY"
@@ -1389,7 +1389,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1408,7 +1408,7 @@
         "GET"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1427,7 +1427,7 @@
         "POST"
       ],
       "rules": {
-        "ADMIN": "DENY",
+        "ADMIN": "ALLOW",
         "LIBRARY_MANAGER": "DENY",
         "LIBRARIAN": "ALLOW",
         "READER": "DENY"
@@ -1642,6 +1642,25 @@
         "READER": "DENY"
       },
       "condition": "Chỉ rà soát API đọc vị trí phục vụ nghiệp vụ bản sao; các API cấu hình ngoài phạm vi.",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.searchReaders",
+      "module": "LOANS",
+      "label": "Tìm bạn đọc tại quầy bằng tên, số điện thoại hoặc mã thẻ",
+      "controller": "LoanController",
+      "handler": "searchReaders",
+      "path": "/api/v1/loans/readers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
       "mutating": false
     }
   ]

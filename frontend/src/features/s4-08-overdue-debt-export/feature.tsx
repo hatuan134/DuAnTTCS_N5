@@ -10,8 +10,8 @@ const feature: FeatureModule = {
     { path: 'reports/overdue-debts/history', element: <ExportHistoryPage /> },
   ],
   navItems: [
-    { label: 'Xuất quá hạn và nợ phí', to: '/reports/overdue-debts', icon: FileSpreadsheet, order: 270, roles: ['LIBRARY_MANAGER'] },
-    { label: 'Lịch sử xuất dữ liệu', to: '/reports/overdue-debts/history', icon: History, order: 271, roles: ['LIBRARY_MANAGER'] },
+    { label: 'Xuất quá hạn và nợ phí', to: '/reports/overdue-debts', icon: FileSpreadsheet, order: 270, roles: ['LIBRARY_MANAGER', 'ADMIN'] },
+    { label: 'Lịch sử xuất dữ liệu', to: '/reports/overdue-debts/history', icon: History, order: 271, roles: ['LIBRARY_MANAGER', 'ADMIN'] },
   ],
 }
 export default feature

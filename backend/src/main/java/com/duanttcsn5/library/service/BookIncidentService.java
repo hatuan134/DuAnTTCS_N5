@@ -29,7 +29,7 @@ public class BookIncidentService {
     private User actor(Long id, boolean manager) {
         User user=id==null?null:users.findById(id).orElse(null);
         if(user==null || !"ACTIVE".equals(user.getStatus()) || user.getRole()==null
-                || !(manager?Set.of("LIBRARY_MANAGER","ADMIN"):Set.of("LIBRARIAN")).contains(user.getRole().getCode()))
+                || !(manager?Set.of("LIBRARY_MANAGER","ADMIN"):Set.of("LIBRARIAN","ADMIN")).contains(user.getRole().getCode()))
             throw error(HttpStatus.FORBIDDEN,"FORBIDDEN",manager?"Chỉ Quản lý hoặc Quản trị được thay đổi hệ số.":"Chỉ Thủ thư được ghi nhận sự cố.");
         return user;
     }

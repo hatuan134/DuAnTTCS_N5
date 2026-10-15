@@ -43,6 +43,7 @@ class ReservationLoanServiceTest {
         books = mock(BookRepository.class); reservations = mock(BookReservationRepository.class);
         copies = mock(BookCopyRepository.class); cards = mock(LibraryCardRepository.class);
         users = mock(UserRepository.class); loans = mock(LoanRepository.class);
+        when(loans.nextLoanNumber()).thenReturn("PM-000001");
         configuration = mock(LibraryConfigurationService.class);
         clock = mock(Clock.class);
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -107,7 +108,7 @@ class ReservationLoanServiceTest {
         assertThat(result.readerId()).isEqualTo(12L); assertThat(result.readerName()).isEqualTo("Nguyễn Văn An");
         assertThat(result.cardNumber()).isEqualTo("TV-0012"); assertThat(result.copyId()).isEqualTo(31L);
         assertThat(result.barcode()).isEqualTo("LIB-031"); assertThat(result.bookId()).isEqualTo(7L);
-        assertThat(result.loanNumber()).matches("PM-[0-9A-F-]{36}");
+        assertThat(result.loanNumber()).matches("PM-[0-9]{6,}");
         var ordered = inOrder(books, reservations, copies, loans);
         ordered.verify(books).findForReservation(7L);
         ordered.verify(reservations).findForCancellation(21L);

@@ -103,7 +103,7 @@ class FeeReductionServiceTest {
         code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_PENDING");
     }
     @Test void nonLibrariansInactiveAndUnauthenticatedUsersCannotCreate() {
-        for (String role : new String[]{"READER", "LIBRARY_MANAGER", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARY_MANAGER"}) {
             actor.getRole().setCode(role);
             code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         }
@@ -133,7 +133,7 @@ class FeeReductionServiceTest {
     @Test void readerCannotReadFeeDetailsAndOnlyManagerCanReadPendingList() {
         actor.getRole().setCode("READER");
         code(() -> service.detail(5L, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
-        for (String role : new String[]{"READER", "LIBRARIAN", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARIAN"}) {
             actor.getRole().setCode(role);
             code(() -> service.pending(0, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         }

@@ -28,6 +28,7 @@ class ReservationLoanBatchServiceTest {
     private CardType type;
 
     @BeforeEach void setup() {
+        when(loans.nextLoanNumber()).thenReturn("PM-000001");
         User staff = new User(); staff.setId(3L); staff.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("LIBRARIAN"); staff.setRole(role);
         when(users.findById(3L)).thenReturn(Optional.of(staff));

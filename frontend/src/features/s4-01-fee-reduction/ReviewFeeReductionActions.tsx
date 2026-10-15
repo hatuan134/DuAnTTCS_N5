@@ -22,7 +22,7 @@ export default function ReviewFeeReductionActions({ request, onReviewed, onConfl
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const lock = useRef(false)
-  if (getCurrentUser()?.role !== 'LIBRARY_MANAGER' || request.status !== 'PENDING') return null
+  if (!['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '') || request.status !== 'PENDING') return null
 
   function close() {
     if (lock.current) return

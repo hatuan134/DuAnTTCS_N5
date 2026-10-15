@@ -276,7 +276,7 @@ public class LibraryCardService {
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public LibraryCardResponse lockCard(Long cardId,
             com.duanttcsn5.library.dto.librarycard.LockLibraryCardRequest request,
             Long actorId, String ipAddress) {
@@ -334,7 +334,7 @@ public class LibraryCardService {
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public LibraryCardResponse unlockCard(Long cardId,
             com.duanttcsn5.library.dto.librarycard.UnlockLibraryCardRequest request,
             Long actorId, String ipAddress) {

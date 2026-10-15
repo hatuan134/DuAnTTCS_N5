@@ -44,6 +44,7 @@ class ControlledLoanOverrideServiceTest {
         cards = mock(LibraryCardRepository.class);
         users = mock(UserRepository.class);
         loans = mock(LoanRepository.class);
+        when(loans.nextLoanNumber()).thenReturn("PM-000001");
         audit = mock(LoanRejectionLogService.class);
         var config = mock(LibraryConfigurationService.class);
         service = new LoanService(books, reservations, copies, cards, users, loans, config,

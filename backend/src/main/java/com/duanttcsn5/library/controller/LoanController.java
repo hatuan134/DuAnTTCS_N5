@@ -130,6 +130,14 @@ public class LoanController {
         return ResponseEntity.ok(loans.myReturnedBooks(principal == null ? null : principal.id(), page));
     }
 
+    @GetMapping("/loans/readers")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse> searchReaders(
+            @RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "0") int page,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.searchReaders(keyword, page, principal == null ? null : principal.id()));
+    }
+
     @GetMapping("/loans/search")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanSearchPageResponse> searchLoans(
@@ -180,7 +188,7 @@ public class LoanController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LoanRejectionPageResponse> rejections(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "") String cardNumber) {
         return ResponseEntity.ok(rejections.page(cardNumber, page, size));
     }

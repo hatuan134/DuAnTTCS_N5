@@ -90,7 +90,7 @@ class ManualLibraryCardUnlockControllerTest {
         mvc.perform(request(VALID)).andExpect(status().isUnauthorized()); verifyNoInteractions(service);
     }
     @Test void onlyLibraryManagerCanUnlock() throws Exception {
-        for (String role : new String[]{"READER", "LIBRARIAN", "ADMIN"}) {
+        for (String role : new String[]{"READER", "LIBRARIAN"}) {
             token(role); mvc.perform(request(VALID).header("Authorization", "Bearer test-token")).andExpect(status().isForbidden());
         }
         verifyNoInteractions(service);

@@ -10,7 +10,7 @@ import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { cardLockSuggestionService, parseDebtThreshold, suggestionMoney, type SuggestionSettings } from './cardLockSuggestionService'
 export default function CardLockSuggestionSettingsPage() {
-  if (getCurrentUser()?.role !== 'LIBRARY_MANAGER') return <p role="alert">Chỉ Quản lý thư viện được cấu hình ngưỡng nợ phí.</p>
+  if (!['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert">Chỉ Quản lý thư viện được cấu hình ngưỡng nợ phí.</p>
   return <SettingsForm />
 }
 function SettingsForm() {

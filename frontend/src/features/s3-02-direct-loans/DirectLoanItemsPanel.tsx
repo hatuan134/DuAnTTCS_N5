@@ -1,3 +1,4 @@
+import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -256,7 +257,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
                 <span className={`inline-block max-w-full rounded-lg px-2 py-1 text-xs font-semibold ${row.item ? 'bg-emerald-100 text-emerald-800' : row.checking ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
                   {row.item ? 'Hợp lệ · Sẵn sàng' : row.checking ? 'Đang kiểm tra' : editingId === row.id ? 'Đang sửa · Chưa hợp lệ' : 'Chưa đủ điều kiện'}
                 </span>
-                {row.error && <p role="alert" className="mt-2 break-words text-xs leading-5 text-red-700">{row.error}</p>}
+                {row.error && <TimedFieldMessage className="mt-2 break-words text-xs leading-5 text-red-700">{row.error}</TimedFieldMessage>}
               </td>
               <td className="px-1 py-3 text-center sm:px-3">
                 <div className="flex flex-col items-center gap-1">
@@ -300,9 +301,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       <Button type="button" className="shrink-0 self-start" loading={loading && submitted.current !== null}
         disabled={!canConfirm} onClick={confirmDraft}>Xác nhận lượt mượn</Button>
     </div>
-    {confirmationError && (awaitingResult
-      ? <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">{confirmationError}</p>
-      : <FeedbackAlert message={confirmationError} tone="error" onDismiss={() => setConfirmationError('')} className="mt-4" />)}
+    {confirmationError && <FeedbackAlert message={confirmationError} tone="error" onDismiss={() => setConfirmationError('')} className="mt-4" />}
     <p role="status" className="mt-4 text-xs leading-5 text-slate-500">{loading && submitted.current
       ? 'Đang kiểm tra lại thẻ, giới hạn và toàn bộ sách để ghi lượt mượn…'
       : awaitingResult ? 'Giữ nguyên mã thẻ và danh sách cho đến khi xác định được kết quả.'

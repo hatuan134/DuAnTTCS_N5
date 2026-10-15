@@ -256,7 +256,7 @@ export default function OverdueLoansPage() {
                     </div>
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">
                       <ClockAlert size={15} />
-                      Trễ {item.overdueDays} ngày mở cửa
+                      Trễ {item.overdueDays} ngày
                     </span>
                   </div>
 
@@ -343,7 +343,7 @@ export default function OverdueLoansPage() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className="inline-flex min-w-20 justify-center rounded-full border border-red-200 bg-red-50 px-3 py-1 font-semibold text-red-700">
-                          {item.overdueDays} ngày mở cửa
+                          {item.overdueDays} ngày
                         </span>
                       </td>
                       <td className="min-w-44 px-4 py-4 align-top">{contactStatus(item)}</td>

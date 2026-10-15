@@ -15,7 +15,7 @@ import { feePaymentService, feeTypeLabel, parsePartialAmount, previewFeeAllocati
 import FeeReceiptDialog from './FeeReceiptDialog'
 
 export default function FeeCollectionPage() {
-  if (getCurrentUser()?.role !== 'LIBRARIAN') return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Thủ thư được thu phí và xem, in lại biên lai.</p>
+  if (!['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Thủ thư được thu phí và xem, in lại biên lai.</p>
   return <FeeCollector />
 }
 

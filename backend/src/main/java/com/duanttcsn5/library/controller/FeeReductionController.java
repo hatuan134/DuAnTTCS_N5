@@ -28,7 +28,7 @@ public class FeeReductionController {
     }
 
     @PostMapping("/{feeId}/reduction-requests")
-    @PreAuthorize("hasRole('LIBRARIAN')")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ResponseEntity<FeeReductionRequestResponse> create(@PathVariable Long feeId,
             @Valid @RequestBody CreateFeeReductionRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -37,21 +37,21 @@ public class FeeReductionController {
     }
 
     @GetMapping("/reduction-requests/pending")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<FeeReductionRequestPageResponse> pending(@RequestParam(defaultValue = "0") int page,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(service.pending(page, principal == null ? null : principal.id()));
     }
 
     @PostMapping("/reduction-requests/{requestId}/approve")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<FeeReductionRequestResponse> approve(@PathVariable Long requestId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(service.approve(requestId, principal == null ? null : principal.id()));
     }
 
     @PostMapping("/reduction-requests/{requestId}/reject")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<FeeReductionRequestResponse> reject(@PathVariable Long requestId,
             @Valid @RequestBody RejectFeeReductionRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {

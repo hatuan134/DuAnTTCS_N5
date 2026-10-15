@@ -1,3 +1,4 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -5,7 +6,7 @@ import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { renderToStaticMarkup } from 'react-dom/server'
-const require = createRequire(import.meta.url), react = require('react')
+const require = createS4Require(import.meta.url), react = require('react')
 const root = new URL('../src/features/s4-09-permission-review/', import.meta.url)
 function load(name, imports = {}, globals = {}) {
   const context = { exports: {}, require: key => imports[key] ?? require(key), ...globals }

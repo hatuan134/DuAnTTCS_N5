@@ -90,7 +90,7 @@ class FeePaymentServiceTest {
         code(() -> service.collect(7L, input, 12L), "PAYMENT_REQUEST_REUSED");
     }
     @Test void allOtherRolesAndInactiveActorsAreRejected() {
-        for (String code : new String[]{"ADMIN", "LIBRARY_MANAGER", "READER"}) {
+        for (String code : new String[]{"LIBRARY_MANAGER", "READER"}) {
             users.findById(12L).orElseThrow().getRole().setCode(code);
             code(() -> service.detail(7L, 12L), "FEE_PAYMENT_ROLE_REQUIRED");
             code(() -> service.receipt(9L, 12L), "FEE_PAYMENT_ROLE_REQUIRED");
@@ -221,7 +221,7 @@ class FeePaymentServiceTest {
     }
     @Test void nonLibrariansCannotCollectPartialFees() {
         var input = partial(10000);
-        for (String role : new String[]{"ADMIN", "LIBRARY_MANAGER", "READER"}) {
+        for (String role : new String[]{"LIBRARY_MANAGER", "READER"}) {
             users.findById(12L).orElseThrow().getRole().setCode(role);
             code(() -> service.collectPartial(7L, input, 12L), "FEE_PAYMENT_ROLE_REQUIRED");
         }

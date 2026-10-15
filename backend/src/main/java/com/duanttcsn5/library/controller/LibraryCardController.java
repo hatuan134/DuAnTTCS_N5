@@ -40,38 +40,38 @@ public class LibraryCardController {
 
 
     @GetMapping("/lock-suggestions/settings")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Settings suggestionSettings() {
         return suggestions.settings();
     }
     @org.springframework.web.bind.annotation.PutMapping("/lock-suggestions/settings")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Settings updateSuggestionSettings(
             @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.UpdateSettings request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return suggestions.updateSettings(request,principal.id());
     }
     @GetMapping("/lock-suggestions")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Page lockSuggestions(
             @RequestParam(defaultValue="false") boolean history,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
         return suggestions.list(history,page,size);
     }
     @GetMapping("/lock-suggestions/{id}")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Detail suggestionDetail(@PathVariable Long id) {
         return suggestions.detail(id);
     }
     @PostMapping("/lock-suggestions/{id}/accept")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Decision acceptSuggestion(@PathVariable Long id,
             @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.LockLibraryCardRequest request,
             @AuthenticationPrincipal UserPrincipal principal,HttpServletRequest servletRequest) {
         return suggestions.accept(id,request,principal.id(),servletRequest.getRemoteAddr());
     }
     @PostMapping("/lock-suggestions/{id}/ignore")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Decision ignoreSuggestion(@PathVariable Long id,
             @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.CardLockSuggestionDtos.Ignore request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -124,7 +124,7 @@ public class LibraryCardController {
     }
 
     @PostMapping("/{cardId}/lock")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LibraryCardResponse> lockCard(@PathVariable Long cardId,
             @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.LockLibraryCardRequest request,
             @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest servletRequest) {
@@ -140,7 +140,7 @@ public class LibraryCardController {
     }
 
     @PostMapping("/{cardId}/unlock")
-    @PreAuthorize("hasRole('LIBRARY_MANAGER')")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<LibraryCardResponse> unlockCard(@PathVariable Long cardId,
             @Valid @RequestBody com.duanttcsn5.library.dto.librarycard.UnlockLibraryCardRequest request,
             @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest servletRequest) {

@@ -1,3 +1,4 @@
+import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -7,7 +8,7 @@ import ts from 'typescript'
 import { createRequire } from 'node:module'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-const require = createRequire(import.meta.url)
+const require = createS4Require(import.meta.url)
 const root = new URL('../src/features/s2-09-ready-pickup/', import.meta.url)
 const react = require('react')
 const SelectionStub = () => null
