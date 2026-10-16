@@ -27,6 +27,9 @@ class LoanReportServiceTest {
                 .thenAnswer(invocation -> {
                     LocalDate start = invocation.getArgument(0);
                     LocalDate end = invocation.getArgument(1);
+                    if (start == null || end == null) {
+                        return new LoanReportRepository.Activity(borrowed, returned, List.of());
+                    }
                     // Fixtures remain numerically consistent with the daily chart.
                     var days = start.datesUntil(end.plusDays(1)).map(day ->
                             new LoanReportRepository.DayBorrowCount(day, day.equals(start) ? borrowed : 0L)).toList();

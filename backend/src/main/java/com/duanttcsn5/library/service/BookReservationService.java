@@ -33,7 +33,7 @@ import java.util.Set;
 
 @Service
 public class BookReservationService {
-    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ReadyPickupNotificationService pickupNotifications;
 
     private void wakePickupEmails() {

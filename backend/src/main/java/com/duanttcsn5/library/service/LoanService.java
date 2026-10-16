@@ -69,7 +69,7 @@ import java.util.Map;
 /** Lending is a new domain; reservation creation/cancellation stays in its existing service. */
 @Service
 public class LoanService {
-    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ReadyPickupNotificationService pickupNotifications;
 
     private void wakePickupEmails() {
