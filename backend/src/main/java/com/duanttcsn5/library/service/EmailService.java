@@ -293,15 +293,14 @@ public class EmailService {
 
     public void sendRawHtmlEmail(String toEmail, String subject, String htmlContent) throws Exception {
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            log.warn("JavaMailSender is unavailable; email '{}' not sent to {}", subject, toEmail);
-            return;
+        if (mailSender == null || mailFrom == null || mailFrom.isBlank()) {
+            throw new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình.");
         }
 
         if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl impl) {
-            if (impl.getUsername() == null || impl.getUsername().isBlank()) {
-                log.info("[MOCK EMAIL DEV MODE] SMTP username is not configured. Simulated sending email to '{}' with subject '{}'", toEmail, subject);
-                return;
+            if (impl.getUsername() == null || impl.getUsername().isBlank()
+                    || impl.getPassword() == null || impl.getPassword().isBlank()) {
+                throw new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình.");
             }
         }
 

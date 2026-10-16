@@ -504,4 +504,44 @@ class LoanReminderServiceTest {
                 eq("MANUAL_TEST_RUN"), eq(1L), eq("Thủ thư A"), eq(false)
         );
     }
+
+    @Test
+    void testUnconfiguredSmtpThrowsAndEntersPendingRetry_TC50() throws Exception {
+        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
+
+        EligibleLoanItemRow item = new EligibleLoanItemRow(
+                1L, 101L, "PM-001", 10L, "Bạn Đọc An", "an@example.com",
+                201L, "Sách An", "BAR-AN", dueToday
+        );
+
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
+        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
+        when(repository.insertLog(
+                any(), anyLong(), anyString(), any(), anyString(),
+                anyString(), anyInt(), anyLong(), anyInt(), anyInt(),
+                anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), any(), anyString(), any(), any(), anyBoolean()
+        )).thenReturn(4001L);
+
+        // When EmailService throws MailPreparationException ("SMTP chưa được cấu hình.")
+        doThrow(new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình."))
+                .when(emailService).sendRawHtmlEmail(anyString(), anyString(), anyString());
+
+        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "SYSTEM_SCHEDULED", null, null, false);
+
+        assertEquals(1, result.totalRecipients());
+        assertEquals(0, result.sentCount(), "Sent count must be 0 when SMTP is unconfigured");
+        assertEquals(1, result.failedCount(), "Failed count must be 1 to enter retry queue");
+
+        verify(repository).insertLog(
+                eq(targetDate), eq(10L), anyString(), any(), eq("an@example.com"),
+                anyString(), anyInt(), eq(0L), eq(0), eq(3), anyString(), anyString(),
+                anyString(), anyString(), anyString(), eq("PENDING_RETRY"),
+                anyString(),
+                eq("SYSTEM_SCHEDULED"), any(), any(), eq(false)
+        );
+        verify(repository).insertRetryAttempt(
+                eq(4001L), eq(1), eq("FAILED"), anyString(), eq("SYSTEM_SCHEDULED")
+        );
+    }
 }

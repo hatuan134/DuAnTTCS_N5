@@ -82,8 +82,8 @@ public interface LibraryCardRepository extends JpaRepository<LibraryCard, Long> 
 
     interface LockHistoryRow {
         Long getId(); String getCardNumber(); String getAction(); Long getActorUserId(); String getActorName();
-        java.time.OffsetDateTime getPerformedAt(); String getReason();
-        java.time.OffsetDateTime getLockStartedAt(); java.time.OffsetDateTime getLockEndsAt(); String getLockReason();
+        java.time.Instant getPerformedAt(); String getReason();
+        java.time.Instant getLockStartedAt(); java.time.Instant getLockEndsAt(); String getLockReason();
         Long getLockActorUserId(); String getLockActorName(); String getPreviousStatus(); String getResultingStatus();
     }
 }
