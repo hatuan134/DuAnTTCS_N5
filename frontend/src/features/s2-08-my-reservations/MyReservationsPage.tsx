@@ -1,0 +1,240 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import EmptyState from '../../components/ui/EmptyState'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import LoadingState from '../../components/ui/LoadingState'
+import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import TableActionButton from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
+import { getCurrentUser } from '../../core/auth/authStorage'
+import { getApiErrorMessage } from '../s1-02-user-management/accountService'
+import { reservationService } from '../s2-07-reservations/reservationService'
+import { isLastDayPickup } from './pickupLastDay'
+import type { MyBookReservation } from '../s2-07-reservations/reservationService'
+
+const statusLabels: Record<string, string> = {
+  PENDING: 'Đang xếp hàng',
+  READY_FOR_PICKUP: 'Đang chờ nhận',
+  FULFILLED: 'Đã chuyển thành phiếu mượn',
+  CANCELLED: 'Đã huỷ',
+  EXPIRED: 'Hết hạn',
+}
+
+const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Không xác định' : dateFormatter.format(date)
+}
+
+export default function MyReservationsPage() {
+  const allowed = getCurrentUser()?.role === 'READER'
+  const [items, setItems] = useState<MyBookReservation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [errorNotice, setErrorNotice] = useState('')
+  const [confirming, setConfirming] = useState<MyBookReservation | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [now, setNow] = useState(() => Date.now())
+  const cancellingRef = useRef(false)
+  const refreshRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    let active = true
+    let pending = false
+    if (!allowed) return
+
+    async function refresh() {
+      if (!active || pending || cancellingRef.current) return
+      pending = true
+      setLoading(true)
+      setError(''); setErrorNotice('')
+      try {
+        const data = await reservationService.listMine()
+        if (active) setItems(data)
+      } catch (e) {
+        if (active) {
+          setItems([])
+          const message = getApiErrorMessage(e, 'Không tải được đơn đặt giữ. Vui lòng thử lại.')
+          setError(message); setErrorNotice(message)
+        }
+      } finally {
+        pending = false
+        if (active) setLoading(false)
+      }
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    refreshRef.current = () => { void refresh() }
+    void refresh()
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      refreshRef.current = () => {}
+    }
+  }, [allowed])
+
+  useEffect(() => {
+    if (!allowed) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [allowed])
+
+  async function cancelConfirmed() {
+    if (!confirming || cancellingRef.current || loading) return
+    cancellingRef.current = true
+    setCancelling(true)
+    setActionError('')
+    setSuccess('')
+    try {
+      await reservationService.cancelMine(confirming.id)
+      setItems((current) => current.map((item) => item.id === confirming.id
+        ? { ...item, status: 'CANCELLED', queuePosition: null, pickupDeadline: null } : item))
+      setSuccess(confirming.status === 'READY_FOR_PICKUP'
+        ? `Đã huỷ đơn #${confirming.id}. Bản sao đang giữ đã được giải phóng và hệ thống đã xử lý người kế tiếp trong hàng đợi.`
+        : `Đã huỷ đơn #${confirming.id}. Đơn không còn giữ vị trí trong hàng đợi.`)
+    } catch (e) {
+      setActionError(getApiErrorMessage(e, 'Không xác nhận được kết quả huỷ. Hãy kiểm tra danh sách trước khi thử lại.'))
+    } finally {
+      cancellingRef.current = false
+      setCancelling(false)
+      setConfirming(null)
+      // Re-fetch positions for all of this reader's orders, also after a stale-status conflict.
+      refreshRef.current()
+    }
+  }
+
+  const reservationPagination = useTablePagination(items, items.map((item) => item.id).join(','))
+
+  if (!allowed) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">Chỉ Bạn đọc mới được xem danh sách đơn đặt giữ cá nhân.</p>
+
+  const activeCount = items.filter((item) => ['PENDING', 'READY_FOR_PICKUP'].includes(item.status)).length
+
+  return (
+    <div>
+      <PageHeader title="Đơn đặt giữ của tôi"
+        description="Đơn chờ nhận hiển thị trước, tiếp đến đơn đang xếp hàng và lịch sử đặt giữ."
+        action={<Button type="button" variant="secondary" loading={loading} disabled={cancelling}
+          onClick={() => refreshRef.current()}>Làm mới</Button>} />
+      <p className="mb-4 text-sm text-slate-500">
+        Ngày giờ theo Việt Nam (UTC+7). Vị trí được tính trong hàng đợi của từng đầu sách.
+        {' '}Nhấn Làm mới hoặc quay lại cửa sổ để cập nhật.
+      </p>
+      {errorNotice && <FeedbackAlert message={errorNotice} tone="error" onDismiss={() => setErrorNotice('')} className="mb-4" />}
+      {success && <FeedbackAlert message={success} tone="success" onDismiss={() => setSuccess('')} className="mb-4" />}
+      {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} className="mb-4" />}
+      {confirming && <Card className="mb-4 border border-red-200 p-5">
+        <h2 className="font-semibold text-slate-900">Xác nhận huỷ đặt giữ</h2>
+        <p className="my-3 text-sm text-slate-700">
+          Bạn muốn huỷ đơn #{confirming.id} — {confirming.bookTitle}?
+          {confirming.status === 'READY_FOR_PICKUP'
+            ? ' Bản sao đang giữ sẽ được chuyển cho người tiếp theo nếu còn hàng đợi; nếu không, sách sẽ trở về trạng thái Sẵn sàng.'
+            : ' Đơn sẽ mất vị trí trong hàng đợi. Nếu đặt lại, bạn sẽ xếp hàng lại từ đầu.'}
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="secondary" disabled={cancelling}
+            onClick={() => setConfirming(null)}>Giữ lại đơn</Button>
+          <Button type="button" variant="danger" loading={cancelling} disabled={loading}
+            onClick={() => void cancelConfirmed()}>Xác nhận huỷ</Button>
+        </div>
+      </Card>}
+      {error && <div role="status" className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+        Chưa tải được đơn đặt giữ. Nhấn “Làm mới” để thử lại.
+      </div>}
+      {loading && <div role="status"><LoadingState /></div>}
+      {!loading && !error && items.length === 0 && <>
+        <EmptyState title="Bạn chưa có đơn đặt giữ nào"
+          description="Hãy tra cứu đầu sách và đặt giữ sách bạn muốn mượn." />
+        <Link to="/catalog" className="mt-4 inline-block font-medium text-blue-700 hover:underline">Tra cứu sách</Link>
+      </>}
+      {!loading && !error && items.length > 0 && <Card className="overflow-hidden">
+        <p className="border-b border-slate-200 px-5 py-4 text-sm text-slate-700" role="status">
+          Có <strong>{activeCount}</strong> đơn đang hiệu lực / {items.length} đơn đặt giữ.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
+            <caption className="sr-only">Danh sách đơn đặt giữ của bạn, ưu tiên đơn đang hiệu lực</caption>
+            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                {['STT', 'Đầu sách', 'Thời điểm đặt', 'Trạng thái', 'Vị trí hàng đợi', 'Hạn cuối đến nhận', 'Thao tác'].map((label) =>
+                  <th key={label} scope="col" className="px-5 py-3">{label}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {reservationPagination.pageItems.map((item, index) => {
+                const statusLabel = statusLabels[item.status] ?? item.status
+                return <tr key={item.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-4 font-semibold text-slate-500">
+                    {reservationPagination.startIndex + index + 1}
+                  </td>
+                  <td className="px-5 py-4">
+                    <Link to={`/catalog/books/${item.bookId}`} className="font-semibold text-blue-700 hover:underline">
+                      {item.bookTitle}
+                    </Link>
+                    <p className="mt-1 text-xs text-slate-500">Đơn #{item.id}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                    <time dateTime={item.reservedAt}>{formatDate(item.reservedAt)}</time>
+                  </td>
+                  <td className="px-5 py-4">
+                    <StatusBadge status={item.status} label={statusLabel} />
+                    {item.status === 'CANCELLED' && <div className="mt-2 max-w-xs space-y-1 text-xs text-slate-600">
+                      <p className="break-words">Lý do: {item.cancellationReason || 'Đơn cũ chưa ghi nhận lý do hủy'}</p>
+                      {item.cancelledAt && <p>Thời điểm hủy: <time dateTime={item.cancelledAt}>{formatDate(item.cancelledAt)}</time></p>}
+                    </div>}
+                  </td>
+                  <td className="px-5 py-4 font-semibold text-slate-900">
+                    {item.status === 'PENDING' ? (item.queuePosition ?? 'Chưa xác định') : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
+                    {['READY_FOR_PICKUP', 'CANCELLED'].includes(item.status) && item.pickupDeadline
+                      ? <><time dateTime={item.pickupDeadline}>{formatDate(item.pickupDeadline)}</time>
+                        {isLastDayPickup(item.status, item.pickupDeadline, now) && <p role="status" className="mt-2 max-w-xs whitespace-normal rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Hôm nay là hạn cuối nhận sách</p>}
+                        <p className="mt-1 max-w-xs whitespace-normal break-words text-xs font-normal text-slate-600">
+                          {item.status === 'READY_FOR_PICKUP' ? item.pickupLocation || 'Chưa khai báo quầy nhận. Vui lòng liên hệ thủ thư.' : 'Hạn nhận của đơn đã hủy.'}
+                        </p></>
+                      : '—'}
+                  </td>
+                  <td className="px-5 py-4">
+                    {item.status === 'CANCELLED' ? <div className="max-w-xs space-y-2">
+                      <Link to={`/catalog/books/${item.bookId}#reserve-book`} className="inline-flex min-h-11 items-center rounded-lg border border-blue-200 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50">Đặt giữ lại</Link>
+                      <p className="text-xs leading-5 text-slate-600">Mở trang sách để tạo đơn mới nếu thẻ còn hạn, không bị khóa và đủ điều kiện. Nếu hết bản rảnh, bạn vào cuối hàng đợi, không giữ vị trí cũ.</p>
+                    </div> : item.status === 'FULFILLED'
+                      ? <span className="text-xs font-medium text-slate-500">Không thể huỷ: sách đã được nhận.</span>
+                      : ['PENDING', 'READY_FOR_PICKUP'].includes(item.status) ? <TableActionButton
+                        tone="danger"
+                        disabled={cancelling || confirming !== null}
+                        onClick={() => { setConfirming(item); setActionError(''); setSuccess('') }}>
+                        Hủy đặt giữ
+                      </TableActionButton> : '—'}
+                  </td>
+                </tr>
+              })}
+            </tbody>
+          </table>
+        </div>
+        <TablePagination
+          page={reservationPagination.page}
+          totalItems={reservationPagination.totalItems}
+          totalPages={reservationPagination.totalPages}
+          pageSize={reservationPagination.pageSize}
+          onPageChange={reservationPagination.goToPage}
+        />
+      </Card>}
+    </div>
+  )
+}

@@ -1,0 +1,29 @@
+import { useState } from 'react'
+import { publicBookImageUrl } from './bookCoverService'
+
+const DEFAULT_COVER = `${import.meta.env.BASE_URL}images/default-book-cover.svg`
+
+export default function PublicBookCover({ bookId, url, title, thumbnail = false, priority = false }: {
+  bookId: number; url?: string | null; title: string; thumbnail?: boolean; priority?: boolean
+}) {
+  const original = url?.trim() ?? ''
+  const source = original
+    ? publicBookImageUrl(bookId, original, thumbnail)
+    : DEFAULT_COVER
+  // Track the failed source instead of a single flag: navigating to another book resets the fallback.
+  const [failedSource, setFailedSource] = useState('')
+  const fallback = !original || failedSource === source
+  return <img
+    src={fallback ? DEFAULT_COVER : source}
+    alt={fallback ? `Ảnh bìa mặc định của ${title}` : `Ảnh bìa ${title}`}
+    width={thumbnail ? 160 : 224}
+    height={thumbnail ? 240 : 336}
+    loading={priority || !thumbnail ? 'eager' : 'lazy'}
+    fetchPriority={priority ? 'high' : 'auto'}
+    decoding="async"
+    onError={fallback ? undefined : () => setFailedSource(source)}
+    className={thumbnail
+      ? 'mx-auto mb-3 h-40 w-28 rounded-lg border border-slate-200 bg-slate-50 object-contain'
+      : 'h-full w-full object-contain'}
+  />
+}

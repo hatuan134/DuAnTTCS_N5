@@ -1,0 +1,878 @@
+import AccessibleModal from '../../components/ui/Modal'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import axios from 'axios'
+import {
+  CreditCard,
+  History,
+  Pencil,
+  Plus,
+  Power,
+  RefreshCw,
+  Trash2,
+  X,
+} from 'lucide-react'
+
+import Card from '../../components/ui/Card'
+import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
+import PageHeader from '../../components/ui/PageHeader'
+import StatusBadge from '../../components/ui/StatusBadge'
+import LoadingState from '../../components/ui/LoadingState'
+import TableActionButton, { TableActions } from '../../components/ui/TableActionButton'
+import TablePagination from '../../components/ui/TablePagination'
+import useTablePagination from '../../hooks/useTablePagination'
+import { getCurrentUser } from '../../core/auth/authStorage'
+import {
+  cardTypeService,
+  type CardType,
+  type CardTypeForm,
+  type PolicyHistory,
+} from './cardTypeService'
+
+type NumberFieldProps = {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  max?: number
+  hint?: string
+}
+
+const emptyForm: CardTypeForm = {
+  name: '',
+  description: '',
+  duration: 12,
+  maxBooks: 5,
+  loanDays: 14,
+  maxRenewals: 2,
+  renewalDays: 7,
+}
+
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    return (
+      error.response?.data?.message ||
+      error.message ||
+      'Không thể kết nối đến máy chủ API.'
+    )
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return 'Đã xảy ra lỗi không xác định.'
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+export default function CardTypesPage() {
+  const user = getCurrentUser()
+  const canRead = ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN'].includes(user?.role ?? '')
+  const canManage = user?.role === 'LIBRARY_MANAGER' || user?.role === 'ADMIN'
+  const [pendingDelete, setPendingDelete] = useState<CardType | null>(null)
+
+  const [cardTypes, setCardTypes] = useState<CardType[]>([])
+  const [history, setHistory] = useState<PolicyHistory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null)
+
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [form, setForm] = useState<CardTypeForm>(emptyForm)
+
+  const [formError, setFormError] = useState('')
+  const [globalError, setGlobalError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+
+  const fetchData = async (isManualRefresh = false) => {
+    if (!canRead) {
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
+    if (isManualRefresh) {
+      setRefreshing(true)
+    }
+    try {
+      setGlobalError('')
+      const [cardsData, historyData] = await Promise.all([
+        cardTypeService.getCardTypes(),
+        cardTypeService.getHistory(),
+      ])
+      setCardTypes(cardsData)
+      setHistory(historyData)
+    } catch (err) {
+      setGlobalError(getErrorMessage(err))
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (canRead) {
+      void fetchData()
+    } else {
+      setLoading(false)
+    }
+  }, [canRead])
+
+  const openCreateModal = () => {
+    setEditingId(null)
+    setForm(emptyForm)
+    setFormError('')
+    setIsModalOpen(true)
+  }
+
+  const openEditModal = (cardType: CardType) => {
+    setEditingId(cardType.id)
+    setForm({
+      name: cardType.name,
+      description: cardType.description || '',
+      duration: cardType.duration,
+      maxBooks: cardType.maxBooks,
+      loanDays: cardType.loanDays,
+      maxRenewals: cardType.maxRenewals,
+      renewalDays: cardType.renewalDays,
+    })
+    setFormError('')
+    setIsModalOpen(true)
+  }
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingId(null)
+    setFormError('')
+  }
+
+  const handleToggleStatus = async (id: number) => {
+    try {
+      setActionLoadingId(id)
+      setGlobalError('')
+      const updated = await cardTypeService.toggleStatus(id)
+      setCardTypes((current) =>
+        current.map((item) => (item.id === id ? updated : item))
+      )
+      setSuccessMessage(
+        updated.active
+          ? `Đã kích hoạt lại loại thẻ "${updated.name}".`
+          : `Đã tạm ngừng áp dụng loại thẻ "${updated.name}".`
+      )
+      // Tải lại lịch sử thay đổi mới nhất từ backend
+      const historyData = await cardTypeService.getHistory()
+      setHistory(historyData)
+    } catch (err) {
+      setGlobalError(getErrorMessage(err))
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleDelete = async (cardType: CardType) => {
+    if (cardType.usageCount && cardType.usageCount > 0) {
+      setGlobalError(
+        `Không thể xóa loại thẻ "${cardType.name}" vì hiện đang có ${cardType.usageCount} độc giả gắn với thẻ này.`
+      )
+      return
+    }
+
+    setPendingDelete(cardType)
+  }
+
+  const confirmDelete = async (cardType: CardType) => {
+    setPendingDelete(null)
+    try {
+      setActionLoadingId(cardType.id)
+      setGlobalError('')
+      await cardTypeService.deleteCardType(cardType.id)
+      setSuccessMessage(`Đã xóa loại thẻ "${cardType.name}" thành công!`)
+      await fetchData()
+    } catch (err) {
+      setGlobalError(getErrorMessage(err))
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setFormError('')
+
+    const name = form.name.trim()
+    if (!name) {
+      setFormError('Tên loại thẻ không được để trống.')
+      return
+    }
+
+    if (
+      form.duration <= 0 ||
+      form.maxBooks <= 0 ||
+      form.loanDays <= 0 ||
+      form.maxRenewals <= 0 ||
+      form.renewalDays <= 0
+    ) {
+      setFormError('Tất cả các giá trị số phải lớn hơn 0.')
+      return
+    }
+
+    if (form.maxBooks > 10) {
+      setFormError('Số sách tối đa không được vượt quá 10.')
+      return
+    }
+
+    if (form.loanDays > 60) {
+      setFormError('Số ngày mượn không được vượt quá 60 ngày.')
+      return
+    }
+
+    if (form.maxRenewals > 10) {
+      setFormError('Số lần gia hạn tối đa không được vượt quá 10 lần.')
+      return
+    }
+
+    if (form.renewalDays > 30) {
+      setFormError('Số ngày gia hạn mỗi lần không được vượt quá 30 ngày.')
+      return
+    }
+
+    if (form.duration > 120) {
+      setFormError('Thời hạn thẻ không được vượt quá 120 tháng.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      if (editingId !== null) {
+        await cardTypeService.updateCardType(editingId, {
+          ...form,
+          name,
+        })
+        setSuccessMessage(`Cập nhật chính sách "${name}" thành công!`)
+      } else {
+        await cardTypeService.createCardType({
+          ...form,
+          name,
+        })
+        setSuccessMessage(`Thêm mới loại thẻ "${name}" thành công!`)
+      }
+      closeModal()
+      await fetchData()
+    } catch (err) {
+      setFormError(getErrorMessage(err))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const activeCount = cardTypes.filter((item) => item.active).length
+  const inactiveCount = cardTypes.filter((item) => !item.active).length
+  const maxBooksLimit = cardTypes.length > 0
+    ? Math.max(...cardTypes.map((c) => c.maxBooks))
+    : 10
+
+  const cardTypePagination = useTablePagination(cardTypes)
+  const historyPagination = useTablePagination(history)
+
+  if (!canRead) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Chính sách mượn"
+          description="Xem quy định mượn và gia hạn sách theo từng loại thẻ."
+        />
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          Tài khoản hiện tại không có quyền xem chính sách mượn.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          title="Chính sách mượn"
+          description={canManage
+            ? 'Quản lý các loại thẻ và quy định mượn, gia hạn sách áp dụng cho từng đối tượng độc giả.'
+            : 'Xem quy định mượn và gia hạn sách áp dụng cho từng đối tượng độc giả.'
+          }
+        />
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            disabled={refreshing || loading}
+            title="Tải lại dữ liệu"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+            Làm mới
+          </button>
+
+          {canManage && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+            >
+              <Plus size={18} />
+              Thêm loại thẻ
+            </button>
+          )}
+        </div>
+      </div>
+
+      {pendingDelete && <ConfirmActionDialog
+        title="Xóa loại thẻ" description={`Bạn có chắc muốn xóa loại thẻ “${pendingDelete.name}”? Thao tác này không thể hoàn tác.`}
+        confirmLabel="Xóa loại thẻ" onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete(pendingDelete)} />}
+
+      {/* THÔNG BÁO GLOBAL */}
+      {globalError && (
+        <FeedbackAlert
+          message={globalError}
+          tone="error"
+          onDismiss={() => setGlobalError('')}
+        />
+      )}
+
+      {successMessage && (
+        <FeedbackAlert
+          message={successMessage}
+          tone="success"
+          onDismiss={() => setSuccessMessage('')}
+        />
+      )}
+
+      {/* THỐNG KÊ */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <div className="p-5">
+            <p className="text-sm font-medium text-slate-500">Tổng loại thẻ</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {cardTypes.length}
+            </p>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="p-5">
+            <p className="text-sm font-medium text-slate-500">Đang áp dụng</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-600">
+              {activeCount}
+            </p>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="p-5">
+            <p className="text-sm font-medium text-slate-500">Ngừng áp dụng</p>
+            <p className="mt-2 text-2xl font-bold text-slate-500">
+              {inactiveCount}
+            </p>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="p-5">
+            <p className="text-sm font-medium text-slate-500">Mượn tối đa</p>
+            <p className="mt-2 text-2xl font-bold text-blue-600">
+              {maxBooksLimit} <span className="text-sm font-normal text-slate-500">cuốn</span>
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      {/* BẢNG CHÍNH SÁCH */}
+      <Card>
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Danh sách loại thẻ và hạn mức mượn
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Thiết lập số sách mượn, ngày mượn và lượt gia hạn theo từng loại đối tượng độc giả.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="p-12">
+            <LoadingState />
+          </div>
+        ) : cardTypes.length === 0 ? (
+          <div className="p-12 text-center">
+            <CreditCard size={40} className="mx-auto text-slate-300" />
+            <p className="mt-3 font-medium text-slate-700">Chưa có loại thẻ nào</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {canManage
+                ? 'Nhấn “Thêm loại thẻ” để khai báo chính sách mượn đầu tiên.'
+                : 'Hiện chưa có chính sách mượn nào được khai báo.'
+              }
+            </p>
+          </div>
+        ) : (
+          <>
+          <div className="fit-table-wrap">
+            <table className="data-table data-table-fit borrow-policy-table w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+                    STT
+                  </th>
+                  <th className="table-cell-left px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
+                    Loại thẻ
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số sách mượn tối đa
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số ngày mượn tối đa
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số lần gia hạn
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Số ngày mỗi lần gia hạn
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Thời hạn thẻ
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Độc giả gắn thẻ
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    Trạng thái
+                  </th>
+                  {canManage && (
+                    <th className="px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                      Thao tác
+                    </th>
+                  )}
+                </tr>
+              </thead>
+
+              <tbody>
+                {cardTypePagination.pageItems.map((cardType, index) => {
+                  const isActionLoading = actionLoadingId === cardType.id
+                  return (
+                    <tr
+                      key={cardType.id}
+                      className="border-b border-slate-100 transition hover:bg-slate-50/80"
+                    >
+                      <td className="px-3 py-4 font-semibold text-slate-500">
+                        {cardTypePagination.startIndex + index + 1}
+                      </td>
+                      <td className="table-cell-left px-3 py-4">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">
+                            {cardType.name}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                            {cardType.description || 'Không có mô tả'}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-4 text-center text-sm font-semibold text-slate-800">
+                        {cardType.maxBooks} <span className="text-xs font-normal text-slate-500">cuốn</span>
+                      </td>
+
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                        {cardType.loanDays} ngày
+                      </td>
+
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                        {cardType.maxRenewals} lần
+                      </td>
+
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                        {cardType.renewalDays} ngày
+                      </td>
+
+                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                        {cardType.duration} tháng
+                      </td>
+
+                      <td className="px-3 py-4 text-center">
+                        <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                          {cardType.usageCount ?? 0}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-4 text-center">
+                        <StatusBadge
+                          status={cardType.active ? 'ACTIVE' : 'DISABLED'}
+                          label={cardType.active ? 'Đang áp dụng' : 'Ngừng áp dụng'}
+                        />
+                      </td>
+
+                      {canManage && (
+                        <td className="table-action-cell px-2 py-4">
+                          <TableActions>
+                            <TableActionButton
+                              icon={<Pencil size={15} />}
+                              tone="primary"
+                              title="Chỉnh sửa chính sách"
+                              disabled={isActionLoading}
+                              onClick={() => openEditModal(cardType)}
+                            >
+                              Chỉnh sửa
+                            </TableActionButton>
+
+                            <TableActionButton
+                              icon={<Power size={15} />}
+                              tone={cardType.active ? 'warning' : 'success'}
+                              title={cardType.active
+                                ? 'Tạm ngừng áp dụng thẻ này'
+                                : 'Kích hoạt áp dụng lại thẻ này'}
+                              disabled={isActionLoading}
+                              onClick={() => handleToggleStatus(cardType.id)}
+                            >
+                              {cardType.active ? 'Ngừng áp dụng' : 'Kích hoạt'}
+                            </TableActionButton>
+
+                            <TableActionButton
+                              icon={<Trash2 size={15} />}
+                              tone="danger"
+                              title={(cardType.usageCount ?? 0) > 0
+                                ? 'Không thể xóa loại thẻ đang được sử dụng'
+                                : 'Xóa loại thẻ'}
+                              disabled={isActionLoading || (cardType.usageCount ?? 0) > 0}
+                              onClick={() => handleDelete(cardType)}
+                            >
+                              Xóa
+                            </TableActionButton>
+                          </TableActions>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            page={cardTypePagination.page}
+            totalItems={cardTypePagination.totalItems}
+            totalPages={cardTypePagination.totalPages}
+            pageSize={cardTypePagination.pageSize}
+            onPageChange={cardTypePagination.goToPage}
+          />
+          </>
+        )}
+      </Card>
+
+      {/* QUY TẮC */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+        <p className="text-sm font-semibold text-blue-900">
+          Quy tắc áp dụng chính sách mượn
+        </p>
+        <p className="mt-1 text-sm leading-6 text-blue-700">
+          Khi cập nhật hoặc điều chỉnh hạn mức mượn, chính sách mới chỉ có hiệu lực với các phiếu mượn
+          được tạo sau thời điểm cập nhật. Các phiếu mượn đang diễn ra sẽ bảo lưu chính sách tại thời điểm lập phiếu.
+        </p>
+      </div>
+
+      {/* LỊCH SỬ THAY ĐỔI */}
+      <Card>
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <History size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Nhật ký kiểm toán thay đổi chính sách
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Theo dõi ai đã thay đổi, thời điểm thay đổi và chi tiết trước/sau khi cập nhật.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {history.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <History size={36} className="mx-auto text-slate-300" />
+            <p className="mt-3 font-medium text-slate-700">Chưa có bản ghi thay đổi nào</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Các thao tác thêm, chỉnh sửa hoặc bật/tắt chính sách sẽ được ghi nhận tự động vào đây.
+            </p>
+          </div>
+        ) : (
+          <>
+          <div className="overflow-x-auto">
+            <table className="data-table w-full min-w-[1160px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
+                    STT
+                  </th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
+                    Thời điểm
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                    Loại thẻ
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                    Hành động
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                    Người thực hiện
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                    Trước thay đổi
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                    Sau thay đổi
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {historyPagination.pageItems.map((item, index) => (
+                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td className="px-5 py-4 font-semibold text-slate-500">
+                      {historyPagination.startIndex + index + 1}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600 font-mono text-xs">
+                      {formatDate(item.changedAt)}
+                    </td>
+
+                    <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-900">
+                      {item.cardTypeName}
+                    </td>
+
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                        {item.action}
+                      </span>
+                    </td>
+
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-700 font-medium">
+                      {item.changedBy || 'Hệ thống'}
+                    </td>
+
+                    <td className="max-w-[320px] px-5 py-4 text-xs leading-5 text-slate-500 font-mono bg-slate-50/50 rounded">
+                      {item.before || '-'}
+                    </td>
+
+                    <td className="max-w-[320px] px-5 py-4 text-xs leading-5 text-slate-700 font-mono bg-blue-50/30 rounded">
+                      {item.after || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            page={historyPagination.page}
+            totalItems={historyPagination.totalItems}
+            totalPages={historyPagination.totalPages}
+            pageSize={historyPagination.pageSize}
+            onPageChange={historyPagination.goToPage}
+          />
+          </>
+        )}
+      </Card>
+
+      {/* MODAL THÊM / SỬA LOẠI THẺ */}
+      {canManage && isModalOpen && (
+        <AccessibleModal onClose={closeModal} busy={isSubmitting} label="Chính sách loại thẻ">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {editingId !== null ? 'Chỉnh sửa chính sách loại thẻ' : 'Thêm mới loại thẻ'}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Thiết lập tên loại thẻ và các hạn mức mượn, gia hạn sách chi tiết.
+                </p>
+              </div>
+
+              <button aria-label="Đóng hộp thoại"
+                type="button"
+                onClick={closeModal}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Tên loại thẻ <span className="ml-0.5 text-red-500">*</span>
+                </label>
+                <input
+                  value={form.name}
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value })
+                    setFormError('')
+                  }}
+                  placeholder="Ví dụ: Thẻ sinh viên, Thẻ giảng viên, Thẻ nghiên cứu..."
+                  className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Mô tả đối tượng
+                </label>
+                <textarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => {
+                    setForm({ ...form, description: e.target.value })
+                    setFormError('')
+                  }}
+                  placeholder="Mô tả phạm vi và quyền lợi của đối tượng áp dụng loại thẻ..."
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <NumberField
+                  label="Số sách mượn tối đa"
+                  value={form.maxBooks}
+                  max={10}
+                  hint="Tối đa 10 cuốn / bạn đọc"
+                  onChange={(value) => {
+                    setForm({ ...form, maxBooks: value })
+                    setFormError('')
+                  }}
+                />
+
+                <NumberField
+                  label="Số ngày mượn một lần"
+                  value={form.loanDays}
+                  max={60}
+                  hint="Tối đa 60 ngày"
+                  onChange={(value) => {
+                    setForm({ ...form, loanDays: value })
+                    setFormError('')
+                  }}
+                />
+
+                <NumberField
+                  label="Số lần gia hạn tối đa"
+                  value={form.maxRenewals}
+                  max={10}
+                  hint="Tối đa 10 lần"
+                  onChange={(value) => {
+                    setForm({ ...form, maxRenewals: value })
+                    setFormError('')
+                  }}
+                />
+
+                <NumberField
+                  label="Số ngày mỗi lần gia hạn"
+                  value={form.renewalDays}
+                  max={30}
+                  hint="Tối đa 30 ngày / lần"
+                  onChange={(value) => {
+                    setForm({ ...form, renewalDays: value })
+                    setFormError('')
+                  }}
+                />
+
+                <NumberField
+                  label="Thời hạn hiệu lực của thẻ (tháng)"
+                  value={form.duration}
+                  max={120}
+                  hint="Mặc định: 12 tháng (tối đa 120 tháng)"
+                  onChange={(value) => {
+                    setForm({ ...form, duration: value })
+                    setFormError('')
+                  }}
+                />
+              </div>
+
+              {formError && (
+                <FeedbackAlert message={formError} tone="error" onDismiss={() => setFormError('')} className="sm:col-span-2" />
+              )}
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={isSubmitting}
+                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Hủy
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Đang xử lý...
+                    </>
+                  ) : editingId !== null ? (
+                    'Lưu thay đổi'
+                  ) : (
+                    'Thêm loại thẻ'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </AccessibleModal>
+      )}
+    </div>
+  )
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+  max,
+  hint,
+}: NumberFieldProps) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+        {label} <span className="ml-0.5 text-red-500">*</span>
+      </label>
+
+      <input
+        type="number"
+        min={1}
+        max={max}
+        value={value || ''}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+
+      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}

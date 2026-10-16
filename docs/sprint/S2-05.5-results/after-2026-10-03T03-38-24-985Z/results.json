@@ -1,0 +1,2532 @@
+{
+  "label": "after",
+  "startedAt": "2026-10-03T03:38:24.985Z",
+  "api": "http://localhost:8083/api/v1",
+  "web": "http://localhost:5173",
+  "runs": 10,
+  "limitMs": 1500,
+  "timing": "API: before fetch -> parsed JSON; UI: capture click/change -> correct DOM confirmed + two animation frames. No samples discarded.",
+  "cache": "Warm cache after fixture preflight; first navigation and typing/filter preparation excluded. Background refresh remains enabled.",
+  "environment": {
+    "node": "v22.23.2",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12450H",
+    "logicalCpus": 12,
+    "memoryBytes": 16866684928,
+    "commit": "38f1cbd712b82ac5e3a074537b9b8961a016a240",
+    "browser": "151.0.7922.34"
+  },
+  "status": "PASS",
+  "samples": [
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 37.863499999999476,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 111,
+      "correct": true,
+      "pass": true,
+      "networkMs": 38.316
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 48.90790000000197,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 95.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 32.233
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 48.774899999996705,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 94.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 31.254
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 69.73929999999746,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 123.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 41.01
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 51.79320000000007,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 94.29999995231628,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.834
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 47.45219999999972,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 95.60000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.658
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 49.945299999999406,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 94.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.924
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 50.24150000000009,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 80.20000004768372,
+      "correct": true,
+      "pass": true,
+      "networkMs": 31.735
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 51.63849999999729,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 96.29999995231628,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.367
+    },
+    {
+      "scenario": "01-title",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 51.990200000000186,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "01-title",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 128.30000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 54.254
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 37.3862999999983,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79.59999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.059
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 32.569500000001426,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.564
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 38.11170000000129,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 102.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 30.957
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 49.524099999998725,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 91.90000003576279,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.654
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 32.25659999999334,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 109,
+      "correct": true,
+      "pass": true,
+      "networkMs": 29.452
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 31.50890000000072,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 94.79999995231628,
+      "correct": true,
+      "pass": true,
+      "networkMs": 22.02
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 31.083599999998114,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 92.10000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 27.212
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 29.264499999997497,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 92.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.414
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 32.3804999999993,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 90.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.603
+    },
+    {
+      "scenario": "02-author",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 24.734700000000885,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "02-author",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 110.30000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 35.486
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 28.560499999999593,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 77.39999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.928
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 23.604099999996834,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 76.30000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.926
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 27.066800000000512,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 74.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.954
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 45.45339999999851,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 76.60000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 14.966
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 31.29420000000391,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 62.19999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.343
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 17.112099999998463,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 82.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.074
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 28.018400000000838,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 74.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 17.577
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 32.25129999999626,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 94,
+      "correct": true,
+      "pass": true,
+      "networkMs": 14.492
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 21.476000000002387,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 60.10000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.015
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 33.83929999999964,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "03-isbn",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "9799901000001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 75,
+      "correct": true,
+      "pass": true,
+      "networkMs": 20.039
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 34.314100000003236,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 129,
+      "correct": true,
+      "pass": true,
+      "networkMs": 35.766
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 46.73889999999665,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 124,
+      "correct": true,
+      "pass": true,
+      "networkMs": 32.519
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 51.37569999999687,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 95.59999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 30.88
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 52.9997000000003,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 108.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.583
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 35.64979999999923,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 111,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.445
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 39.33149999999296,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 122.39999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.755
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 36.60620000000199,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 93.60000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 31.336
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 51.40729999999894,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 112,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.694
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 44.018300000003364,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 110.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.016
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 34.50430000000051,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "04-no-accents",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "s2055 mat biec",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 111.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 32.863
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 52.829399999995076,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 61.40000003576279,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.335
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 35.836999999999534,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 61.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 22.939
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 37.4742000000042,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 62.09999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.337
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 23.558300000004238,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 64.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 21.937
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 27.603799999997136,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 62.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 21.7
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 18.185000000004948,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 63.09999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.154
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 20.321300000003248,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 62.19999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.512
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 45.26860000000306,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 61.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 22.511
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 29.438399999999092,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 45.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 16.002
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 23.317300000002433,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "05-combined",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance",
+        "publicationYear": 2020,
+        "availableOnly": true,
+        "categoryId": 13
+      },
+      "ms": 62.59999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.161
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 47.62550000000192,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 78.30000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 30.927
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 48.36960000000545,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79.59999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 31.302
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 32.8862999999983,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 97.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 37.546
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 42.89130000000296,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 78.30000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.143
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 35.44119999999384,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 32.749
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 44.61070000000473,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 95.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.092
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 49.353799999997136,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79,
+      "correct": true,
+      "pass": true,
+      "networkMs": 33.314
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 33.71789999999601,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 95.70000004768372,
+      "correct": true,
+      "pass": true,
+      "networkMs": 35.957
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 44.344300000004296,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 80.39999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 34.467
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 44.22920000000158,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "06-next-page",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 1,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 97.19999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 37.075
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 23.453499999995984,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 72.79999995231628,
+      "correct": true,
+      "pass": true,
+      "networkMs": 21.438
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 24.992300000005343,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 72.09999996423721,
+      "correct": true,
+      "pass": true,
+      "networkMs": 21.332
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 31.533500000005006,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 72.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 23.298
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 36.95179999999527,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 72.10000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.871
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 26.326600000000326,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 64.20000004768372,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.654
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 22.1903999999995,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 79.60000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.365
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 35.41530000000057,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 73.19999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.396
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 22.09309999999823,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 70.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 16.872
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 34.63289999999688,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 61.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.365
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 36.03859999999986,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "07-relevance",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Nguyễn Nhật Ánh 001",
+        "page": 0,
+        "size": 20,
+        "sort": "relevance"
+      },
+      "ms": 74.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.299
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 31.651000000005297,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 1,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 81.89999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 20.36
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 32.189900000004855,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 2,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 79.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 17.961
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 18.902000000001863,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 3,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 80.39999997615814,
+      "correct": true,
+      "pass": true,
+      "networkMs": 15.955
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 19.726000000002387,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 4,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 73.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 17.838
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 22.845699999998033,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 5,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 75.80000001192093,
+      "correct": true,
+      "pass": true,
+      "networkMs": 17.774
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 30.47030000000086,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 6,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 85.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.864
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 33.343300000000454,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 7,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 76.10000002384186,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.386
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 34.37829999999667,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 8,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 78.69999998807907,
+      "correct": true,
+      "pass": true,
+      "networkMs": 18.632
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 33.56330000000162,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 9,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 78.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 19.988
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "api",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 37.61269999999786,
+      "correct": true,
+      "pass": true
+    },
+    {
+      "scenario": "08-publication-year",
+      "mode": "ui",
+      "iteration": 10,
+      "query": {
+        "keyword": "S2055 Mắt biếc",
+        "page": 0,
+        "size": 20,
+        "sort": "publicationYear"
+      },
+      "ms": 75.5,
+      "correct": true,
+      "pass": true,
+      "networkMs": 17.191
+    }
+  ],
+  "fixture": {
+    "books": 5000,
+    "authors": 100,
+    "categories": 4,
+    "copies": 15000
+  },
+  "summary": [
+    {
+      "scenario": "01-title",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 69.73929999999746,
+        "p95Ms": 69.73929999999746
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 128.30000001192093,
+        "p95Ms": 128.30000001192093
+      }
+    },
+    {
+      "scenario": "02-author",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 49.524099999998725,
+        "p95Ms": 49.524099999998725
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 110.30000001192093,
+        "p95Ms": 110.30000001192093
+      }
+    },
+    {
+      "scenario": "03-isbn",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 45.45339999999851,
+        "p95Ms": 45.45339999999851
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 94,
+        "p95Ms": 94
+      }
+    },
+    {
+      "scenario": "04-no-accents",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 52.9997000000003,
+        "p95Ms": 52.9997000000003
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 129,
+        "p95Ms": 129
+      }
+    },
+    {
+      "scenario": "05-combined",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 52.829399999995076,
+        "p95Ms": 52.829399999995076
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 64.5,
+        "p95Ms": 64.5
+      }
+    },
+    {
+      "scenario": "06-next-page",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 49.353799999997136,
+        "p95Ms": 49.353799999997136
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 97.69999998807907,
+        "p95Ms": 97.69999998807907
+      }
+    },
+    {
+      "scenario": "07-relevance",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 36.95179999999527,
+        "p95Ms": 36.95179999999527
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 79.60000002384186,
+        "p95Ms": 79.60000002384186
+      }
+    },
+    {
+      "scenario": "08-publication-year",
+      "api": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 37.61269999999786,
+        "p95Ms": 37.61269999999786
+      },
+      "ui": {
+        "samples": 10,
+        "failures": 0,
+        "maxMs": 85.5,
+        "p95Ms": 85.5
+      }
+    }
+  ],
+  "finishedAt": "2026-10-03T03:39:29.711Z"
+}

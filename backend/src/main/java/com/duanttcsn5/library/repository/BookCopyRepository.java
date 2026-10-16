@@ -1,0 +1,147 @@
+package com.duanttcsn5.library.repository;
+
+import com.duanttcsn5.library.entity.BookCopy;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
+
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM loan_items
+                WHERE book_copy_id = :copyId AND returned_at IS NULL)
+            """, nativeQuery = true)
+    boolean hasUnreturnedLoan(@Param("copyId") Long copyId);
+
+    // Wait for competing loan/repair updates on the selected row and recheck
+    // AVAILABLE, rather than treating a temporarily locked copy as unavailable.
+    @Query(value = """
+            SELECT c.* FROM book_copies c
+            WHERE c.book_id = :bookId AND c.status = 'AVAILABLE'
+              AND NOT EXISTS (
+                  SELECT 1 FROM loan_items li
+                  WHERE li.book_copy_id = c.id AND li.returned_at IS NULL
+              )
+            ORDER BY c.id ASC
+            LIMIT 1
+            FOR UPDATE OF c
+            """, nativeQuery = true)
+    Optional<BookCopy> findFirstAvailableForReservation(@Param("bookId") Long bookId);
+
+    @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
+    Optional<BookCopy> findByBarcode(String barcode);
+
+    boolean existsByBarcode(String barcode);
+
+    @Override
+    @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
+    Optional<BookCopy> findById(Long id);
+
+    @EntityGraph(attributePaths = {"book", "shelf", "shelf.warehouse"})
+    List<BookCopy> findAllByBookIdOrderByIdAsc(Long bookId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM BookCopy c WHERE c.id = :id")
+    Optional<BookCopy> findForStatusChange(@Param("id") Long id);
+
+    @Query(value = """
+            SELECT c.book_id, COUNT(*) FROM book_copies c
+            WHERE c.status = 'AVAILABLE'
+              AND NOT EXISTS (SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL)
+            GROUP BY c.book_id
+            """, nativeQuery = true)
+    List<Object[]> countAvailableGroupedByBookId();
+
+    long countByBookId(Long bookId);
+
+    @Query(value="SELECT COUNT(*) FROM book_copies WHERE book_id=:bookId AND status <> 'REMOVED'", nativeQuery=true)
+    long countStockByBookId(@Param("bookId") Long bookId);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM book_copies c WHERE c.book_id = :bookId AND c.status = 'AVAILABLE'
+            AND NOT EXISTS (SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL)
+            """, nativeQuery = true)
+    long countAvailableByBookId(@Param("bookId") Long bookId);
+
+    @Query(value = """
+            SELECT c.id, c.barcode, w.id AS warehouse_id, w.code AS warehouse_code, w.name AS warehouse_name,
+                   s.id AS shelf_id, s.code AS shelf_code, s.name AS shelf_name
+            FROM book_copies c
+            JOIN shelves s ON c.shelf_id = s.id
+            JOIN warehouses w ON s.warehouse_id = w.id
+            WHERE c.book_id = :bookId
+              AND c.status = 'AVAILABLE'
+              AND NOT EXISTS (
+                  SELECT 1 FROM loan_items li
+                  WHERE li.book_copy_id = c.id
+                    AND li.returned_at IS NULL
+              )
+            ORDER BY w.name ASC, s.code ASC, c.id ASC
+            """, nativeQuery = true)
+    List<Object[]> findAvailableCopyLocationsByBookId(@Param("bookId") Long bookId);
+
+    @Query("""
+            SELECT bc.book.id, COUNT(bc.id)
+            FROM BookCopy bc
+            WHERE bc.status <> 'REMOVED'
+            GROUP BY bc.book.id
+            """)
+    List<Object[]> countAllGroupedByBookId();
+
+    // Shared by preview, bulk creation and single AUTO creation; released at transaction end.
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(20402)", nativeQuery = true)
+    Integer lockAutoBarcodeSequence();
+
+    @Query(value = "SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END FROM book_copy_barcode_seq", nativeQuery = true)
+    Long peekAutoBarcodeNumber();
+
+    @Query(value = "SELECT nextval('book_copy_barcode_seq')", nativeQuery = true)
+    Long nextAutoBarcodeNumber();
+
+    @Query(value = "SELECT set_config('app.bulk_book_copy_creation', 'true', true)", nativeQuery = true)
+    String enableBulkBookCopyCreation();
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO book_copies (book_id, barcode, shelf_id, received_date, status)
+            VALUES (:bookId, :barcode, :shelfId, :receivedDate, 'AVAILABLE')
+            ON CONFLICT (barcode) DO NOTHING
+            """, nativeQuery = true)
+    int insertBulkGeneratedCopy(
+            @Param("bookId") Long bookId,
+            @Param("barcode") String barcode,
+            @Param("shelfId") Long shelfId,
+            @Param("receivedDate") LocalDate receivedDate
+    );
+
+    // PostgreSQL handles concurrent duplicate submissions without aborting this transaction.
+    @Modifying
+    @Query(value = """
+            INSERT INTO book_copies (book_id, barcode, shelf_id, received_date, cover_price, physical_condition, status)
+            VALUES (:bookId, :barcode, :shelfId, :receivedDate, :coverPrice, :physicalCondition, 'AVAILABLE')
+            ON CONFLICT (barcode) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfBarcodeAbsent(
+            @Param("bookId") Long bookId,
+            @Param("barcode") String barcode,
+            @Param("shelfId") Long shelfId,
+            @Param("receivedDate") LocalDate receivedDate,
+            @Param("coverPrice") BigDecimal coverPrice,
+            @Param("physicalCondition") String physicalCondition
+    );
+
+    @Query(value = """
+            SELECT c.book_id, COUNT(*) FILTER (WHERE c.status <> 'REMOVED'), COUNT(*) FILTER (
+                WHERE c.status = 'AVAILABLE' AND NOT EXISTS (
+                    SELECT 1 FROM loan_items li WHERE li.book_copy_id = c.id AND li.returned_at IS NULL))
+            FROM book_copies c WHERE c.book_id IN :ids GROUP BY c.book_id
+            """, nativeQuery = true)
+    List<Object[]> countCopiesForPublicPage(@Param("ids") List<Long> ids);
+}

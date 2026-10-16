@@ -1,0 +1,21 @@
+import { loadablePage } from '../../app/loadablePage'
+import { ClipboardList, Search } from 'lucide-react'
+import type { FeatureModule } from '../../types/feature'
+const LoanListPage = loadablePage(() => import('./LoanListPage'))
+const LoanSearchPage = loadablePage(() => import('./LoanSearchPage'))
+const LoanDetailPage = loadablePage(() => import('./LoanDetailPage'))
+import { loanRoles } from './loanService'
+
+const feature: FeatureModule = {
+  id: 's3-01-loans', order: 150,
+  appRoutes: [
+    { path: 'loans', element: <LoanListPage /> },
+    { path: 'loans/search', element: <LoanSearchPage /> },
+    { path: 'loans/:loanId', element: <LoanDetailPage /> },
+  ],
+  navItems: [
+    { label: 'Phiếu mượn', to: '/loans', icon: ClipboardList, order: 150, roles: loanRoles },
+    { label: 'Tra cứu phiếu mượn', to: '/loans/search', icon: Search, order: 151, roles: loanRoles },
+  ],
+}
+export default feature

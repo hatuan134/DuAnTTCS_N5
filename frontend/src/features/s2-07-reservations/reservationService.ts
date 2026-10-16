@@ -1,0 +1,60 @@
+import { apiClient } from '../../core/api/apiClient'
+
+export interface BookReservation {
+  id: number
+  bookId: number
+  status: string
+  reservedAt: string
+  queuePosition: number | null
+  message: string
+  pickupDeadline: string | null
+  reservedCopy: {
+    copyId: number
+    barcode: string
+    warehouseCode: string
+    warehouseName: string
+    shelfCode: string
+    shelfName: string | null
+  } | null
+}
+
+export interface BookReservationBatch {
+  requestedQuantity: number
+  createdCount: number
+  activeReservationCount: number
+  remainingActiveSlots: number
+  reservations: BookReservation[]
+  message: string
+}
+
+export interface MyBookReservation {
+  cancellationReason?: string | null
+  cancelledAt?: string | null
+  cancelledBySystem?: boolean
+  pickupLocation?: string | null
+  id: number
+  bookId: number
+  bookTitle: string
+  status: string
+  reservedAt: string
+  queuePosition: number | null
+  pickupDeadline: string | null
+}
+
+export const reservationService = {
+  cancelMine: async (reservationId: number): Promise<void> => {
+    await apiClient.post(`/reservations/mine/${reservationId}/cancel`)
+  },
+  listMine: async (): Promise<MyBookReservation[]> => {
+    const response = await apiClient.get<MyBookReservation[]>('/reservations/mine')
+    return response.data
+  },
+  reserve: async (bookId: number): Promise<BookReservation> => {
+    const response = await apiClient.post<BookReservation>(`/books/${bookId}/reservations`)
+    return response.data
+  },
+  reserveMany: async (bookId: number, quantity: number): Promise<BookReservationBatch> => {
+    const response = await apiClient.post<BookReservationBatch>(`/books/${bookId}/reservations/bulk`, { quantity })
+    return response.data
+  },
+}

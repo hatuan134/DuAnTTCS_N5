@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:1234}/${DB_NAME:library_management}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
+
+app:
+  auth:
+    jwt-secret-base64: ${JWT_SECRET_BASE64:opmZNkGt0AiII8z/ejMlXoGAApkgRdPWH+syFWitcRo=}

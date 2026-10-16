@@ -1,0 +1,109 @@
+import { apiClient } from '../../core/api/apiClient'
+export interface PickupEmailAttempt {
+  id: number
+  attemptNumber: number
+  startedAt: string
+  finishedAt: string | null
+  outcome: string
+  errorCode: string | null
+  errorMessage: string | null
+  simulated: boolean
+  actorId: number | null
+}
+export interface PickupEmailNotification {
+  id: number
+  reservationId: number
+  notificationType: string
+  recipientEmail: string | null
+  readerName: string
+  bookTitle: string
+  pickupDeadline: string | null
+  pickupLocation: string | null
+  eventAt: string
+  sendBefore: string | null
+  sentAt: string | null
+  completedAt: string | null
+  status: 'PENDING' | 'RETRY' | 'SENDING' | 'SENT' | 'FAILED' | 'SKIPPED'
+  attemptCount: number
+  subject: string
+  emailContent: string
+  errorCode: string | null
+  errorMessage: string | null
+  attempts: PickupEmailAttempt[]
+  bookId?: number | null
+  cancellationReason?: string | null
+  cancelledAt?: string | null
+}
+export interface PickupEmailHistory {
+  reservationId: number
+  reservationStatus: string
+  pickupLocation: string | null
+  timeZone: string
+  notifications: PickupEmailNotification[]
+}
+export const pickupEmailLabels: Record<string, string> = {
+  SENDING: 'Đang gửi', STARTED: 'Bắt đầu gửi', PENDING: 'Chờ gửi', RETRY: 'Chờ thử lại', SENT: 'Đã gửi', FAILED: 'Gửi thất bại', SKIPPED: 'Không gửi',
+}
+export interface PickupReminderEntry {
+  reservationId: number
+  readerName: string
+  recipientEmail: string | null
+  bookTitle: string
+  pickupDeadline: string
+  pickupLocation: string | null
+  eligible: boolean
+  reason: string
+  notificationStatus: string | null
+  subject: string
+  emailContent: string
+}
+export interface PickupReminderReport {
+  date: string
+  evaluatedAt: string
+  sendTime: string
+  timeZone: string
+  preview: boolean
+  queuedCount: number
+  eligibleCount: number
+  message: string
+  entries: PickupReminderEntry[]
+}
+export interface PickupCancellationPreview {
+  reservationId: number
+  bookId: number
+  bookTitle: string
+  readerName: string
+  recipientEmail: string | null
+  reservationStatus: string
+  pickupDeadline: string | null
+  evaluatedAt: string
+  actualNow: string
+  eligible: boolean
+  canRunNow: boolean
+  reason: string
+  subject: string
+  emailContent: string
+}
+export const readyEmailService = {
+  async previewCancellation(id: number, checkTime?: string): Promise<PickupCancellationPreview> {
+    return (await apiClient.get<PickupCancellationPreview>(`/reservations/${id}/ready-email/cancellation-preview`,
+      { params: { checkTime } })).data
+  },
+  async runCancellation(id: number, checkTime?: string): Promise<{ message: string; history: PickupEmailHistory }> {
+    return (await apiClient.post<{ message: string; history: PickupEmailHistory }>(
+      `/reservations/${id}/ready-email/cancellation-run`, { checkTime })).data
+  },
+  async previewLastDay(date: string): Promise<PickupReminderReport> {
+    return (await apiClient.get<PickupReminderReport>('/reservations/pickup-last-day-reminders/preview', { params: { date } })).data
+  },
+  async runLastDay(date: string): Promise<PickupReminderReport> {
+    return (await apiClient.post<PickupReminderReport>('/reservations/pickup-last-day-reminders/run', { date })).data
+  },
+  async history(id: number): Promise<PickupEmailHistory> {
+    return (await apiClient.get<PickupEmailHistory>(`/reservations/${id}/ready-email`)).data
+  },
+  async trigger(id: number, simulateFailure: boolean): Promise<{ message: string; history: PickupEmailHistory }> {
+    return (await apiClient.post<{ message: string; history: PickupEmailHistory }>(
+      `/reservations/${id}/ready-email/trigger`, { simulateFailure })).data
+  },
+}

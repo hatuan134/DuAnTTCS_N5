@@ -1,0 +1,3726 @@
+{
+  "version": "S4-00.1-v1",
+  "decision": "S4-00.1: Admin có toàn quyền chức năng quản trị và nghiệp vụ của nhân viên; giữ validation, điều kiện nghiệp vụ và phạm vi dữ liệu cá nhân Bạn đọc.",
+  "roles": [
+    {
+      "code": "ADMIN",
+      "name": "Quản trị hệ thống"
+    },
+    {
+      "code": "LIBRARY_MANAGER",
+      "name": "Quản lý thư viện"
+    },
+    {
+      "code": "LIBRARIAN",
+      "name": "Thủ thư"
+    },
+    {
+      "code": "READER",
+      "name": "Bạn đọc"
+    }
+  ],
+  "modules": [
+    {
+      "code": "FEES",
+      "name": "Thu phí và miễn giảm",
+      "priority": 1
+    },
+    {
+      "code": "READERS",
+      "name": "Bạn đọc và thẻ",
+      "priority": 2
+    },
+    {
+      "code": "LOANS",
+      "name": "Mượn và trả sách",
+      "priority": 3
+    },
+    {
+      "code": "STOCK",
+      "name": "Kho và sự cố sách",
+      "priority": 4
+    },
+    {
+      "code": "RESERVATIONS",
+      "name": "Đặt giữ",
+      "priority": 5
+    },
+    {
+      "code": "ACCOUNTS",
+      "name": "Tài khoản nhân sự",
+      "priority": 6
+    },
+    {
+      "code": "AUDIT",
+      "name": "Nhật ký hoạt động",
+      "priority": 7
+    },
+    {
+      "code": "CATALOG",
+      "name": "Danh mục và biên mục",
+      "priority": 8
+    },
+    {
+      "code": "CONFIG",
+      "name": "Chính sách và cấu hình",
+      "priority": 9
+    },
+    {
+      "code": "EMAIL",
+      "name": "Email nhắc và thông báo",
+      "priority": 10
+    },
+    {
+      "code": "REPORTS",
+      "name": "Thống kê và báo cáo",
+      "priority": 11
+    },
+    {
+      "code": "AUTH",
+      "name": "Xác thực và tài khoản cá nhân",
+      "priority": 12
+    },
+    {
+      "code": "PUBLIC",
+      "name": "Tra cứu và đăng ký công khai",
+      "priority": 13
+    },
+    {
+      "code": "REVIEW",
+      "name": "Rà soát phân quyền",
+      "priority": 14
+    }
+  ],
+  "entries": [
+    {
+      "id": "ReaderController.getMyProfile",
+      "module": "READERS",
+      "label": "Xem hồ sơ cá nhân",
+      "controller": "ReaderController",
+      "handler": "getMyProfile",
+      "path": "/api/v1/readers/me/profile",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.updateMyContact",
+      "module": "READERS",
+      "label": "Cập nhật liên hệ cá nhân",
+      "controller": "ReaderController",
+      "handler": "updateMyContact",
+      "path": "/api/v1/readers/me/contact",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "ReaderController.changeMyPassword",
+      "module": "READERS",
+      "label": "Đổi mật khẩu cá nhân",
+      "controller": "ReaderController",
+      "handler": "changeMyPassword",
+      "path": "/api/v1/readers/me/password",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "ReaderController.getAllReaders",
+      "module": "READERS",
+      "label": "Xem danh sách bạn đọc",
+      "controller": "ReaderController",
+      "handler": "getAllReaders",
+      "path": "/api/v1/readers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.getReaderById",
+      "module": "READERS",
+      "label": "Xem hồ sơ bạn đọc",
+      "controller": "ReaderController",
+      "handler": "getReaderById",
+      "path": "/api/v1/readers/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.getReaderLoanHistory",
+      "module": "READERS",
+      "label": "Xem lịch sử mượn của bạn đọc",
+      "controller": "ReaderController",
+      "handler": "getReaderLoanHistory",
+      "path": "/api/v1/readers/{id}/loan-history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.exportReaderLoanHistory",
+      "module": "READERS",
+      "label": "Xuất lịch sử mượn của bạn đọc",
+      "controller": "ReaderController",
+      "handler": "exportReaderLoanHistory",
+      "path": "/api/v1/readers/{id}/loan-history/export",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.lockSuggestions",
+      "module": "READERS",
+      "label": "Xem đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "lockSuggestions",
+      "path": "/api/v1/library-cards/lock-suggestions",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.suggestionDetail",
+      "module": "READERS",
+      "label": "Xem chi tiết đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "suggestionDetail",
+      "path": "/api/v1/library-cards/lock-suggestions/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.acceptSuggestion",
+      "module": "READERS",
+      "label": "Chấp nhận đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "acceptSuggestion",
+      "path": "/api/v1/library-cards/lock-suggestions/{id}/accept",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.ignoreSuggestion",
+      "module": "READERS",
+      "label": "Bỏ qua đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "ignoreSuggestion",
+      "path": "/api/v1/library-cards/lock-suggestions/{id}/ignore",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.getPendingApplications",
+      "module": "READERS",
+      "label": "Xem hồ sơ chờ duyệt",
+      "controller": "LibraryCardController",
+      "handler": "getPendingApplications",
+      "path": "/api/v1/library-cards/pending",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.getIssuedCards",
+      "module": "READERS",
+      "label": "Xem danh sách thẻ",
+      "controller": "LibraryCardController",
+      "handler": "getIssuedCards",
+      "path": "/api/v1/library-cards",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.approve",
+      "module": "READERS",
+      "label": "Duyệt hồ sơ và cấp thẻ",
+      "controller": "LibraryCardController",
+      "handler": "approve",
+      "path": "/api/v1/library-cards/{readerUserId}/approve",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.reject",
+      "module": "READERS",
+      "label": "Từ chối hồ sơ",
+      "controller": "LibraryCardController",
+      "handler": "reject",
+      "path": "/api/v1/library-cards/{readerUserId}/reject",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.lockCard",
+      "module": "READERS",
+      "label": "Khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "lockCard",
+      "path": "/api/v1/library-cards/{cardId}/lock",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.getCardDetails",
+      "module": "READERS",
+      "label": "Xem chi tiết thẻ",
+      "controller": "LibraryCardController",
+      "handler": "getCardDetails",
+      "path": "/api/v1/library-cards/{cardId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.unlockCard",
+      "module": "READERS",
+      "label": "Mở khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "unlockCard",
+      "path": "/api/v1/library-cards/{cardId}/unlock",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.getMyCard",
+      "module": "READERS",
+      "label": "Xem thẻ cá nhân",
+      "controller": "LibraryCardController",
+      "handler": "getMyCard",
+      "path": "/api/v1/library-cards/me",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.pickupContext",
+      "module": "LOANS",
+      "label": "Xem ngữ cảnh nhận sách từ đặt giữ",
+      "controller": "LoanController",
+      "handler": "pickupContext",
+      "path": "/api/v1/reservations/{reservationId}/loan-context",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.checkPickup",
+      "module": "LOANS",
+      "label": "Kiểm tra nhận sách tại quầy",
+      "controller": "LoanController",
+      "handler": "checkPickup",
+      "path": "/api/v1/reservations/{reservationId}/pickup-check",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.createFromReservation",
+      "module": "LOANS",
+      "label": "Tạo phiếu từ một đơn đặt giữ",
+      "controller": "LoanController",
+      "handler": "createFromReservation",
+      "path": "/api/v1/reservations/{reservationId}/loan",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "OVERRIDE",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Quản lý chỉ được xử lý ngoại lệ có lý do; các điều kiện không được bỏ qua vẫn phải hợp lệ.",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.createFromReservations",
+      "module": "LOANS",
+      "label": "Tạo phiếu từ nhiều đơn đặt giữ",
+      "controller": "LoanController",
+      "handler": "createFromReservations",
+      "path": "/api/v1/reservations/loans",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "OVERRIDE",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Quản lý chỉ được xử lý ngoại lệ có lý do; các điều kiện không được bỏ qua vẫn phải hợp lệ.",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.myBorrowedBooks",
+      "module": "LOANS",
+      "label": "Xem sách đang mượn cá nhân",
+      "controller": "LoanController",
+      "handler": "myBorrowedBooks",
+      "path": "/api/v1/loans/me/borrowed-books",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.checkMyRenewal",
+      "module": "LOANS",
+      "label": "Kiểm tra và xử lý gia hạn cá nhân",
+      "controller": "LoanController",
+      "handler": "checkMyRenewal",
+      "path": "/api/v1/loans/me/borrowed-books/{itemId}/renewal-check",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.myReturnedBooks",
+      "module": "LOANS",
+      "label": "Xem sách đã trả cá nhân",
+      "controller": "LoanController",
+      "handler": "myReturnedBooks",
+      "path": "/api/v1/loans/me/returned-books",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.searchLoans",
+      "module": "LOANS",
+      "label": "Tìm phiếu mượn",
+      "controller": "LoanController",
+      "handler": "searchLoans",
+      "path": "/api/v1/loans/search",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.overdueLoans",
+      "module": "LOANS",
+      "label": "Xem sách quá hạn",
+      "controller": "LoanController",
+      "handler": "overdueLoans",
+      "path": "/api/v1/loans/overdue",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.listLoans",
+      "module": "LOANS",
+      "label": "Xem danh sách phiếu mượn",
+      "controller": "LoanController",
+      "handler": "listLoans",
+      "path": "/api/v1/loans",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.readerEligibility",
+      "module": "LOANS",
+      "label": "Xem điều kiện mượn",
+      "controller": "LoanController",
+      "handler": "readerEligibility",
+      "path": "/api/v1/loans/reader-eligibility",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.checkReaderAndLog",
+      "module": "LOANS",
+      "label": "Kiểm tra điều kiện và ghi nhận từ chối",
+      "controller": "LoanController",
+      "handler": "checkReaderAndLog",
+      "path": "/api/v1/loans/reader-eligibility/check",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.rejections",
+      "module": "LOANS",
+      "label": "Xem nhật ký từ chối mượn",
+      "controller": "LoanController",
+      "handler": "rejections",
+      "path": "/api/v1/loans/rejections",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.rejectionDetail",
+      "module": "LOANS",
+      "label": "Xem chi tiết từ chối mượn",
+      "controller": "LoanController",
+      "handler": "rejectionDetail",
+      "path": "/api/v1/loans/rejections/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.previewDirectLoanItem",
+      "module": "LOANS",
+      "label": "Kiểm tra bản sách mượn trực tiếp",
+      "controller": "LoanController",
+      "handler": "previewDirectLoanItem",
+      "path": "/api/v1/loans/direct/items/preview",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "OVERRIDE",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Quản lý chỉ được xử lý ngoại lệ có lý do; các điều kiện không được bỏ qua vẫn phải hợp lệ.",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.createDirectLoan",
+      "module": "LOANS",
+      "label": "Tạo phiếu mượn trực tiếp",
+      "controller": "LoanController",
+      "handler": "createDirectLoan",
+      "path": "/api/v1/loans/direct",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "OVERRIDE",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Quản lý chỉ được xử lý ngoại lệ có lý do; các điều kiện không được bỏ qua vẫn phải hợp lệ.",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.lookupReturn",
+      "module": "LOANS",
+      "label": "Tra cứu tiếp nhận trả sách",
+      "controller": "LoanController",
+      "handler": "lookupReturn",
+      "path": "/api/v1/loans/return-lookup",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "LoanController.confirmReturn",
+      "module": "LOANS",
+      "label": "Xác nhận trả sách",
+      "controller": "LoanController",
+      "handler": "confirmReturn",
+      "path": "/api/v1/loans/return-confirmation",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.loanDetail",
+      "module": "LOANS",
+      "label": "Xem chi tiết phiếu mượn",
+      "controller": "LoanController",
+      "handler": "loanDetail",
+      "path": "/api/v1/loans/{loanId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "OWN"
+      },
+      "condition": "Bạn đọc chỉ xem được phiếu thuộc chính mình; tài nguyên khác được che bằng HTTP 404.",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.getMine",
+      "module": "RESERVATIONS",
+      "label": "Xem đơn đặt giữ cá nhân",
+      "controller": "BookReservationController",
+      "handler": "getMine",
+      "path": "/api/v1/reservations/mine",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.cancelMine",
+      "module": "RESERVATIONS",
+      "label": "Hủy đơn đặt giữ cá nhân",
+      "controller": "BookReservationController",
+      "handler": "cancelMine",
+      "path": "/api/v1/reservations/mine/{reservationId}/cancel",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.reserve",
+      "module": "RESERVATIONS",
+      "label": "Đặt giữ một đầu sách",
+      "controller": "BookReservationController",
+      "handler": "reserve",
+      "path": "/api/v1/books/{bookId}/reservations",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.reserveMany",
+      "module": "RESERVATIONS",
+      "label": "Đặt giữ nhiều bản",
+      "controller": "BookReservationController",
+      "handler": "reserveMany",
+      "path": "/api/v1/books/{bookId}/reservations/bulk",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "DENY",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "OWN"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.getQueueByBookId",
+      "module": "RESERVATIONS",
+      "label": "Xem hàng đợi đặt giữ",
+      "controller": "BookReservationController",
+      "handler": "getQueueByBookId",
+      "path": "/api/v1/books/{bookId}/reservations",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.cancelByStaff",
+      "module": "RESERVATIONS",
+      "label": "Hủy đơn đặt giữ tại quầy",
+      "controller": "BookReservationController",
+      "handler": "cancelByStaff",
+      "path": "/api/v1/reservations/{reservationId}/cancel",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.getReadyForPickup",
+      "module": "RESERVATIONS",
+      "label": "Xem đơn sẵn sàng nhận",
+      "controller": "BookReservationController",
+      "handler": "getReadyForPickup",
+      "path": "/api/v1/reservations/ready-for-pickup",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.getReadyForPickupById",
+      "module": "RESERVATIONS",
+      "label": "Xem chi tiết đơn sẵn sàng nhận",
+      "controller": "BookReservationController",
+      "handler": "getReadyForPickupById",
+      "path": "/api/v1/reservations/ready-for-pickup/{reservationId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.autoCancelOverdue",
+      "module": "RESERVATIONS",
+      "label": "Xử lý đơn đặt giữ quá hạn",
+      "controller": "BookReservationController",
+      "handler": "autoCancelOverdue",
+      "path": "/api/v1/reservations/auto-cancel-overdue",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.getLatestAutoCancelRun",
+      "module": "RESERVATIONS",
+      "label": "Xem lần tự hủy gần nhất",
+      "controller": "BookReservationController",
+      "handler": "getLatestAutoCancelRun",
+      "path": "/api/v1/reservations/auto-cancel-runs/latest",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.getAllAutoCancelRuns",
+      "module": "RESERVATIONS",
+      "label": "Xem lịch sử tự hủy",
+      "controller": "BookReservationController",
+      "handler": "getAllAutoCancelRuns",
+      "path": "/api/v1/reservations/auto-cancel-runs",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookReservationController.triggerAutoCancelRun",
+      "module": "RESERVATIONS",
+      "label": "Kích hoạt kiểm tra tự hủy",
+      "controller": "BookReservationController",
+      "handler": "triggerAutoCancelRun",
+      "path": "/api/v1/reservations/auto-cancel-runs/trigger",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookReservationController.getAutoCancelledLast30Days",
+      "module": "RESERVATIONS",
+      "label": "Xem đơn đã tự hủy trong 30 ngày",
+      "controller": "BookReservationController",
+      "handler": "getAutoCancelledLast30Days",
+      "path": "/api/v1/reservations/auto-cancelled-last-30-days",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "FeePaymentController.search",
+      "module": "FEES",
+      "label": "Tìm bạn đọc để thu phí",
+      "controller": "FeePaymentController",
+      "handler": "search",
+      "path": "/api/v1/fee-payments/readers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Thủ thư; không kế thừa quyền thu phí cho Admin hoặc Quản lý.",
+      "mutating": false
+    },
+    {
+      "id": "FeePaymentController.detail",
+      "module": "FEES",
+      "label": "Xem công nợ tại quầy thu phí",
+      "controller": "FeePaymentController",
+      "handler": "detail",
+      "path": "/api/v1/fee-payments/readers/{readerId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Thủ thư; không kế thừa quyền thu phí cho Admin hoặc Quản lý.",
+      "mutating": false
+    },
+    {
+      "id": "FeePaymentController.collect",
+      "module": "FEES",
+      "label": "Thu toàn bộ phí",
+      "controller": "FeePaymentController",
+      "handler": "collect",
+      "path": "/api/v1/fee-payments/readers/{readerId}/collect-full",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Thủ thư; không kế thừa quyền thu phí cho Admin hoặc Quản lý.",
+      "mutating": true
+    },
+    {
+      "id": "FeePaymentController.collectPartial",
+      "module": "FEES",
+      "label": "Thu một phần phí",
+      "controller": "FeePaymentController",
+      "handler": "collectPartial",
+      "path": "/api/v1/fee-payments/readers/{readerId}/collect-partial",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Thủ thư; không kế thừa quyền thu phí cho Admin hoặc Quản lý.",
+      "mutating": true
+    },
+    {
+      "id": "FeePaymentController.receipt",
+      "module": "FEES",
+      "label": "Xem và in lại biên lai",
+      "controller": "FeePaymentController",
+      "handler": "receipt",
+      "path": "/api/v1/fee-payments/{paymentId}/receipt",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Thủ thư; không kế thừa quyền thu phí cho Admin hoặc Quản lý.",
+      "mutating": false
+    },
+    {
+      "id": "FeeReductionController.detail",
+      "module": "FEES",
+      "label": "Xem chi tiết phí quá hạn",
+      "controller": "FeeReductionController",
+      "handler": "detail",
+      "path": "/api/v1/overdue-fees/{feeId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "FeeReductionController.create",
+      "module": "FEES",
+      "label": "Lập đề nghị miễn giảm",
+      "controller": "FeeReductionController",
+      "handler": "create",
+      "path": "/api/v1/overdue-fees/{feeId}/reduction-requests",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "FeeReductionController.pending",
+      "module": "FEES",
+      "label": "Xem đề nghị miễn giảm chờ duyệt",
+      "controller": "FeeReductionController",
+      "handler": "pending",
+      "path": "/api/v1/overdue-fees/reduction-requests/pending",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "FeeReductionController.approve",
+      "module": "FEES",
+      "label": "Duyệt miễn giảm",
+      "controller": "FeeReductionController",
+      "handler": "approve",
+      "path": "/api/v1/overdue-fees/reduction-requests/{requestId}/approve",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "FeeReductionController.reject",
+      "module": "FEES",
+      "label": "Từ chối miễn giảm",
+      "controller": "FeeReductionController",
+      "handler": "reject",
+      "path": "/api/v1/overdue-fees/reduction-requests/{requestId}/reject",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookCopyController.repair",
+      "module": "STOCK",
+      "label": "Chuyển bản sao sang sửa chữa",
+      "controller": "BookCopyController",
+      "handler": "repair",
+      "path": "/api/v1/book-copies/{id}/repair",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookCopyController.history",
+      "module": "STOCK",
+      "label": "Xem lịch sử trạng thái bản sao",
+      "controller": "BookCopyController",
+      "handler": "history",
+      "path": "/api/v1/book-copies/{id}/status-history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookCopyController.create",
+      "module": "STOCK",
+      "label": "Thêm bản sao",
+      "controller": "BookCopyController",
+      "handler": "create",
+      "path": "/api/v1/books/{bookId}/copies",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookCopyController.previewBulk",
+      "module": "STOCK",
+      "label": "Xem trước mã vạch hàng loạt",
+      "controller": "BookCopyController",
+      "handler": "previewBulk",
+      "path": "/api/v1/books/{bookId}/copies/bulk/preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookCopyController.createBulk",
+      "module": "STOCK",
+      "label": "Thêm bản sao hàng loạt",
+      "controller": "BookCopyController",
+      "handler": "createBulk",
+      "path": "/api/v1/books/{bookId}/copies/bulk",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookCopyController.getByBookId",
+      "module": "STOCK",
+      "label": "Xem bản sao của đầu sách",
+      "controller": "BookCopyController",
+      "handler": "getByBookId",
+      "path": "/api/v1/books/{bookId}/copies",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookCopyController.getSummaryByBookId",
+      "module": "STOCK",
+      "label": "Xem tổng hợp bản sao",
+      "controller": "BookCopyController",
+      "handler": "getSummaryByBookId",
+      "path": "/api/v1/books/{bookId}/copies/summary",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookCopyController.get",
+      "module": "STOCK",
+      "label": "Xem chi tiết bản sao",
+      "controller": "BookCopyController",
+      "handler": "get",
+      "path": "/api/v1/book-copies/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookCopyController.update",
+      "module": "STOCK",
+      "label": "Sửa thông tin và vị trí bản sao",
+      "controller": "BookCopyController",
+      "handler": "update",
+      "path": "/api/v1/book-copies/{id}",
+      "httpMethods": [
+        "PUT",
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookIncidentController.search",
+      "module": "STOCK",
+      "label": "Tìm sách để ghi nhận mất/hỏng",
+      "controller": "BookIncidentController",
+      "handler": "search",
+      "path": "/api/v1/book-incidents/open-items",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.preview",
+      "module": "STOCK",
+      "label": "Xem trước ghi nhận mất/hỏng",
+      "controller": "BookIncidentController",
+      "handler": "preview",
+      "path": "/api/v1/book-incidents/preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.confirm",
+      "module": "STOCK",
+      "label": "Ghi nhận sách mất/hỏng",
+      "controller": "BookIncidentController",
+      "handler": "confirm",
+      "path": "/api/v1/book-incidents",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookIncidentController.history",
+      "module": "STOCK",
+      "label": "Xem lịch sử sự cố",
+      "controller": "BookIncidentController",
+      "handler": "history",
+      "path": "/api/v1/book-incidents",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.detail",
+      "module": "STOCK",
+      "label": "Xem chi tiết sự cố",
+      "controller": "BookIncidentController",
+      "handler": "detail",
+      "path": "/api/v1/book-incidents/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.image",
+      "module": "STOCK",
+      "label": "Xem ảnh sự cố",
+      "controller": "BookIncidentController",
+      "handler": "image",
+      "path": "/api/v1/book-incidents/{id}/images/{imageId}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.adjustments",
+      "module": "STOCK",
+      "label": "Xem lịch sử điều chỉnh bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "adjustments",
+      "path": "/api/v1/book-incidents/{id}/adjustments",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.adjustmentPreview",
+      "module": "STOCK",
+      "label": "Xem trước điều chỉnh bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "adjustmentPreview",
+      "path": "/api/v1/book-incidents/{id}/adjustment-preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.requestAdjustment",
+      "module": "STOCK",
+      "label": "Lập đề nghị điều chỉnh bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "requestAdjustment",
+      "path": "/api/v1/book-incidents/{id}/adjustments",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "BookIncidentController.confirmAdjustment",
+      "module": "STOCK",
+      "label": "Xác nhận điều chỉnh bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "confirmAdjustment",
+      "path": "/api/v1/book-incidents/{id}/adjustments/{adjustmentId}/confirm",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "OverdueContactController.history",
+      "module": "LOANS",
+      "label": "Xem lịch sử liên hệ quá hạn",
+      "controller": "OverdueContactController",
+      "handler": "history",
+      "path": "/api/v1/loans/{loanId}/overdue-contacts",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    },
+    {
+      "id": "OverdueContactController.record",
+      "module": "LOANS",
+      "label": "Ghi nhận liên hệ quá hạn",
+      "controller": "OverdueContactController",
+      "handler": "record",
+      "path": "/api/v1/loans/{loanId}/overdue-contacts",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.getWarehouses",
+      "module": "STOCK",
+      "label": "Xem kho để chọn vị trí bản sao",
+      "controller": "LibraryConfigurationController",
+      "handler": "getWarehouses",
+      "path": "/api/v1/library-settings/warehouses",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ rà soát API đọc vị trí phục vụ nghiệp vụ bản sao; các API cấu hình ngoài phạm vi.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.getShelves",
+      "module": "STOCK",
+      "label": "Xem kệ để chọn vị trí bản sao",
+      "controller": "LibraryConfigurationController",
+      "handler": "getShelves",
+      "path": "/api/v1/library-settings/shelves",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ rà soát API đọc vị trí phục vụ nghiệp vụ bản sao; các API cấu hình ngoài phạm vi.",
+      "mutating": false
+    },
+    {
+      "id": "AuditLogController.search",
+      "module": "AUDIT",
+      "label": "Tra cứu",
+      "controller": "AuditLogController",
+      "handler": "search",
+      "path": "/api/v1/admin/audit-logs",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuditLogController.filterOptions",
+      "module": "AUDIT",
+      "label": "Danh sách bộ lọc",
+      "controller": "AuditLogController",
+      "handler": "filterOptions",
+      "path": "/api/v1/admin/audit-logs/filter-options",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuditLogController.getById",
+      "module": "AUDIT",
+      "label": "Xem chi tiết",
+      "controller": "AuditLogController",
+      "handler": "getById",
+      "path": "/api/v1/admin/audit-logs/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuditLogController.rejectPut",
+      "module": "AUDIT",
+      "label": "Chặn ghi đè nhật ký",
+      "controller": "AuditLogController",
+      "handler": "rejectPut",
+      "path": "/api/v1/admin/audit-logs/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "IMMUTABLE",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Nhật ký bất biến: Admin nhận 405; vai trò khác 403; không sửa hoặc xóa dữ liệu.",
+      "mutating": true
+    },
+    {
+      "id": "AuditLogController.rejectPatch",
+      "module": "AUDIT",
+      "label": "Chặn sửa nhật ký",
+      "controller": "AuditLogController",
+      "handler": "rejectPatch",
+      "path": "/api/v1/admin/audit-logs/{id}",
+      "httpMethods": [
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "IMMUTABLE",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Nhật ký bất biến: Admin nhận 405; vai trò khác 403; không sửa hoặc xóa dữ liệu.",
+      "mutating": true
+    },
+    {
+      "id": "AuditLogController.rejectDelete",
+      "module": "AUDIT",
+      "label": "Chặn xóa nhật ký",
+      "controller": "AuditLogController",
+      "handler": "rejectDelete",
+      "path": "/api/v1/admin/audit-logs/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "IMMUTABLE",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Nhật ký bất biến: Admin nhận 405; vai trò khác 403; không sửa hoặc xóa dữ liệu.",
+      "mutating": true
+    },
+    {
+      "id": "AuthController.login",
+      "module": "AUTH",
+      "label": "Đăng nhập",
+      "controller": "AuthController",
+      "handler": "login",
+      "path": "/api/v1/auth/login",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "AuthController.refresh",
+      "module": "AUTH",
+      "label": "Làm mới phiên",
+      "controller": "AuthController",
+      "handler": "refresh",
+      "path": "/api/v1/auth/refresh",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "AuthController.me",
+      "module": "AUTH",
+      "label": "Thông tin tài khoản đang đăng nhập",
+      "controller": "AuthController",
+      "handler": "me",
+      "path": "/api/v1/auth/me",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "OWN",
+        "LIBRARY_MANAGER": "OWN",
+        "LIBRARIAN": "OWN",
+        "READER": "OWN"
+      },
+      "condition": "Luôn lấy tài khoản từ JWT; không nhận userId do khách gửi.",
+      "mutating": false
+    },
+    {
+      "id": "AuthorController.getAllAuthors",
+      "module": "CATALOG",
+      "label": "Danh sách tác giả",
+      "controller": "AuthorController",
+      "handler": "getAllAuthors",
+      "path": "/api/v1/authors",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuthorController.getActiveAuthors",
+      "module": "CATALOG",
+      "label": "Tác giả đang sử dụng",
+      "controller": "AuthorController",
+      "handler": "getActiveAuthors",
+      "path": "/api/v1/authors/active",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuthorController.getAuthorById",
+      "module": "CATALOG",
+      "label": "Chi tiết tác giả",
+      "controller": "AuthorController",
+      "handler": "getAuthorById",
+      "path": "/api/v1/authors/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "AuthorController.createAuthor",
+      "module": "CATALOG",
+      "label": "Thêm tác giả",
+      "controller": "AuthorController",
+      "handler": "createAuthor",
+      "path": "/api/v1/authors",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "AuthorController.updateAuthor",
+      "module": "CATALOG",
+      "label": "Sửa tác giả",
+      "controller": "AuthorController",
+      "handler": "updateAuthor",
+      "path": "/api/v1/authors/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "AuthorController.toggleStatus",
+      "module": "CATALOG",
+      "label": "Đổi trạng thái",
+      "controller": "AuthorController",
+      "handler": "toggleStatus",
+      "path": "/api/v1/authors/{id}/toggle-status",
+      "httpMethods": [
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "AuthorController.deleteAuthor",
+      "module": "CATALOG",
+      "label": "Xóa tác giả",
+      "controller": "AuthorController",
+      "handler": "deleteAuthor",
+      "path": "/api/v1/authors/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "BookCatalogController.getAllBooks",
+      "module": "CATALOG",
+      "label": "Danh sách đầu sách nội bộ",
+      "controller": "BookCatalogController",
+      "handler": "getAllBooks",
+      "path": "/api/v1/books",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getPublicBooks",
+      "module": "PUBLIC",
+      "label": "Danh sách sách công khai",
+      "controller": "BookCatalogController",
+      "handler": "getPublicBooks",
+      "path": "/api/v1/books/public",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.searchPublicBooks",
+      "module": "PUBLIC",
+      "label": "Tìm sách công khai",
+      "controller": "BookCatalogController",
+      "handler": "searchPublicBooks",
+      "path": "/api/v1/books/public/search",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getMostBorrowedAvailableBooks",
+      "module": "PUBLIC",
+      "label": "Sách nổi bật",
+      "controller": "BookCatalogController",
+      "handler": "getMostBorrowedAvailableBooks",
+      "path": "/api/v1/books/public/featured",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getPublicFilterOptions",
+      "module": "PUBLIC",
+      "label": "Bộ lọc sách công khai",
+      "controller": "BookCatalogController",
+      "handler": "getPublicFilterOptions",
+      "path": "/api/v1/books/public/filters",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getPublicBookById",
+      "module": "PUBLIC",
+      "label": "Chi tiết sách công khai",
+      "controller": "BookCatalogController",
+      "handler": "getPublicBookById",
+      "path": "/api/v1/books/public/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getAvailableCopiesByBookId",
+      "module": "PUBLIC",
+      "label": "Bản sao có thể mượn công khai",
+      "controller": "BookCatalogController",
+      "handler": "getAvailableCopiesByBookId",
+      "path": "/api/v1/books/public/{id}/available-copies",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getPublicBookQueue",
+      "module": "PUBLIC",
+      "label": "Hàng chờ công khai",
+      "controller": "BookCatalogController",
+      "handler": "getPublicBookQueue",
+      "path": "/api/v1/books/public/{id}/queue",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getPublisherOptions",
+      "module": "CATALOG",
+      "label": "Danh sách nhà xuất bản",
+      "controller": "BookCatalogController",
+      "handler": "getPublisherOptions",
+      "path": "/api/v1/books/publishers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.getById",
+      "module": "CATALOG",
+      "label": "Xem chi tiết",
+      "controller": "BookCatalogController",
+      "handler": "getById",
+      "path": "/api/v1/books/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "BookCatalogController.catalogBook",
+      "module": "CATALOG",
+      "label": "Biên mục đầu sách",
+      "controller": "BookCatalogController",
+      "handler": "catalogBook",
+      "path": "/api/v1/books",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "BookCoverController.upload",
+      "module": "CATALOG",
+      "label": "Tải ảnh bìa",
+      "controller": "BookCoverController",
+      "handler": "upload",
+      "path": "/api/v1/books/{id}/cover",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "BookCoverController.get",
+      "module": "CATALOG",
+      "label": "Ảnh bìa nội bộ",
+      "controller": "BookCoverController",
+      "handler": "get",
+      "path": "/api/v1/books/{id}/cover",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "BookCoverController.getPublic",
+      "module": "PUBLIC",
+      "label": "Ảnh bìa công khai",
+      "controller": "BookCoverController",
+      "handler": "getPublic",
+      "path": "/api/v1/books/public/{id}/cover",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookCoverController.getPublicThumbnail",
+      "module": "PUBLIC",
+      "label": "Ảnh bìa thu nhỏ công khai",
+      "controller": "BookCoverController",
+      "handler": "getPublicThumbnail",
+      "path": "/api/v1/books/public/{id}/cover/thumbnail",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.factors",
+      "module": "CONFIG",
+      "label": "Xem hệ số bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "factors",
+      "path": "/api/v1/book-incidents/factors",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "BookIncidentController.update",
+      "module": "CONFIG",
+      "label": "Cập nhật hệ số bồi thường",
+      "controller": "BookIncidentController",
+      "handler": "update",
+      "path": "/api/v1/book-incidents/factors",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CardTypeController.getAllCardTypes",
+      "module": "CONFIG",
+      "label": "Danh sách loại thẻ",
+      "controller": "CardTypeController",
+      "handler": "getAllCardTypes",
+      "path": "/api/v1/card-types",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CardTypeController.getActiveCardTypes",
+      "module": "CONFIG",
+      "label": "Loại thẻ đang sử dụng",
+      "controller": "CardTypeController",
+      "handler": "getActiveCardTypes",
+      "path": "/api/v1/card-types/active",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CardTypeController.getCardTypeById",
+      "module": "CONFIG",
+      "label": "Chi tiết loại thẻ",
+      "controller": "CardTypeController",
+      "handler": "getCardTypeById",
+      "path": "/api/v1/card-types/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CardTypeController.getPolicyHistory",
+      "module": "CONFIG",
+      "label": "Lịch sử chính sách mượn",
+      "controller": "CardTypeController",
+      "handler": "getPolicyHistory",
+      "path": "/api/v1/card-types/history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CardTypeController.createCardType",
+      "module": "CONFIG",
+      "label": "Thêm loại thẻ",
+      "controller": "CardTypeController",
+      "handler": "createCardType",
+      "path": "/api/v1/card-types",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CardTypeController.updateCardType",
+      "module": "CONFIG",
+      "label": "Sửa loại thẻ",
+      "controller": "CardTypeController",
+      "handler": "updateCardType",
+      "path": "/api/v1/card-types/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CardTypeController.toggleStatus",
+      "module": "CONFIG",
+      "label": "Đổi trạng thái",
+      "controller": "CardTypeController",
+      "handler": "toggleStatus",
+      "path": "/api/v1/card-types/{id}/toggle-status",
+      "httpMethods": [
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CardTypeController.deleteCardType",
+      "module": "CONFIG",
+      "label": "Xóa loại thẻ",
+      "controller": "CardTypeController",
+      "handler": "deleteCardType",
+      "path": "/api/v1/card-types/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CategoryController.getAllCategories",
+      "module": "CATALOG",
+      "label": "Danh sách thể loại",
+      "controller": "CategoryController",
+      "handler": "getAllCategories",
+      "path": "/api/v1/categories",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CategoryController.getActiveCategories",
+      "module": "CATALOG",
+      "label": "Thể loại đang sử dụng",
+      "controller": "CategoryController",
+      "handler": "getActiveCategories",
+      "path": "/api/v1/categories/active",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CategoryController.getCategoryById",
+      "module": "CATALOG",
+      "label": "Chi tiết thể loại",
+      "controller": "CategoryController",
+      "handler": "getCategoryById",
+      "path": "/api/v1/categories/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "CategoryController.createCategory",
+      "module": "CATALOG",
+      "label": "Thêm thể loại",
+      "controller": "CategoryController",
+      "handler": "createCategory",
+      "path": "/api/v1/categories",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CategoryController.updateCategory",
+      "module": "CATALOG",
+      "label": "Sửa thể loại",
+      "controller": "CategoryController",
+      "handler": "updateCategory",
+      "path": "/api/v1/categories/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CategoryController.toggleStatus",
+      "module": "CATALOG",
+      "label": "Đổi trạng thái",
+      "controller": "CategoryController",
+      "handler": "toggleStatus",
+      "path": "/api/v1/categories/{id}/toggle-status",
+      "httpMethods": [
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "CategoryController.deleteCategory",
+      "module": "CATALOG",
+      "label": "Xóa thể loại",
+      "controller": "CategoryController",
+      "handler": "deleteCategory",
+      "path": "/api/v1/categories/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "DashboardController.getStats",
+      "module": "REPORTS",
+      "label": "Thống kê nội bộ",
+      "controller": "DashboardController",
+      "handler": "getStats",
+      "path": "/api/v1/dashboard/stats",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "InitialPasswordController.validateToken",
+      "module": "AUTH",
+      "label": "Kiểm tra liên kết mật khẩu ban đầu",
+      "controller": "InitialPasswordController",
+      "handler": "validateToken",
+      "path": "/api/v1/auth/initial-password",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "InitialPasswordController.setInitialPassword",
+      "module": "AUTH",
+      "label": "Thiết lập mật khẩu ban đầu",
+      "controller": "InitialPasswordController",
+      "handler": "setInitialPassword",
+      "path": "/api/v1/auth/initial-password",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryCardController.suggestionSettings",
+      "module": "READERS",
+      "label": "Cấu hình đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "suggestionSettings",
+      "path": "/api/v1/library-cards/lock-suggestions/settings",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.getOverdueFee",
+      "module": "CONFIG",
+      "label": "Xem cấu hình phí quá hạn",
+      "controller": "LibraryConfigurationController",
+      "handler": "getOverdueFee",
+      "path": "/api/v1/library-settings/overdue-fee",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.updateOverdueFee",
+      "module": "CONFIG",
+      "label": "Cập nhật cấu hình phí quá hạn",
+      "controller": "LibraryConfigurationController",
+      "handler": "updateOverdueFee",
+      "path": "/api/v1/library-settings/overdue-fee",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.createWarehouse",
+      "module": "CONFIG",
+      "label": "Thêm kho",
+      "controller": "LibraryConfigurationController",
+      "handler": "createWarehouse",
+      "path": "/api/v1/library-settings/warehouses",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.updateWarehouse",
+      "module": "CONFIG",
+      "label": "Sửa kho",
+      "controller": "LibraryConfigurationController",
+      "handler": "updateWarehouse",
+      "path": "/api/v1/library-settings/warehouses/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.createShelf",
+      "module": "CONFIG",
+      "label": "Thêm kệ",
+      "controller": "LibraryConfigurationController",
+      "handler": "createShelf",
+      "path": "/api/v1/library-settings/shelves",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.updateShelf",
+      "module": "CONFIG",
+      "label": "Sửa kệ",
+      "controller": "LibraryConfigurationController",
+      "handler": "updateShelf",
+      "path": "/api/v1/library-settings/shelves/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.deleteShelf",
+      "module": "CONFIG",
+      "label": "Xóa kệ",
+      "controller": "LibraryConfigurationController",
+      "handler": "deleteShelf",
+      "path": "/api/v1/library-settings/shelves/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.getWeeklySchedule",
+      "module": "CONFIG",
+      "label": "Xem lịch làm việc",
+      "controller": "LibraryConfigurationController",
+      "handler": "getWeeklySchedule",
+      "path": "/api/v1/library-settings/weekly-schedule",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.updateWeeklySchedule",
+      "module": "CONFIG",
+      "label": "Cập nhật lịch làm việc",
+      "controller": "LibraryConfigurationController",
+      "handler": "updateWeeklySchedule",
+      "path": "/api/v1/library-settings/weekly-schedule",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.getClosedDates",
+      "module": "CONFIG",
+      "label": "Xem ngày nghỉ",
+      "controller": "LibraryConfigurationController",
+      "handler": "getClosedDates",
+      "path": "/api/v1/library-settings/closed-dates",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.createClosedDate",
+      "module": "CONFIG",
+      "label": "Thêm ngày nghỉ",
+      "controller": "LibraryConfigurationController",
+      "handler": "createClosedDate",
+      "path": "/api/v1/library-settings/closed-dates",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.createClosedDatesBulk",
+      "module": "CONFIG",
+      "label": "Thêm nhiều ngày nghỉ",
+      "controller": "LibraryConfigurationController",
+      "handler": "createClosedDatesBulk",
+      "path": "/api/v1/library-settings/closed-dates/bulk",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.updateClosedDate",
+      "module": "CONFIG",
+      "label": "Sửa ngày nghỉ",
+      "controller": "LibraryConfigurationController",
+      "handler": "updateClosedDate",
+      "path": "/api/v1/library-settings/closed-dates/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.deleteClosedDate",
+      "module": "CONFIG",
+      "label": "Xóa ngày nghỉ",
+      "controller": "LibraryConfigurationController",
+      "handler": "deleteClosedDate",
+      "path": "/api/v1/library-settings/closed-dates/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.adjustDueDate",
+      "module": "CONFIG",
+      "label": "Xem ngày trả sau điều chỉnh",
+      "controller": "LibraryConfigurationController",
+      "handler": "adjustDueDate",
+      "path": "/api/v1/library-settings/adjust-due-date",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryPublisherController.create",
+      "module": "CATALOG",
+      "label": "Thêm nhà xuất bản",
+      "controller": "LibraryPublisherController",
+      "handler": "create",
+      "path": "/api/v1/publishers",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LoanReminderController.previewReminders",
+      "module": "EMAIL",
+      "label": "Xem trước email nhắc trả",
+      "controller": "LoanReminderController",
+      "handler": "previewReminders",
+      "path": "/api/v1/loan-reminders/preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LoanReminderController.triggerReminders",
+      "module": "EMAIL",
+      "label": "Chạy gửi email nhắc trả",
+      "controller": "LoanReminderController",
+      "handler": "triggerReminders",
+      "path": "/api/v1/loan-reminders/trigger",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LoanReminderController.retryPending",
+      "module": "EMAIL",
+      "label": "Gửi lại email đang chờ",
+      "controller": "LoanReminderController",
+      "handler": "retryPending",
+      "path": "/api/v1/loan-reminders/retry-pending",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LoanReminderController.retrySingle",
+      "module": "EMAIL",
+      "label": "Gửi lại một email",
+      "controller": "LoanReminderController",
+      "handler": "retrySingle",
+      "path": "/api/v1/loan-reminders/{id}/retry",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "LoanReminderController.getHistory",
+      "module": "EMAIL",
+      "label": "Lịch sử gửi email",
+      "controller": "LoanReminderController",
+      "handler": "getHistory",
+      "path": "/api/v1/loan-reminders/history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "LoanReportController.get",
+      "module": "REPORTS",
+      "label": "Báo cáo mượn theo ngày và hàng chờ",
+      "controller": "LoanReportController",
+      "handler": "get",
+      "path": "/api/v1/reports/loans",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "OverdueDebtReportController.preview",
+      "module": "REPORTS",
+      "label": "Xem báo cáo nợ quá hạn",
+      "controller": "OverdueDebtReportController",
+      "handler": "preview",
+      "path": "/api/v1/reports/overdue-debts",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "OverdueDebtReportController.export",
+      "module": "REPORTS",
+      "label": "Xuất báo cáo nợ quá hạn",
+      "controller": "OverdueDebtReportController",
+      "handler": "export",
+      "path": "/api/v1/reports/overdue-debts/export",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "OverdueDebtReportController.cardTypes",
+      "module": "REPORTS",
+      "label": "Bộ lọc loại thẻ báo cáo",
+      "controller": "OverdueDebtReportController",
+      "handler": "cardTypes",
+      "path": "/api/v1/reports/overdue-debts/filter-options",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "OverdueDebtReportController.history",
+      "module": "REPORTS",
+      "label": "Xem lịch sử",
+      "controller": "OverdueDebtReportController",
+      "handler": "history",
+      "path": "/api/v1/reports/overdue-debts/history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "PasswordResetController.forgotPassword",
+      "module": "AUTH",
+      "label": "Yêu cầu đặt lại mật khẩu",
+      "controller": "PasswordResetController",
+      "handler": "forgotPassword",
+      "path": "/api/v1/auth/forgot-password",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "PasswordResetController.validateResetPasswordToken",
+      "module": "AUTH",
+      "label": "Kiểm tra liên kết đặt lại mật khẩu",
+      "controller": "PasswordResetController",
+      "handler": "validateResetPasswordToken",
+      "path": "/api/v1/auth/reset-password/validate",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "PasswordResetController.resetPassword",
+      "module": "AUTH",
+      "label": "Đặt lại mật khẩu",
+      "controller": "PasswordResetController",
+      "handler": "resetPassword",
+      "path": "/api/v1/auth/reset-password",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "PermissionReviewController.inspect",
+      "module": "REVIEW",
+      "label": "Đối chiếu ma trận quyền",
+      "controller": "PermissionReviewController",
+      "handler": "inspect",
+      "path": "/api/v1/permission-review",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.reports",
+      "module": "REVIEW",
+      "label": "Danh sách biên bản rà soát",
+      "controller": "PermissionReviewController",
+      "handler": "reports",
+      "path": "/api/v1/permission-review/reports",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.detail",
+      "module": "REVIEW",
+      "label": "Chi tiết biên bản rà soát",
+      "controller": "PermissionReviewController",
+      "handler": "detail",
+      "path": "/api/v1/permission-review/reports/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.importReport",
+      "module": "REVIEW",
+      "label": "Nhập biên bản kiểm thử",
+      "controller": "PermissionReviewController",
+      "handler": "importReport",
+      "path": "/api/v1/permission-review/reports",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "PickupLastDayReminderController.preview",
+      "module": "EMAIL",
+      "label": "Xem trước nhắc ngày cuối nhận sách",
+      "controller": "PickupLastDayReminderController",
+      "handler": "preview",
+      "path": "/api/v1/reservations/pickup-last-day-reminders/preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "PickupLastDayReminderController.run",
+      "module": "EMAIL",
+      "label": "Chạy nhắc ngày cuối nhận sách",
+      "controller": "PickupLastDayReminderController",
+      "handler": "run",
+      "path": "/api/v1/reservations/pickup-last-day-reminders/run",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "PublicLibraryOverviewController.getOverview",
+      "module": "PUBLIC",
+      "label": "Tổng quan công khai",
+      "controller": "PublicLibraryOverviewController",
+      "handler": "getOverview",
+      "path": "/api/v1/public/overview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.checkDuplicate",
+      "module": "PUBLIC",
+      "label": "Kiểm tra trùng đăng ký",
+      "controller": "ReaderController",
+      "handler": "checkDuplicate",
+      "path": "/api/v1/readers/check-duplicate",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": false
+    },
+    {
+      "id": "ReaderController.register",
+      "module": "PUBLIC",
+      "label": "Đăng ký bạn đọc",
+      "controller": "ReaderController",
+      "handler": "register",
+      "path": "/api/v1/readers/register",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai; vẫn kiểm tra dữ liệu, mật khẩu/token và điều kiện nghiệp vụ tương ứng.",
+      "mutating": true
+    },
+    {
+      "id": "ReadyPickupNotificationController.history",
+      "module": "EMAIL",
+      "label": "Xem lịch sử",
+      "controller": "ReadyPickupNotificationController",
+      "handler": "history",
+      "path": "/api/v1/reservations/{reservationId}/ready-email",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "ReadyPickupNotificationController.previewCancellation",
+      "module": "EMAIL",
+      "label": "Xem trước hủy sau email nhận sách",
+      "controller": "ReadyPickupNotificationController",
+      "handler": "previewCancellation",
+      "path": "/api/v1/reservations/{reservationId}/ready-email/cancellation-preview",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "ReadyPickupNotificationController.runCancellation",
+      "module": "EMAIL",
+      "label": "Hủy đặt giữ theo điều kiện email",
+      "controller": "ReadyPickupNotificationController",
+      "handler": "runCancellation",
+      "path": "/api/v1/reservations/{reservationId}/ready-email/cancellation-run",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "ReadyPickupNotificationController.trigger",
+      "module": "EMAIL",
+      "label": "Gửi email sách sẵn sàng",
+      "controller": "ReadyPickupNotificationController",
+      "handler": "trigger",
+      "path": "/api/v1/reservations/{reservationId}/ready-email/trigger",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "UserManagementController.createAccount",
+      "module": "ACCOUNTS",
+      "label": "Tạo tài khoản nhân sự",
+      "controller": "UserManagementController",
+      "handler": "createAccount",
+      "path": "/api/v1/admin/accounts",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "UserManagementController.getAccounts",
+      "module": "ACCOUNTS",
+      "label": "Danh sách tài khoản nhân sự",
+      "controller": "UserManagementController",
+      "handler": "getAccounts",
+      "path": "/api/v1/admin/accounts",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": false
+    },
+    {
+      "id": "UserManagementController.updateAccount",
+      "module": "ACCOUNTS",
+      "label": "Cập nhật tài khoản nhân sự",
+      "controller": "UserManagementController",
+      "handler": "updateAccount",
+      "path": "/api/v1/admin/accounts/{id}",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "UserManagementController.deleteAccount",
+      "module": "ACCOUNTS",
+      "label": "Xóa tài khoản nhân sự",
+      "controller": "UserManagementController",
+      "handler": "deleteAccount",
+      "path": "/api/v1/admin/accounts/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "UserManagementController.updateAccountStatus",
+      "module": "ACCOUNTS",
+      "label": "Khóa hoặc mở tài khoản nhân sự",
+      "controller": "UserManagementController",
+      "handler": "updateAccountStatus",
+      "path": "/api/v1/admin/accounts/{id}/status",
+      "httpMethods": [
+        "PATCH"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ điều kiện validation, trạng thái và phạm vi dữ liệu hiện có.",
+      "mutating": true
+    },
+    {
+      "id": "PermissionReviewController.startRun",
+      "module": "REVIEW",
+      "label": "Chạy kiểm thử toàn bộ",
+      "controller": "PermissionReviewController",
+      "handler": "startRun",
+      "path": "/api/v1/permission-review/runs",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": true
+    },
+    {
+      "id": "PermissionReviewController.latestRun",
+      "module": "REVIEW",
+      "label": "Lần kiểm thử gần nhất",
+      "controller": "PermissionReviewController",
+      "handler": "latestRun",
+      "path": "/api/v1/permission-review/runs/latest",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.runStatus",
+      "module": "REVIEW",
+      "label": "Tiến độ lần kiểm thử",
+      "controller": "PermissionReviewController",
+      "handler": "runStatus",
+      "path": "/api/v1/permission-review/runs/{runKey}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.coverage",
+      "module": "REVIEW",
+      "label": "Độ bao phủ và điều kiện hoàn tất",
+      "controller": "PermissionReviewController",
+      "handler": "coverage",
+      "path": "/api/v1/permission-review/reports/{id}/coverage",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": false
+    },
+    {
+      "id": "PermissionReviewController.complete",
+      "module": "REVIEW",
+      "label": "Xác nhận hoàn tất rà soát",
+      "controller": "PermissionReviewController",
+      "handler": "complete",
+      "path": "/api/v1/permission-review/reports/{id}/complete",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": true
+    },
+    {
+      "id": "PermissionReviewController.export",
+      "module": "REVIEW",
+      "label": "Xuất biên bản đầy đủ",
+      "controller": "PermissionReviewController",
+      "handler": "export",
+      "path": "/api/v1/permission-review/reports/{id}/export",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chỉ Admin; kiểm thử chạy trong database riêng; xác nhận cần biên bản toàn bộ hiện hành từ bộ chạy của hệ thống.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryCardController.updateSuggestionSettings",
+      "module": "READERS",
+      "label": "Cập nhật ngưỡng đề xuất khóa thẻ",
+      "controller": "LibraryCardController",
+      "handler": "updateSuggestionSettings",
+      "path": "/api/v1/library-cards/lock-suggestions/settings",
+      "httpMethods": [
+        "PUT"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Giữ quyền Quản lý thư viện duy nhất của cấu hình đề xuất khóa thẻ theo source và nguyên tắc tách nhiệm vụ đã chốt.",
+      "mutating": true
+    },
+    {
+      "id": "LoanController.searchReaders",
+      "module": "LOANS",
+      "label": "Tìm bạn đọc tại quầy bằng tên, số điện thoại hoặc mã thẻ",
+      "controller": "LoanController",
+      "handler": "searchReaders",
+      "path": "/api/v1/loans/readers",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "",
+      "mutating": false
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+package com.duanttcsn5.library.controller;
+
+import com.duanttcsn5.library.dto.loan.ConfirmReturnRequest;
+import com.duanttcsn5.library.dto.loan.ConfirmReturnResponse;
+
+import com.duanttcsn5.library.dto.loan.ReaderLoanEligibilityResponse;
+import com.duanttcsn5.library.dto.loan.CheckReaderLoanRequest;
+import com.duanttcsn5.library.dto.loan.LoanRejectionResponse;
+import com.duanttcsn5.library.dto.loan.LoanRejectionPageResponse;
+import com.duanttcsn5.library.service.LoanRejectionLogService;
+import com.duanttcsn5.library.dto.loan.AddDirectLoanItemRequest;
+import com.duanttcsn5.library.dto.loan.DirectLoanItemResponse;
+import com.duanttcsn5.library.dto.loan.CreateDirectLoanRequest;
+import com.duanttcsn5.library.dto.loan.DirectLoanResponse;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.duanttcsn5.library.dto.loan.LoanDetailResponse;
+import com.duanttcsn5.library.dto.loan.MyBorrowedBookResponse;
+import com.duanttcsn5.library.dto.loan.RenewalCheckResponse;
+import com.duanttcsn5.library.dto.loan.MyReturnedBooksPageResponse;
+import com.duanttcsn5.library.dto.loan.OverdueLoanItemResponse;
+import com.duanttcsn5.library.dto.loan.LoanSummaryResponse;
+import com.duanttcsn5.library.dto.loan.LoanSearchPageResponse;
+import java.util.List;
+import com.duanttcsn5.library.dto.loan.CreateReservationLoanRequest;
+import com.duanttcsn5.library.dto.loan.CreateReservationLoanBatchRequest;
+import com.duanttcsn5.library.dto.loan.ReservationLoanBatchResponse;
+import com.duanttcsn5.library.dto.loan.ReservationLoanContextResponse;
+import com.duanttcsn5.library.dto.loan.ReservationLoanResponse;
+import com.duanttcsn5.library.security.UserPrincipal;
+import com.duanttcsn5.library.exception.ApiException;
+import com.duanttcsn5.library.service.LoanService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1")
+@PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+public class LoanController {
+    private final LoanService loans;
+    private final LoanRejectionLogService rejections;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LoanController(LoanService loans,
+                          org.springframework.beans.factory.ObjectProvider<LoanRejectionLogService> provider) {
+        this.loans = loans;
+        this.rejections = provider.getIfAvailable();
+    }
+
+    /** Preserve the current constructor for isolated controller unit tests. */
+    public LoanController(LoanService loans) {
+        this.loans = loans;
+        this.rejections = null;
+    }
+
+    @GetMapping("/reservations/{reservationId}/loan-context")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReservationLoanContextResponse> pickupContext(@PathVariable Long reservationId) {
+        return ResponseEntity.ok(loans.pickupContext(reservationId));
+    }
+
+    @PostMapping("/reservations/{reservationId}/pickup-check")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReservationLoanContextResponse> checkPickup(@PathVariable Long reservationId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.checkPickup(reservationId, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/reservations/{reservationId}/loan")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReservationLoanResponse> createFromReservation(
+            @PathVariable Long reservationId, @Valid @RequestBody CreateReservationLoanRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long actorId = principal == null ? null : principal.id();
+        requireManagerOverrideWhenApplicable(principal, request.overrideRequested());
+        // Keep the old service API path for clients that do not yet send a request key.
+        if (request.overrideRequested()) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
+                    reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
+                    request.expectedDueAt(), request.expectedLoanDays(), request.requestId(),
+                    true, request.overrideReason()));
+        }
+        if (request.requestId() == null) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
+                    reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
+                    request.expectedDueAt(), request.expectedLoanDays()));
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservation(
+                reservationId, actorId, request.cardNumber(), request.expectedBorrowDate(),
+                request.expectedDueAt(), request.expectedLoanDays(), request.requestId()));
+    }
+
+    @PostMapping("/reservations/loans")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReservationLoanBatchResponse> createFromReservations(
+            @Valid @RequestBody CreateReservationLoanBatchRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        requireManagerOverrideWhenApplicable(principal, request.confirmation().overrideRequested());
+        return ResponseEntity.status(HttpStatus.CREATED).body(loans.createFromReservations(
+                request, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/me/borrowed-books")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<List<MyBorrowedBookResponse>> myBorrowedBooks(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.myBorrowedBooks(principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/me/borrowed-books/{itemId}/renewal-check")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<RenewalCheckResponse> checkMyRenewal(
+            @PathVariable Long itemId, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.checkMyLoanRenewal(itemId, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/me/returned-books")
+    @PreAuthorize("hasRole('READER')")
+    public ResponseEntity<MyReturnedBooksPageResponse> myReturnedBooks(
+            @RequestParam(defaultValue = "0") int page,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.myReturnedBooks(principal == null ? null : principal.id(), page));
+    }
+
+    @GetMapping("/loans/readers")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<com.duanttcsn5.library.dto.loan.ReaderLoanLookupResponse> searchReaders(
+            @RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "0") int page,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.searchReaders(keyword, page, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/search")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<LoanSearchPageResponse> searchLoans(
+            @RequestParam(defaultValue = "") String code,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String status,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long actorId = principal == null ? null : principal.id();
+        if (fromDate == null && toDate == null && status == null) {
+            return ResponseEntity.ok(loans.searchLoans(code, page, actorId));
+        }
+        return ResponseEntity.ok(loans.searchLoans(code, page, actorId, fromDate, toDate, status));
+    }
+
+    @GetMapping("/loans/overdue")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<OverdueLoanItemResponse>> overdueLoans(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.overdueLoans(principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<List<LoanSummaryResponse>> listLoans(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.listLoans(principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/reader-eligibility")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ReaderLoanEligibilityResponse> readerEligibility(
+            @RequestParam(defaultValue = "") String cardNumber,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.readerEligibility(cardNumber, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/reader-eligibility/check")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    public ResponseEntity<ReaderLoanEligibilityResponse> checkReaderAndLog(
+            @Valid @RequestBody CheckReaderLoanRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.checkReaderAndLog(
+                request.cardNumber(), principal == null ? null : principal.id(), request.requestId()));
+    }
+
+    @GetMapping("/loans/rejections")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<LoanRejectionPageResponse> rejections(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "") String cardNumber) {
+        return ResponseEntity.ok(rejections.page(cardNumber, page, size));
+    }
+
+    @GetMapping("/loans/rejections/{id}")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<LoanRejectionResponse> rejectionDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(rejections.detail(id));
+    }
+
+    @PostMapping("/loans/direct/items/preview")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<DirectLoanItemResponse> previewDirectLoanItem(
+            @Valid @RequestBody AddDirectLoanItemRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        // S3-03: the Manager can preview a direct-loan item only in an explicit override flow.
+        if (principal != null && "LIBRARY_MANAGER".equals(principal.role()) && !request.overridePreview()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_ONLY",
+                    "Quản lý thư viện chỉ được kiểm tra bản sách khi xử lý ngoại lệ mượn.");
+        }
+        return ResponseEntity.ok(loans.previewDirectLoanItem(request, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/direct")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<DirectLoanResponse> createDirectLoan(
+            @Valid @RequestBody CreateDirectLoanRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        requireManagerOverrideWhenApplicable(principal, request.overrideRequested());
+        return ResponseEntity.status(HttpStatus.CREATED).body(loans.createDirectLoan(
+                request, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/return-lookup")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<com.duanttcsn5.library.dto.loan.ReturnLookupResponse> lookupReturn(
+            @RequestParam(defaultValue = "") String barcode,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.lookupReturn(barcode, principal == null ? null : principal.id()));
+    }
+
+    @PostMapping("/loans/return-confirmation")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    public ResponseEntity<ConfirmReturnResponse> confirmReturn(
+            @Valid @RequestBody ConfirmReturnRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.confirmReturn(request, principal == null ? null : principal.id()));
+    }
+
+    @GetMapping("/loans/{loanId}")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
+    public ResponseEntity<LoanDetailResponse> loanDetail(@PathVariable Long loanId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(loans.loanDetail(loanId, principal == null ? null : principal.id()));
+    }
+    /**
+     * Library Manager has R access to loans; S3-03 grants a narrow exception for
+     * an explicitly requested override. Validation of the override reason and
+     * eligible violations remains in LoanService.
+     */
+    private void requireManagerOverrideWhenApplicable(UserPrincipal principal, boolean overrideRequested) {
+        if (principal != null && "LIBRARY_MANAGER".equals(principal.role()) && !overrideRequested) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MANAGER_OVERRIDE_ONLY",
+                    "Quản lý thư viện chỉ có thể xác nhận phiếu mượn khi thực hiện ngoại lệ có lý do.");
+        }
+    }
+}
