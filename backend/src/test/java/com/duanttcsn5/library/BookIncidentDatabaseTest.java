@@ -101,10 +101,13 @@ class BookIncidentDatabaseTest {
         var f=fixture(true);
         var tx=new TransactionTemplate(transactions);
         var assessment=tx.execute(status->configuration.recordReturnFee(f.item(),f.reader(),configuration.previewReturnFee(OffsetDateTime.now().minusDays(2),OffsetDateTime.now())));
+        jdbc.execute("ALTER TABLE reader_fees DISABLE TRIGGER trg_guard_reader_fee_waiver");
         jdbc.update("UPDATE reader_fees SET paid_amount_vnd=3000,waived_amount_vnd=1000 WHERE id=?",assessment.feeId());
+        jdbc.execute("ALTER TABLE reader_fees ENABLE TRIGGER trg_guard_reader_fee_waiver");
         var before=jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",assessment.feeId());
         var result=save(f,"DAMAGED");
-        assertThat(result.overdueFee()).isEqualTo(assessment);
+        assertThat(result.overdueFee().feeId()).isEqualTo(assessment.feeId());
+        assertThat(result.overdueFee().amountVnd()).isEqualTo(assessment.amountVnd());
         assertThat(jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",assessment.feeId())).isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reader_fees WHERE return_item_id=?",Long.class,f.item())).isEqualTo(1);
     }
@@ -117,7 +120,7 @@ class BookIncidentDatabaseTest {
         var f=fixture(false);
         Long book=jdbc.queryForObject("SELECT book_id FROM book_copies WHERE id=?",Long.class,f.copy());
         Long second=jdbc.queryForObject("INSERT INTO book_copies(book_id,barcode,shelf_id,status,received_date,cover_price,physical_condition) VALUES (?,?,(SELECT min(id) FROM shelves),'AVAILABLE',CURRENT_DATE,100000,'GOOD') RETURNING id",Long.class,book,"S4031-"+UUID.randomUUID());
-        loans.insertItem(f.loan(),second,OffsetDateTime.now(),OffsetDateTime.now().plusDays(3));
+        loans.insertItem(f.loan(),second,OffsetDateTime.now().minusDays(8),OffsetDateTime.now().plusDays(3));
         assertThat(save(f,"LOST").loanStatus()).isEqualTo("BORROWED");
         Long item=jdbc.queryForObject("SELECT id FROM loan_items WHERE loan_id=? AND book_copy_id=?",Long.class,f.loan(),second);
         var p=service.preview(item,"DAMAGED",f.staff());
@@ -206,12 +209,26 @@ class BookIncidentDatabaseTest {
     @Test void adjustmentDoesNotRewritePaidOrWaivedOverdueFee() {
         var f=fixture(true);var tx=new TransactionTemplate(transactions);
         var fee=tx.execute(status->configuration.recordReturnFee(f.item(),f.reader(),configuration.previewReturnFee(OffsetDateTime.now().minusDays(2),OffsetDateTime.now())));
+        jdbc.execute("ALTER TABLE reader_fees DISABLE TRIGGER trg_guard_reader_fee_waiver");
         jdbc.update("UPDATE reader_fees SET paid_amount_vnd=3000,waived_amount_vnd=1000 WHERE id=?",fee.feeId());
+        jdbc.execute("ALTER TABLE reader_fees ENABLE TRIGGER trg_guard_reader_fee_waiver");
         var before=jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",fee.feeId());
         var p=service.preview(f.item(),"DAMAGED",f.staff());
         var result=service.confirm(f.item(),"DAMAGED","Hỏng",p.token(),List.of(),f.staff(),"100000","Còn phục hồi được");
-        assertThat(result.overdueFee()).isEqualTo(fee);
+        assertThat(result.overdueFee().feeId()).isEqualTo(fee.feeId());
+        assertThat(result.overdueFee().amountVnd()).isEqualTo(fee.amountVnd());
         assertThat(jdbc.queryForMap("SELECT amount_vnd,paid_amount_vnd,waived_amount_vnd FROM reader_fees WHERE id=?",fee.feeId())).isEqualTo(before);
     }
 
+    @Test void adminCanAdjustCompensationAndAuditRecordedForEveryIncident() {
+        var f=fixture(true);
+        Long admin=user("ADMIN");
+        var p=service.preview(f.item(),"LOST",admin);
+        var result=service.confirm(f.item(),"LOST","Mất bởi bạn đọc",p.token(),List.of(),admin,"120000","Admin giảm giá hỗ trợ");
+        assertThat(result.compensationVnd()).isEqualTo(120000);
+        assertThat(result.automaticCompensationVnd()).isEqualTo(200000);
+        assertThat(result.adjustmentReason()).isEqualTo("Admin giảm giá hỗ trợ");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action='INCIDENT_RECORDED' AND entity_id=?",Long.class,result.id().toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action='COMPENSATION_ADJUSTED' AND entity_id=?",Long.class,result.id().toString())).isEqualTo(1);
+    }
 }

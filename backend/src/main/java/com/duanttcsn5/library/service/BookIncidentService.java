@@ -123,6 +123,7 @@ public class BookIncidentService {
         var adjustment=IncidentCalculator.adjustment(amount,proposedCompensationVnd,adjustmentReason);
         Long feeId=incidents.compensation(item,type,adjustment.amount());
         Long id=incidents.insert(item,type,description,factor,adjustment.amount(),feeId,actorId,actor.getFullName(),at,amount,adjustment.reason());
+        incidents.incidentAudit(id,item,type,description,factor,adjustment.amount(),amount,adjustment.reason(),actorId,actor.getFullName());
         if(adjustment.amount()!=amount) incidents.adjustmentAudit(id,item,factor,amount,adjustment.amount(),adjustment.reason(),actorId,actor.getFullName());
         for(var image:images) incidents.photo(id,image.filename(),image.contentType(),image.data());
         if(incidents.close(item,type,at,actorId,actor.getFullName())!=1)

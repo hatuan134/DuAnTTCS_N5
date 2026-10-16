@@ -15,6 +15,7 @@ function load(path, imports) {
 }
 const details = load('../src/features/s3-07-returns/ReturnFeeDetails.tsx', {
   '../s3-01-loans/loanService': { formatLoanTimestamp: value => value ?? 'Chưa có thông tin' },
+  'react-router-dom': { Link: ({ to, children, ...props }) => react.createElement('a', { href: to, ...props }, children) },
 })
 const fee = {
   status: 'READY', message: '', policyVersion: 'S4-01.1-OPEN-DAYS-HALF-UP-V1',
