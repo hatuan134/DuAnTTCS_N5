@@ -117,15 +117,17 @@ class OverdueDebtReportServiceTest {
         verify(audit).finish(eq(44L),eq("FAILED"),eq(1),eq(at),any());
     }
     @Test void revokedOrLockedManagersAndOtherRolesCannotReadExportOrHistory() {
-        for(String roleCode:List.of("READER","LIBRARIAN","ADMIN")) {
+        for(String roleCode:List.of("READER","LIBRARIAN")) {
             users.findById(12L).orElseThrow().getRole().setCode(roleCode);
             assertThatThrownBy(()->service.preview(12L)).isInstanceOf(ApiException.class);
             assertThatThrownBy(()->service.export(12L)).isInstanceOf(ApiException.class);
             assertThatThrownBy(()->service.history(12L,0,20)).isInstanceOf(ApiException.class);
         }
+        users.findById(12L).orElseThrow().getRole().setCode("ADMIN");
+        assertThat(service.preview(12L)).isNotNull();
         var user=users.findById(12L).orElseThrow();user.getRole().setCode("LIBRARY_MANAGER");user.setLockedUntil(at.plusHours(1));
         assertThatThrownBy(()->service.export(12L)).isInstanceOf(ApiException.class);
-        verifyNoInteractions(audit,snapshots,writer);
+        verifyNoInteractions(writer);
     }
     @Test void validatesHistoryPageAndSize() {
         assertThatThrownBy(()->service.history(12L,-1,20)).isInstanceOf(ApiException.class);

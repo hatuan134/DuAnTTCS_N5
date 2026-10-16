@@ -85,13 +85,24 @@ class OverdueDebtReportControllerTest {
         mvc.perform(get(URL)).andExpect(status().isUnauthorized());
         mvc.perform(post(URL+"/export")).andExpect(status().isUnauthorized());
         mvc.perform(get(URL+"/history")).andExpect(status().isUnauthorized());
-        for(String role:List.of("READER","LIBRARIAN","ADMIN")) {
+        for(String role:List.of("READER","LIBRARIAN")) {
             token(role);
             mvc.perform(get(URL).header("Authorization","Bearer test-token")).andExpect(status().isForbidden());
             mvc.perform(post(URL+"/export").header("Authorization","Bearer test-token")).andExpect(status().isForbidden());
             mvc.perform(get(URL+"/history").header("Authorization","Bearer test-token")).andExpect(status().isForbidden());
         }
         verifyNoInteractions(reports);
+        token("ADMIN");
+        var time=java.time.OffsetDateTime.parse("2026-10-15T00:01:00+07:00");
+        when(reports.preview(12L)).thenReturn(new Snapshot(time,"filter",List.of(),0));
+        when(reports.export(12L)).thenReturn(new Download("DanhSachQuaHan_NoPhi_15-10-2026.xlsx",new byte[]{80,75}));
+        when(reports.history(12L,0,20)).thenReturn(new History(List.of(),0,20,0));
+        mvc.perform(get(URL).header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        mvc.perform(post(URL+"/export").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        mvc.perform(get(URL+"/history").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        verify(reports).preview(12L);
+        verify(reports).export(12L);
+        verify(reports).history(12L,0,20);
     }
     @Test void filtersAreValidatedAndForwardedForBothEndpoints() throws Exception {
         token("LIBRARY_MANAGER");
@@ -111,11 +122,15 @@ class OverdueDebtReportControllerTest {
     }
     @Test void filterOptionsArePrivate() throws Exception {
         mvc.perform(get(URL+"/filter-options")).andExpect(status().isUnauthorized());
-        for(String role:List.of("READER","LIBRARIAN","ADMIN")) {
+        for(String role:List.of("READER","LIBRARIAN")) {
             token(role);
             mvc.perform(get(URL+"/filter-options").header("Authorization","Bearer test-token")).andExpect(status().isForbidden());
         }
         verifyNoInteractions(reports);
+        token("ADMIN");
+        when(reports.cardTypes(12L)).thenReturn(List.of());
+        mvc.perform(get(URL+"/filter-options").header("Authorization","Bearer test-token")).andExpect(status().isOk());
+        verify(reports).cardTypes(12L);
     }
     @Test void managerReceivesNonCacheableReportFileAndHistory() throws Exception {
         token("LIBRARY_MANAGER");
