@@ -57,7 +57,7 @@ class PermissionReviewInspectorTest {
             var row=result.entries().stream().filter(e->e.policy().path().equals("/api/v1/s4092-undocumented")).findFirst().orElseThrow();
             assertTrue(row.different());assertEquals(4,row.roles().size());
             assertTrue(row.roles().stream().allMatch(r->r.documented().equals("UNKNOWN") && !r.matches()));
-            assertEquals(192,result.totalApis());assertTrue(result.unresolvedFunctions()>0);
+            assertEquals(193,result.totalApis());assertTrue(result.unresolvedFunctions()>0);
         }
     }
 

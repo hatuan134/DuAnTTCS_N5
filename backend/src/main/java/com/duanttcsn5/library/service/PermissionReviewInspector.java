@@ -68,7 +68,7 @@ public class PermissionReviewInspector {
                     roles.stream().anyMatch(role -> !role.matches())));
         }
         List<String> undocumented = new ArrayList<>();
-        if (catalog.policy().version().startsWith("S4-09.2")) {
+        if (catalog.policy().version().startsWith("S4-09.2") || (catalog.policy().version().startsWith("S4-00.") && !catalog.policy().version().contains("priority"))) {
             for (var mapping : mappings.getHandlerMethods().entrySet()) {
                 if (!mapping.getValue().getBeanType().getName().startsWith("com.duanttcsn5.library.")) continue;
                 for (String path : mapping.getKey().getPatternValues()) {

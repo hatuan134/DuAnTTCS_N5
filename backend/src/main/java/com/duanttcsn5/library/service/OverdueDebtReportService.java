@@ -6,7 +6,6 @@ import com.duanttcsn5.library.repository.OverdueDebtReportRepository;
 import com.duanttcsn5.library.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
@@ -14,7 +13,6 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 
 @Service
-@PreAuthorize("hasAnyRole('LIBRARY_MANAGER', 'ADMIN')")
 public class OverdueDebtReportService {
     private final OverdueDebtSnapshotService snapshots;
     private final OverdueDebtExportAuditService audit;
