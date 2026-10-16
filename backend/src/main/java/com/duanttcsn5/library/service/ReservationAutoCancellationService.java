@@ -32,7 +32,7 @@ import java.util.Optional;
 
 @Service
 public class ReservationAutoCancellationService {
-    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ReadyPickupNotificationService pickupNotifications;
 
     private void wakePickupEmails() {
