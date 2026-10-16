@@ -90,7 +90,7 @@ public final class CardLockSuggestionScenarioChecks {
             context.registerBean(CardLockSuggestionService.class,()->f.service);
             context.refresh();
             var secured=context.getBean(CardLockSuggestionService.class);
-            for(String role:List.of("ADMIN","LIBRARIAN","READER")) {
+            for(String role:List.of("LIBRARIAN","READER")) {
                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                     new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test","",List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_"+role))));
                 List<Runnable> actions=List.of(()->secured.settings(),()->secured.list(false,0,20),()->secured.detail(1L),
@@ -109,6 +109,10 @@ public final class CardLockSuggestionScenarioChecks {
                 new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("manager","",List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_LIBRARY_MANAGER"))));
             check(secured.settings().debtThresholdVnd()==100000,"manager can read through actual security proxy");
             check(secured.updateSettings(new UpdateSettings(money(200000)),12L).debtThresholdVnd()==200000,"manager can update through actual security proxy");
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("admin","",List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+            check(secured.settings().debtThresholdVnd()==200000,"admin can read through actual security proxy");
+            check(secured.updateSettings(new UpdateSettings(money(100000)),12L).debtThresholdVnd()==100000,"admin can update through actual security proxy");
         } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
     }
     public static void runAll() {

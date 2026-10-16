@@ -123,10 +123,17 @@ export const loanReminderService = {
     return response.data
   },
 
-  async trigger(params?: { targetDate?: string; simulateFailure?: boolean }): Promise<LoanReminderExecutionResult> {
-    const body = {
-      targetDate: params?.targetDate,
-      simulateFailure: params?.simulateFailure ?? false,
+  async trigger(params?: string | { targetDate?: string; simulateFailure?: boolean }): Promise<LoanReminderExecutionResult> {
+    const body: { targetDate?: string; simulateFailure?: boolean } = {}
+    if (typeof params === 'string') {
+      body.targetDate = params
+    } else if (params) {
+      if (params.targetDate !== undefined) {
+        body.targetDate = params.targetDate
+      }
+      if (params.simulateFailure !== undefined) {
+        body.simulateFailure = params.simulateFailure
+      }
     }
     const response = await apiClient.post<LoanReminderExecutionResult>('/loan-reminders/trigger', body)
     return response.data
