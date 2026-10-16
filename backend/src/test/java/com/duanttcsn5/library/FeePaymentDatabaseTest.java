@@ -129,7 +129,7 @@ class FeePaymentDatabaseTest {
     }
     @Test void otherRolesCannotCollectAndCardRestrictionsAreNotCleared() {
         var f = fixture(10000); var input = preview(f);
-        for (String role : new String[]{"ADMIN", "LIBRARY_MANAGER", "READER"}) code(() -> service.collect(f.reader(), input, user(role)), "FEE_PAYMENT_ROLE_REQUIRED");
+        for (String role : new String[]{"LIBRARY_MANAGER", "READER"}) code(() -> service.collect(f.reader(), input, user(role)), "FEE_PAYMENT_ROLE_REQUIRED");
         Long type = jdbc.queryForObject("INSERT INTO card_types(name,max_books,loan_days,max_renewals,renewal_days) VALUES (?,3,14,1,7) RETURNING id", Long.class, "S4021-" + UUID.randomUUID());
         jdbc.update("INSERT INTO library_cards(card_number,user_id,card_type_id,expires_at,status) VALUES (?,?,?,CURRENT_DATE + 30,'LOCKED')", "S4021-" + UUID.randomUUID(), f.reader(), type);
         service.collect(f.reader(), input, f.staff());

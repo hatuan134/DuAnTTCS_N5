@@ -103,8 +103,8 @@ class IncidentReversalDatabaseTest {
     @Test void foundBookAndMultipleItemsKeepLoanOpenUntilAllCopiesResolved() {
         Fixture f=fixture(false);
         Long bookId=jdbc.queryForObject("SELECT book_id FROM book_copies WHERE id=?",Long.class,f.copy());
-        Long copy2=jdbc.queryForObject("INSERT INTO book_copies(book_id,barcode,shelf_id,status) VALUES (?,?,(SELECT min(id) FROM shelves),'AVAILABLE') RETURNING id",Long.class,bookId,"S4033-"+UUID.randomUUID());
-        loans.insertItem(f.loan(),copy2,OffsetDateTime.now(),OffsetDateTime.now().plusDays(3));
+        Long copy2=jdbc.queryForObject("INSERT INTO book_copies(book_id,barcode,shelf_id,status,received_date,cover_price,physical_condition) VALUES (?,?,(SELECT min(id) FROM shelves),'AVAILABLE',CURRENT_DATE-10,100000,'GOOD') RETURNING id",Long.class,bookId,"S4033-"+UUID.randomUUID());
+        loans.insertItem(f.loan(),copy2,OffsetDateTime.now().minusDays(8),OffsetDateTime.now().plusDays(3));
         Incident i=save(f,"LOST");
         Adjustment a=service.requestAdjustment(i.id(),new AdjustmentRequest("Tìm lại sách","FOUND","AVAILABLE"),f.staff());
         service.confirmAdjustment(i.id(),a.id(),f.manager());
