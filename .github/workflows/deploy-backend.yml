@@ -1,6 +1,11 @@
 name: Deploy LIBRA Backend to Azure
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
   workflow_dispatch:
 
 permissions:
