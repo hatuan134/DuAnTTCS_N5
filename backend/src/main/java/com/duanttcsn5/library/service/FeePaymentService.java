@@ -134,7 +134,7 @@ public class FeePaymentService {
                 "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
         if (!"ACTIVE".equals(actor.getStatus()) || actor.getRole() == null
                 || !java.util.Set.of("LIBRARIAN", "ADMIN").contains(actor.getRole().getCode())) throw error(HttpStatus.FORBIDDEN,
-                "FEE_PAYMENT_ROLE_REQUIRED", "Chỉ Thủ thư được thu phí và xem, in lại biên lai.");
+                "FEE_PAYMENT_ROLE_REQUIRED", "Chỉ Thủ thư hoặc Quản trị viên được thu phí và xem, in lại biên lai.");
         return actor;
     }
     private void validateId(Long id) {

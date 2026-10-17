@@ -672,12 +672,12 @@ public class LoanRepository {
                        COUNT(li.id) AS item_count
                 FROM loans l
                 JOIN users reader ON reader.id = l.borrower_user_id
-                JOIN users staff ON staff.id = l.created_by
+                LEFT JOIN users staff ON staff.id = l.created_by
                 LEFT JOIN loan_items li ON li.loan_id = l.id
                 GROUP BY l.id, reader.full_name, staff.full_name
                 ORDER BY l.borrowed_at DESC, l.id DESC
                 """, (rs, index) -> new LoanSummaryResponse(rs.getLong("id"), rs.getString("loan_number"),
-                rs.getLong("borrower_user_id"), rs.getString("reader_name"), rs.getLong("created_by"),
+                rs.getLong("borrower_user_id"), rs.getString("reader_name"), rs.getObject("created_by", Long.class),
                 rs.getString("created_by_name"), rs.getObject("borrowed_at", OffsetDateTime.class), rs.getLong("item_count")));
     }
 
@@ -688,11 +688,11 @@ public class LoanRepository {
                        staff.full_name AS created_by_name, l.borrowed_at
                 FROM loans l
                 JOIN users reader ON reader.id = l.borrower_user_id
-                JOIN users staff ON staff.id = l.created_by
+                LEFT JOIN users staff ON staff.id = l.created_by
                 WHERE l.id = ?
                 """, (rs, index) -> new LoanDetailResponse(rs.getLong("id"), rs.getString("loan_number"),
                 rs.getObject("reservation_id", Long.class), rs.getLong("borrower_user_id"), rs.getString("reader_name"),
-                rs.getLong("created_by"), rs.getString("created_by_name"),
+                rs.getObject("created_by", Long.class), rs.getString("created_by_name"),
                 rs.getObject("borrowed_at", OffsetDateTime.class), List.of()), loanId).stream().findFirst();
     }
 
@@ -704,11 +704,11 @@ public class LoanRepository {
                        staff.full_name AS created_by_name, l.borrowed_at
                 FROM loans l
                 JOIN users reader ON reader.id = l.borrower_user_id
-                JOIN users staff ON staff.id = l.created_by
+                LEFT JOIN users staff ON staff.id = l.created_by
                 WHERE l.id = ? AND l.borrower_user_id = ?
                 """, (rs, index) -> new LoanDetailResponse(rs.getLong("id"), rs.getString("loan_number"),
                 rs.getObject("reservation_id", Long.class), rs.getLong("borrower_user_id"), rs.getString("reader_name"),
-                rs.getLong("created_by"), rs.getString("created_by_name"),
+                rs.getObject("created_by", Long.class), rs.getString("created_by_name"),
                 rs.getObject("borrowed_at", OffsetDateTime.class), List.of()), loanId, readerId).stream().findFirst();
     }
 

@@ -66,6 +66,18 @@ public class BookIncidentRepository {
                 """,Long.class,item.itemId(),item.copyId(),item.readerId(),type,description,item.coverPrice(),
                 factor,amount,feeId,actor,actorName,at,automatic,adjustmentReason);
     }
+    public void incidentAudit(Long id,Item item,String type,String description,BigDecimal factor,long amount,long automatic,String reason,Long actor,String actorName) {
+        jdbc.update("""
+                INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,after_data,created_at)
+                VALUES (?,'INCIDENT_RECORDED','BOOK_INCIDENT',?,
+                  jsonb_build_object('incidentId',CAST(? AS bigint),'itemId',CAST(? AS bigint),'copyId',CAST(? AS bigint),
+                    'readerUserId',CAST(? AS bigint),'incidentType',CAST(? AS text),'description',CAST(? AS text),
+                    'coverPrice',CAST(? AS numeric),'factor',CAST(? AS numeric),'compensationVnd',CAST(? AS bigint),
+                    'automaticCompensationVnd',CAST(? AS bigint),'adjustmentReason',CAST(? AS text),
+                    'actorUserId',CAST(? AS bigint),'actorName',CAST(? AS text)),CURRENT_TIMESTAMP)
+                """,actor,id.toString(),id,item.itemId(),item.copyId(),item.readerId(),type,description,
+                item.coverPrice(),factor,amount,automatic,reason,actor,actorName);
+    }
     public void adjustmentAudit(Long id,Item item,BigDecimal factor,long before,long after,String reason,Long actor,String actorName) {
         // PostgreSQL constructs JSON safely; the audit participates in the incident transaction.
         jdbc.update("""

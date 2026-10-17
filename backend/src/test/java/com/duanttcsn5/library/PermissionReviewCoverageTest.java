@@ -53,13 +53,13 @@ class PermissionReviewCoverageTest {
         detail=new ReportDetail(summary,report,cases,current);when(reviews.detail(1L)).thenReturn(detail);
     }
     @Test void fullCoverageIncludesBothPutAndPatchAndAllowsAnActiveAdminToComplete() {
-        var coverage=service.coverage(1L);assertTrue(coverage.eligible());assertEquals(191,coverage.totalApis());assertEquals(764,coverage.requiredRoleCases());assertEquals(764,coverage.coveredRoleCases());assertEquals(191,coverage.coveredApis());
-        service.complete(1L,2L);verify(repository).complete(1L,2L,"Người xác nhận",hash,764);
+        var coverage=service.coverage(1L);assertTrue(coverage.eligible());assertEquals(192,coverage.totalApis());assertEquals(768,coverage.requiredRoleCases());assertEquals(768,coverage.coveredRoleCases());assertEquals(192,coverage.coveredApis());
+        service.complete(1L,2L);verify(repository).complete(1L,2L,"Người xác nhận",hash,768);
     }
     @Test void aMissingRoleOrMissingHttpMethodBlocksCompletion() {
         var cases=new ArrayList<>(detail.results());
         cases.removeIf(c->c.test().endpointId().equals("BookCopyController.update") && c.test().httpMethod().equals("PATCH") && c.test().role().equals("READER"));set(cases,true,2,"REGRESSION");
-        var coverage=service.coverage(1L);assertFalse(coverage.eligible());assertEquals(763,coverage.coveredRoleCases());
+        var coverage=service.coverage(1L);assertFalse(coverage.eligible());assertEquals(767,coverage.coveredRoleCases());
         assertTrue(coverage.missing().stream().anyMatch(m->m.httpMethod().equals("PATCH") && m.role().equals("READER")));
         assertThrows(ApiException.class,()->service.complete(1L,2L));verify(repository,never()).complete(any(),any(),any(),any(),anyInt());
     }
