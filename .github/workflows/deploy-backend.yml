@@ -1,0 +1,222 @@
+name: Deploy LIBRA Backend to Azure
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: libra-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-backend:
+    name: Test Backend with temporary PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: libra_ci
+          POSTGRES_PASSWORD: ci_password_only
+          POSTGRES_DB: libra_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U libra_ci -d libra_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_NAME: libra_ci
+      DB_USERNAME: libra_ci
+      DB_PASSWORD: ci_password_only
+      BOOTSTRAP_ADMIN_PASSWORD: ''
+      PICKUP_EMAIL_AUTOMATIC_ENABLED: 'false'
+      MAIL_HOST: 127.0.0.1
+      MAIL_PORT: '2525'
+      TZ: Asia/Ho_Chi_Minh
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Set disposable CI JWT secret
+        shell: bash
+        run: |
+          echo "JWT_SECRET_BASE64=$(openssl rand -base64 32 | tr -d '\n')" >> "$GITHUB_ENV"
+
+      - name: Run Maven tests and verify build
+        working-directory: backend
+        run: mvn -B -ntp clean verify
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-${{ github.run_id }}
+          path: backend/target/surefire-reports/**
+          if-no-files-found: ignore
+
+  deploy-backend:
+    name: Backup Production and deploy Backend
+    needs: verify-backend
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      AZURE_HOST: ${{ secrets.AZURE_HOST }}
+      AZURE_USER: ${{ secrets.AZURE_USER }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Build Spring Boot JAR from verified commit
+        working-directory: backend
+        run: mvn -B -ntp -DskipTests clean package
+
+      - name: Verify JAR
+        run: |
+          test -s backend/target/library-management-backend-0.0.1-SNAPSHOT.jar
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.AZURE_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.AZURE_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Prepare Azure upload directory
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$AZURE_USER@$AZURE_HOST" \
+            'mkdir -p ~/libra/cicd/target'
+
+      - name: Upload JAR to Azure
+        run: |
+          scp -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            backend/target/library-management-backend-0.0.1-SNAPSHOT.jar \
+            "$AZURE_USER@$AZURE_HOST:libra/cicd/target/library-management-backend-0.0.1-SNAPSHOT.jar"
+
+      - name: Backup PostgreSQL, deploy backend and check health
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$AZURE_USER@$AZURE_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          umask 077
+
+          cd "$HOME/libra/deploy"
+
+          # Backup uses the same Azure VM PostgreSQL container as production.
+          # Do not proceed to replace backend if pg_dump or archive verification fails.
+          BACKUP_DIR="$HOME/libra/s4102-qa/backups"
+          mkdir -p "$BACKUP_DIR"
+          BACKUP_TMP="$(mktemp "$BACKUP_DIR/.auto-deploy-XXXXXXXX.dump")"
+          trap 'rm -f "$BACKUP_TMP"' EXIT
+          echo "Backing up Production PostgreSQL..."
+          sudo -n docker compose -p libra-prod exec -T postgres \
+            pg_dump -U libra_app -d library_management -Fc > "$BACKUP_TMP"
+          test -s "$BACKUP_TMP"
+          test "$(stat -c '%s' "$BACKUP_TMP")" -gt 1000000
+          sudo -n docker compose -p libra-prod exec -T postgres \
+            pg_restore -l < "$BACKUP_TMP" > /dev/null
+          BACKUP_FILE="$BACKUP_DIR/production_before_auto_deploy_$(date -u +%Y%m%dT%H%M%SZ).dump"
+          mv -- "$BACKUP_TMP" "$BACKUP_FILE"
+          echo "LIBRA_DB_BACKUP_OK: $BACKUP_FILE"
+
+          rollback() {
+            echo "Restoring previous backend image..."
+            sudo -n docker image tag \
+              libra-backend:rollback libra-backend:local
+            sudo -n docker compose -p libra-prod \
+              up -d --no-deps --force-recreate backend
+          }
+
+          echo "Saving previous backend image..."
+          sudo -n docker image tag \
+            libra-backend:local libra-backend:rollback
+
+          echo "Building new backend image..."
+          sudo -n docker build \
+            -t libra-backend:local \
+            -f "$HOME/libra/deploy/Dockerfile.backend" \
+            "$HOME/libra/cicd"
+
+          echo "Updating backend container..."
+          if ! sudo -n docker compose -p libra-prod \
+            up -d --no-deps --force-recreate backend; then
+            rollback
+            exit 1
+          fi
+
+          echo "Waiting for backend health check..."
+          healthy=0
+          for i in $(seq 1 24); do
+            if curl -fsS --max-time 5 \
+              http://127.0.0.1:8080/api/v1/public/overview \
+              >/dev/null 2>&1; then
+              healthy=1
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$healthy" != 1 ]; then
+            echo "Backend health check failed."
+            rollback
+            exit 1
+          fi
+
+          echo "LIBRA_BACKEND_DEPLOY_SUCCESS"
+          sudo -n docker compose -p libra-prod ps
+          REMOTE
