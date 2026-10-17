@@ -6,21 +6,22 @@ on:
       - main
     paths:
       - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: libra-backend-production
+  group: libra-backend-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   deploy-backend:
-    if: github.ref == 'refs/heads/main'
+    name: Backup Production and deploy Backend
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-
+    timeout-minutes: 25
     env:
       AZURE_HOST: ${{ secrets.AZURE_HOST }}
       AZURE_USER: ${{ secrets.AZURE_USER }}
@@ -37,7 +38,7 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Build Spring Boot JAR
+      - name: Build Spring Boot JAR (tests skipped)
         working-directory: backend
         run: mvn -B -ntp -DskipTests clean package
 
@@ -76,7 +77,7 @@ jobs:
             backend/target/library-management-backend-0.0.1-SNAPSHOT.jar \
             "$AZURE_USER@$AZURE_HOST:libra/cicd/target/library-management-backend-0.0.1-SNAPSHOT.jar"
 
-      - name: Deploy backend and check health
+      - name: Backup PostgreSQL, deploy backend and check health
         shell: bash
         run: |
           ssh -i ~/.ssh/id_ed25519 \
@@ -85,8 +86,26 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$AZURE_USER@$AZURE_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
+          umask 077
 
           cd "$HOME/libra/deploy"
+
+          # Backup uses the same Azure VM PostgreSQL container as production.
+          # Do not proceed to replace backend if pg_dump or archive verification fails.
+          BACKUP_DIR="$HOME/libra/s4102-qa/backups"
+          mkdir -p "$BACKUP_DIR"
+          BACKUP_TMP="$(mktemp "$BACKUP_DIR/.auto-deploy-XXXXXXXX.dump")"
+          trap 'rm -f "$BACKUP_TMP"' EXIT
+          echo "Backing up Production PostgreSQL..."
+          sudo -n docker compose -p libra-prod exec -T postgres \
+            pg_dump -U libra_app -d library_management -Fc > "$BACKUP_TMP"
+          test -s "$BACKUP_TMP"
+          test "$(stat -c '%s' "$BACKUP_TMP")" -gt 1000000
+          sudo -n docker compose -p libra-prod exec -T postgres \
+            pg_restore -l < "$BACKUP_TMP" > /dev/null
+          BACKUP_FILE="$BACKUP_DIR/production_before_auto_deploy_$(date -u +%Y%m%dT%H%M%SZ).dump"
+          mv -- "$BACKUP_TMP" "$BACKUP_FILE"
+          echo "LIBRA_DB_BACKUP_OK: $BACKUP_FILE"
 
           rollback() {
             echo "Restoring previous backend image..."
@@ -115,7 +134,6 @@ jobs:
 
           echo "Waiting for backend health check..."
           healthy=0
-
           for i in $(seq 1 24); do
             if curl -fsS --max-time 5 \
               http://127.0.0.1:8080/api/v1/public/overview \
