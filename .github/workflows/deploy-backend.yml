@@ -80,11 +80,15 @@ jobs:
       - name: Backup PostgreSQL, deploy backend and check health
         shell: bash
         run: |
+          # Capture the remote log and require both completion markers.
+          # Without this guard, a remote bash script that ends prematurely can appear green.
+          LOG_FILE="$(mktemp)"
+          trap 'rm -f "$LOG_FILE"' EXIT
           ssh -i ~/.ssh/id_ed25519 \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
-            "$AZURE_USER@$AZURE_HOST" 'bash -se' <<'REMOTE'
+            "$AZURE_USER@$AZURE_HOST" 'bash -se' <<'REMOTE' | tee "$LOG_FILE"
           set -euo pipefail
           umask 077
 
@@ -98,7 +102,7 @@ jobs:
           trap 'rm -f "$BACKUP_TMP"' EXIT
           echo "Backing up Production PostgreSQL..."
           sudo -n docker compose -p libra-prod exec -T postgres \
-            pg_dump -U libra_app -d library_management -Fc > "$BACKUP_TMP"
+            pg_dump -U libra_app -d library_management -Fc < /dev/null > "$BACKUP_TMP"
           test -s "$BACKUP_TMP"
           test "$(stat -c '%s' "$BACKUP_TMP")" -gt 1000000
           sudo -n docker compose -p libra-prod exec -T postgres \
@@ -153,3 +157,5 @@ jobs:
           echo "LIBRA_BACKEND_DEPLOY_SUCCESS"
           sudo -n docker compose -p libra-prod ps
           REMOTE
+          grep -q '^LIBRA_DB_BACKUP_OK:' "$LOG_FILE"
+          grep -q '^LIBRA_BACKEND_DEPLOY_SUCCESS$' "$LOG_FILE"
