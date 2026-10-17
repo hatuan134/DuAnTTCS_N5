@@ -2,13 +2,14 @@ import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Barcode, BookOpen, Search, User } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { directLoanService } from './directLoanService'
-import type { DirectLoanItem, DirectLoanResult, ReaderLoanEligibility } from './directLoanService'
+import type { BookCopyLocation, BookSearchItem, DirectLoanItem, DirectLoanResult, ReaderLoanEligibility } from './directLoanService'
 
 interface DraftRow {
   id: number
@@ -17,6 +18,8 @@ interface DraftRow {
   error: string
   checking: boolean
 }
+
+type SearchMethod = 'barcode' | 'title' | 'author'
 
 const ALLOWED_OVERRIDES = new Set(['LOAN_LIMIT_REACHED', 'LOAN_DRAFT_LIMIT_EXCEEDED',
   'LOAN_OVERDUE_UNRETURNED', 'LOAN_UNPAID_FEES'])
@@ -30,6 +33,14 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   onNewLoan?: () => void
 }) {
   const [barcode, setBarcode] = useState('')
+  const [searchMethod, setSearchMethod] = useState<SearchMethod>('barcode')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<BookSearchItem[] | null>(null)
+  const [searchingBooks, setSearchingBooks] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [bookCopiesMap, setBookCopiesMap] = useState<Record<number, BookCopyLocation[]>>({})
+  const [loadingCopiesBookId, setLoadingCopiesBookId] = useState<number | null>(null)
+
   const [items, setItems] = useState<DraftRow[]>([])
   const [limit, setLimit] = useState(reader.remainingBooks)
   const allowedByPolicy = reader.eligible || (reader.blockReasons?.length ?? 0) > 0
@@ -68,17 +79,26 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     form.current?.querySelector<HTMLInputElement>('input')?.focus()
   }
 
+  function switchSearchMethod(method: SearchMethod) {
+    setSearchMethod(method)
+    setError('')
+    setNotice('')
+    setSearchError('')
+    if (method === 'barcode') {
+      window.setTimeout(() => focusBarcode(), 0)
+    }
+  }
+
   useEffect(() => {
     active.current = true
     focusBarcode()
     return () => { active.current = false }
   }, [])
 
-  async function add(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function processAddBarcode(codeToAdd: string) {
     if (inFlight.current || awaitingResult || completed) return
     setError(''); setNotice(''); setActionError('')
-    const code = barcode.trim()
+    const code = codeToAdd.trim()
     if (!code || code.length > 100) {
       setError('Vui lòng nhập mã vạch từ 1 đến 100 ký tự.')
       return
@@ -109,7 +129,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       if (!active.current) return
       setLimit(item.remainingBooks)
       setItems((rows) => rows.map((row) => row.id === rowId ? { ...row, item, checking: false } : row))
-      setNotice(`Đã kiểm tra sách ${item.bookTitle}.`)
+      setNotice(`Đã kiểm tra sách ${item.bookTitle} (${code}).`)
     } catch (e: unknown) {
       if (active.current) {
         const message = getApiErrorMessage(e, 'Không kiểm tra được sách. Vui lòng sửa hoặc kiểm tra lại dòng này.')
@@ -120,8 +140,70 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
       inFlight.current = false
       if (active.current) {
         setLoading(false)
-        focusBarcode()
+        if (searchMethod === 'barcode') focusBarcode()
       }
+    }
+  }
+
+  async function handleBookSearch() {
+    const query = searchQuery.trim()
+    if (!query) {
+      setSearchError(searchMethod === 'title' ? 'Vui lòng nhập tên sách để tìm kiếm.' : 'Vui lòng nhập tên tác giả để tìm kiếm.')
+      return
+    }
+    setSearchError('')
+    setSearchingBooks(true)
+    try {
+      const data = (await directLoanService.searchBooks?.(query)) ?? []
+      let sorted = [...data]
+      const lower = query.toLowerCase()
+      if (searchMethod === 'title') {
+        sorted.sort((a, b) => {
+          const aMatch = a.title.toLowerCase().includes(lower) ? 1 : 0
+          const bMatch = b.title.toLowerCase().includes(lower) ? 1 : 0
+          return bMatch - aMatch
+        })
+      } else if (searchMethod === 'author') {
+        sorted.sort((a, b) => {
+          const aAuthor = (a.authors?.map(x => x.name).join(' ') || a.authorName || '').toLowerCase()
+          const bAuthor = (b.authors?.map(x => x.name).join(' ') || b.authorName || '').toLowerCase()
+          const aMatch = aAuthor.includes(lower) ? 1 : 0
+          const bMatch = bAuthor.includes(lower) ? 1 : 0
+          return bMatch - aMatch
+        })
+      }
+      setSearchResults(sorted)
+      const firstAvailable = sorted.find((b) => b.availableCount > 0)
+      if (firstAvailable) {
+        void loadCopiesForBook(firstAvailable.id)
+      }
+    } catch (e: unknown) {
+      setSearchError(getApiErrorMessage(e, 'Không thể tìm kiếm sách. Vui lòng thử lại.'))
+      setSearchResults([])
+    } finally {
+      setSearchingBooks(false)
+    }
+  }
+
+  async function loadCopiesForBook(bookId: number) {
+    if (bookCopiesMap[bookId]) return
+    setLoadingCopiesBookId(bookId)
+    try {
+      const copies = (await directLoanService.getAvailableCopies?.(bookId)) ?? []
+      setBookCopiesMap((prev) => ({ ...prev, [bookId]: copies }))
+    } catch {
+      setBookCopiesMap((prev) => ({ ...prev, [bookId]: [] }))
+    } finally {
+      setLoadingCopiesBookId(null)
+    }
+  }
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (searchMethod === 'barcode') {
+      await processAddBarcode(barcode)
+    } else {
+      await handleBookSearch()
     }
   }
 
@@ -138,6 +220,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
 
   function edit(row: DraftRow) {
     if (inFlight.current || awaitingResult || completed || row.item !== null) return
+    setSearchMethod('barcode')
     setEditingId(row.id); setBarcode(row.barcode); setError(''); setNotice('')
     focusBarcode()
   }
@@ -205,34 +288,206 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <h3 className="text-lg font-semibold text-slate-900">Sách trong lượt mượn</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">Nhập hoặc quét từng mã vạch rồi nhấn Enter hoặc Thêm sách. Dòng lỗi được giữ lại để sửa hoặc xóa.</p>
+        <p className="mt-1 text-sm leading-6 text-slate-500">Tìm kiếm bản sao bằng mã vạch, tên sách hoặc tác giả để thêm vào lượt mượn.</p>
       </div>
       <p role="status" aria-live="polite" className="shrink-0 self-start rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
         Dự kiến mượn: {validItems.length} / {limit} sách
       </p>
     </div>
+
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-slate-600">Tìm kiếm theo:</span>
+      <div className="inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Phương thức tìm kiếm sách">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={searchMethod === 'barcode'}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${searchMethod === 'barcode' ? 'bg-white font-semibold text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          onClick={() => switchSearchMethod('barcode')}
+        >
+          <Barcode size={14} />
+          Mã vạch
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={searchMethod === 'title'}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${searchMethod === 'title' ? 'bg-white font-semibold text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          onClick={() => switchSearchMethod('title')}
+        >
+          <BookOpen size={14} />
+          Tên sách
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={searchMethod === 'author'}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${searchMethod === 'author' ? 'bg-white font-semibold text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          onClick={() => switchSearchMethod('author')}
+        >
+          <User size={14} />
+          Tác giả
+        </button>
+      </div>
+    </div>
+
     <form ref={form} onSubmit={add} noValidate className="space-y-3">
       {editingId !== null && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
         Đang sửa mã vạch ở dòng {editingIndex + 1}. Nhập mã đúng rồi nhấn Kiểm tra lại.
       </div>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1">
-          <Input id="direct-loan-barcode" label="Mã vạch sách" required autoComplete="off" maxLength={100}
-            placeholder="Nhập mã vạch của bản sao" value={barcode} error={error}
-            disabled={(!reader.eligible && !bypassDraft) || frozen}
-            onChange={(event) => { setBarcode(event.target.value); setError(''); setNotice('') }} />
+          {searchMethod === 'barcode' ? (
+            <Input id="direct-loan-barcode" label="Mã vạch sách" required autoComplete="off" maxLength={100}
+              placeholder="Nhập mã vạch của bản sao" value={barcode} error={error}
+              disabled={(!reader.eligible && !bypassDraft) || frozen}
+              onChange={(event) => { setBarcode(event.target.value); setError(''); setNotice('') }} />
+          ) : (
+            <Input id="direct-loan-barcode"
+              label={searchMethod === 'title' ? 'Tên sách' : 'Tên tác giả'}
+              required autoComplete="off" maxLength={100}
+              placeholder={searchMethod === 'title' ? 'Nhập tên sách để tìm kiếm…' : 'Nhập tên tác giả để tìm kiếm…'}
+              value={searchQuery} error={searchError}
+              disabled={(!reader.eligible && !bypassDraft) || frozen}
+              onChange={(event) => { setSearchQuery(event.target.value); setSearchError('') }} />
+          )}
         </div>
         <div className="flex flex-wrap gap-2 sm:mt-7">
-          <Button type="submit" loading={loading && submitted.current === null} disabled={blocked}>{editingId === null ? 'Thêm sách' : 'Kiểm tra lại'}</Button>
-          {editingId !== null && <Button type="button" variant="secondary" disabled={loading} onClick={cancelEdit}>Hủy sửa</Button>}
+          {searchMethod === 'barcode' ? (
+            <>
+              <Button type="submit" loading={loading && submitted.current === null} disabled={blocked}>{editingId === null ? 'Thêm sách' : 'Kiểm tra lại'}</Button>
+              {editingId !== null && <Button type="button" variant="secondary" disabled={loading} onClick={cancelEdit}>Hủy sửa</Button>}
+            </>
+          ) : (
+            <Button type="submit" loading={searchingBooks} disabled={(!reader.eligible && !bypassDraft) || frozen || !searchQuery.trim()}>
+              <Search size={16} className="mr-1.5" />
+              Tìm sách
+            </Button>
+          )}
         </div>
       </div>
       <div aria-live="polite" aria-atomic="true">
         {loading && submitted.current === null && <p role="status" className="text-sm text-blue-700">Đang tìm sách theo mã vạch…</p>}
+        {searchingBooks && <p role="status" className="text-sm text-blue-700">Đang tìm kiếm đầu sách…</p>}
         {actionError && <FeedbackAlert message={actionError} tone="error" onDismiss={() => setActionError('')} />}
         {notice && <FeedbackAlert message={notice} tone="success" onDismiss={() => setNotice('')} />}
       </div>
     </form>
+
+    {/* Kết quả tìm kiếm sách theo Tên sách hoặc Tác giả */}
+    {searchMethod !== 'barcode' && searchResults !== null && (
+      <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <span className="text-xs font-semibold text-slate-700">
+            Kết quả tìm kiếm ({searchResults.length} đầu sách phù hợp):
+          </span>
+          <button
+            type="button"
+            className="text-xs text-slate-500 hover:text-slate-800"
+            onClick={() => setSearchResults(null)}
+          >
+            Đóng kết quả
+          </button>
+        </div>
+        {searchResults.length === 0 ? (
+          <p className="py-3 text-center text-sm text-slate-500">
+            Không tìm thấy đầu sách nào phù hợp với từ khóa &ldquo;{searchQuery.trim()}&rdquo;.
+          </p>
+        ) : (
+          <div className="max-h-80 space-y-2.5 overflow-y-auto pr-1">
+            {searchResults.map((book) => {
+              const authorStr = book.authors?.length
+                ? book.authors.map((a) => a.name).join(', ')
+                : (book.authorName || 'Không rõ tác giả')
+              const isLoaded = Boolean(bookCopiesMap[book.id])
+              const isLoadingCopies = loadingCopiesBookId === book.id
+              const copies = bookCopiesMap[book.id] || []
+              const hasAvailable = book.availableCount > 0
+
+              return (
+                <div key={book.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-900 break-words">{book.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-600 break-words">
+                        Tác giả: <span className="font-medium text-slate-800">{authorStr}</span>
+                        {book.categoryName && ` · Thể loại: ${book.categoryName}`}
+                        {book.publicationYear && ` · Năm: ${book.publicationYear}`}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${hasAvailable ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-600'}`}>
+                          {hasAvailable ? `${book.availableCount} bản khả dụng` : 'Hết bản sẵn sàng'}
+                        </span>
+                        {book.isbn && <span className="font-mono text-xs text-slate-400">ISBN: {book.isbn}</span>}
+                      </div>
+                    </div>
+                    {hasAvailable && (
+                      <div className="shrink-0 self-start">
+                        {!isLoaded && !isLoadingCopies && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => void loadCopiesForBook(book.id)}
+                          >
+                            Xem bản sao ({book.availableCount})
+                          </Button>
+                        )}
+                        {isLoadingCopies && (
+                          <span className="text-xs text-blue-600">Đang tải bản sao…</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Danh sách các bản sao khả dụng */}
+                  {isLoaded && (
+                    <div className="mt-3 border-t border-slate-100 pt-2.5">
+                      <p className="mb-2 text-xs font-medium text-slate-500">Bản sao sẵn sàng mượn:</p>
+                      {copies.length === 0 ? (
+                        <p className="text-xs text-slate-400">Không có bản sao khả dụng tại thời điểm này.</p>
+                      ) : (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {copies.map((c) => {
+                            const isAdded = items.some((row) => row.barcode === c.barcode)
+                            return (
+                              <div
+                                key={c.copyId}
+                                className={`flex items-center justify-between gap-2 rounded-lg border p-2 text-xs transition ${isAdded ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-blue-100 bg-blue-50/40 hover:bg-blue-50'}`}
+                              >
+                                <div className="min-w-0">
+                                  <span className="break-all font-mono font-bold text-slate-800">{c.barcode}</span>
+                                  <span className="block truncate text-slate-500">
+                                    {c.warehouseName} {c.shelfName ? `· ${c.shelfName}` : `· Kệ ${c.shelfCode}`}
+                                  </span>
+                                </div>
+                                {isAdded ? (
+                                  <span className="shrink-0 font-medium text-emerald-700">✓ Đã thêm</span>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={blocked || !c.barcode || frozen}
+                                    onClick={() => { if (c.barcode) void processAddBarcode(c.barcode) }}
+                                  >
+                                    Chọn mượn
+                                  </Button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )}
+
     {(!reader.eligible || atLimit) && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
       {reader.eligible
         ? `Đã đạt giới hạn ${limit} sách hợp lệ trong lượt này. Không thể thêm sách vì sẽ vượt số sách bạn đọc còn được mượn. ${isManager ? 'Quản lý có thể xem xét bỏ qua một lần kèm lý do.' : 'Xóa một dòng hợp lệ để nhập sách khác.'}`

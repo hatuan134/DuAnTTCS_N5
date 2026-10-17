@@ -31,6 +31,29 @@ export interface DirectLoanResult {
   message: string
 }
 
+export interface BookSearchItem {
+  id: number
+  isbn: string | null
+  title: string
+  subtitle: string | null
+  authorName: string
+  authors?: { id: number; name: string }[]
+  categoryName: string
+  publisher: string | null
+  publicationYear: number | null
+  copyCount: number
+  availableCount: number
+}
+
+export interface BookCopyLocation {
+  copyId: number
+  barcode: string | null
+  warehouseCode: string
+  warehouseName: string
+  shelfCode: string
+  shelfName: string | null
+}
+
 export const directLoanService = {
   async confirm(cardNumber: string, barcodes: string[], requestId: string,
     overrideRequested = false, overrideReason = ''): Promise<DirectLoanResult> {
@@ -58,6 +81,16 @@ export const directLoanService = {
     const response = await apiClient.get<ReaderLoanEligibility>('/loans/reader-eligibility', {
       params: { cardNumber: cardNumber.trim() },
     })
+    return response.data
+  },
+  async searchBooks(keyword: string): Promise<BookSearchItem[]> {
+    const response = await apiClient.get<BookSearchItem[]>('/books/public', {
+      params: { keyword: keyword.trim() || undefined, availableOnly: false },
+    })
+    return response.data
+  },
+  async getAvailableCopies(bookId: number): Promise<BookCopyLocation[]> {
+    const response = await apiClient.get<BookCopyLocation[]>(`/books/public/${bookId}/available-copies`)
     return response.data
   },
 }
