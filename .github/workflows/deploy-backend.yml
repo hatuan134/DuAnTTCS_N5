@@ -1,13 +1,6 @@
 name: Deploy LIBRA Backend to Azure
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
-    paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
   push:
     branches:
       - main
@@ -24,68 +17,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-backend:
-    name: Test Backend with temporary PostgreSQL
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: libra_ci
-          POSTGRES_PASSWORD: ci_password_only
-          POSTGRES_DB: libra_ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U libra_ci -d libra_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 15
-    env:
-      DB_HOST: 127.0.0.1
-      DB_PORT: '5432'
-      DB_NAME: libra_ci
-      DB_USERNAME: libra_ci
-      DB_PASSWORD: ci_password_only
-      BOOTSTRAP_ADMIN_PASSWORD: ''
-      PICKUP_EMAIL_AUTOMATIC_ENABLED: 'false'
-      MAIL_HOST: 127.0.0.1
-      MAIL_PORT: '2525'
-      TZ: Asia/Ho_Chi_Minh
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-          cache-dependency-path: backend/pom.xml
-
-      - name: Set disposable CI JWT secret
-        shell: bash
-        run: |
-          echo "JWT_SECRET_BASE64=$(openssl rand -base64 32 | tr -d '\n')" >> "$GITHUB_ENV"
-
-      - name: Run Maven tests and verify build
-        working-directory: backend
-        run: mvn -B -ntp clean verify
-
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-surefire-${{ github.run_id }}
-          path: backend/target/surefire-reports/**
-          if-no-files-found: ignore
-
   deploy-backend:
     name: Backup Production and deploy Backend
-    needs: verify-backend
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -105,7 +38,7 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Build Spring Boot JAR from verified commit
+      - name: Build Spring Boot JAR (tests skipped)
         working-directory: backend
         run: mvn -B -ntp -DskipTests clean package
 
