@@ -41,6 +41,8 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(authorize -> authorize
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/ai/chat", "/api/v1/ai/chat/stream").permitAll()
+                                                .requestMatchers(HttpMethod.DELETE, "/api/v1/ai/conversations/*").permitAll()
                                                 .requestMatchers(
                                                                 "/api/v1/auth/login",
                                                                 "/api/v1/auth/refresh",

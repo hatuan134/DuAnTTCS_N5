@@ -153,7 +153,7 @@ public class ReservationAutoCancellationService {
     public AutoCancellationRunResponse executeForReservation(long id,OffsetDateTime checkTime,String actor) {
         if (id<=0) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_RESERVATION_ID","Mã đơn đặt giữ không hợp lệ.");
         validateRealCheckTime(checkTime);
-        OffsetDateTime actual=OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+        OffsetDateTime actual=OffsetDateTime.ofInstant(clock.instant(), LIBRARY_ZONE).truncatedTo(ChronoUnit.MICROS);
         BookReservation target=reservations.findForCancellation(id).orElseThrow(()->new ApiException(
                 HttpStatus.NOT_FOUND,"RESERVATION_NOT_FOUND","Không tìm thấy đơn đặt giữ."));
         if (!isOverdue(target,actual) || reservations.hasLoanLinkedToReservation(id)) {

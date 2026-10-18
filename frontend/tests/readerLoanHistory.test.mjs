@@ -102,7 +102,7 @@ const loan = (id, returnedLate = false) => ({ id, loanNumber: `PM-${id}`, borrow
   items: [{ id: id * 10, bookTitle: 'Mắt biếc', barcode: `BC-${id}`, borrowedAt: '2026-10-01T09:00:00+07:00',
     dueAt: '2026-10-07T09:00:00+07:00', returnedAt: id === 3 ? null : '2026-10-08T09:00:00+07:00', status: id === 3 ? 'BORROWED' : 'RETURNED', returnedLate }],
 })
-const router = { Link: ({ children }) => children, useParams: () => ({ readerId: '20', reservationId: '1', bookId: '1' }) }
+const router = { Link: ({ children }) => children, useSearchParams: () => [new URLSearchParams()], useParams: () => ({ readerId: '20', reservationId: '1', bookId: '1' }) }
 const loanHelpers = load('../src/features/s3-01-loans/loanService.ts', { '../../core/api/apiClient': { apiClient: {} } })
 function profile(getLoanHistory) {
   return page('../src/features/s1-03-reader-registration/ReaderProfilePage.tsx', {
