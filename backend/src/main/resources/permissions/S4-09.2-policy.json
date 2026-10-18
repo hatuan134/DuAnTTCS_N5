@@ -89,6 +89,11 @@
       "code": "REVIEW",
       "name": "Rà soát phân quyền",
       "priority": 14
+    },
+    {
+      "code": "AI",
+      "name": "Trợ lý AI và lịch sử hội thoại",
+      "priority": 15
     }
   ],
   "entries": [
@@ -3721,6 +3726,120 @@
       },
       "condition": "",
       "mutating": false
+    },
+    {
+      "id": "AiController.chat",
+      "module": "AI",
+      "label": "Trò chuyện với AI",
+      "controller": "AiController",
+      "handler": "chat",
+      "path": "/api/v1/ai/chat",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai tại lớp HTTP; AiChatService buộc chủ phiên khi xóa, kiểm tra JWT nếu gửi Authorization.",
+      "mutating": true
+    },
+    {
+      "id": "AiController.stream",
+      "module": "AI",
+      "label": "Trò chuyện AI theo luồng",
+      "controller": "AiController",
+      "handler": "stream",
+      "path": "/api/v1/ai/chat/stream",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai tại lớp HTTP; AiChatService buộc chủ phiên khi xóa, kiểm tra JWT nếu gửi Authorization.",
+      "mutating": true
+    },
+    {
+      "id": "AiController.delete",
+      "module": "AI",
+      "label": "Xóa phiên trò chuyện tạm",
+      "controller": "AiController",
+      "handler": "delete",
+      "path": "/api/v1/ai/conversations/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "PUBLIC",
+        "LIBRARY_MANAGER": "PUBLIC",
+        "LIBRARIAN": "PUBLIC",
+        "READER": "PUBLIC"
+      },
+      "condition": "Công khai tại lớp HTTP; AiChatService buộc chủ phiên khi xóa, kiểm tra JWT nếu gửi Authorization.",
+      "mutating": true
+    },
+    {
+      "id": "AiController.history",
+      "module": "AI",
+      "label": "Danh sách lịch sử trò chuyện",
+      "controller": "AiController",
+      "handler": "history",
+      "path": "/api/v1/ai/history",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "ALLOW"
+      },
+      "condition": "Yêu cầu đăng nhập; AiHistoryStore kiểm tra sở hữu hội thoại của chính tài khoản.",
+      "mutating": false
+    },
+    {
+      "id": "AiController.historyDetail",
+      "module": "AI",
+      "label": "Đọc hội thoại cá nhân",
+      "controller": "AiController",
+      "handler": "historyDetail",
+      "path": "/api/v1/ai/history/{id}",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "ALLOW"
+      },
+      "condition": "Yêu cầu đăng nhập; AiHistoryStore kiểm tra sở hữu hội thoại của chính tài khoản.",
+      "mutating": false
+    },
+    {
+      "id": "AiController.deleteHistory",
+      "module": "AI",
+      "label": "Xóa lịch sử hội thoại cá nhân",
+      "controller": "AiController",
+      "handler": "deleteHistory",
+      "path": "/api/v1/ai/history/{id}",
+      "httpMethods": [
+        "DELETE"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "ALLOW"
+      },
+      "condition": "Yêu cầu đăng nhập; AiHistoryStore kiểm tra sở hữu hội thoại của chính tài khoản.",
+      "mutating": true
     }
   ]
 }

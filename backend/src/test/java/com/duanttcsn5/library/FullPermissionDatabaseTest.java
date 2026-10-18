@@ -2,6 +2,8 @@ package com.duanttcsn5.library;
 
 import com.duanttcsn5.library.dto.permission.PermissionReviewDtos.*;
 import com.duanttcsn5.library.service.*;
+import com.duanttcsn5.library.ai.AiChatService;
+import com.duanttcsn5.library.ai.AiTypes;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.*;
@@ -26,6 +28,7 @@ import java.util.*;
 import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.mockito.Mockito.*;
 
 /** Full real-controller/service/JWT/PostgreSQL regression. Each run uses a unique disposable database; transactions execute exactly as in the application. */
 @SpringBootTest(properties={"app.bootstrap-admin.password=","app.scheduling.enabled=false",
@@ -51,6 +54,16 @@ class FullPermissionDatabaseTest {
     }
     @TestConfiguration
     static class SafeTransport {
+        /** The role-matrix suite must not consume real AI quotas or send demo users to a vendor. */
+        @Bean @Primary AiChatService permissionReviewAiService() {
+            AiChatService ai = mock(AiChatService.class);
+            when(ai.chat(any(AiTypes.ChatRequest.class), anyString())).thenReturn(
+                    new AiTypes.ChatResponse("00000000-0000-0000-0000-000000000001",
+                            "Trả lời thử an toàn", List.of(), "MOCK", false, 0));
+            when(ai.listHistory()).thenReturn(List.of());
+            return ai;
+        }
+
         @Bean @Primary JavaMailSender permissionReviewMailSender() {
             return (JavaMailSender)java.lang.reflect.Proxy.newProxyInstance(JavaMailSender.class.getClassLoader(),new Class[]{JavaMailSender.class},(proxy,method,args)-> {
                 if(method.getName().equals("createMimeMessage"))return new MimeMessage(Session.getInstance(new Properties()));

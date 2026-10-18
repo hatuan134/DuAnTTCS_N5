@@ -106,14 +106,18 @@ for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN', 'READER', 'AUDITOR'
     const route = feature.appRoutes.find(r => r.path === 'readers/:readerId')
     const result = route.element.type(route.element.props)
     const allowed = role === 'LIBRARIAN' || role === 'LIBRARY_MANAGER' || role === 'ADMIN'
-    assert.equal(result.type, allowed ? History : Denied)
-    result.type(result.props)
-    assert.equal(mounts, allowed ? 1 : 0, 'denied role must not mount/request history')
+    if (allowed) {
+      assert.equal(result.type.displayName, 'LoadablePage', 'authorized route may load its page lazily')
+    } else {
+      assert.equal(result.type, Denied, 'unauthorized role renders denial, not the lazy data page')
+      result.type(result.props)
+    }
+    assert.equal(mounts, 0, 'route registration and authorization never eagerly mount history data')
     if (role === 'ADMIN') {
       const basicRoute = feature.appRoutes.find(r => r.path === 'readers/:readerId/profile')
-      assert.equal(basicRoute.element.type(basicRoute.element.props).type, Basic)
+      assert.equal(basicRoute.element.type(basicRoute.element.props).type.displayName, 'LoadablePage')
       const listRoute = feature.appRoutes.find(r => r.path === 'readers')
-      assert.equal(listRoute.element.type(listRoute.element.props).type, List)
+      assert.equal(listRoute.element.type(listRoute.element.props).type.displayName, 'LoadablePage')
       assert.ok(feature.navItems[0].roles.includes('ADMIN'))
     }
   })

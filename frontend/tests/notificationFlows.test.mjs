@@ -42,6 +42,13 @@ const returnHelpers = load('../src/features/s3-07-returns/returnService.ts', {
   '../../core/api/apiClient': { apiClient: {} },
 })
 const FeedbackStub = Object.assign(() => null, { displayName: 'FeedbackAlert' })
+const LoanLookupStub = Object.assign(() => null, { displayName: 'LoanLookupPanel' })
+function selectReturnCode(p, code) {
+  const lookup = find(p.tree(), n => n.type === LoanLookupStub)
+  assert.ok(lookup, 'new receive-return UI delegates lookup to LoanLookupPanel')
+  assert.equal(lookup.props.disabled, false, 'lookup remains enabled before selection')
+  lookup.props.onSelectCopy(code); p.render()
+}
 function find(node, predicate) {
   if (!node || typeof node !== 'object') return undefined
   if (Array.isArray(node)) { for (const child of node) { const result = find(child, predicate); if (result) return result } return undefined }
@@ -58,6 +65,8 @@ function page(path, imports = {}, props = {}, exported = 'default', extra = {}) 
   const dependencies = {
     react: f.hooks,
     './ReturnFeeDetails': { __esModule: true, default: Stub, formatVnd: n => String(n) + ' VND' },
+    '../s3-01-loans/LoanLookupPanel': { __esModule: true, default: LoanLookupStub },
+    '../../components/ui/ConfirmActionDialog': { __esModule: true, default: Stub },
     './OverdueFeeSettingsPanel': { __esModule: true, default: Stub },
     '../../components/ui/Modal': { __esModule: true, default: Stub },
     '../../components/public/BookCard': { __esModule: true, default: Stub },
@@ -194,16 +203,15 @@ for (const initialFailure of [true, false]) test(`old public catalog ${initialFa
   assert.equal(p.notice(), undefined)
 })
 
-test('return validation warning expires at 3000ms while the field error stays', async () => {
+test('return validation warning expires at 3000ms while shared lookup remains enabled', async () => {
   const p = page('../src/features/s3-07-returns/ReceiveReturnPage.tsx', {
     '../../core/auth/authStorage': { getCurrentUser: () => ({ role: 'LIBRARIAN' }) },
     '../s3-01-loans/loanService': { loanRoles: ['LIBRARIAN'], formatLoanTimestamp: v => v },
     './returnService': { ...returnHelpers, validateReturnBarcode: () => 'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.', returnService: {} },
   }, {}, 'default', { AbortController })
-  find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); p.render()
+  selectReturnCode(p, '')
   assert.equal(p.notice().props.tone, 'warning'); verifyTimer(p)
-  assert.equal(find(p.tree(), n => n.props?.id === 'return-barcode').props.error,
-    'Vui lòng nhập mã vạch từ 1 đến 100 ký tự.')
+  assert.equal(find(p.tree(), n => n.type === LoanLookupStub).props.disabled, false)
 })
 
 test('return queue success expires at 3000ms while saved hold details stay', async () => {
@@ -220,8 +228,7 @@ test('return queue success expires at 3000ms while saved hold details stay', asy
       confirm: async () => returned,
     } },
   }, {}, 'default', { AbortController })
-  find(p.tree(), n => n.props?.id === 'return-barcode').props.onChange({ target: { value: 'LIB-001' } }); p.render()
-  find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
+  selectReturnCode(p, 'LIB-001'); await settle(); p.render()
   find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); p.render(); find(p.tree(), n => n.props?.confirmLabel === 'Xác nhận').props.onConfirm(); await settle(); p.render()
   assert.equal(p.notice().props.tone, 'success'); verifyTimer(p)
   assert.equal(find(p.tree(), n => n.props?.label === 'Bạn đọc được giữ sách').props.children, returned.nextReaderName)
@@ -256,8 +263,7 @@ for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-er
       } },
     }, {}, 'default', { AbortController })
     async function lookupCode(code) {
-      find(p.tree(), n => n.props?.id === 'return-barcode').props.onChange({ target: { value: code } }); p.render()
-      find(p.tree(), n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle(); p.render()
+      selectReturnCode(p, code); await settle(); p.render()
     }
     async function confirmCode() {
       find(p.tree(), n => n.props?.children === 'Xác nhận nhận trả').props.onClick(); p.render(); find(p.tree(), n => n.props?.confirmLabel === 'Xác nhận').props.onConfirm(); await settle(); p.render()
@@ -269,7 +275,7 @@ for (const scenario of ['success', 'lookup-error', 'duplicate', 'confirmation-er
     verifyTimer(p)
     const first = find(p.tree(), n => n.props?.['data-return-result'] === 'SUCCESS')
     assert.ok(first); assert.ok(text(first).includes('Sách A'))
-    assert.equal(find(p.tree(), n => n.props?.id === 'return-barcode').props.disabled, false)
+    assert.equal(find(p.tree(), n => n.type === LoanLookupStub).props.disabled, false)
     if (scenario === 'duplicate') { assert.equal(lookups.length, 1); assert.equal(writes.length, 1) }
   })
 }

@@ -49,15 +49,18 @@ class PermissionReviewInspectorTest {
             var mappings=context.getBean("requestMappingHandlerMapping",RequestMappingHandlerMapping.class);
             var mapping=org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths("/api/v1/s4092-undocumented")
                     .methods(org.springframework.web.bind.annotation.RequestMethod.GET).build();
-            mappings.registerMapping(mapping,new UndocumentedApi(),UndocumentedApi.class.getMethod("probe"));
             var inspector=new PermissionReviewInspector(new com.duanttcsn5.library.service.PermissionReviewCatalog(new tools.jackson.databind.ObjectMapper()),mappings,
                     context.getBean(org.springframework.security.web.SecurityFilterChain.class),servlet);
+            int before=inspector.inspect().totalApis();
+            mappings.registerMapping(mapping,new UndocumentedApi(),UndocumentedApi.class.getMethod("probe"));
             var result=inspector.inspect();
             assertTrue(result.undocumentedApis().contains("GET /api/v1/s4092-undocumented"));
             var row=result.entries().stream().filter(e->e.policy().path().equals("/api/v1/s4092-undocumented")).findFirst().orElseThrow();
             assertTrue(row.different());assertEquals(4,row.roles().size());
             assertTrue(row.roles().stream().allMatch(r->r.documented().equals("UNKNOWN") && !r.matches()));
-            assertEquals(193,result.totalApis());assertTrue(result.unresolvedFunctions()>0);
+            // The synthetic endpoint increases the total by precisely one, even as
+            // LIBRA adds more documented APIs to the live controller inventory.
+            assertEquals(before+1,result.totalApis());assertTrue(result.unresolvedFunctions()>0);
         }
     }
 

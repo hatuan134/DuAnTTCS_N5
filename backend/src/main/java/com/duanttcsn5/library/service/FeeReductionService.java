@@ -160,7 +160,7 @@ public class FeeReductionService {
         User actor = users.findById(actorId).orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED,
                 "UNAUTHORIZED", "Phiên đăng nhập không hợp lệ."));
         String role = actor.getRole() == null ? null : actor.getRole().getCode();
-        if (role == null || (!"ADMIN".equals(role) && !roles.contains(role)) || !"ACTIVE".equals(actor.getStatus())) {
+        if (role == null || !roles.contains(role) || !"ACTIVE".equals(actor.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FEE_REDUCTION_ROLE_REQUIRED",
                     "Bạn không có quyền thực hiện thao tác miễn giảm phí này.");
         }

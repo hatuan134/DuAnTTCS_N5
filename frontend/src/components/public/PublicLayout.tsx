@@ -1,3 +1,4 @@
+import AiAssistantMount from '../../features/ai-assistant/AiAssistantMount'
 import FeedbackAlert from '../ui/FeedbackAlert'
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -53,5 +54,5 @@ export default function PublicLayout() {
   }, [])
 
   return <div className="public-page"><PublicHeader />
-    {logoutMessage && <div className="mx-auto w-full max-w-7xl px-4 pt-3"><FeedbackAlert tone="success" message={logoutMessage} onDismiss={() => setLogoutMessage('')} /></div>}<main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /></div>
+    {logoutMessage && <div className="mx-auto w-full max-w-7xl px-4 pt-3"><FeedbackAlert tone="success" message={logoutMessage} onDismiss={() => setLogoutMessage('')} /></div>}<main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /><AiAssistantMount /></div>
 }

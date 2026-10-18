@@ -55,7 +55,7 @@ export default function DirectLoanPage() {
   return <div className="space-y-5">
     <PageHeader title="Cho mượn tại quầy" description="Tìm bạn đọc bằng tên, số điện thoại hoặc mã thẻ; chọn từ phiếu có sẵn hoặc danh sách bạn đọc." />
     <LoanLookupPanel disabled={confirmationLocked} revision={lookupRevision} onSelectReader={number => {
-      if (confirmationLocked) return
+      if (confirmationLocked || (loading && cardNumber.trim() === number.trim())) return
       immediate.current = true; setCardNumber(number); setRevision(value => value + 1)
     }} />
     {apiError && <FeedbackAlert message={apiError} tone="error" onDismiss={() => setApiError('')} />}
