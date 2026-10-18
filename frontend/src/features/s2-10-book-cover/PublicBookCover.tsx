@@ -19,7 +19,8 @@ export default function PublicBookCover({ bookId, url, title, thumbnail = false,
     width={thumbnail ? 160 : 224}
     height={thumbnail ? 240 : 336}
     loading={priority || !thumbnail ? 'eager' : 'lazy'}
-    fetchPriority={priority ? 'high' : 'auto'}
+    // React 18 forwards the lowercase HTML attribute without an unknown-prop warning.
+    {...{ fetchpriority: priority ? 'high' : 'auto' }}
     decoding="async"
     onError={fallback ? undefined : () => setFailedSource(source)}
     className={thumbnail

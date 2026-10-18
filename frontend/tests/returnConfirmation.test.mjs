@@ -22,6 +22,10 @@ const serviceModule = evaluate('../src/features/s3-07-returns/returnService.ts',
 
 function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = async () => returnedItem(), accept = true) {
   const slots = [], effects = [], calls = [], confirmations = [], focusEvents = []
+  let selectedBarcode = ''
+  let lastPanelRevision = null
+  let previouslyHadPanel = false
+  const LookupPanel = Object.assign(() => null, { displayName: 'LoanLookupPanel' })
   let cursor = 0, tree, acceptConfirmation = accept
   const hooks = { ...react,
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
@@ -36,6 +40,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   }
   const names = ['ConfirmActionDialog', 'Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
   const dependencies = Object.fromEntries(names.map(n => [`../../components/ui/${n}`, { __esModule: true, default: Object.assign(() => null, { displayName: n }) }]))
+  dependencies['../s3-01-loans/LoanLookupPanel'] = { __esModule: true, default: LookupPanel }
   dependencies['../../components/ui/TablePagination'] = { __esModule: true, default: Object.assign(() => null, { displayName: 'TablePagination' }) }
   dependencies['../../hooks/useTablePagination'] = { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) }
   dependencies.react = hooks
@@ -52,6 +57,10 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
   const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies, { window: { confirm: () => acceptConfirmation } }).default
   function render() {
     cursor = 0; tree = Page()
+    const panel = nodes(tree).find(node => node.type === LookupPanel)
+    if (panel && (lastPanelRevision !== null && lastPanelRevision !== panel.props.revision || !previouslyHadPanel && lastPanelRevision !== null)) selectedBarcode = ''
+    if (panel) lastPanelRevision = panel.props.revision
+    previouslyHadPanel = Boolean(panel)
     const form = find('form')
     if (form?.ref) form.ref.current = { querySelector: () => ({
       focus() { focusEvents.push({ action: 'focus', disabled: find('Input').props.disabled }) },
@@ -65,7 +74,20 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem(), confirm = 
     if (Array.isArray(node)) return node.flatMap(n => nodes(n))
     return [node, ...nodes(node.props?.children), ...nodes(node.props?.action)]
   }
-  function find(name) { return nodes(tree).find(node => typeof node.type === 'function' ? node.type.displayName === name : node.type === name) }
+  function find(name) {
+    const panel = nodes(tree).find(node => node.type === LookupPanel)
+    // The current page delegates reader/barcode selection to LoanLookupPanel.
+    // Exercise its public onSelectCopy callback instead of the removed inline form.
+    if (panel && name === 'Input') return { props: {
+      value: selectedBarcode, disabled: panel.props.disabled,
+      onChange: event => { if (!panel.props.disabled) selectedBarcode = event.target.value },
+    } }
+    if (panel && name === 'form') return { props: { onSubmit: event => {
+      event.preventDefault()
+      if (!panel.props.disabled) panel.props.onSelectCopy(selectedBarcode)
+    } } }
+    return nodes(tree).find(node => typeof node.type === 'function' ? node.type.displayName === name : node.type === name)
+  }
   // Expand the page's presentational Detail components without hooks.
   function text(node) {
     if (node == null || typeof node === 'boolean') return ''
@@ -306,10 +328,14 @@ test('changing input while a lookup is pending discards a late response without 
     async () => returnedItem())
   await receive(f, 'LIB-001')
   f.input('LATE'); f.submit(); const signal = f.calls.at(-1)[1]
-  f.input('NEXT'); assert.equal(signal.aborted, true)
-  resolve(openItem({ barcode: 'LATE', readerName: 'Dữ liệu lỗi thời' })); await flush(); f.render()
-  assert.equal(f.rows().length, 1); assert.ok(!f.text().includes('Dữ liệu lỗi thời'))
+  // The shared loan lookup is disabled during the active request. A second
+  // selection must not cancel or replace that request; earlier rows remain.
+  f.input('NEXT'); assert.equal(signal.aborted, false)
+  assert.equal(f.find('Input').props.disabled, true)
+  resolve(openItem({ barcode: 'LATE', readerName: 'Bạn đọc đang tra cứu' })); await flush(); f.render()
+  assert.equal(f.rows().length, 1)
   assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+  assert.equal(f.calls.length, 2, 'a completed earlier return remains saved while preview lookup finishes')
 })
 test('each completed copy retains its own queue outcome when the next copy becomes available', async () => {
   const f = fixture('LIBRARIAN', async code => openItem({ barcode: code, copyId: code === 'A' ? 1 : 2,
@@ -348,15 +374,15 @@ test('returned row snapshots metadata instead of holding references to a mutable
 })
 
 
-test('success returns focus to the enabled barcode input; invalid input remains selected for replacement', async () => {
+test('shared loan lookup re-enables after success; subsequent invalid selection preserves the session', async () => {
   const f = sequentialFixture()
   await receive(f, 'LIB-1')
-  assert.equal(f.focusEvents.at(-1).action, 'focus')
-  assert.equal(f.focusEvents.at(-1).disabled, false)
+  assert.equal(f.find('Input').props.disabled, false)
   assert.equal(f.find('Input').props.value, '')
   f.input('INVALID'); f.submit(); await flush(); f.render()
-  assert.equal(f.focusEvents.at(-1).action, 'select')
-  assert.ok(f.focusEvents.every(event => event.disabled !== true))
+  assert.equal(f.find('FeedbackAlert').props.tone, 'error')
+  assert.ok(f.text().includes('Đã nhận thành công: 1 cuốn'))
+  assert.equal(f.find('Input').props.disabled, false)
 })
 
 for (const role of ['LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN']) test(`${role}: four books of one reader stay in the same session`, async () => {
@@ -438,10 +464,10 @@ test('S3-07.5: closing summary clears session, preview, errors and duplicate gua
   }))
   await receive(f, 'LIB-001'); await f.finish(); f.restart()
   assert.equal(f.summaryRows().length, 0); assert.equal(f.rows().length, 0)
-  assert.equal(f.find('Input').props.value, ''); assert.equal(f.find('Input').props.error, '')
+  assert.equal(f.find('Input').props.value, ''); assert.equal(f.find('Input').props.disabled, false)
   assert.equal(f.finishButton(), undefined); assert.equal(f.find('FeedbackAlert'), undefined)
   assert.ok(f.text().includes('Đã nhận thành công: 0 cuốn'))
-  assert.ok(f.focusEvents.some(event => event.action === 'focus' && event.disabled === false))
+  assert.equal(f.find('Input').props.disabled, false)
   await lookup(f)
   assert.equal(f.calls.length, 2) // A new session must query the server instead of reusing the old guard.
   assert.equal(f.confirmButton(), undefined); assert.equal(f.confirmations.length, 1)

@@ -2,8 +2,7 @@ import LoanLookupPanel from '../s3-01-loans/LoanLookupPanel'
 import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import ReturnFeeDetails, { formatVnd } from './ReturnFeeDetails'
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
-import { Barcode } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -11,7 +10,6 @@ import EmptyState from '../../components/ui/EmptyState'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import TablePagination from '../../components/ui/TablePagination'
 import useTablePagination from '../../hooks/useTablePagination'
-import Input from '../../components/ui/Input'
 import PageHeader from '../../components/ui/PageHeader'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
@@ -31,7 +29,6 @@ export default function ReceiveReturnPage() {
   function decide(accepted: boolean) { decisionRef.current?.(accepted); decisionRef.current = null; setDecision(null) }
   const [barcode, setBarcode] = useState('')
   const [lookupRevision, setLookupRevision] = useState(0)
-  const [fieldError, setFieldError] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ReturnLookup | null>(null)
   const [entries, setEntries] = useState<ReturnSessionEntry[]>([])
@@ -42,7 +39,6 @@ export default function ReceiveReturnPage() {
   const [confirming, setConfirming] = useState(false)
   const confirmation = useRef(false)
   const mounted = useRef(false)
-  const form = useRef<HTMLFormElement | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const request = useRef<AbortController | null>(null)
   useEffect(() => {
@@ -50,16 +46,9 @@ export default function ReceiveReturnPage() {
     return () => { decisionRef.current?.(false); decisionRef.current = null; mounted.current = false; request.current?.abort(); request.current = null }
   }, [])
 
-  function focusBarcode(select = false) {
-    const input = form.current?.querySelector<HTMLInputElement>('#return-barcode')
-    input?.focus({ preventScroll: true })
-    if (select) input?.select()
-  }
-  // Focus after React has enabled the input again following confirmation.
   useEffect(() => {
     if (showSummary) summaryHeading.current?.focus({ preventScroll: true })
-    else if (!confirming) focusBarcode()
-  }, [confirming, showSummary])
+  }, [showSummary])
 
   function record(entry: ReturnSessionEntry) {
     session.current = recordReturnResult(session.current, entry)
@@ -73,24 +62,22 @@ export default function ReceiveReturnPage() {
   function duplicate(code: string, copyId?: number): boolean {
     if (!hasReceivedCopy(session.current, code, copyId)) return false
     setNotice({ message: `Mã vạch ${code.trim()} đã được nhận trả trong lượt này.`, tone: 'warning' })
-    setResult(null); focusBarcode(true)
+    setResult(null)
     return true
   }
   function changeBarcode(value: string) {
     if (confirmation.current || decisionRef.current || finished.current) return
     request.current?.abort()
     request.current = null
-    setBarcode(value); setResult(null); setNotice(null); setFieldError(''); setBusy(false)
+    setBarcode(value); setResult(null); setNotice(null); setBusy(false)
   }
 
-  async function lookup(event?: FormEvent<HTMLFormElement>, selectedBarcode?: string) {
-    event?.preventDefault()
+  async function lookup(selectedBarcode?: string) {
     if (!allowed || finished.current || request.current || confirmation.current || decisionRef.current) return
     setResult(null); setNotice(null)
     const code = (selectedBarcode ?? barcode).trim()
     const error = validateReturnBarcode(code)
-    setFieldError(error)
-    if (error) { setNotice({ message: error, tone: 'warning' }); focusBarcode(true); return }
+    if (error) { setNotice({ message: error, tone: 'warning' }); return }
     if (duplicate(code)) return
     const pending = new AbortController()
     request.current = pending
@@ -114,7 +101,7 @@ export default function ReceiveReturnPage() {
       }
     } finally {
       if (mounted.current && request.current === pending) {
-        request.current = null; setBusy(false); focusBarcode(true)
+        request.current = null; setBusy(false)
       }
     }
   }
@@ -131,7 +118,7 @@ export default function ReceiveReturnPage() {
       if (!mounted.current) return
       record(returnSessionSuccess(preview, data))
       setLookupRevision(value => value + 1)
-      setResult(null); setBarcode(''); setFieldError('')
+      setResult(null); setBarcode('')
       setNotice({ message: data.message, tone: 'success' })
     } catch (error) {
       if (!mounted.current) return
@@ -164,7 +151,7 @@ export default function ReceiveReturnPage() {
   function startNewSession() {
     if (!allowed || !finished.current || confirmation.current || request.current) return
     session.current = []
-    setEntries([]); setBarcode(''); setFieldError(''); setResult(null); setNotice(null)
+    setEntries([]); setBarcode(''); setResult(null); setNotice(null)
     finished.current = false
     setShowSummary(false)
   }
@@ -254,21 +241,9 @@ export default function ReceiveReturnPage() {
     {decision && <ConfirmActionDialog title="Xác nhận nhận trả" description={decision.description} confirmLabel="Xác nhận" danger={false} onCancel={() => decide(false)} onConfirm={() => decide(true)} />}
     <PageHeader title="Nhận trả sách" description="Tra cứu và xác nhận từng cuốn. Chọn Kết thúc lượt để xem bảng tổng kết sau khi nhận đủ sách."
       action={successCount > 0 && <Button type="button" disabled={busy || confirming} onClick={finishSession}>Kết thúc lượt</Button>} />
-    <Card className="p-5">
-      <form ref={form} noValidate onSubmit={(event) => { void lookup(event) }} className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="min-w-0 flex-1">
-          <Input id="return-barcode" label="Mã vạch bản sao" required autoFocus autoComplete="off"
-            maxLength={100} disabled={confirming} value={barcode} error={fieldError} startIcon={<Barcode size={18} />}
-            placeholder="Nhập hoặc quét mã vạch rồi nhấn Enter"
-            onChange={(event) => changeBarcode(event.target.value)} />
-        </div>
-        <Button type="submit" loading={busy} disabled={confirming} className="shrink-0 sm:mt-7">Tìm phiếu mượn</Button>
-      </form>
-      <p className="mt-3 text-xs leading-5 text-slate-500">Ngày giờ theo Việt Nam. Mỗi cuốn được xác nhận riêng; mã sai không làm mất các kết quả trước.</p>
-    </Card>
     <LoanLookupPanel disabled={busy || confirming || Boolean(decision)} revision={lookupRevision} onSelectCopy={code => {
       if (busy || confirming || decision) return
-      changeBarcode(code); void lookup(undefined, code)
+      changeBarcode(code); void lookup(code)
     }} />
     {notice && <FeedbackAlert message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />}
     {busy && <p role="status" className="text-sm text-blue-700">Đang tìm phiếu mượn theo mã vạch…</p>}
@@ -303,7 +278,7 @@ export default function ReceiveReturnPage() {
         {result.fee?.status !== 'READY' && <Link to="/library-calendar#overdue-fee" className="ml-1 font-semibold text-blue-700 hover:underline">Kiểm tra cấu hình phí và lịch thư viện</Link>}
       </p>}
     </Card>}
-    {!busy && !result && <EmptyState title="Sẵn sàng nhận cuốn tiếp theo" description="Nhập mã vạch bản sao và chọn Tìm phiếu mượn để tiếp tục." />}
+    {!busy && !result && <EmptyState title="Sẵn sàng nhận cuốn tiếp theo" description="Chọn bản sao cần nhận trả từ danh sách phiếu mượn ở trên để tiếp tục." />}
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-900">Kết quả trong lượt hiện tại</h2>

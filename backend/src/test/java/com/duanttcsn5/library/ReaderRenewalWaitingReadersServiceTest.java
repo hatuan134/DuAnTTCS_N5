@@ -60,6 +60,8 @@ class ReaderRenewalWaitingReadersServiceTest {
         verify(reservations, times(2)).existsOtherEffectiveReservationForLoanItem(
                 eq(ITEM_ID), eq(READER_ID), eq(OffsetDateTime.parse("2026-10-08T16:00:00+07:00")));
         verify(loans, never()).insertItem(any(), any(), any());
+        // Two eligibility checks each serialize on the same reader row.
+        verify(reservations, times(2)).lockReaderForCreation(READER_ID);
     }
 
     @Test
@@ -81,7 +83,11 @@ class ReaderRenewalWaitingReadersServiceTest {
                 new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-15T09:00:00Z"), CHECKED_AT)));
         assertThatThrownBy(() -> service.checkMyLoanRenewal(ITEM_ID, READER_ID))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("LOAN_ALREADY_RETURNED"));
-        verifyNoInteractions(reservations);
+        // The new flow always locks the reader before checking an item; this
+        // is expected concurrency protection, not a waiting-list lookup.
+        verify(reservations).lockReaderForCreation(READER_ID);
+        verify(reservations, never()).existsOtherEffectiveReservationForLoanItem(any(), any(), any());
+        verifyNoMoreInteractions(reservations);
     }
 
     @Test
@@ -90,7 +96,11 @@ class ReaderRenewalWaitingReadersServiceTest {
                 new LoanRepository.RenewalCandidate(OffsetDateTime.parse("2026-10-07T09:00:00Z"), null)));
         assertThatThrownBy(() -> service.checkMyLoanRenewal(ITEM_ID, READER_ID))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("LOAN_OVERDUE"));
-        verifyNoInteractions(reservations);
+        // The new flow always locks the reader before checking an item; this
+        // is expected concurrency protection, not a waiting-list lookup.
+        verify(reservations).lockReaderForCreation(READER_ID);
+        verify(reservations, never()).existsOtherEffectiveReservationForLoanItem(any(), any(), any());
+        verifyNoMoreInteractions(reservations);
     }
 
     @Test
@@ -98,6 +108,10 @@ class ReaderRenewalWaitingReadersServiceTest {
         when(loans.findRenewalCandidateForReader(ITEM_ID, READER_ID)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.checkMyLoanRenewal(ITEM_ID, READER_ID))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getStatus().value()).isEqualTo(404));
-        verifyNoInteractions(reservations);
+        // The new flow always locks the reader before checking an item; this
+        // is expected concurrency protection, not a waiting-list lookup.
+        verify(reservations).lockReaderForCreation(READER_ID);
+        verify(reservations, never()).existsOtherEffectiveReservationForLoanItem(any(), any(), any());
+        verifyNoMoreInteractions(reservations);
     }
 }

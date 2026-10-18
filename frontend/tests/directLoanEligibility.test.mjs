@@ -46,7 +46,10 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
       }
     },
   }
+  let selected = ''
+  const LookupPanel = Object.assign(() => null, { displayName: 'LoanLookupPanel' })
   const imports = {
+    '../s3-01-loans/LoanLookupPanel': { __esModule: true, default: LookupPanel },
     '../../components/ui/FeedbackAlert': { __esModule: true, default: ({ message, onDismiss }) => react.createElement('div', { role: 'alert' }, message, react.createElement('button', { onClick: onDismiss }, 'Đóng thông báo')) },
     './DirectLoanItemsPanel': { __esModule: true, default: () => null },
     react: hooks,
@@ -74,8 +77,8 @@ function fixture({ role = 'LIBRARIAN', check = async () => result } = {}) {
     calls,
     panel: () => find(tree, (n) => Boolean(n.props?.reader)),
     html: () => renderToStaticMarkup(render()),
-    change(value) { find(tree, (n) => n.props?.id === 'direct-loan-card').props.onChange({ target: { value } }); render() },
-    submit() { find(tree, (n) => n.type === 'form').props.onSubmit({ preventDefault() {} }); render() },
+    change(value) { selected = value; find(tree, n => n.type === LookupPanel).props.onSelectReader(value); render() },
+    submit() { find(tree, n => n.type === LookupPanel).props.onSelectReader(selected); render() },
     async runTimer() { for (const [id, t] of Array.from(timers)) { timers.delete(id); t.callback() } await settle(); render() },
     delays: () => Array.from(timers.values(), (t) => t.delay),
     unmount() { for (const state of states) state?.cleanup?.() },
@@ -92,12 +95,12 @@ test('client passes code as params through authenticated apiClient', async () =>
 })
 
 test('initial page explains empty state without requests', () => {
-  const f = fixture(); assert.match(f.html(), /Chưa có bạn đọc được chọn/); assert.deepEqual(f.calls, [])
+  const f = fixture(); assert.match(f.html(), /Tìm bạn đọc/); assert.deepEqual(f.calls, [])
 })
 
 test('typing debounces and renders required eligibility facts', async () => {
   const f = fixture(); f.change(' TV-0012 ')
-  assert.deepEqual(f.delays(), [350]); assert.match(f.html(), /Đang kiểm tra/); await f.runTimer()
+  assert.deepEqual(f.delays(), [0]); assert.match(f.html(), /Đang kiểm tra/); await f.runTimer()
   for (const text of ['Nguyễn Văn An', 'Thẻ sinh viên', 'Sách đang mượn chưa trả', 'Sách còn được mượn thêm', 'Đủ điều kiện mượn']) assert.ok(f.html().includes(text), text)
   assert.match(f.html(), />2\/5<\/dd>/); assert.match(f.html(), />3<\/dd>/); assert.deepEqual(f.calls, ['TV-0012'])
   assert.doesNotMatch(f.html(), /id=".*barcode|Xác nhận phiếu/)
@@ -143,8 +146,8 @@ test('clearing code removes result and ignores eventual response', async () => {
   let resolve
   const f = fixture({ check: () => new Promise((done) => { resolve = done }) })
   f.change('TV-0012'); await f.runTimer(); f.change(''); resolve(result); await settle()
-  assert.match(f.html(), /Chưa có bạn đọc được chọn/); assert.doesNotMatch(f.html(), /Nguyễn Văn An/)
-  f.submit(); assert.match(f.html(), /Vui lòng nhập mã thẻ/)
+  assert.match(f.html(), /Tìm bạn đọc/); assert.doesNotMatch(f.html(), /Nguyễn Văn An/)
+  f.submit(); assert.doesNotMatch(f.html(), /Nguyễn Văn An/)
 })
 
 test('same code can be retried after an error', async () => {

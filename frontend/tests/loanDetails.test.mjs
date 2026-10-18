@@ -11,7 +11,7 @@ function load(file, imports = {}) {
   const compiled = ts.transpileModule(readFileSync(new URL(file, root), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = { exports: {}, require: (name) => imports[name] ?? require(name) }
+  const context = { exports: {}, require: (name) => imports[name] ?? (name === '../../app/loadablePage' ? { loadablePage: () => () => null } : require(name)) }
   vm.runInNewContext(compiled, context)
   return context.exports
 }

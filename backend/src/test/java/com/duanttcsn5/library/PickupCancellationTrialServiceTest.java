@@ -39,7 +39,8 @@ class PickupCancellationTrialServiceTest {
         when(reservations.findReadyForPickup()).thenReturn(List.of(selected,other));
         var result=service.executeForReservation(20,now.minusDays(2),"manager");
         assertEquals(1,result.getTotalCancelled());assertEquals("CANCELLED",selected.getStatus());
-        assertEquals(now,selected.getCancelledAt());assertEquals("READY_FOR_PICKUP",other.getStatus());
+        assertEquals(now.toInstant(), selected.getCancelledAt().toInstant(),
+                "Thời điểm hủy phải khớp thời gian thực tế bất kể offset của DB/JVM");assertEquals("READY_FOR_PICKUP",other.getStatus());
         verify(reservations,never()).findForCancellation(21L);
     }
 }

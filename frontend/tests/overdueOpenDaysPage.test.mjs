@@ -35,7 +35,7 @@ function fixture(list) {
   const Stub = () => null
   const imports = {
     react: hooks,
-    'react-router-dom': { Link: Stub },
+    'react-router-dom': { Link: Stub, useSearchParams: () => [new URLSearchParams()] },
     '../../components/ui/Button': { __esModule: true, default: Stub },
     '../../components/ui/Card': { __esModule: true, default: Stub },
     '../../components/ui/Input': { __esModule: true, default: Stub },

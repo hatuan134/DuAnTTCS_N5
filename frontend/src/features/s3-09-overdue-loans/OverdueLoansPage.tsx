@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ClockAlert, Filter, History, Phone, PhoneCall, RefreshCw, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -22,6 +22,9 @@ import { countOverdueLoanVouchers, describeOverdueFilter, filterOverdueLoans, va
 import type { OverdueDaysFilter } from './overdueFilter'
 
 export default function OverdueLoansPage() {
+  const [searchParams] = useSearchParams()
+  const initialMinDays = searchParams.get('minDays')
+  const initialExclusive = searchParams.get('exclusive') === '1'
   const allowed = loanRoles.includes(getCurrentUser()?.role ?? '')
   const [items, setItems] = useState<OverdueLoanItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,6 +37,16 @@ export default function OverdueLoansPage() {
   const [exclusiveMinimum, setExclusiveMinimum] = useState(false)
   const [appliedFilter, setAppliedFilter] = useState<OverdueDaysFilter | null>(null)
   const [filterNotice, setFilterNotice] = useState('')
+  useEffect(() => {
+    if (initialMinDays === null) return
+    if (!/^\d{1,3}$/.test(initialMinDays) || Number(initialMinDays) > 365) return
+    const checked = validateOverdueFilter(initialMinDays, '', initialExclusive)
+    if (!checked.ok) return
+    setMinimumInput(initialMinDays)
+    setMaximumInput('')
+    setExclusiveMinimum(initialExclusive)
+    setAppliedFilter(checked.filter)
+  }, [initialMinDays, initialExclusive])
   const [selectedLoan, setSelectedLoan] = useState<{ id: number; number: string } | null>(null)
   const canRecord = loanRoles.includes(getCurrentUser()?.role ?? '')
 

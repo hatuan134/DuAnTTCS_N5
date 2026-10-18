@@ -6,8 +6,8 @@ import { publicBookImageUrl } from '../../s2-10-book-cover/bookCoverService'
 import { isbnCoverUrl, lookupTitleCover } from './coverLookup'
 
 // The original, locally bundled ThreeUI HTML is deliberately left untouched.
-// Only the presentation inside its same-origin frame is customized for LIBRA.
-const sceneUrl = `${import.meta.env.BASE_URL}threeui/bestsellers-book-showcase.html`
+// The script-free derivative keeps its authored HTML/CSS; React owns interactions.
+const sceneUrl = `${import.meta.env.BASE_URL}threeui/libra-book-showcase.html`
 const slots = ['codex', 'claude', 'cursor'] as const
 
 // Keep ThreeUI's authored page-turning, hover, perspective and parallax CSS.
@@ -205,8 +205,8 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
       return card
     }).filter((card): card is SourceCard => card !== null)
 
-    // Capture before the demo's click handler, which opens AI-tool documentation.
-    // Play its authored book-opening layers, then route into LIBRA's real catalog.
+    // Play the authored book-opening layers, then route into LIBRA's real catalog.
+    // The iframe itself has no scripts or demo click handlers.
     let navigating = false
     const openBook = (event: MouseEvent) => {
       // Elements from an iframe belong to a different JS realm: avoid instanceof Element.
@@ -230,8 +230,8 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
     doc.addEventListener('click', openBook, true)
     // Highlight the corresponding live book information when a 3D book is hovered.
     const hoverCleanups = liveCards.map(card => {
-      const enter = () => setActiveBookId(Number(card.dataset.libraBookId))
-      const leave = () => setActiveBookId(current => current === Number(card.dataset.libraBookId) ? null : current)
+      const enter = () => { card.dataset.hovered = 'true'; setActiveBookId(Number(card.dataset.libraBookId)) }
+      const leave = () => { card.dataset.hovered = 'false'; setActiveBookId(current => current === Number(card.dataset.libraBookId) ? null : current) }
       card.addEventListener('pointerenter', enter)
       card.addEventListener('pointerleave', leave)
       card.addEventListener('focus', enter)
@@ -252,8 +252,34 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
     // background while the user moves across the ThreeUI books.
     const frameElement = frameRef.current
     const liquidHost = frameElement?.closest<HTMLElement>('.immersive-hero')
+    // Same-origin DOM access is enough: the child cannot run scripts. Preserve
+    // the original gallery parallax here, with at most one update per frame.
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let motionFrame = 0
+    let pointerX = 0
+    let pointerY = 0
+    const updateParallax = () => {
+      motionFrame = 0
+      const x = motion.matches || !activeRef.current ? 0 : pointerX
+      const y = motion.matches || !activeRef.current ? 0 : pointerY
+      doc.documentElement.style.setProperty('--mx', `${x * 11}px`)
+      doc.documentElement.style.setProperty('--my', `${y * 8}px`)
+      liveCards.forEach(card => {
+        const depth = card.dataset.book === 'claude' ? 1 : .58
+        card.style.setProperty('--local-x', `${x * 15 * depth}px`)
+        card.style.setProperty('--local-y', `${y * 9 * depth}px`)
+      })
+    }
+    const scheduleParallax = () => {
+      if (!motionFrame) motionFrame = window.requestAnimationFrame(updateParallax)
+    }
+    const resetParallax = () => { pointerX = 0; pointerY = 0; scheduleParallax() }
+    motion.addEventListener('change', resetParallax)
     const forwardPointer = (event: PointerEvent) => {
       if (!liquidHost || !frameElement || !activeRef.current || event.pointerType === 'touch') return
+      pointerX = event.clientX / Math.max(doc.documentElement.clientWidth, 1) - .5
+      pointerY = event.clientY / Math.max(doc.documentElement.clientHeight, 1) - .5
+      scheduleParallax()
       const bounds = frameElement.getBoundingClientRect()
       liquidHost.dispatchEvent(new PointerEvent('pointermove', {
         clientX: bounds.left + event.clientX,
@@ -263,12 +289,15 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
       }))
     }
     const clearPointer = () => {
+      resetParallax()
       liquidHost?.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }))
     }
     doc.addEventListener('pointermove', forwardPointer, { passive: true })
     doc.addEventListener('pointerleave', clearPointer)
 
     return () => {
+      if (motionFrame) window.cancelAnimationFrame(motionFrame)
+      motion.removeEventListener('change', resetParallax)
       doc.removeEventListener('pointermove', forwardPointer)
       doc.removeEventListener('pointerleave', clearPointer)
       doc.removeEventListener('click', openBook, true)
@@ -279,8 +308,17 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
   }, [books, navigate, sceneLoaded, status])
 
   useEffect(() => {
-    const body = frameRef.current?.contentDocument?.body
+    const doc = frameRef.current?.contentDocument
+    const body = doc?.body
     if (body) body.dataset.libraPaused = String(!active)
+    if (doc && !active) {
+      doc.documentElement.style.setProperty('--mx', '0px')
+      doc.documentElement.style.setProperty('--my', '0px')
+      doc.querySelectorAll<HTMLElement>('.book-card').forEach(card => {
+        card.style.setProperty('--local-x', '0px')
+        card.style.setProperty('--local-y', '0px')
+      })
+    }
   }, [active, sceneLoaded, scenePrepared])
 
   useEffect(() => () => {
@@ -319,7 +357,7 @@ export default function Hero3DBookShowcase({ books, status, retry, active }: {
           style={{ visibility: 'hidden' }}
           data-ready={scenePrepared}
           onLoad={onFrameLoad}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-same-origin"
           loading="eager"
         />}
         {sceneFailed && <div className="showcase-message" role="status"><BookOpen size={36} /><p>Hiệu ứng 3D không khả dụng. Bạn vẫn có thể mở từng đầu sách bên dưới.</p></div>}

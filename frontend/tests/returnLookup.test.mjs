@@ -22,6 +22,10 @@ const serviceModule = evaluate('../src/features/s3-07-returns/returnService.ts',
 
 function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
   const slots = [], effects = [], calls = []
+  let selectedBarcode = ''
+  let lastPanelRevision = null
+  let previouslyHadPanel = false
+  const LookupPanel = Object.assign(() => null, { displayName: 'LoanLookupPanel' })
   let cursor = 0, tree
   const hooks = { ...react,
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
@@ -36,6 +40,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
   }
   const names = ['ConfirmActionDialog', 'Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
   const dependencies = Object.fromEntries(names.map(n => [`../../components/ui/${n}`, { __esModule: true, default: Object.assign(() => null, { displayName: n }) }]))
+  dependencies['../s3-01-loans/LoanLookupPanel'] = { __esModule: true, default: LookupPanel }
   dependencies['../../components/ui/TablePagination'] = { __esModule: true, default: Object.assign(() => null, { displayName: 'TablePagination' }) }
   dependencies['../../hooks/useTablePagination'] = { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) }
   dependencies.react = hooks
@@ -49,13 +54,34 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
     lookup: (...args) => { calls.push(args); return lookup(...args) },
   } }
   const Page = evaluate('../src/features/s3-07-returns/ReceiveReturnPage.tsx', dependencies).default
-  function render() { cursor = 0; tree = Page(); for (const effect of effects.splice(0)) effect(); return tree }
+  function render() {
+    cursor = 0; tree = Page()
+    const panel = nodes(tree).find(node => node.type === LookupPanel)
+    if (panel && (lastPanelRevision !== null && lastPanelRevision !== panel.props.revision || !previouslyHadPanel && lastPanelRevision !== null)) selectedBarcode = ''
+    if (panel) lastPanelRevision = panel.props.revision
+    previouslyHadPanel = Boolean(panel)
+    for (const effect of effects.splice(0)) effect()
+    return tree
+  }
   function nodes(node) {
     if (!node || typeof node !== 'object') return []
     if (Array.isArray(node)) return node.flatMap(n => nodes(n))
     return [node, ...nodes(node.props?.children)]
   }
-  function find(name) { return nodes(tree).find(node => typeof node.type === 'function' ? node.type.displayName === name : node.type === name) }
+  function find(name) {
+    const panel = nodes(tree).find(node => node.type === LookupPanel)
+    // The current page delegates reader/barcode selection to LoanLookupPanel.
+    // Exercise its public onSelectCopy callback instead of the removed inline form.
+    if (panel && name === 'Input') return { props: {
+      value: selectedBarcode, disabled: panel.props.disabled,
+      onChange: event => { if (!panel.props.disabled) selectedBarcode = event.target.value },
+    } }
+    if (panel && name === 'form') return { props: { onSubmit: event => {
+      event.preventDefault()
+      if (!panel.props.disabled) panel.props.onSelectCopy(selectedBarcode)
+    } } }
+    return nodes(tree).find(node => typeof node.type === 'function' ? node.type.displayName === name : node.type === name)
+  }
   // Expand the page's presentational Detail components without hooks.
   function text(node) {
     if (node == null || typeof node === 'boolean') return ''
@@ -131,26 +157,31 @@ test('missing deadline is a warning, never says on time or zero days', async () 
 test('reader has no form and sends no requests', () => {
   const f = fixture('READER'); assert.equal(f.find('form'), undefined); assert.equal(f.calls.length, 0)
 })
-test('invalid barcode never requests API; validation survives notice dismissal', () => {
+test('invalid barcode never requests API; warning can be dismissed while input remains available', () => {
   const f = fixture(); f.input('  '); f.submit(); f.render()
-  assert.equal(f.calls.length, 0); assert.ok(f.find('Input').props.error)
-  f.dismiss(); assert.ok(f.find('Input').props.error)
+  assert.equal(f.calls.length, 0)
+  assert.equal(f.find('FeedbackAlert').props.tone, 'warning')
+  f.dismiss(); assert.equal(f.find('FeedbackAlert'), undefined)
+  assert.equal(f.find('Input').props.disabled, false)
 })
 test('duplicate Enter during request is ignored', async () => {
   let resolve
   const f = fixture('LIBRARIAN', () => new Promise(r => { resolve = r }))
   f.input('LIB-001'); f.submit(); f.submit(); assert.equal(f.calls.length, 1)
-  assert.equal(f.find('Button').props.loading, true)
-  resolve(openItem()); await flush(); f.render(); assert.equal(f.find('Button').props.loading, false)
+  assert.equal(f.find('Input').props.disabled, true)
+  resolve(openItem()); await flush(); f.render(); assert.equal(f.find('Input').props.disabled, false)
 })
-test('changing barcode aborts lookup and ignores a late response from previous barcode', async () => {
+test('shared lookup blocks selecting another barcode while request is pending', async () => {
   const pending = []
   const f = fixture('LIBRARIAN', () => new Promise(resolve => pending.push(resolve)))
   f.input('LIB-001'); f.submit(); const firstSignal = f.calls[0][1]
-  f.input('LIB-002'); assert.equal(firstSignal.aborted, true); f.submit()
-  pending[1](openItem({ barcode: 'LIB-002', readerName: 'Bạn đọc mới' })); await flush(); f.render()
+  assert.equal(f.find('Input').props.disabled, true)
+  f.input('LIB-002'); f.submit()
+  assert.equal(firstSignal.aborted, false)
+  assert.equal(f.calls.length, 1)
   pending[0](openItem()); await flush(); f.render()
-  assert.ok(f.text().includes('Bạn đọc mới')); assert.ok(!f.text().includes('Nguyễn An'))
+  assert.ok(f.text().includes('Nguyễn An'))
+  assert.equal(f.find('Input').props.disabled, false)
 })
 test('unmount cancels pending lookup without rendering a delayed result', async () => {
   let resolve

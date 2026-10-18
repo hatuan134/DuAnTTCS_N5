@@ -84,6 +84,7 @@ class PermissionReviewApiFixtures {
         if(entry.controller().equals("BookCopyController"))values.put("id",free);
         if(entry.controller().equals("LibraryConfigurationController"))values.put("id",entry.handler().contains("Warehouse")?warehouse:shelf);
         if(entry.controller().equals("UserManagementController"))values.put("id",id("INSERT INTO users(role_id,full_name,email,status) SELECT id,'Nhân viên thử',?,'ACTIVE' FROM roles WHERE code='LIBRARIAN' RETURNING id",suffix+"@example.invalid"));
+        if(entry.controller().equals("AiController")) values.put("id", UUID.randomUUID().toString());
         specialized(entry,role,scenario);
     }
     long book(long author,long category,String title){return id("INSERT INTO books(title,author_id,category_id,publisher,publication_year,page_count) VALUES (?,?,?,'NXB Trẻ',2024,100) RETURNING id",title,author,category);}
@@ -239,6 +240,7 @@ class PermissionReviewApiFixtures {
         boolean override=scenario.equals("OVERRIDE");
         Object body=null;
         switch(e.id()) {
+            case "AiController.chat", "AiController.stream" -> body=Map.of("message","Xin chào thư viện LIBRA");
             case "AuthController.login" -> {String who=role.equals("ANONYMOUS")?"READER":role;body=Map.of("email",jdbc.queryForObject("SELECT email FROM users WHERE id=?",String.class,users.get(who)),"password",password);}
             case "AuthController.refresh" -> body=Map.of("refreshToken",refresh.get(role.equals("ANONYMOUS")?"READER":role));
             case "InitialPasswordController.validateToken", "PasswordResetController.validateResetPasswordToken" -> request.param("token",text("token"));
@@ -318,6 +320,7 @@ class PermissionReviewApiFixtures {
         return Map.of("cardNumber",cardNumber,"requestId",UUID.randomUUID(),"overrideRequested",override,"overrideReason",override?"Ngoại lệ theo hồ sơ thử":"");
     }
     int successStatus(PolicyEntry e) {
+        if(Set.of("AiController.delete","AiController.deleteHistory").contains(e.id())) return 204;
         if(Set.of("BookReservationController.cancelMine","LibraryCardController.reject","BookCoverController.upload",
                 "AuthorController.deleteAuthor","CategoryController.deleteCategory","CardTypeController.deleteCardType","UserManagementController.deleteAccount",
                 "LibraryConfigurationController.deleteShelf","LibraryConfigurationController.deleteClosedDate").contains(e.id()))return 204;
