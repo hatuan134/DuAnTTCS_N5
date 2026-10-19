@@ -1584,26 +1584,26 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete, canEdit }: AuthorsTab
 
   return (
     <div className="fit-table-wrap">
-      <table className="data-table data-table-fit catalog-authors-table w-full">
+      <table className="data-table data-table-fit catalog-authors-table min-w-[850px] w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="w-14 px-3 py-3.5">STT</th>
-            <th className="table-cell-left min-w-[180px] px-4 py-3.5">Tác giả</th>
-            <th className="w-28 px-3 py-3.5 text-center">Số đầu sách</th>
-            <th className="w-32 px-3 py-3.5 text-center">Trạng thái</th>
-            {canEdit && <th className="w-52 px-3 py-3.5 text-center">Thao tác</th>}
+            <th className={`${canEdit ? 'w-[5%]' : 'w-[7%]'} px-3 py-3.5 text-center`}>STT</th>
+            <th className={`${canEdit ? 'w-[31%]' : 'w-[45%]'} px-4 py-3.5 text-center`}>Tác giả</th>
+            <th className={`${canEdit ? 'w-[15%]' : 'w-[24%]'} px-3 py-3.5 text-center`}>Số đầu sách</th>
+            <th className={`${canEdit ? 'w-[15%]' : 'w-[24%]'} px-3 py-3.5 text-center`}>Trạng thái</th>
+            {canEdit && <th className="w-[34%] min-w-[325px] px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {pagination.pageItems.map((author, index) => (
             <tr key={author.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-3 py-4 font-semibold text-slate-500">
+              <td className="px-3 py-4 text-center font-semibold text-slate-500">
                 {pagination.startIndex + index + 1}
               </td>
-              <td className="table-cell-left px-4 py-4">
-                <div>
-                  <div className="font-semibold text-slate-900">{author.name}</div>
-                  <div className="text-xs text-slate-500 max-w-md truncate">
+              <td className="px-4 py-4 text-center">
+                <div className="w-full min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{author.name}</div>
+                  <div className="truncate text-xs text-slate-500" title={author.note || undefined}>
                     {author.note || 'Chưa có ghi chú'}
                   </div>
                 </div>
@@ -1635,13 +1635,14 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete, canEdit }: AuthorsTab
 
               {canEdit && <td className="table-action-cell px-3 py-4">
                 <TableActions>
-                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(author)}>
+                  <TableActionButton className="w-[100px]" icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(author)}>
                     Chỉnh sửa
                   </TableActionButton>
-                  <TableActionButton icon={<Power size={16} />} tone={author.active ? 'warning' : 'success'} onClick={() => onToggle(author)}>
+                  <TableActionButton className="w-[132px]" icon={<Power size={16} />} tone={author.active ? 'warning' : 'success'} onClick={() => onToggle(author)}>
                     {author.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
                   </TableActionButton>
                   <TableActionButton
+                    className="w-[72px]"
                     icon={<Trash2 size={16} />}
                     tone="danger"
                     onClick={() => onDelete(author)}
@@ -1691,34 +1692,34 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
 
   return (
     <div className="fit-table-wrap">
-      <table className="data-table data-table-fit catalog-categories-table w-full">
+      <table className="data-table data-table-fit catalog-categories-table min-w-[950px] w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="w-14 px-3 py-3.5">STT</th>
-            <th className="table-cell-left min-w-[160px] px-4 py-3.5">Thể loại</th>
-            <th className="table-cell-left w-48 px-3 py-3.5">Thuộc thể loại cha</th>
-            <th className="w-20 px-2 py-3.5 text-center">Cấp</th>
-            <th className="w-28 px-2 py-3.5 text-center">Số đầu sách</th>
-            <th className="w-32 px-2 py-3.5 text-center">Trạng thái</th>
-            {canEdit && <th className="w-52 px-3 py-3.5 text-center">Thao tác</th>}
+            <th className={`${canEdit ? 'w-[6%]' : 'w-[8%]'} px-3 py-3.5 text-center`}>STT</th>
+            <th className={`${canEdit ? 'w-[25%]' : 'w-[30%]'} px-4 py-3.5 text-center`}>Thể loại</th>
+            <th className={`${canEdit ? 'w-[20%]' : 'w-[24%]'} px-3 py-3.5 text-center`}>Thuộc thể loại cha</th>
+            <th className={`${canEdit ? 'w-[10%]' : 'w-[12%]'} px-2 py-3.5 text-center`}>Cấp</th>
+            <th className={`${canEdit ? 'w-[11%]' : 'w-[13%]'} px-2 py-3.5 text-center`}>Số đầu sách</th>
+            <th className={`${canEdit ? 'w-[12%]' : 'w-[13%]'} px-2 py-3.5 text-center`}>Trạng thái</th>
+            {canEdit && <th className="w-[16%] min-w-[325px] px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {pagination.pageItems.map((cat, index) => (
             <tr key={cat.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-3 py-4 font-semibold text-slate-500">
+              <td className="px-3 py-4 text-center font-semibold text-slate-500">
                 {pagination.startIndex + index + 1}
               </td>
-              <td className="table-cell-left px-4 py-4">
-                <div>
-                  <div className="font-semibold text-slate-900">{cat.name}</div>
-                  <div className="text-xs text-slate-500 max-w-sm truncate">
+              <td className="px-4 py-4 text-center">
+                <div className="w-full min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{cat.name}</div>
+                  <div className="truncate text-xs text-slate-500" title={cat.description || undefined}>
                     {cat.description || 'Chưa có mô tả'}
                   </div>
                 </div>
               </td>
 
-              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
+              <td className="px-3 py-4 text-center text-sm text-slate-600 truncate">
                 {cat.parentName ? (
                   <span className="font-medium text-violet-900">{cat.parentName}</span>
                 ) : (
@@ -1764,13 +1765,14 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
 
               {canEdit && <td className="table-action-cell px-3 py-4">
                 <TableActions>
-                  <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
+                  <TableActionButton className="w-[100px]" icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
                     Chỉnh sửa
                   </TableActionButton>
-                  <TableActionButton icon={<Power size={16} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
+                  <TableActionButton className="w-[132px]" icon={<Power size={16} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
                     {cat.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
                   </TableActionButton>
                   <TableActionButton
+                    className="w-[72px]"
                     icon={<Trash2 size={16} />}
                     tone="danger"
                     onClick={() => onDelete(cat)}
@@ -1827,45 +1829,45 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover, canEdit }: BooksTa
 
   return (
     <div className="fit-table-wrap">
-      <table className="data-table data-table-fit catalog-books-table w-full">
+      <table className="data-table data-table-fit catalog-books-table min-w-[1000px] w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="w-14 px-3 py-3.5">STT</th>
-            <th className="table-cell-left min-w-[200px] px-4 py-3.5">Tiêu đề sách / ISBN</th>
-            <th className="table-cell-left w-40 px-3 py-3.5">Tác giả</th>
-            <th className="table-cell-left w-36 px-3 py-3.5">Thể loại</th>
-            <th className="table-cell-left w-36 px-3 py-3.5">Nhà xuất bản</th>
-            <th className="w-28 px-2 py-3.5 text-center">Năm xuất bản</th>
-            <th className="w-48 px-3 py-3.5 text-center">Thao tác</th>
+            <th className={`${canEdit ? 'w-[5%]' : 'w-[6%]'} px-3 py-3.5 text-center`}>STT</th>
+            <th className={`${canEdit ? 'w-[26%]' : 'w-[32%]'} px-4 py-3.5 text-center`}>Tiêu đề sách / ISBN</th>
+            <th className={`${canEdit ? 'w-[16%]' : 'w-[18%]'} px-3 py-3.5 text-center`}>Tác giả</th>
+            <th className={`${canEdit ? 'w-[14%]' : 'w-[16%]'} px-3 py-3.5 text-center`}>Thể loại</th>
+            <th className={`${canEdit ? 'w-[14%]' : 'w-[16%]'} px-3 py-3.5 text-center`}>Nhà xuất bản</th>
+            <th className={`${canEdit ? 'w-[9%]' : 'w-[12%]'} px-2 py-3.5 text-center`}>Năm xuất bản</th>
+            {canEdit && <th className="w-[16%] min-w-[210px] px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {pagination.pageItems.map((book, index) => (
             <tr key={book.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-3 py-4 font-semibold text-slate-500">
+              <td className="px-3 py-4 text-center font-semibold text-slate-500">
                 {pagination.startIndex + index + 1}
               </td>
-              <td className="table-cell-left px-4 py-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline">{book.title}</Link>
+              <td className="px-4 py-4 text-center">
+                <div className="w-full min-w-0">
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <Link to={`/books/${book.id}`} className="font-semibold text-blue-700 hover:underline max-w-[280px] truncate">{book.title}</Link>
                     {!book.hasCopies && (
                       <StatusBadge status="NO_COPY" />
                     )}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
+                  <div className="mt-0.5 text-xs text-slate-500 truncate">
                     {book.hasCopies
                       ? `${book.copyCount} bản sao · Nhấn tên sách để xem chi tiết`
                       : 'Nhấn tên sách để xem chi tiết và thêm bản sao'}
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 truncate">
                     {book.isbn ? `ISBN: ${book.isbn}` : 'Chưa có ISBN'}
                   </div>
                 </div>
               </td>
 
-              <td className="table-cell-left px-3 py-4">
-                <div className="flex flex-wrap items-center gap-1.5">
+              <td className="px-3 py-4 text-center">
+                <div className="flex flex-wrap items-center justify-center gap-1">
                   {(book.authors?.length
                     ? book.authors
                     : [{ id: book.authorId ?? -1, name: book.authorName, active: book.authorActive }]
@@ -1888,13 +1890,13 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover, canEdit }: BooksTa
                 </div>
               </td>
 
-              <td className="table-cell-left px-3 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-800">{book.categoryName}</span>
+              <td className="px-3 py-4 text-center">
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="text-sm font-medium text-slate-800 truncate">{book.categoryName}</span>
                   {!book.categoryActive && (
                     <span
                       title="Thể loại này đã ngừng sử dụng nhưng vẫn hiển thị chính xác trên sách cũ"
-                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 shrink-0"
                     >
                       Đã ngừng dùng
                     </span>
@@ -1902,7 +1904,7 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover, canEdit }: BooksTa
                 </div>
               </td>
 
-              <td className="table-cell-left px-3 py-4 text-sm text-slate-600">
+              <td className="px-3 py-4 text-center text-sm text-slate-600 truncate">
                 {book.publisher || '—'}
               </td>
 

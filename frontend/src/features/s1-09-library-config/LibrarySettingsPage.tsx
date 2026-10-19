@@ -338,34 +338,34 @@ function WarehouseShelfPage() {
           <table className="data-table w-full min-w-[980px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <TableHead>STT</TableHead>
-                <TableHead>Mã kệ</TableHead>
-                <TableHead>Tên kệ</TableHead>
-                <TableHead>Kho</TableHead>
-                <TableHead>Trạng thái sử dụng</TableHead>
-                <TableHead align="right">Thao tác</TableHead>
+                <TableHead align="center">STT</TableHead>
+                <TableHead align="center">Mã kệ</TableHead>
+                <TableHead align="center">Tên kệ</TableHead>
+                <TableHead align="center">Kho</TableHead>
+                <TableHead align="center">Trạng thái sử dụng</TableHead>
+                <TableHead align="center">Thao tác</TableHead>
               </tr>
             </thead>
             <tbody>
               {shelfPagination.pageItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-5 py-4 font-semibold text-slate-500">
+                  <td className="px-5 py-4 text-center font-semibold text-slate-500">
                     {shelfPagination.startIndex + index + 1}
                   </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
+                  <td className="px-5 py-4 text-center">
+                    <div className="flex items-center justify-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><Rows3 size={18} /></div>
                       <span className="font-semibold text-slate-900">{item.code}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-700">{item.name}</td>
-                  <td className="px-5 py-4 text-sm text-slate-700">{item.warehouseCode} — {item.warehouseName}</td>
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 text-center text-sm text-slate-700">{item.name}</td>
+                  <td className="px-5 py-4 text-center text-sm text-slate-700">{item.warehouseCode} — {item.warehouseName}</td>
+                  <td className="px-5 py-4 text-center">
                     <span className={`rounded-full px-3 py-1 text-xs font-medium ${item.inUse ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
                       {item.inUse ? `Đang có ${item.copyCount} bản sao` : 'Kệ trống'}
                     </span>
                   </td>
-                  <td className="px-5 py-4">
+                  <td className="table-action-cell px-5 py-4 text-center">
                     <TableActions>
                       <TableActionButton icon={<Pencil size={16} />} tone="primary" onClick={() => openEditShelf(item)}>
                         Chỉnh sửa
@@ -946,8 +946,9 @@ function SectionHeader({ title, description, action, icon }: { title: string; de
   )
 }
 
-function TableHead({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'right' }) {
-  return <th className={`px-5 py-3 text-xs font-semibold uppercase text-slate-500 ${align === 'right' ? 'text-right' : 'text-left'}`}>{children}</th>
+function TableHead({ children, align = 'center' }: { children: ReactNode; align?: 'left' | 'right' | 'center' }) {
+  const alignClass = align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : 'text-center'
+  return <th className={`px-5 py-3 text-xs font-semibold uppercase text-slate-500 ${alignClass}`}>{children}</th>
 }
 
 function LoadingBlock() {
