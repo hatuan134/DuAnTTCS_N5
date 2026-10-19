@@ -439,10 +439,10 @@ export default function CardTypesPage() {
             <table className="data-table data-table-fit borrow-policy-table w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="w-14 px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-14 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     STT
                   </th>
-                  <th className="table-cell-left min-w-[160px] px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className="min-w-[160px] px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Loại thẻ
                   </th>
                   <th className="w-28 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
@@ -482,10 +482,10 @@ export default function CardTypesPage() {
                       key={cardType.id}
                       className="border-b border-slate-100 transition hover:bg-slate-50/80"
                     >
-                      <td className="px-3 py-4 font-semibold text-slate-500">
+                      <td className="px-3 py-4 text-center font-semibold text-slate-500">
                         {cardTypePagination.startIndex + index + 1}
                       </td>
-                      <td className="table-cell-left px-3 py-4">
+                      <td className="px-3 py-4 text-center">
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-900">
                             {cardType.name}
@@ -634,7 +634,7 @@ export default function CardTypesPage() {
                   <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
                     Thời điểm
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Loại thẻ
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
@@ -662,7 +662,7 @@ export default function CardTypesPage() {
                       {formatDate(item.changedAt)}
                     </td>
 
-                    <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-900">
+                    <td className="whitespace-nowrap px-5 py-4 text-center text-sm font-semibold text-slate-900">
                       {item.cardTypeName}
                     </td>
 

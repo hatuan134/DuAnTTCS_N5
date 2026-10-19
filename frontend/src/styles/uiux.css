@@ -168,7 +168,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .app-content { overflow-wrap: anywhere; }
 .data-table-fit { min-width: 900px !important; }
 .borrow-policy-table { min-width: 1180px !important; }
-.catalog-categories-table,.catalog-books-table { min-width: 1080px !important; }
+.catalog-books-table { min-width: 1080px !important; }
 .auth-page input { min-width: 0; }
 .auth-page .auth-home-link { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #516780; margin-bottom: 22px; }
 .auth-page .auth-home-link:hover { color: #225fc7; }

@@ -197,23 +197,23 @@ export default function LoanReportPage() {
                 </div>
               </div>)}
             </div>
-            <table className="hidden w-full table-fixed border-collapse text-left text-sm sm:table">
+            <table className="hidden w-full table-fixed border-collapse text-center text-sm sm:table">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th scope="col" className="w-14 px-4 py-3 font-semibold">STT</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Tên sách</th>
-                  <th scope="col" className="w-28 px-3 py-3 font-semibold">Mã đầu sách</th>
-                  <th scope="col" className="w-28 px-3 py-3 text-right font-semibold">Lượt mượn</th>
-                  <th scope="col" className="w-32 px-4 py-3 text-right font-semibold">Bản hiện có</th>
+                  <th scope="col" className="w-16 px-4 py-3 text-center font-semibold">STT</th>
+                  <th scope="col" className="px-4 py-3 text-center font-semibold">Tên sách</th>
+                  <th scope="col" className="w-32 px-3 py-3 text-center font-semibold">Mã đầu sách</th>
+                  <th scope="col" className="w-32 px-3 py-3 text-center font-semibold">Lượt mượn</th>
+                  <th scope="col" className="w-32 px-4 py-3 text-center font-semibold">Bản hiện có</th>
                 </tr>
               </thead>
               <tbody>
                 {report.topBooks.map((book, index) => <tr key={book.bookId} className="border-t border-slate-100 hover:bg-slate-50/70">
-                  <td className="px-4 py-4 tabular-nums text-slate-500">{index + 1}</td>
-                  <td className="break-words px-4 py-4"><Link to={`/books/${book.bookId}`} className="font-semibold text-blue-700 hover:underline">{book.bookTitle}</Link></td>
-                  <td className="break-words px-3 py-4 text-slate-600">#{book.bookId}</td>
-                  <td className="px-3 py-4 text-right font-semibold tabular-nums text-slate-900">{formatNumber(book.borrowCount)}</td>
-                  <td className="px-4 py-4 text-right tabular-nums text-slate-700">{formatNumber(book.stockCount)}</td>
+                  <td className="px-4 py-4 text-center tabular-nums text-slate-500">{index + 1}</td>
+                  <td className="break-words px-4 py-4 text-center"><Link to={`/books/${book.bookId}`} className="font-semibold text-blue-700 hover:underline">{book.bookTitle}</Link></td>
+                  <td className="break-words px-3 py-4 text-center text-slate-600">#{book.bookId}</td>
+                  <td className="px-3 py-4 text-center font-semibold tabular-nums text-slate-900">{formatNumber(book.borrowCount)}</td>
+                  <td className="px-4 py-4 text-center tabular-nums text-slate-700">{formatNumber(book.stockCount)}</td>
                 </tr>)}
               </tbody>
             </table>
@@ -247,23 +247,23 @@ export default function LoanReportPage() {
                 </div>
               </div>)}
             </div>
-            <table className="hidden w-full table-fixed border-collapse text-left text-sm sm:table">
+            <table className="hidden w-full table-fixed border-collapse text-center text-sm sm:table">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th scope="col" className="w-14 px-4 py-3 font-semibold">STT</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Tên sách</th>
-                  <th scope="col" className="w-28 px-3 py-3 font-semibold">Mã đầu sách</th>
-                  <th scope="col" className="w-28 px-3 py-3 text-right font-semibold">Đang chờ</th>
-                  <th scope="col" className="w-32 px-4 py-3 text-right font-semibold">Bản hiện có</th>
+                  <th scope="col" className="w-16 px-4 py-3 text-center font-semibold">STT</th>
+                  <th scope="col" className="px-4 py-3 text-center font-semibold">Tên sách</th>
+                  <th scope="col" className="w-32 px-3 py-3 text-center font-semibold">Mã đầu sách</th>
+                  <th scope="col" className="w-32 px-3 py-3 text-center font-semibold">Đang chờ</th>
+                  <th scope="col" className="w-32 px-4 py-3 text-center font-semibold">Bản hiện có</th>
                 </tr>
               </thead>
               <tbody>
                 {report.topQueuedBooks.map((book, index) => <tr key={book.bookId} className="border-t border-slate-100 hover:bg-slate-50/70">
-                  <td className="px-4 py-4 tabular-nums text-slate-500">{index + 1}</td>
-                  <td className="break-words px-4 py-4"><Link to={`/books/${book.bookId}`} className="font-semibold text-blue-700 hover:underline">{book.bookTitle}</Link></td>
-                  <td className="break-words px-3 py-4 text-slate-600">#{book.bookId}</td>
-                  <td className="px-3 py-4 text-right font-semibold tabular-nums text-slate-900">{formatNumber(book.waitCount)}</td>
-                  <td className="px-4 py-4 text-right tabular-nums text-slate-700">{formatNumber(book.stockCount)}</td>
+                  <td className="px-4 py-4 text-center tabular-nums text-slate-500">{index + 1}</td>
+                  <td className="break-words px-4 py-4 text-center"><Link to={`/books/${book.bookId}`} className="font-semibold text-blue-700 hover:underline">{book.bookTitle}</Link></td>
+                  <td className="break-words px-3 py-4 text-center text-slate-600">#{book.bookId}</td>
+                  <td className="px-3 py-4 text-center font-semibold tabular-nums text-slate-900">{formatNumber(book.waitCount)}</td>
+                  <td className="px-4 py-4 text-center tabular-nums text-slate-700">{formatNumber(book.stockCount)}</td>
                 </tr>)}
               </tbody>
             </table>
