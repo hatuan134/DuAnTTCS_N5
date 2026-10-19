@@ -57,8 +57,15 @@ public class PermissionReviewRepository {
                 rs.getInt("case_count"), rs.getInt("detected_count"), rs.getInt("fixed_count"), rs.getInt("failed_count"));
     }
 
+    public void expireStaleJobs() {
+        jdbc.update("UPDATE permission_review_jobs SET state='FAILED',message='Quá thời gian chờ GitHub Actions (90 phút). Kiểm tra Actions và chạy lại.',finished_at=CURRENT_TIMESTAMP WHERE state IN ('STARTING','RUNNING') AND started_at < CURRENT_TIMESTAMP - INTERVAL '90 minutes'");
+    }
+    public Optional<Long> lockPendingActor(UUID key, String fingerprint) {
+        return jdbc.query("SELECT requested_by_user_id FROM permission_review_jobs WHERE run_key=? AND fingerprint=? AND state IN ('STARTING','RUNNING') AND finished_at IS NULL FOR UPDATE",
+                (rs,n) -> (Long)rs.getObject(1), key,fingerprint).stream().findFirst();
+    }
     public void createJob(UUID key, Long actor, String name, String fingerprint) {
-        jdbc.update("INSERT INTO permission_review_jobs(run_key,state,message,requested_by_user_id,requested_by_name,fingerprint) VALUES (?,'STARTING','Đang chuẩn bị database kiểm thử riêng.',?,?,?)", key, actor, name, fingerprint);
+        jdbc.update("INSERT INTO permission_review_jobs(run_key,state,message,requested_by_user_id,requested_by_name,fingerprint) VALUES (?,'STARTING','Đang chuẩn bị tác vụ kiểm thử trên môi trường cô lập.',?,?,?)", key, actor, name, fingerprint);
     }
     public Optional<RunState> job(UUID key) {
         return jdbc.query("SELECT * FROM permission_review_jobs WHERE run_key=?", runMapper(), key).stream().findFirst();

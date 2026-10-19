@@ -56,6 +56,7 @@ public class SecurityConfig {
                                                                 "/api/v1/books/public/**",
                                                                 "/error")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/internal/permission-review/callback").permitAll()
                                                 .requestMatchers("/api/v1/permission-review",
                                                                 "/api/v1/permission-review/**")
                                                 .hasRole("ADMIN")
