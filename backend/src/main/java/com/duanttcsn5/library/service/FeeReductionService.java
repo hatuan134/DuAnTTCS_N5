@@ -19,6 +19,8 @@ import java.util.Set;
 @Service
 public class FeeReductionService {
     private static final Set<String> STAFF = Set.of("LIBRARIAN", "LIBRARY_MANAGER", "ADMIN");
+    private static final Set<String> REQUESTERS = Set.of("LIBRARIAN", "ADMIN");
+    private static final Set<String> REVIEWERS = Set.of("LIBRARY_MANAGER", "ADMIN");
     private static final int PAGE_SIZE = 20;
     private final OverdueFeeRepository fees;
     private final UserRepository users;
@@ -38,7 +40,7 @@ public class FeeReductionService {
 
     @Transactional
     public FeeReductionRequestResponse create(Long feeId, CreateFeeReductionRequest request, Long actorId) {
-        User actor = requireRole(actorId, Set.of("LIBRARIAN"));
+        User actor = requireRole(actorId, REQUESTERS);
         validateId(feeId);
         // Lock the fee before checking payment state and pending requests.
         var fee = findFee(feeId, true);
@@ -68,7 +70,7 @@ public class FeeReductionService {
 
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public FeeReductionRequestPageResponse pending(int page, Long actorId) {
-        requireRole(actorId, Set.of("LIBRARY_MANAGER"));
+        requireRole(actorId, REVIEWERS);
         if (page < 0 || page > 1_000_000) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Trang danh sách không hợp lệ.");
         }
@@ -91,7 +93,7 @@ public class FeeReductionService {
 
     private FeeReductionRequestResponse decide(Long requestId, RejectFeeReductionRequest input,
             Long actorId, boolean approve) {
-        User actor = requireRole(actorId, Set.of("LIBRARY_MANAGER"));
+        User actor = requireRole(actorId, REVIEWERS);
         if (requestId == null || requestId < 1) throw new ApiException(HttpStatus.BAD_REQUEST,
                 "INVALID_REDUCTION_REQUEST_ID", "Mã đề nghị miễn giảm không hợp lệ.");
         Long feeId = fees.reductionFeeId(requestId).orElseThrow(this::requestNotFound);

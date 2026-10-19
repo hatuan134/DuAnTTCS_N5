@@ -15,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.json.JsonMapper;
 import java.time.*;
 import java.util.*;
@@ -41,7 +42,7 @@ class AiToolsSecurityTest {
     }
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
     AiTypes.ToolResult run(String name,String json) { return tools.execute(name,JsonMapper.builder().build().readTree(json)); }
-    @ParameterizedTest @CsvSource({"PUBLIC,getMyLoans","PUBLIC,getMyLibraryCard","PUBLIC,getMyReservations","PUBLIC,getAuthorizedLoans","PUBLIC,getAuthorizedStatistics","PUBLIC,getBookCopies","PUBLIC,getAuthorizedAudit","READER,getAuthorizedLoans","READER,getAuthorizedStatistics","READER,getBookCopies","READER,getAuthorizedAudit","LIBRARIAN,getAuthorizedStatistics","READER,openOverdueFiltered","PUBLIC,openOverdueFiltered","ADMIN,getMyLoans","LIBRARY_MANAGER,getMyLibraryCard"})
+    @ParameterizedTest @CsvSource({"PUBLIC,getMyLoans","PUBLIC,getMyLibraryCard","PUBLIC,getMyReservations","PUBLIC,getAuthorizedLoans","PUBLIC,getAuthorizedStatistics","PUBLIC,getBookCopies","PUBLIC,getAuthorizedAudit","READER,getAuthorizedLoans","READER,getAuthorizedStatistics","READER,getBookCopies","READER,getAuthorizedAudit","LIBRARIAN,getAuthorizedStatistics","READER,openOverdueFiltered","PUBLIC,openOverdueFiltered","ADMIN,getMyLoans","LIBRARY_MANAGER,getMyLibraryCard","LIBRARIAN,getPendingFeeReductions","READER,getPendingFeeReductions","PUBLIC,getPendingFeeReductions"})
     void toolsDenyBeforeDataAccess(String role,String tool) {
         login(role,11);assertThatThrownBy(()->run(tool,"{}")).isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(catalog,loans,cards,reservations,copies,reports,audit,bookRepo,copyRepo,read);
@@ -55,6 +56,44 @@ class AiToolsSecurityTest {
     @ParameterizedTest @ValueSource(strings={"{\"userId\":22}","{\"readerId\":22}","{\"role\":\"ADMIN\"}","{\"page\":-1}","{\"page\":\"0\"}","{\"page\":9999999999999}","{\"url\":\"https://example.invalid\"}"})
     void toolArgumentsCannotSelectAnotherReaderOrInjectFields(String args) {
         login("READER",11);assertThatThrownBy(()->run("getMyLoans",args)).isInstanceOf(ApiException.class);verifyNoInteractions(loans,read);
+    }
+    @Test void adminInheritsEveryStaffAiToolButNotReaderPersonalTools() {
+        login("LIBRARIAN", 11);
+        Set<String> librarianTools = toolNames();
+        login("LIBRARY_MANAGER", 11);
+        Set<String> managerTools = toolNames();
+        login("ADMIN", 11);
+        Set<String> adminTools = toolNames();
+        assertThat(adminTools).containsAll(librarianTools).containsAll(managerTools)
+                .contains("getPendingFeeReductions");
+        assertThat(adminTools).doesNotContain("getMyLoans", "getMyLibraryCard", "getMyReservations");
+    }
+    private Set<String> toolNames() {
+        Set<String> names = new HashSet<>();
+        for (var definition : tools.definitions()) {
+            var function = (Map<?, ?>) definition.get("function");
+            names.add((String) function.get("name"));
+        }
+        return names;
+    }
+    @Test void adminCanCallPendingFeeToolThroughExistingService() {
+        login("ADMIN", 13);
+        FeeReductionService reductions = mock(FeeReductionService.class);
+        ReflectionTestUtils.setField(tools, "feeReductions", reductions);
+        when(reductions.pending(0, 13L)).thenReturn(
+                new FeeReductionRequestPageResponse(List.of(), 0, 20, 0, 0));
+        var result = run("getPendingFeeReductions", "{}");
+        assertThat(result.block().items()).isEmpty();
+        verify(reductions).pending(0, 13L);
+    }
+    @Test void forgedAdminPrincipalWithWrongAuthorityCannotCallPendingTool() {
+        login("ADMIN", 13);
+        var adminPrincipal = access.principal();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(adminPrincipal, null,
+                        List.of(new SimpleGrantedAuthority("ROLE_LIBRARIAN"))));
+        assertThatThrownBy(() -> run("getPendingFeeReductions", "{}"))
+                .isInstanceOf(AccessDeniedException.class);
     }
     @Test void readerUsesAuthenticatedIdAndOwnedLoanLink() {
         login("READER",11);

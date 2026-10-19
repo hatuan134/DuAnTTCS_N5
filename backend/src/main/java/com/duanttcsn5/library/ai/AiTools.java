@@ -118,7 +118,7 @@ public class AiTools {
             result.add(schema("getAuthorizedStatistics","Báo cáo mượn trả; bỏ ngày để lấy tháng hiện tại. Khoảng tối đa 93 ngày. Tổng đầu sách/bản sao là hiện tại.",map("startDate",stringProperty("YYYY-MM-DD"),"endDate",stringProperty("YYYY-MM-DD")),List.of()));
             result.add(schema("getOverdueDebtSummary","Số bạn đọc có sách quá hạn/nợ phí và tổng dư nợ theo quyền quản lý, không tiết lộ hồ sơ cá nhân.",Map.of(),List.of()));
         }
-        if("LIBRARY_MANAGER".equals(access.role())) {
+        if(Set.of("LIBRARY_MANAGER","ADMIN").contains(access.role())) {
             result.add(schema("getPendingFeeReductions","Thống kê đề nghị miễn giảm phí đang chờ quản lý phê duyệt (chỉ đọc).",map("page",integerProperty("Trang")),List.of()));
         }
         return result;
@@ -443,7 +443,7 @@ public class AiTools {
                     List.of(new Action("Mở báo cáo quá hạn và nợ phí","/reports/overdue-debts"))),true);
             }
             case "getPendingFeeReductions" -> {
-                access.require("LIBRARY_MANAGER"); if(feeReductions==null) throw invalid();
+                access.require("LIBRARY_MANAGER","ADMIN"); if(feeReductions==null) throw invalid();
                 var data=feeReductions.pending(page,access.staffId());
                 var rows=data.items().stream().map(x->map("id",x.id(),"title",x.bookTitle(),
                     "status",x.status(),"requestedAmountVnd",x.requestedAmountVnd(),
