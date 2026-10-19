@@ -75,7 +75,7 @@ class FeeReductionDecisionControllerTest {
         }
         verifyNoInteractions(service);
     }
-    @Test void librarianAdminAndReaderCannotApproveOrRejectDirectly() throws Exception {
+    @Test void librarianAndReaderCannotApproveOrRejectDirectly() throws Exception {
         for (String role : new String[]{"LIBRARIAN", "READER"}) {
             token(role);
             mvc.perform(call("approve", "{}")).andExpect(status().isForbidden());
@@ -92,6 +92,17 @@ class FeeReductionDecisionControllerTest {
         when(service.reject(eq(2L), any(), eq(12L))).thenReturn(saved());
         mvc.perform(call("reject", "{\"reason\":\"Chưa đủ căn cứ\"}")).andExpect(status().isOk());
         verify(service).reject(2L, new RejectFeeReductionRequest("Chưa đủ căn cứ"), 12L);
+    }
+    @Test void adminCanApproveAndRejectViaHttp() throws Exception {
+        token("ADMIN");
+        when(service.approve(2L, 12L)).thenReturn(saved());
+        mvc.perform(call("approve", "{}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.approvedAmountVnd").value(10000));
+        verify(service).approve(2L, 12L);
+        when(service.reject(2L, new RejectFeeReductionRequest("Lý do"), 12L)).thenReturn(saved());
+        mvc.perform(call("reject", "{\"reason\":\"Lý do\"}"))
+                .andExpect(status().isOk());
+        verify(service).reject(2L, new RejectFeeReductionRequest("Lý do"), 12L);
     }
     @Test void missingBlankAndLongRejectionReasonsFailValidation() throws Exception {
         token("LIBRARY_MANAGER");

@@ -74,7 +74,7 @@ class FeeReductionControllerTest {
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
     }
-    @Test void onlyLibrarianCanPostEvenWhenOtherRolesCallApiDirectly() throws Exception {
+    @Test void onlyLibrarianOrAdminCanPostEvenWhenOtherRolesCallApiDirectly() throws Exception {
         for (String role : new String[]{"READER", "LIBRARY_MANAGER"}) {
             token(role); mvc.perform(call(BODY)).andExpect(status().isForbidden());
         }
@@ -91,6 +91,18 @@ class FeeReductionControllerTest {
                     .andExpect(jsonPath("$.requestedAmountVnd").value(amount))
                     .andExpect(jsonPath("$.requestedBy").value(12));
         }
+    }
+    @Test void adminCanSubmitAndViewPendingRequestsViaHttp() throws Exception {
+        token("ADMIN");
+        var input = new CreateFeeReductionRequest(new BigDecimal("10000"), "Bạn đọc có hoàn cảnh khó khăn");
+        when(service.create(5L, input, 12L)).thenReturn(saved(10000));
+        mvc.perform(call(BODY)).andExpect(status().isCreated());
+        verify(service).create(5L, input, 12L);
+        when(service.pending(0, 12L))
+                .thenReturn(new FeeReductionRequestPageResponse(List.of(saved(10000)), 0, 20, 1, 1));
+        mvc.perform(get(PENDING).header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("PENDING"));
+        verify(service).pending(0, 12L);
     }
     @Test void blankReasonsMissingAmountZeroNegativeAndFractionFailValidation() throws Exception {
         token("LIBRARIAN");
@@ -111,7 +123,7 @@ class FeeReductionControllerTest {
                 .when(service).create(5L, request, 12L);
         mvc.perform(call(BODY)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REDUCTION_AMOUNT"));
     }
-    @Test void pendingListIsManagerOnlyAndUsesExistingResponseContract() throws Exception {
+    @Test void pendingListIsManagerOrAdminAndUsesExistingResponseContract() throws Exception {
         for (String role : new String[]{"READER", "LIBRARIAN"}) {
             token(role); mvc.perform(get(PENDING).header("Authorization", "Bearer test-token"))
                     .andExpect(status().isForbidden());

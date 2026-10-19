@@ -102,13 +102,23 @@ class FeeReductionServiceTest {
                 .thenThrow(new DuplicateKeyException("pending"));
         code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_PENDING");
     }
-    @Test void nonLibrariansInactiveAndUnauthenticatedUsersCannotCreate() {
+    @Test void adminCanCreateFeeReductionLikeLibrarian() {
+        actor.getRole().setCode("ADMIN");
+        when(fees.insertReduction(fee, 12L, "Thủ thư An", 10000L, "Lý do"))
+                .thenReturn(response(10000));
+        var created = service.create(5L, request("10000", "Lý do"), 12L);
+        assertThat(created.status()).isEqualTo("PENDING");
+        verify(fees).insertReduction(fee, 12L, "Thủ thư An", 10000L, "Lý do");
+    }
+    @Test void nonRequestersInactiveAndUnauthenticatedUsersCannotCreate() {
         for (String role : new String[]{"READER", "LIBRARY_MANAGER"}) {
             actor.getRole().setCode(role);
             code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         }
-        actor.getRole().setCode("LIBRARIAN"); actor.setStatus("DISABLED");
-        code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_ROLE_REQUIRED");
+        for (String role : new String[]{"LIBRARIAN", "ADMIN"}) {
+            actor.getRole().setCode(role); actor.setStatus("DISABLED");
+            code(() -> service.create(5L, request("10000", "Lý do"), 12L), "FEE_REDUCTION_ROLE_REQUIRED");
+        }
         code(() -> service.create(5L, request("10000", "Lý do"), null), "LOGIN_REQUIRED");
         code(() -> service.create(5L, request("10000", "Lý do"), 99L), "UNAUTHORIZED");
         verifyNoInteractions(fees);
@@ -130,7 +140,7 @@ class FeeReductionServiceTest {
             assertThat(detail.pendingRequest().requestedAmountVnd()).isEqualTo(10000);
         }
     }
-    @Test void readerCannotReadFeeDetailsAndOnlyManagerCanReadPendingList() {
+    @Test void readerCannotReadFeeDetailsAndOnlyManagerOrAdminCanReadPendingList() {
         actor.getRole().setCode("READER");
         code(() -> service.detail(5L, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         for (String role : new String[]{"READER", "LIBRARIAN"}) {
@@ -138,12 +148,14 @@ class FeeReductionServiceTest {
             code(() -> service.pending(0, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         }
         verifyNoInteractions(fees);
-        actor.getRole().setCode("LIBRARY_MANAGER");
         when(fees.countPendingReductions()).thenReturn(1L);
         when(fees.pendingReductions(20, 0L)).thenReturn(List.of(response(10000)));
-        var page = service.pending(999, 12L);
-        assertThat(page.page()).isZero(); assertThat(page.totalItems()).isEqualTo(1);
-        assertThat(page.items()).hasSize(1);
-        code(() -> service.pending(-1, 12L), "INVALID_PAGE");
+        for (String role : new String[]{"LIBRARY_MANAGER", "ADMIN"}) {
+            actor.getRole().setCode(role);
+            var page = service.pending(999, 12L);
+            assertThat(page.page()).isZero(); assertThat(page.totalItems()).isEqualTo(1);
+            assertThat(page.items()).hasSize(1);
+            code(() -> service.pending(-1, 12L), "INVALID_PAGE");
+        }
     }
 }
