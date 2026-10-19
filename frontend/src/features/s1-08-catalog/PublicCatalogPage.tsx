@@ -1,4 +1,5 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import Button from '../../components/ui/Button'
 import BookCard from '../../components/public/BookCard'
 import { readCatalogQuery, catalogQueryParams } from './catalogQuery'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -342,20 +343,21 @@ export default function PublicCatalogPage() {
                 onChange={(event) => setSubmittedQuery({
                   ...submittedQuery, page: 0, sort: event.target.value as PublicCatalogSort,
                 })}
-                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50"
+                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50"
               >
                 <option value="relevance">Mức phù hợp</option>
                 <option value="publicationYear">Năm xuất bản (mới nhất trước)</option>
               </select>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                className="h-10 !min-h-10"
                 onClick={() => setReloadKey((current) => current + 1)}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 Làm mới
-              </button>
+              </Button>
             </div>
           </div>
 

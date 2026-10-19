@@ -439,35 +439,35 @@ export default function CardTypesPage() {
             <table className="data-table data-table-fit borrow-policy-table w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-14 px-3 py-3 text-xs font-semibold uppercase text-slate-500">
                     STT
                   </th>
-                  <th className="table-cell-left px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className="table-cell-left min-w-[160px] px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
                     Loại thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-28 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Số sách mượn tối đa
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-28 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Số ngày mượn tối đa
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-24 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Số lần gia hạn
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-28 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Số ngày mỗi lần gia hạn
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-24 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Thời hạn thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-24 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Độc giả gắn thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className="w-32 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Trạng thái
                   </th>
                   {canManage && (
-                    <th className="px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    <th className="w-56 px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                       Thao tác
                     </th>
                   )}

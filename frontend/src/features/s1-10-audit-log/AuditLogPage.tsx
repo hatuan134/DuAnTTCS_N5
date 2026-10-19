@@ -357,7 +357,7 @@ function AuditLogContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table w-full min-w-[1240px]">
+            <table className="data-table w-full min-w-[960px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <TableHead>STT</TableHead>
@@ -366,7 +366,7 @@ function AuditLogContent() {
                   <TableHead>Hành động</TableHead>
                   <TableHead>Đối tượng tác động</TableHead>
                   <TableHead>Địa chỉ IP</TableHead>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-slate-500">Chi tiết</th>
+                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold uppercase text-slate-500">Chi tiết</th>
                 </tr>
               </thead>
               <tbody>
@@ -375,30 +375,30 @@ function AuditLogContent() {
                   const Icon = style.icon
                   return (
                     <tr key={item.id} className="border-b border-slate-100 transition hover:bg-slate-50">
-                      <td className="px-5 py-4 font-semibold text-slate-500">
+                      <td className="px-3 py-2.5 font-semibold text-slate-500">
                         {logPagination.startIndex + index + 1}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-600">
                         {formatDateTime(item.timestamp)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{item.actor}</p>
                         <p className="mt-0.5 text-xs text-slate-500">{item.actorRole}</p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-2.5">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${style.className}`}>
                           <Icon size={14} />
                           {auditActionLabel(item.action, item.actionLabel)}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-800">{auditTargetLabel(item)}</p>
                         <p className="mt-0.5 text-xs text-slate-500">{auditEntityLabel(item.targetType)}</p>
                       </td>
-                      <td className="min-w-[180px] px-5 py-4">
+                      <td className="px-3 py-2.5">
                         <IpAddress value={item.ipAddress} />
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-2.5 text-center">
                         <TableActionButton
                           icon={<Eye size={16} />}
                           tone="primary"
@@ -513,7 +513,7 @@ function StatCard({ label, value, valueClass }: { label: string; value: number; 
 
 function TableHead({ children }: { children: string }) {
   return (
-    <th className="whitespace-nowrap px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold uppercase text-slate-500">
       {children}
     </th>
   )

@@ -5,8 +5,6 @@ import {
   Clock,
   ExternalLink,
   IdCard,
-  Mail,
-  Phone,
   RefreshCw,
   Search,
   UserPlus,
@@ -214,60 +212,54 @@ export default function ReadersPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-            <table className="data-table w-full min-w-[1360px] border-collapse text-sm">
+            <table className="data-table w-full min-w-[960px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  <th className="py-3.5 px-4">STT</th>
-                  <th className="py-3.5 px-4">Mã định danh</th>
-                  <th className="py-3.5 px-4">Họ và tên</th>
-                  <th className="py-3.5 px-4">Loại thẻ</th>
-                  <th className="py-3.5 px-4">Email liên hệ</th>
-                  <th className="py-3.5 px-4">Số điện thoại</th>
-                  <th className="py-3.5 px-4">Ngày nộp</th>
-                  <th className="py-3.5 px-4">Trạng thái hồ sơ</th>
-                  <th className="py-3.5 px-4 text-center">Tài khoản</th>
+                  <th className="px-3 py-2.5">STT</th>
+                  <th className="px-3 py-2.5">Mã định danh</th>
+                  <th className="px-3 py-2.5">Họ và tên</th>
+                  <th className="px-3 py-2.5">Loại thẻ</th>
+                  <th className="px-3 py-2.5">Email liên hệ</th>
+                  <th className="px-3 py-2.5">Số điện thoại</th>
+                  <th className="px-3 py-2.5">Ngày nộp</th>
+                  <th className="px-3 py-2.5 text-center">Trạng thái hồ sơ</th>
+                  <th className="px-3 py-2.5 text-center">Tài khoản</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {readerPagination.pageItems.map((reader, index) => (
                   <tr key={reader.userId} className="hover:bg-slate-50/50 transition">
-                    <td className="py-3.5 px-4 font-semibold text-slate-500">
+                    <td className="px-3 py-2.5 font-semibold text-slate-500">
                       {readerPagination.startIndex + index + 1}
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
+                    <td className="px-3 py-2.5 font-mono font-bold text-blue-700">
                       {reader.memberCode}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">
+                    <td className="px-3 py-2.5 font-semibold text-slate-900">
                       <Link to={canViewHistory ? `/readers/${reader.userId}` : `/readers/${reader.userId}/profile`} className="text-blue-700 hover:underline"
                         aria-label={`${canViewHistory ? 'Xem hồ sơ và lịch sử mượn trả' : 'Xem hồ sơ cơ bản'} ${reader.fullName}`}>
                         {reader.fullName}
                       </Link>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">
+                    <td className="px-3 py-2.5 text-slate-600">
                       {reader.cardTypeName || (
                         <span className="text-slate-400 italic">Chưa cấp thẻ</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-center text-slate-600">
-                      <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap align-middle">
-                        <Mail size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
-                        <span>{reader.email}</span>
-                      </span>
+                    <td className="px-3 py-2.5 text-left text-slate-600">
+                      <span className="whitespace-nowrap align-middle">{reader.email}</span>
                     </td>
-                    <td className="py-3.5 px-4 text-center text-slate-600">
+                    <td className="px-3 py-2.5 text-left text-slate-600">
                       {reader.phone ? (
-                        <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap align-middle">
-                          <Phone size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
-                          <span>{reader.phone}</span>
-                        </span>
+                        <span className="whitespace-nowrap align-middle">{reader.phone}</span>
                       ) : (
                         <span className="text-slate-300 italic">Chưa có</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 text-xs">
+                    <td className="px-3 py-2.5 text-slate-500 text-xs">
                       {new Date(reader.submittedAt).toLocaleDateString('vi-VN')}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center">
                         <StatusBadge
                           status={reader.registrationStatus}
@@ -281,7 +273,7 @@ export default function ReadersPage() {
                         />
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center">
                         <StatusBadge status={reader.userStatus} />
                       </div>

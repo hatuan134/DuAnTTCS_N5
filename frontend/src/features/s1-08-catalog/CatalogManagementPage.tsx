@@ -1587,11 +1587,11 @@ function AuthorsTable({ items, onEdit, onToggle, onDelete, canEdit }: AuthorsTab
       <table className="data-table data-table-fit catalog-authors-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-3 py-3.5">STT</th>
-            <th className="table-cell-left px-4 py-3.5">Tác giả</th>
-            <th className="px-3 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-3 py-3.5 text-center">Trạng thái</th>
-            {canEdit && <th className="px-3 py-3.5 text-center">Thao tác</th>}
+            <th className="w-14 px-3 py-3.5">STT</th>
+            <th className="table-cell-left min-w-[180px] px-4 py-3.5">Tác giả</th>
+            <th className="w-28 px-3 py-3.5 text-center">Số đầu sách</th>
+            <th className="w-32 px-3 py-3.5 text-center">Trạng thái</th>
+            {canEdit && <th className="w-52 px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1694,13 +1694,13 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
       <table className="data-table data-table-fit catalog-categories-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-3 py-3.5">STT</th>
-            <th className="table-cell-left px-4 py-3.5">Thể loại</th>
-            <th className="table-cell-left px-3 py-3.5">Thuộc thể loại cha</th>
-            <th className="px-2 py-3.5 text-center">Cấp</th>
-            <th className="px-2 py-3.5 text-center">Số đầu sách</th>
-            <th className="px-2 py-3.5 text-center">Trạng thái</th>
-            {canEdit && <th className="px-3 py-3.5 text-center">Thao tác</th>}
+            <th className="w-14 px-3 py-3.5">STT</th>
+            <th className="table-cell-left min-w-[160px] px-4 py-3.5">Thể loại</th>
+            <th className="table-cell-left w-48 px-3 py-3.5">Thuộc thể loại cha</th>
+            <th className="w-20 px-2 py-3.5 text-center">Cấp</th>
+            <th className="w-28 px-2 py-3.5 text-center">Số đầu sách</th>
+            <th className="w-32 px-2 py-3.5 text-center">Trạng thái</th>
+            {canEdit && <th className="w-52 px-3 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1830,13 +1830,13 @@ function BooksTable({ items, onOpenCatalogModal, onEditCover, canEdit }: BooksTa
       <table className="data-table data-table-fit catalog-books-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className="px-3 py-3.5">STT</th>
-            <th className="table-cell-left px-4 py-3.5">Tiêu đề sách / ISBN</th>
-            <th className="table-cell-left px-3 py-3.5">Tác giả</th>
-            <th className="table-cell-left px-3 py-3.5">Thể loại</th>
-            <th className="table-cell-left px-3 py-3.5">Nhà xuất bản</th>
-            <th className="px-2 py-3.5 text-center">Năm xuất bản</th>
-            <th className="px-3 py-3.5 text-center">Thao tác</th>
+            <th className="w-14 px-3 py-3.5">STT</th>
+            <th className="table-cell-left min-w-[200px] px-4 py-3.5">Tiêu đề sách / ISBN</th>
+            <th className="table-cell-left w-40 px-3 py-3.5">Tác giả</th>
+            <th className="table-cell-left w-36 px-3 py-3.5">Thể loại</th>
+            <th className="table-cell-left w-36 px-3 py-3.5">Nhà xuất bản</th>
+            <th className="w-28 px-2 py-3.5 text-center">Năm xuất bản</th>
+            <th className="w-48 px-3 py-3.5 text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
