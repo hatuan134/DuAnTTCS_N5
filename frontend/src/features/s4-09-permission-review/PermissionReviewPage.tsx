@@ -95,7 +95,7 @@ export function PermissionReviewWorkspace() {
   async function startRun() {
     if (startLock.current) return
     startLock.current = true; setStarting(true); setFeedback(null)
-    try { const value = await permissionReviewService.startRun(); if (alive.current) { setRun(value); setFeedback({ tone: 'success', message: 'Đã bắt đầu kiểm thử trên database riêng. Bạn có thể theo dõi tiến độ bên dưới.' }) } }
+    try { const value = await permissionReviewService.startRun(); if (alive.current) { setRun(value); setFeedback({ tone: 'success', message: 'Đã gửi yêu cầu kiểm thử. Trạng thái GitHub Actions và biên bản sẽ cập nhật tại đây.' }) } }
     catch (error) { if (alive.current) setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Không bắt đầu được kiểm thử toàn bộ.') }) }
     finally { startLock.current = false; if (alive.current) setStarting(false) }
   }
@@ -196,7 +196,7 @@ export function PermissionReviewWorkspace() {
     </>}
     <Card className="space-y-4 p-4 sm:p-5">
       <h2 className="font-semibold text-slate-900">Kiểm thử phân quyền toàn hệ thống</h2>
-      <p className="text-sm leading-6 text-slate-600">Kiểm tra từng API bằng bốn vai trò và người chưa đăng nhập trên database thử riêng. Mỗi lần chạy dùng database tạm riêng và xóa database thử sau khi lưu kết quả.</p>
+      <p className="text-sm leading-6 text-slate-600">Kiểm tra từng API bằng bốn vai trò và người chưa đăng nhập trên PostgreSQL thử nghiệm tách biệt. Trên bản web, tác vụ chạy tại GitHub Actions (không dùng database Production); kết quả được xác thực và lưu tự động.</p>
       <Button type="button" onClick={() => void startRun()} disabled={starting || running || !data} loading={starting}><Play size={17} />Chạy kiểm thử toàn bộ</Button>
       {run && <div className={'space-y-2 rounded-xl border p-4 text-sm ' + (run.state === 'FAILED' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50')} aria-live="polite">
         <p className="font-semibold">{run.state === 'STARTING' ? 'Đang chuẩn bị' : run.state === 'RUNNING' ? 'Đang kiểm thử' : run.state === 'SUCCEEDED' ? 'Đã chạy xong' : 'Chưa hoàn tất kiểm thử'}</p>

@@ -33,37 +33,61 @@ public class PermissionReviewRunService {
     private final Validator validator;
     private final String databaseUrl, username, password;
     private final boolean launchEnabled;
+    private final GitHubPermissionReviewGateway github;
+    private final boolean githubMode;
     private final ExecutorService executor=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"permission-review-runner");t.setDaemon(true);return t;});
     private volatile Process child;
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(PermissionReviewRunService.class);
 
     public PermissionReviewRunService(PermissionReviewRepository repository, PermissionReviewService reviews,
             PermissionReviewInspector inspector, UserRepository users, ObjectMapper mapper, Validator validator,
             @Value("${spring.datasource.url}") String url, @Value("${spring.datasource.username}") String username,
             @Value("${spring.datasource.password}") String password,
-            @Value("${app.permission-review.launch-enabled:true}") boolean launchEnabled) {
+            @Value("${app.permission-review.launch-enabled:true}") boolean launchEnabled,
+            @Value("${app.permission-review.runner:local}") String runner,
+            GitHubPermissionReviewGateway github) {
         this.repository=repository;this.reviews=reviews;this.inspector=inspector;this.users=users;
         this.mapper=mapper;this.validator=validator;this.databaseUrl=url;this.username=username;this.password=password;this.launchEnabled=launchEnabled;
+        this.github=github;this.githubMode="github".equalsIgnoreCase(runner);
+        if(!githubMode && !"local".equalsIgnoreCase(runner))
+            throw new IllegalArgumentException("Unknown permission review runner: " + runner);
     }
     @EventListener(ApplicationReadyEvent.class)
-    public void recover() { if(launchEnabled)repository.recoverInterruptedJobs(); }
+    public void recover() { if(launchEnabled && !githubMode)repository.recoverInterruptedJobs(); }
 
     @PreAuthorize("hasRole('ADMIN')")
     public RunState start(Long actorId) {
         var actor=actorId==null?null:users.findById(actorId).orElse(null);
         if(actor==null || !"ACTIVE".equals(actor.getStatus()) || actor.getRole()==null || !"ADMIN".equals(actor.getRole().getCode()))
             throw new ApiException(HttpStatus.FORBIDDEN,"FORBIDDEN","Chỉ Quản trị hệ thống được chạy kiểm thử.");
-        if(launchEnabled)backendDirectory();
+        if(launchEnabled) {
+            if(githubMode) { github.requireConfigured(); repository.expireStaleJobs(); }
+            else backendDirectory();
+        }
         UUID key=UUID.randomUUID(); String fingerprint=inspector.inspect().fingerprint();
         try { repository.createJob(key,actorId,actor.getFullName(),fingerprint); }
         catch(DuplicateKeyException exception) { throw new ApiException(HttpStatus.CONFLICT,"PERMISSION_RUN_ACTIVE","Một lần kiểm thử đang chạy. Vui lòng chờ kết quả."); }
         Authentication authentication=SecurityContextHolder.getContext().getAuthentication();
-        if(launchEnabled)executor.submit(()->execute(key,actorId,fingerprint,authentication));
+        if(launchEnabled) {
+            if(githubMode)executor.submit(()->dispatchGitHub(key,fingerprint));
+            else executor.submit(()->execute(key,actorId,fingerprint,authentication));
+        }
         return get(key);
     }
     @PreAuthorize("hasRole('ADMIN')")
-    public RunState get(UUID key) {return repository.job(key).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"PERMISSION_RUN_NOT_FOUND","Không tìm thấy lần kiểm thử."));}
+    public RunState get(UUID key) {if(githubMode)repository.expireStaleJobs();return repository.job(key).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"PERMISSION_RUN_NOT_FOUND","Không tìm thấy lần kiểm thử."));}
     @PreAuthorize("hasRole('ADMIN')")
-    public RunState latest() { return repository.latestJob().orElse(null); }
+    public RunState latest() { if(githubMode)repository.expireStaleJobs();return repository.latestJob().orElse(null); }
+
+    private void dispatchGitHub(UUID key, String fingerprint) {
+        try {
+            github.dispatch(key, fingerprint);
+            repository.running(key);
+        } catch(Exception ex) {
+            LOG.warn("GitHub permission review dispatch {} failed: {}", key, ex.toString());
+            repository.finishJob(key,"FAILED","Không khởi chạy được GitHub Actions. Kiểm tra token, repository và workflow; xem log Backend.",null);
+        }
+    }
 
     private void execute(UUID key,Long actor,String fingerprint,Authentication authentication) {
         var security=SecurityContextHolder.createEmptyContext();security.setAuthentication(authentication);SecurityContextHolder.setContext(security);
