@@ -45,6 +45,17 @@ public class PermissionReviewService {
 
     @Transactional
     public ReportDetail importReport(ImportReport report, Long actorId) {
+        return saveReport(report, actorId);
+    }
+
+    /** Called only by the authenticated, signed GitHub Actions callback service. */
+    @PreAuthorize("permitAll()")
+    @Transactional
+    public ReportDetail importAutomatedReport(ImportReport report, Long actorId) {
+        return saveReport(report, actorId);
+    }
+
+    private ReportDetail saveReport(ImportReport report, Long actorId) {
         var actor = actorId == null ? null : users.findById(actorId).orElse(null);
         if (actor == null || !"ACTIVE".equals(actor.getStatus()) || actor.getRole() == null
                 || !"ADMIN".equals(actor.getRole().getCode())) {

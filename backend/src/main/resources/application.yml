@@ -48,6 +48,14 @@ app:
 
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
 
+  permission-review:
+    runner: ${PERMISSION_REVIEW_RUNNER:local}
+    github:
+      owner: ${PERMISSION_REVIEW_GITHUB_OWNER:}
+      repository: ${PERMISSION_REVIEW_GITHUB_REPO:}
+      token: ${PERMISSION_REVIEW_GITHUB_TOKEN:}
+      callback-secret: ${PERMISSION_REVIEW_CALLBACK_SECRET:}
+
   pickup-email:
     automatic-enabled: ${PICKUP_EMAIL_AUTOMATIC_ENABLED:true}
     location: ${PICKUP_LOCATION:}

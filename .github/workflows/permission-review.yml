@@ -1,0 +1,156 @@
+name: LIBRA S4-09 - Kiem thu phan quyen
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_key:
+        description: 'UUID cua yeu cau tren LIBRA'
+        required: true
+        type: string
+      fingerprint:
+        description: 'SHA256 ma tran quyen cua backend dang chay'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: libra-permission-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: PostgreSQL cach ly + 4 vai tro + bao cao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: libra_review
+          POSTGRES_PASSWORD: libra_review_temporary_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U libra_review -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      RUN_KEY: ${{ inputs.run_key }}
+      EXPECTED_FINGERPRINT: ${{ inputs.fingerprint }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5433'
+      DB_USERNAME: libra_review
+      DB_PASSWORD: libra_review_temporary_only
+      PERMISSION_REVIEW_LIVE_DB: library_management
+      S4_09_2_DB_TEST: 'true'
+      BOOTSTRAP_ADMIN_PASSWORD: ''
+      MAIL_USERNAME: ''
+      MAIL_PASSWORD: ''
+      MAIL_HOST: 127.0.0.1
+      PICKUP_EMAIL_AUTOMATIC_ENABLED: 'false'
+      APP_SCHEDULING_ENABLED: 'false'
+
+    steps:
+      - name: Xac thuc dinh dang yeu cau
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_KEY" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+          [[ "$EXPECTED_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+          DB_NAME="s4092_review_${RUN_KEY//-/}"
+          echo "DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
+          echo "PERMISSION_REVIEW_RUN_KEY=$RUN_KEY" >> "$GITHUB_ENV"
+          echo "PERMISSION_REVIEW_RESULT=$RUNNER_TEMP/s4092-result.json" >> "$GITHUB_ENV"
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Cai JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Tao database thu nghiem, tuyet doi khong dung Production
+        id: database
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PGHOST="$DB_HOST" PGPORT="$DB_PORT" PGUSER="$DB_USERNAME" PGPASSWORD="$DB_PASSWORD"
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $DB_NAME TEMPLATE template0;"
+
+      - name: Chay tat ca API voi 4 vai tro va anonymous
+        id: tests
+        working-directory: backend
+        shell: bash
+        run: |
+          set +e
+          mvn -B -ntp -Dtest=FullPermissionDatabaseTest test
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Tao callback ky HMAC SHA-256 va gui ket qua ve LIBRA
+        if: ${{ always() && steps.validate.outcome == 'success' }}
+        shell: bash
+        env:
+          CALLBACK_SECRET: ${{ secrets.LIBRA_REVIEW_CALLBACK_SECRET }}
+          CALLBACK_URL: ${{ secrets.LIBRA_REVIEW_CALLBACK_URL }}
+          TEST_EXIT: ${{ steps.tests.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          test -n "$CALLBACK_SECRET"
+          test -n "$CALLBACK_URL"
+          [[ "$CALLBACK_URL" == https://* ]]
+          python3 - <<'PY'
+          import hashlib,hmac,json,os,pathlib,time
+          path=pathlib.Path(os.environ.get('PERMISSION_REVIEW_RESULT', '/nonexistent'))
+          report=json.loads(path.read_text(encoding='utf-8')) if path.exists() else None
+          if report is not None:
+              if report.get('runKey')!=os.environ['RUN_KEY'] or report.get('fingerprint')!=os.environ['EXPECTED_FINGERPRINT']:
+                  # A mismatch is evidence of differing deployed/CI builds, never treated as success.
+                  report=None
+          ok = os.environ.get('TEST_EXIT')=='0' and report is not None
+          payload={'runKey':os.environ['RUN_KEY'], 'fingerprint':os.environ['EXPECTED_FINGERPRINT'], 'passed':ok, 'report':report}
+          body=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+          stamp=str(int(time.time()))
+          sig=hmac.new(os.environ['CALLBACK_SECRET'].encode(),stamp.encode()+b'.'+body,hashlib.sha256).hexdigest()
+          pathlib.Path(os.environ['RUNNER_TEMP'],'callback.json').write_bytes(body)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'callback.headers').write_text(f'X-Libra-Timestamp: {stamp}\nX-Libra-Signature: sha256={sig}\n')
+          PY
+          curl --fail-with-body --silent --show-error --retry 3 --retry-delay 4 \
+            --connect-timeout 10 --max-time 60 \
+            -H 'Content-Type: application/json' \
+            -H "$(sed -n '1p' "$RUNNER_TEMP/callback.headers")" \
+            -H "$(sed -n '2p' "$RUNNER_TEMP/callback.headers")" \
+            --data-binary @"$RUNNER_TEMP/callback.json" "$CALLBACK_URL"
+
+      - name: Luu file ket qua de doi soat khi callback bi loi
+        if: ${{ always() && steps.validate.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4092-result-${{ inputs.run_key }}
+          path: ${{ runner.temp }}/s4092-result.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Danh dau workflow that bai neu bo test chua dat
+        if: ${{ always() }}
+        shell: bash
+        env:
+          TEST_EXIT: ${{ steps.tests.outputs.exit_code }}
+        run: |
+          if [[ "$TEST_EXIT" != 0 ]]; then
+            echo 'Bộ kiểm thử không đạt hoặc chưa chạy xong. Xem kết quả trên LIBRA và log step Maven.'
+            exit 1
+          fi
