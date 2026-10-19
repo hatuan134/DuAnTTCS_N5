@@ -61,6 +61,15 @@ class FeeReductionDecisionServiceTest {
         order.verify(fees).decide(2L, "APPROVED", 12L, null);
         order.verify(fees).findReduction(2L, false);
     }
+    @Test void adminCanApproveAndRejectFeeReduction() {
+        actor.getRole().setCode("ADMIN");
+        when(fees.findReduction(2L, false)).thenReturn(Optional.of(request("APPROVED", 10000)));
+        assertThat(service.approve(2L, 12L).status()).isEqualTo("APPROVED");
+        verify(fees).decide(2L, "APPROVED", 12L, null);
+        when(fees.findReduction(2L, false)).thenReturn(Optional.of(request("REJECTED", 10000)));
+        assertThat(service.reject(2L, new RejectFeeReductionRequest("Lý do"), 12L).status()).isEqualTo("REJECTED");
+        verify(fees).decide(2L, "REJECTED", 12L, "Lý do");
+    }
     @Test void fullWaiverReturnsZeroAndKeepsOriginalAmount() {
         when(fees.findReduction(2L, true)).thenReturn(Optional.of(request("PENDING", 15000)));
         when(fees.findReduction(2L, false)).thenReturn(Optional.of(request("APPROVED", 15000)));
@@ -83,14 +92,16 @@ class FeeReductionDecisionServiceTest {
         code(() -> service.reject(2L, null, 12L), "INVALID_REJECTION_REASON");
         verify(fees, never()).decide(any(), any(), any(), any());
     }
-    @Test void librarianAdminReaderAndInactiveManagerCannotDecide() {
-        for (String role : new String[]{"LIBRARIAN", "ADMIN", "READER"}) {
+    @Test void librarianReaderAndInactiveManagerCannotDecide() {
+        for (String role : new String[]{"LIBRARIAN", "READER"}) {
             actor.getRole().setCode(role);
             code(() -> service.approve(2L, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
             code(() -> service.reject(2L, new RejectFeeReductionRequest("Lý do"), 12L), "FEE_REDUCTION_ROLE_REQUIRED");
         }
-        actor.getRole().setCode("LIBRARY_MANAGER"); actor.setStatus("DISABLED");
-        code(() -> service.approve(2L, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
+        for (String role : new String[]{"LIBRARY_MANAGER", "ADMIN"}) {
+            actor.getRole().setCode(role); actor.setStatus("DISABLED");
+            code(() -> service.approve(2L, 12L), "FEE_REDUCTION_ROLE_REQUIRED");
+        }
         code(() -> service.approve(2L, null), "LOGIN_REQUIRED");
         verifyNoInteractions(fees);
     }
