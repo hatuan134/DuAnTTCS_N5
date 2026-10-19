@@ -309,7 +309,7 @@ export default function LibraryCardsPage() {
                       <th className="px-4 py-3">Bạn đọc</th>
                       <th className="px-4 py-3">Liên hệ</th>
                       <th className="px-4 py-3">Ngày gửi</th>
-                      <th className="px-4 py-3 text-right">Thao tác</th>
+                      <th className="px-4 py-3 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -394,7 +394,7 @@ export default function LibraryCardsPage() {
                     <th className="px-4 py-3">Nợ phí</th>
                     <th className="px-4 py-3">Hết hạn</th>
                     <th className="px-4 py-3">Trạng thái / Lệnh khóa</th>
-                    <th className="px-4 py-3 text-right">Thao tác</th>
+                    <th className="px-4 py-3 text-center">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

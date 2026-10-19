@@ -422,14 +422,14 @@ export default function UserManagementPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Tìm theo tên, email hoặc số điện thoại"
-              className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             />
           </div>
 
           <select
             value={roleFilter}
             onChange={(event) => setRoleFilter(event.target.value)}
-            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
             <option value="">Tất cả vai trò</option>
             {roleOptions.map((role) => (
@@ -442,7 +442,7 @@ export default function UserManagementPage() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
@@ -452,7 +452,7 @@ export default function UserManagementPage() {
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            className="h-10 !min-h-10"
             onClick={() => void loadAccounts()}
           >
             <RefreshCw size={16} />
@@ -481,7 +481,7 @@ export default function UserManagementPage() {
                   <th className="px-5 py-3">Họ tên</th>
                   <th className="px-5 py-3">Liên hệ</th>
                   <th className="px-5 py-3">Vai trò</th>
-                  <th className="px-5 py-3">Trạng thái</th>
+                  <th className="px-5 py-3 text-center">Trạng thái</th>
                   {canManage && <th className="px-5 py-3 text-center">Thao tác</th>}
                 </tr>
               </thead>
@@ -506,7 +506,7 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex flex-col items-center gap-1 text-center">
+                        <div className="flex flex-col items-start gap-1 text-left">
                           <span className="max-w-full break-all text-slate-700">{account.email}</span>
                           <span className="text-xs text-slate-500">
                             {account.phone || 'Chưa có số điện thoại'}
@@ -524,7 +524,7 @@ export default function UserManagementPage() {
                           </span>
                         </div>
                       </td>
-                      {canManage && <td className="px-5 py-4">
+                      {canManage && <td className="px-5 py-4 text-center">
                         <TableActions>
                           <TableActionButton
                             icon={<Pencil size={15} />}
