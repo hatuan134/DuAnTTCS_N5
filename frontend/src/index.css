@@ -596,11 +596,17 @@ textarea:focus-visible {
     min-width: 900px !important;
   }
 
-  .borrow-policy-table {
-    min-width: 1180px !important;
+  .borrow-policy-table,
+  .catalog-categories-table {
+    min-width: 0 !important;
   }
 
   .catalog-books-table {
     min-width: 1080px !important;
   }
+}
+
+.borrow-policy-table,
+.catalog-categories-table {
+  min-width: 0 !important;
 }

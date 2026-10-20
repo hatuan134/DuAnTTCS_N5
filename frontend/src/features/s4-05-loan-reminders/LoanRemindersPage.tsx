@@ -285,27 +285,27 @@ export default function LoanRemindersPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+              <table className="min-w-full divide-y divide-slate-200 text-center text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                   <tr>
-                    <th className="px-5 py-3.5">Thời gian gửi</th>
-                    <th className="px-5 py-3.5">Bạn đọc</th>
-                    <th className="px-5 py-3.5">Nhóm nhắc</th>
-                    <th className="px-5 py-3.5">Số sách / Phiếu mượn</th>
-                    <th className="px-5 py-3.5 text-right">Phí tạm tính</th>
+                    <th className="px-5 py-3.5 text-center">Thời gian gửi</th>
+                    <th className="px-5 py-3.5 text-center">Bạn đọc</th>
+                    <th className="px-5 py-3.5 text-center">Nhóm nhắc</th>
+                    <th className="px-5 py-3.5 text-center">Số sách / Phiếu mượn</th>
+                    <th className="px-5 py-3.5 text-center">Phí tạm tính</th>
                     <th className="px-5 py-3.5 text-center">Trạng thái</th>
-                    <th className="px-5 py-3.5">Kích hoạt bởi</th>
-                    <th className="px-5 py-3.5 text-right">Thao tác</th>
+                    <th className="px-5 py-3.5 text-center">Kích hoạt bởi</th>
+                    <th className="px-5 py-3.5 text-center">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
                   {logs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-5 py-3.5 whitespace-nowrap text-slate-600">
+                      <td className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-center">
                         <div className="font-medium text-slate-800">{formatDate(log.sentAt)}</div>
                         <div className="text-xs text-slate-500">Ngày tính: {log.reminderDate}</div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 text-center">
                         <div className="font-semibold text-slate-800">{log.readerName}</div>
                         <div className="text-xs text-slate-500">{log.recipientEmail || 'Không có email'}</div>
                         {log.readerCardNumber && (
@@ -314,18 +314,18 @@ export default function LoanRemindersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-5 py-3.5 whitespace-nowrap text-center">
                         <StatusBadge status={log.reminderGroup} />
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 text-center">
                         <div className="font-medium text-slate-800">
                           {log.loanItemCount} cuốn
                         </div>
-                        <div className="text-xs text-slate-500 line-clamp-1 max-w-xs" title={log.bookTitles}>
+                        <div className="text-xs text-slate-500 line-clamp-1 max-w-xs mx-auto" title={log.bookTitles}>
                           {log.bookTitles}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
                         {typeof log.totalEstimatedFeeVnd === 'number' && log.totalEstimatedFeeVnd > 0 ? (
                           <div className="font-bold text-rose-600">
                             {log.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
@@ -347,20 +347,20 @@ export default function LoanRemindersPage() {
                           </div>
                         )}
                         {log.errorMessage && (
-                          <div className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={log.errorMessage}>
+                          <div className="text-xs text-red-600 mt-1 max-w-[200px] truncate mx-auto" title={log.errorMessage}>
                             {log.errorMessage}
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600">
+                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 text-center">
                         {log.triggeredBy === 'SYSTEM_SCHEDULED' ? (
                           <span className="font-medium text-blue-700">Tự động (7h sáng)</span>
                         ) : (
                           <span>Thủ công ({log.triggeredByUserName || 'Thủ thư'})</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
                           {log.status === 'PENDING_RETRY' && (
                             <Button
                               variant="secondary"

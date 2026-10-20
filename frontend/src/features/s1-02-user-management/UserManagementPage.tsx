@@ -479,7 +479,7 @@ export default function UserManagementPage() {
                 <tr>
                   <th className="px-5 py-3">STT</th>
                   <th className="px-5 py-3">Họ tên</th>
-                  <th className="px-5 py-3">Liên hệ</th>
+                  <th className="px-5 py-3 text-center">Liên hệ</th>
                   <th className="px-5 py-3">Vai trò</th>
                   <th className="px-5 py-3 text-center">Trạng thái</th>
                   {canManage && <th className="px-5 py-3 text-center">Thao tác</th>}
@@ -505,8 +505,8 @@ export default function UserManagementPage() {
                           Mã #{account.id}
                         </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex flex-col items-start gap-1 text-left">
+                      <td className="px-5 py-4 text-center">
+                        <div className="flex flex-col items-center gap-1 text-center">
                           <span className="max-w-full break-all text-slate-700">{account.email}</span>
                           <span className="text-xs text-slate-500">
                             {account.phone || 'Chưa có số điện thoại'}
