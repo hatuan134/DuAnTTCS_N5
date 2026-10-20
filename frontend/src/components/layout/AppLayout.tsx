@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import PageTransition from '../ui/PageTransition'
+import ScrollToTopButton from '../ui/ScrollToTopButton'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -16,5 +17,6 @@ export default function AppLayout() {
       <Header onMenuToggle={() => setSidebarOpen(value => !value)} menuOpen={sidebarOpen} />
       <main className="app-content" id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main>
     </div>
+    <ScrollToTopButton />
   </div>
 }

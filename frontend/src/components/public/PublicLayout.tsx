@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import PublicHeader from './PublicHeader'
 import PublicSiteFooter from '../../features/s1-08-catalog/PublicSiteFooter'
 import PageTransition from '../ui/PageTransition'
+import ScrollToTopButton from '../ui/ScrollToTopButton'
 import './libra-public-extras.css'
 
 /** Navigate to a section without hiding its heading beneath the sticky header. */
@@ -54,5 +55,5 @@ export default function PublicLayout() {
   }, [])
 
   return <div className="public-page"><PublicHeader />
-    {logoutMessage && <div className="mx-auto w-full max-w-7xl px-4 pt-3"><FeedbackAlert tone="success" message={logoutMessage} onDismiss={() => setLogoutMessage('')} /></div>}<main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /><AiAssistantMount /></div>
+    {logoutMessage && <div className="mx-auto w-full max-w-7xl px-4 pt-3"><FeedbackAlert tone="success" message={logoutMessage} onDismiss={() => setLogoutMessage('')} /></div>}<main id="main-content" tabIndex={-1}><PageTransition><Outlet /></PageTransition></main><PublicSiteFooter /><AiAssistantMount /><ScrollToTopButton /></div>
 }

@@ -439,35 +439,35 @@ export default function CardTypesPage() {
             <table className="data-table data-table-fit borrow-policy-table w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[4%]' : 'w-[5%]'} px-1.5 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     STT
                   </th>
-                  <th className="table-cell-left px-2.5 py-3 text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[18%]' : 'w-[25%]'} px-2 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Loại thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[8%]' : 'w-[10%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Số sách mượn tối đa
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[8%]' : 'w-[10%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Số ngày mượn tối đa
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[7%]' : 'w-[9%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Số lần gia hạn
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[9%]' : 'w-[11%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Số ngày mỗi lần gia hạn
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[7%]' : 'w-[9%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Thời hạn thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[7%]' : 'w-[9%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Độc giả gắn thẻ
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  <th className={`${canManage ? 'w-[10%]' : 'w-[12%]'} px-1 py-3 text-center text-xs font-semibold uppercase text-slate-500`}>
                     Trạng thái
                   </th>
                   {canManage && (
-                    <th className="px-2.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                    <th className="w-[22%] px-1.5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                       Thao tác
                     </th>
                   )}
@@ -482,47 +482,47 @@ export default function CardTypesPage() {
                       key={cardType.id}
                       className="border-b border-slate-100 transition hover:bg-slate-50/80"
                     >
-                      <td className="px-3 py-4 font-semibold text-slate-500">
+                      <td className="px-1.5 py-3 text-center font-semibold text-slate-500">
                         {cardTypePagination.startIndex + index + 1}
                       </td>
-                      <td className="table-cell-left px-3 py-4">
+                      <td className="px-2 py-3 text-center">
                         <div className="min-w-0">
-                          <p className="font-semibold text-slate-900">
+                          <p className="font-semibold text-slate-900 truncate">
                             {cardType.name}
                           </p>
-                          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                          <p className="mt-0.5 text-xs leading-5 text-slate-500 line-clamp-2" title={cardType.description || undefined}>
                             {cardType.description || 'Không có mô tả'}
                           </p>
                         </div>
                       </td>
 
-                      <td className="px-3 py-4 text-center text-sm font-semibold text-slate-800">
+                      <td className="px-1 py-3 text-center text-sm font-semibold text-slate-800">
                         {cardType.maxBooks} <span className="text-xs font-normal text-slate-500">cuốn</span>
                       </td>
 
-                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                      <td className="px-1 py-3 text-center text-sm text-slate-700 whitespace-nowrap">
                         {cardType.loanDays} ngày
                       </td>
 
-                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                      <td className="px-1 py-3 text-center text-sm text-slate-700 whitespace-nowrap">
                         {cardType.maxRenewals} lần
                       </td>
 
-                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                      <td className="px-1 py-3 text-center text-sm text-slate-700 whitespace-nowrap">
                         {cardType.renewalDays} ngày
                       </td>
 
-                      <td className="px-3 py-4 text-center text-sm text-slate-700">
+                      <td className="px-1 py-3 text-center text-sm text-slate-700 whitespace-nowrap">
                         {cardType.duration} tháng
                       </td>
 
-                      <td className="px-3 py-4 text-center">
-                        <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                      <td className="px-1 py-3 text-center">
+                        <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                           {cardType.usageCount ?? 0}
                         </span>
                       </td>
 
-                      <td className="px-3 py-4 text-center">
+                      <td className="px-1 py-3 text-center">
                         <StatusBadge
                           status={cardType.active ? 'ACTIVE' : 'DISABLED'}
                           label={cardType.active ? 'Đang áp dụng' : 'Ngừng áp dụng'}
@@ -530,7 +530,7 @@ export default function CardTypesPage() {
                       </td>
 
                       {canManage && (
-                        <td className="table-action-cell px-2 py-4">
+                        <td className="table-action-cell px-1.5 py-3">
                           <TableActions>
                             <TableActionButton
                               icon={<Pencil size={15} />}
@@ -634,7 +634,7 @@ export default function CardTypesPage() {
                   <th className="px-5 py-3 text-xs font-semibold uppercase text-slate-500">
                     Thời điểm
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-slate-500">
                     Loại thẻ
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-500">
@@ -662,7 +662,7 @@ export default function CardTypesPage() {
                       {formatDate(item.changedAt)}
                     </td>
 
-                    <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-900">
+                    <td className="whitespace-nowrap px-5 py-4 text-center text-sm font-semibold text-slate-900">
                       {item.cardTypeName}
                     </td>
 

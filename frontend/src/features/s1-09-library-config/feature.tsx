@@ -31,7 +31,7 @@ const feature: FeatureModule = {
       roles: managerRoles,
     },
     {
-      label: 'Lịch đóng cửa',
+      label: 'Lịch hoạt động & phí trễ hạn',
       to: '/library-calendar',
       icon: CalendarDays,
       order: 91,

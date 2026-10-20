@@ -182,12 +182,12 @@ export default function ReceiveReturnPage() {
             <tr>
               <th scope="col" className="w-[6%] px-2 py-3">STT</th>
               <th scope="col" className="w-[14%] px-4 py-3">Mã vạch</th>
-              <th scope="col" className="w-[18%] px-4 py-3">Tên sách</th>
+              <th scope="col" className="w-[16%] px-4 py-3">Tên sách</th>
               <th scope="col" className="w-[14%] px-4 py-3">Bạn đọc đã trả</th>
-              <th scope="col" className="w-[16%] px-4 py-3">Ngày trả thực tế</th>
+              <th scope="col" className="w-[14%] px-4 py-3">Ngày trả thực tế</th>
               <th scope="col" className="w-[9%] px-4 py-3">Ngày trễ · Phí</th>
-              <th scope="col" className="w-[13%] px-4 py-3">Trạng thái bản sao</th>
-              <th scope="col" className="w-[16%] px-4 py-3">Đơn đặt giữ nhận bản sao</th>
+              <th scope="col" className="w-[14%] px-4 py-3">Trạng thái bản sao</th>
+              <th scope="col" className="w-[13%] px-4 py-3">Đơn đặt giữ nhận bản sao</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
