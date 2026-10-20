@@ -47,6 +47,8 @@ final class AiConversationContext {
             if(type.equals("books"))return "books";
             if(type.equals("loans"))return "loans";
             if(type.equals("reservations"))return "reservations";
+            if(Set.of("statistics","libraryCalendar","overview","libraryCard","copies",
+                "audit","settings","loans","cardTypes","warehouses","shelves").contains(type)) return type;
         }
         return "";
     }
@@ -60,16 +62,27 @@ final class AiConversationContext {
     }
     static String relevantQuestion(String question,String domain,String status) {
         // Follow-up phrases like 'trong số đó' provide no useful keyword to the tool selector.
-        if(!Set.of("cards","books","loans","reservations").contains(domain))return question;
+        if(!Set.of("cards","books","loans","reservations","statistics","libraryCalendar","overview",
+            "libraryCard","copies","audit","settings","cardTypes","warehouses","shelves").contains(domain))return question;
         String clean=Objects.toString(question,"").toLowerCase(Locale.forLanguageTag("vi-VN"));
         // Never pollute an unrelated new question with a topic from an older turn.
-        if(!clean.matches("(?s).*(trong số đó|những .* đó|các .* đó|của ai|vậy |trường hợp nào|cần chú ý|bao nhiêu trong số|thế còn|còn chúng|những người đó).*"))
+        if(!AiScopePolicy.isFollowUp(question)
+            && !clean.matches("(?s).*(trong số đó|những .* đó|các .* đó|của ai|vậy |trường hợp nào|cần chú ý|bao nhiêu trong số|thế còn|còn chúng|những người đó).*"))
             return question;
         String extra=switch(domain) {
             case "cards" -> " thẻ thư viện " + (status.isBlank()?"":"trạng thái "+status);
             case "books" -> " sách";
             case "loans" -> " phiếu mượn";
             case "reservations" -> " đơn đặt giữ";
+            case "statistics" -> " báo cáo thống kê mượn trả";
+            case "libraryCalendar" -> " lịch mở cửa thư viện";
+            case "libraryCard" -> " thẻ thư viện của tôi";
+            case "overview" -> " tổng quan thư viện";
+            case "copies" -> " bản sao sách";
+            case "audit" -> " nhật ký hoạt động";
+            case "settings" -> " cấu hình thư viện";
+            case "cardTypes" -> " loại thẻ";
+            case "warehouses","shelves" -> " kho kệ sách";
             default -> "";
         };
         return question+" "+extra;

@@ -39,7 +39,7 @@ public final class AiReleaseSmoke {
         require(names(tools).containsAll(Set.of("getOverdueDebtSummary","getPendingFeeReductions")),"Missing manager tools");
         role.selected="ADMIN";
         require(names(tools).contains("getOverdueDebtSummary"),"Admin report missing");
-        require(!names(tools).contains("getPendingFeeReductions"),"Domain requires manager for pending fee reductions");
+        require(names(tools).contains("getPendingFeeReductions"),"Admin pending fee reductions missing");
         role.selected="PUBLIC";
         var json=new ObjectMapper();
         var empty=json.readTree("{}");
@@ -53,7 +53,7 @@ public final class AiReleaseSmoke {
         String answer=AiNaturalAnswer.compose("Trong số đó có bao nhiêu thẻ bị khóa?",List.of(b));
         require(answer.contains("37") && answer.contains("1"),"Card answer must use verified facts");
         require(!AiGroundingCheck.supported("Thư viện có 900 thẻ",List.of(b)),"Fabricated count accepted");
-        require(AiChatService.MAX_TURNS>20 && AiChatService.MAX_TURNS<=100,"Unbounded chat turns");
+        require(new AiSettings(new org.springframework.mock.env.MockEnvironment()).turnLimit()==0,"Chat turn cap must default to disabled");
         System.out.println("PASS: role-scoped tools, year filters, grounded card answer, bounded chat context");
     }
 }

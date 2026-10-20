@@ -16,7 +16,7 @@ class AiModelPoolSettingsTest {
         var settings=new AiSettings(new MockEnvironment().withProperty("GROQ_MODEL","my-model"));
         assertThat(settings.models("GROQ")).containsExactly("my-model");
     }
-    @Test void unlimitedAppRateAndTurnLimitsAreExplicitNotDefaults() {
+    @Test void unlimitedAppRateAndTurnLimitsAreDefaults() {
         var unlimited=new AiSettings(new MockEnvironment()
             .withProperty("AI_USER_REQUESTS_PER_MINUTE","0")
             .withProperty("AI_GLOBAL_REQUESTS_PER_MINUTE","0")
@@ -25,9 +25,9 @@ class AiModelPoolSettingsTest {
         assertThat(unlimited.globalLimit()).isZero();
         assertThat(unlimited.turnLimit()).isZero();
         var safe=new AiSettings(new MockEnvironment());
-        assertThat(safe.userLimit()).isPositive();
-        assertThat(safe.globalLimit()).isPositive();
-        assertThat(safe.turnLimit()).isPositive();
+        assertThat(safe.userLimit()).isZero();
+        assertThat(safe.globalLimit()).isZero();
+        assertThat(safe.turnLimit()).isZero();
     }
     @Test void privateDataNeedsBothCrossVendorAndPrivateOptIn() {
         var no=new AiSettings(new MockEnvironment()

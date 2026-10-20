@@ -62,7 +62,19 @@ class AiHttpSecurityTest {
         mvc.perform(post("/api/v1/ai/chat").contentType("application/json").content("{\"message\":\" \"}")).andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/ai/chat").contentType("application/json").content("{\"message\":\""+"a".repeat(1600)+"\"}")).andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/ai/chat").contentType("application/json").content("a".repeat(9000))).andExpect(status().isPayloadTooLarge());
+        mvc.perform(post("/api/v1/ai/chat/stream").contentType("application/json").content("a".repeat(9000))).andExpect(status().isPayloadTooLarge());
         verifyNoInteractions(chat);
+    }
+    @Test void streamingReplaysFilteredBodyAndReturnsDoneEvent() throws Exception {
+        when(chat.chat(any(),any(),any())).thenReturn(new AiTypes.ChatResponse(
+            "00000000-0000-0000-0000-000000000000",AiScopePolicy.REFUSAL,List.of(),"LIBRA_SCOPE",false,Integer.MAX_VALUE));
+        var pending=mvc.perform(post("/api/v1/ai/chat/stream").contentType("application/json")
+            .content("{\"message\":\"Tết ngày nào?\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(pending)).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("event: done")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("LIBRA_SCOPE")));
+        verify(chat).chat(argThat(body->body.message().equals("Tết ngày nào?")),anyString(),any());
     }
     @Test void errorsNeverReturnProviderSecrets() throws Exception {
         when(chat.chat(any(),any())).thenThrow(new com.duanttcsn5.library.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"AI_PROVIDER_UNAVAILABLE","Dịch vụ AI tạm thời chưa sẵn sàng."));
