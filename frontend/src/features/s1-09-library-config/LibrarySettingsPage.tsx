@@ -609,7 +609,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
         confirmLabel="Xóa ngày" onCancel={() => setDateToDelete(null)}
         onConfirm={() => void confirmDeleteHoliday(dateToDelete)} />}
       <PageHeader
-        title="Lịch đóng cửa"
+        title="Lịch hoạt động & phí trễ hạn"
         description="Khai báo lịch làm việc, ngày nghỉ, mức phí trễ hạn và kiểm tra hạn trả tự động."
       />
 
@@ -777,7 +777,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
                         <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">STT</th>
                         <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ngày</th>
                         <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Thứ</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Lý do</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Lý do</th>
                         <th className="px-2 py-2 text-center text-[11px] font-semibold uppercase text-slate-500">Thao tác</th>
                       </tr>
                     </thead>
@@ -789,7 +789,7 @@ function LibraryCalendarPage({ readOnly = false }: { readOnly?: boolean }) {
                           </td>
                           <td className="whitespace-nowrap px-2 py-2 text-sm font-semibold text-slate-800">{formatDateVi(item.closedDate)}</td>
                           <td className="whitespace-nowrap px-2 py-2 text-sm text-slate-600">{weekdayVi(item.closedDate)}</td>
-                          <td data-label="Lý do" className="table-cell-left px-2 py-2 text-sm text-slate-600">{item.reason}</td>
+                          <td data-label="Lý do" className="px-2 py-2 text-center text-sm text-slate-600">{item.reason}</td>
                           <td className="table-action-cell px-2 py-2">
                             <TableActions>
                               <TableActionButton

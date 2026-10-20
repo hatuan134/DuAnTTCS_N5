@@ -278,8 +278,8 @@ export default function AutoCancelledReservationsPage() {
                 <tr>
                   <th className="px-3 py-3.5">STT</th>
                   <th className="px-5 py-3.5">Mã đơn</th>
-                  <th className="px-5 py-3.5">Bạn đọc</th>
-                  <th className="px-5 py-3.5">Đầu sách & Bản sao</th>
+                  <th className="px-5 py-3.5 text-center">Bạn đọc</th>
+                  <th className="px-5 py-3.5 text-center">Đầu sách & Bản sao</th>
                   <th className="px-5 py-3.5">Chờ nhận & Hạn</th>
                   <th className="px-5 py-3.5">Thời điểm huỷ</th>
                   <th className="px-5 py-3.5">Kết quả xử lý bản sao</th>
@@ -295,12 +295,12 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 2: Bạn đọc */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 font-semibold text-xs">
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 font-semibold text-xs shrink-0">
                           <UserIcon className="h-4 w-4" />
                         </div>
-                        <div>
+                        <div className="text-left">
                           <div className="font-semibold text-slate-900">
                             {row.readerName || 'Không rõ'}
                           </div>
@@ -312,8 +312,8 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 3: Tên sách & Bản sao */}
-                    <td className="px-5 py-4 max-w-xs">
-                      <div className="flex items-start gap-2.5">
+                    <td className="px-5 py-4 max-w-xs text-center">
+                      <div className="flex items-start justify-center gap-2.5 text-left">
                         <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
                           <div className="font-medium text-slate-900 line-clamp-2">

@@ -1692,25 +1692,25 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
 
   return (
     <div className="fit-table-wrap">
-      <table className="data-table data-table-fit catalog-categories-table min-w-[950px] w-full">
+      <table className="data-table data-table-fit catalog-categories-table w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <th className={`${canEdit ? 'w-[6%]' : 'w-[8%]'} px-3 py-3.5 text-center`}>STT</th>
-            <th className={`${canEdit ? 'w-[25%]' : 'w-[30%]'} px-4 py-3.5 text-center`}>Thể loại</th>
-            <th className={`${canEdit ? 'w-[20%]' : 'w-[24%]'} px-3 py-3.5 text-center`}>Thuộc thể loại cha</th>
-            <th className={`${canEdit ? 'w-[10%]' : 'w-[12%]'} px-2 py-3.5 text-center`}>Cấp</th>
-            <th className={`${canEdit ? 'w-[11%]' : 'w-[13%]'} px-2 py-3.5 text-center`}>Số đầu sách</th>
-            <th className={`${canEdit ? 'w-[12%]' : 'w-[13%]'} px-2 py-3.5 text-center`}>Trạng thái</th>
-            {canEdit && <th className="w-[16%] min-w-[325px] px-3 py-3.5 text-center">Thao tác</th>}
+            <th className={`${canEdit ? 'w-[5%]' : 'w-[6%]'} px-2 py-3.5 text-center`}>STT</th>
+            <th className={`${canEdit ? 'w-[24%]' : 'w-[32%]'} px-3 py-3.5 text-center`}>Thể loại</th>
+            <th className={`${canEdit ? 'w-[18%]' : 'w-[26%]'} px-2 py-3.5 text-center`}>Thuộc thể loại cha</th>
+            <th className={`${canEdit ? 'w-[8%]' : 'w-[10%]'} px-2 py-3.5 text-center`}>Cấp</th>
+            <th className={`${canEdit ? 'w-[9%]' : 'w-[12%]'} px-2 py-3.5 text-center`}>Số đầu sách</th>
+            <th className={`${canEdit ? 'w-[11%]' : 'w-[14%]'} px-2 py-3.5 text-center`}>Trạng thái</th>
+            {canEdit && <th className="w-[25%] px-2 py-3.5 text-center">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {pagination.pageItems.map((cat, index) => (
             <tr key={cat.id} className="hover:bg-slate-50/70 transition">
-              <td className="px-3 py-4 text-center font-semibold text-slate-500">
+              <td className="px-2 py-4 text-center font-semibold text-slate-500">
                 {pagination.startIndex + index + 1}
               </td>
-              <td className="px-4 py-4 text-center">
+              <td className="px-3 py-4 text-center">
                 <div className="w-full min-w-0">
                   <div className="font-semibold text-slate-900 truncate">{cat.name}</div>
                   <div className="truncate text-xs text-slate-500" title={cat.description || undefined}>
@@ -1719,7 +1719,7 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
                 </div>
               </td>
 
-              <td className="px-3 py-4 text-center text-sm text-slate-600 truncate">
+              <td className="px-2 py-4 text-center text-sm text-slate-600 truncate">
                 {cat.parentName ? (
                   <span className="font-medium text-violet-900">{cat.parentName}</span>
                 ) : (
@@ -1763,17 +1763,17 @@ function CategoriesTable({ items, onEdit, onToggle, onDelete, canEdit }: Categor
                 </span>
               </td>
 
-              {canEdit && <td className="table-action-cell px-3 py-4">
+              {canEdit && <td className="table-action-cell px-2 py-4">
                 <TableActions>
-                  <TableActionButton className="w-[100px]" icon={<Pencil size={16} />} tone="primary" onClick={() => onEdit(cat)}>
+                  <TableActionButton className="w-[90px]" icon={<Pencil size={15} />} tone="primary" onClick={() => onEdit(cat)}>
                     Chỉnh sửa
                   </TableActionButton>
-                  <TableActionButton className="w-[132px]" icon={<Power size={16} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
+                  <TableActionButton className="w-[120px]" icon={<Power size={15} />} tone={cat.active ? 'warning' : 'success'} onClick={() => onToggle(cat)}>
                     {cat.active ? 'Ngừng sử dụng' : 'Kích hoạt'}
                   </TableActionButton>
                   <TableActionButton
-                    className="w-[72px]"
-                    icon={<Trash2 size={16} />}
+                    className="w-[62px]"
+                    icon={<Trash2 size={15} />}
                     tone="danger"
                     onClick={() => onDelete(cat)}
                     title={cat.bookCount > 0 ? 'Không thể xóa vì đang gắn với đầu sách' : 'Xóa thể loại'}
