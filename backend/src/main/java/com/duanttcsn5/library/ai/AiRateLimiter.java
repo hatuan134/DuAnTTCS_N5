@@ -14,6 +14,7 @@ public class AiRateLimiter {
     private final AiSettings settings;
     public AiRateLimiter(AiSettings settings) { this.settings=settings;this.active=new Semaphore(settings.concurrency()); }
     public synchronized void check(String owner,boolean guest) {
+        if(settings.guestLimit()==0 && settings.userLimit()==0 && settings.globalLimit()==0) return;
         long minute=System.currentTimeMillis()/60000;
         buckets.values().removeIf(b->b.minute()!=minute);
         var b=buckets.getOrDefault(owner,new Bucket(minute,0));

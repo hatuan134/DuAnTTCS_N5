@@ -23,6 +23,16 @@ public class AiSettings {
         return flag("AI_ENABLED", false);
     }
 
+    /** Missing, blank or misspelled values always retain the library boundary. */
+    public boolean libraryOnly() {
+        return !"LEGACY".equalsIgnoreCase(env.getProperty("AI_SCOPE_MODE", "LIBRARY_ONLY").trim());
+    }
+
+    /** Old deployment quota values alone must not re-enable limits. */
+    public boolean usageLimitsEnabled() {
+        return flag("AI_USAGE_LIMITS_ENABLED", false);
+    }
+
     public Mode mode() {
         return Mode.valueOf(env.getProperty("AI_PROVIDER_MODE", "AUTO").trim().toUpperCase(java.util.Locale.ROOT));
     }
@@ -122,19 +132,19 @@ public class AiSettings {
     }
 
     public int guestLimit() {
-        return number("AI_GUEST_REQUESTS_PER_MINUTE", 6, 0, 1000);
+        return usageLimitsEnabled() ? number("AI_GUEST_REQUESTS_PER_MINUTE", 0, 0, 1000) : 0;
     }
 
     public int userLimit() {
-        return number("AI_USER_REQUESTS_PER_MINUTE", 15, 0, 1000);
+        return usageLimitsEnabled() ? number("AI_USER_REQUESTS_PER_MINUTE", 0, 0, 1000) : 0;
     }
 
     public int globalLimit() {
-        return number("AI_GLOBAL_REQUESTS_PER_MINUTE", 120, 0, 5000);
+        return usageLimitsEnabled() ? number("AI_GLOBAL_REQUESTS_PER_MINUTE", 0, 0, 5000) : 0;
     }
 
     public int turnLimit() {
-        return number("AI_MAX_TURNS_PER_CONVERSATION", 40, 0, 1000);
+        return usageLimitsEnabled() ? number("AI_MAX_TURNS_PER_CONVERSATION", 0, 0, 1000) : 0;
     }
 
     public int concurrency() {

@@ -9,7 +9,11 @@ import java.nio.charset.StandardCharsets;
 
 @Component
 public class AiRequestSizeFilter extends OncePerRequestFilter {
-    @Override protected boolean shouldNotFilter(HttpServletRequest r) { return !r.getRequestURI().equals(r.getContextPath()+"/api/v1/ai/chat") || !"POST".equals(r.getMethod()); }
+    @Override protected boolean shouldNotFilter(HttpServletRequest r) {
+        String path=r.getRequestURI().substring(r.getContextPath().length());
+        return !"POST".equals(r.getMethod())
+            || !java.util.Set.of("/api/v1/ai/chat","/api/v1/ai/chat/stream").contains(path);
+    }
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain) throws IOException,ServletException {
         response.setHeader("Cache-Control","no-store");
         byte[] bytes=request.getInputStream().readNBytes(8193);

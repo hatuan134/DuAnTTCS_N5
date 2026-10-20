@@ -20,7 +20,7 @@ class AiExpandedRoleCoverageTest {
         when(access.role()).thenReturn("READER");
         assertThat(names(tools)).contains("getMyProfileOverview").doesNotContain("getReminderSummary", "getOverdueDebtSummary", "getPendingFeeReductions");
     }
-    @Test void managerOnlyFeeReductionsRespectCurrentDomainServicePolicy() {
+    @Test void managerAndAdminFeeReductionsRespectCurrentDomainServicePolicy() {
         var access=mock(AiAccess.class);
         var tools=new AiTools(access,mock(AiNavigation.class),null,null,null,null,null,null,null,null,null,null);
         when(access.role()).thenReturn("LIBRARIAN");
@@ -28,6 +28,6 @@ class AiExpandedRoleCoverageTest {
         when(access.role()).thenReturn("LIBRARY_MANAGER");
         assertThat(names(tools)).contains("getPendingFeeReductions","getOverdueDebtSummary");
         when(access.role()).thenReturn("ADMIN");
-        assertThat(names(tools)).contains("getOverdueDebtSummary").doesNotContain("getPendingFeeReductions");
+        assertThat(names(tools)).contains("getOverdueDebtSummary","getPendingFeeReductions");
     }
 }
