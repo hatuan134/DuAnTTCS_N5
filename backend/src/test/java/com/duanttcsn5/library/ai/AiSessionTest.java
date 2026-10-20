@@ -17,7 +17,7 @@ class AiSessionTest {
         assertThatThrownBy(()->store.acquire(expired.id,"a")).hasMessageContaining("không còn khả dụng");
     }
     @Test void rateAndConcurrencyAreBounded() {
-        var limiter=new AiRateLimiter(new AiSettings(new MockEnvironment().withProperty("AI_GUEST_REQUESTS_PER_MINUTE","2").withProperty("AI_MAX_CONCURRENT","1")));
+        var limiter=new AiRateLimiter(new AiSettings(new MockEnvironment().withProperty("AI_USAGE_LIMITS_ENABLED","true").withProperty("AI_GUEST_REQUESTS_PER_MINUTE","2").withProperty("AI_MAX_CONCURRENT","1")));
         limiter.check("guest:1",true);limiter.check("guest:1",true);assertThatThrownBy(()->limiter.check("guest:1",true)).hasMessageContaining("một phút");
         limiter.enter();assertThatThrownBy(limiter::enter).isInstanceOf(RuntimeException.class);limiter.leave();limiter.enter();limiter.leave();
     }

@@ -24,7 +24,7 @@ public class AiHistoryStore {
     private final AiAccess access;
     private final ObjectMapper json;
     @Autowired(required=false) private AiSettings settings;
-    private int configuredTurns() { return settings==null ? AiChatService.MAX_TURNS : settings.turnLimit(); }
+    private int configuredTurns() { return settings==null ? 0 : settings.turnLimit(); }
     private int storedTurns(String id) {
         Long count=db.queryForObject("SELECT count(*) FROM ai_chat_entries WHERE thread_id=? AND role='user'",Long.class,id);
         return count==null?0:(int)Math.min(count,Integer.MAX_VALUE);

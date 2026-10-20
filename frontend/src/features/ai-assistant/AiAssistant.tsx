@@ -196,7 +196,7 @@ export default function AiAssistant() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [failed, setFailed] = useState('')
-  const [remaining, setRemaining] = useState(40)
+  const [remaining, setRemaining] = useState(Number.MAX_SAFE_INTEGER)
   const [historyVisible, setHistoryVisible] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [history, setHistory] = useState<HistorySummary[]>([])
@@ -262,7 +262,7 @@ export default function AiAssistant() {
   }
   const clearLocal = useCallback(() => {
     generation.current++; request.current?.abort(); request.current = null; pending.current = false
-    conversation.current = null; setMessages([]); setInput(''); setFailed(''); setNotice(''); setBusy(false); setRemaining(40)
+    conversation.current = null; setMessages([]); setInput(''); setFailed(''); setNotice(''); setBusy(false); setRemaining(Number.MAX_SAFE_INTEGER)
   }, [])
   useEffect(() => {
     const changed = () => {
@@ -409,7 +409,7 @@ export default function AiAssistant() {
         <div ref={end} />
       </div>}
       {notice && <div className="lai-error" role="alert">{notice}</div>}
-      {!historyVisible && <footer className="lai-footer"><form onSubmit={event => { event.preventDefault(); void send(input) }}><label className="lai-sr-only" htmlFor="libra-ai-input">Câu hỏi cho LIBRA AI</label><textarea id="libra-ai-input" ref={textarea} value={input} rows={1} maxLength={1500} disabled={busy || remaining === 0} placeholder="Hỏi về sách hoặc thư viện…" onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(input) } }} /><button type="submit" aria-label="Gửi câu hỏi" disabled={busy || !input.trim() || remaining === 0}><Send size={19} /></button></form><div className="lai-footer-note"><span><ShieldCheck size={14} /> Không gửi mật khẩu hoặc khóa API.</span><button type="button" title={role === 'PUBLIC' ? 'Xóa hội thoại hiện tại' : 'Xóa cuộc trò chuyện hiện tại và dữ liệu đã lưu'} aria-label="Xóa cuộc trò chuyện hiện tại" disabled={busy || messages.length === 0} onClick={() => { if (!window.confirm('Xóa cuộc trò chuyện này?')) return; const id = conversation.current; if (id && role !== 'PUBLIC') { void deleteHistory(id) } else { if (id) void apiClient.delete(`/ai/conversations/${encodeURIComponent(id)}`).catch(() => {}); clearLocal() } }}><Trash2 size={15} /></button></div><p className="lai-disclaimer">AI có thể nhầm. Kiểm tra thông tin trước khi thao tác. Nội dung câu hỏi được xử lý qua dịch vụ AI.</p></footer>}
+      {!historyVisible && <footer className="lai-footer"><form onSubmit={event => { event.preventDefault(); void send(input) }}><label className="lai-sr-only" htmlFor="libra-ai-input">Câu hỏi cho LIBRA AI</label><textarea id="libra-ai-input" ref={textarea} value={input} rows={1} maxLength={1500} disabled={busy || remaining === 0} placeholder="Hỏi về sách hoặc thư viện…" onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(input) } }} /><button type="submit" aria-label="Gửi câu hỏi" disabled={busy || !input.trim() || remaining === 0}><Send size={19} /></button></form><div className="lai-footer-note"><span><ShieldCheck size={14} /> Không gửi mật khẩu hoặc khóa API.</span><button type="button" title={role === 'PUBLIC' ? 'Xóa hội thoại hiện tại' : 'Xóa cuộc trò chuyện hiện tại và dữ liệu đã lưu'} aria-label="Xóa cuộc trò chuyện hiện tại" disabled={busy || messages.length === 0} onClick={() => { if (!window.confirm('Xóa cuộc trò chuyện này?')) return; const id = conversation.current; if (id && role !== 'PUBLIC') { void deleteHistory(id) } else { if (id) void apiClient.delete(`/ai/conversations/${encodeURIComponent(id)}`).catch(() => {}); clearLocal() } }}><Trash2 size={15} /></button></div><p className="lai-disclaimer">Chỉ hỗ trợ sách và nghiệp vụ thư viện theo quyền của bạn. Không giải đáp kiến thức chung ngoài thư viện. AI có thể nhầm; hãy kiểm tra trước khi thao tác. Câu hỏi phù hợp có thể được xử lý qua dịch vụ AI.</p></footer>}
     </section>}
   </div>
 }

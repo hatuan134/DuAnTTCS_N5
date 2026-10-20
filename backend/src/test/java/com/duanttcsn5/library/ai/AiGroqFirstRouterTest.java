@@ -116,6 +116,8 @@ class AiGroqFirstRouterTest {
         assertThat(chunks).containsExactly("success");
     }
     @Test void aGroqFirstMissingKeyMayFallbackForPublicOnly() {
+        when(groq.name()).thenReturn("GROQ");
+        when(gemini.name()).thenReturn("GEMINI");
         var settings=new AiSettings(new MockEnvironment()
             .withProperty("AI_PROVIDER_MODE","GROQ_FIRST")
             .withProperty("AI_ALLOW_CROSS_PROVIDER_FALLBACK","true"));
