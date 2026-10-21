@@ -214,6 +214,26 @@ export default function AiAssistant() {
   const launcher = useRef<HTMLButtonElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const end = useRef<HTMLDivElement>(null)
+  const chatWindow = useRef<HTMLElement>(null)
+
+  // Keep the mobile composer inside the visible area when the keyboard opens.
+  useEffect(() => {
+    if (!open) return
+    const viewport = window.visualViewport
+    const resize = () => {
+      chatWindow.current?.style.setProperty('--lai-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
+      chatWindow.current?.style.setProperty('--lai-viewport-top', `${viewport?.offsetTop ?? 0}px`)
+    }
+    resize()
+    viewport?.addEventListener('resize', resize)
+    viewport?.addEventListener('scroll', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      viewport?.removeEventListener('resize', resize)
+      viewport?.removeEventListener('scroll', resize)
+      window.removeEventListener('resize', resize)
+    }
+  }, [open])
 
   useEffect(() => {
     const onResize = () => setLauncherPosition(pos => pos ? constrainLauncher(pos) : null)
@@ -385,7 +405,17 @@ export default function AiAssistant() {
       style={{ left: launcherPosition.x, top: Math.max(4, launcherPosition.y - 29) }}
       onClick={resetLauncherPosition} title="Đưa nút AI về góc mặc định" aria-label="Đưa nút AI về góc mặc định">Đặt lại vị trí</button>}
     {!open && !docked && !launcherPosition && <button type="button" className="lai-dock-control" title="Thu gọn nút AI sát mép màn hình" aria-label="Thu gọn nút AI sát mép màn hình" onClick={() => setDocked(true)}><PanelRightClose size={13} /></button>}
-    {open && <section className={`lai-window ${large ? 'lai-large' : ''}`} role="dialog" aria-label="LIBRA AI Assistant" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close() } }}>
+    {open && <section ref={chatWindow} className={`lai-window ${large ? 'lai-large' : ''}`} role="dialog" aria-label="LIBRA AI Assistant" onKeyDown={event => {
+      if (event.key === 'Escape') { event.stopPropagation(); close() }
+      if (event.key !== 'Tab' || !window.matchMedia('(max-width: 520px)').matches) return
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, a[href], textarea, summary, [tabindex]'))
+        .filter(element => element.tabIndex >= 0 && !element.matches(':disabled') && element.getClientRects().length > 0)
+      const first = controls[0], last = controls[controls.length - 1]
+      if (first && (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      }
+    }}>
       <header className="lai-header"><div className="lai-brand-icon"><LibraLogo size={32} /></div><div className="lai-brand"><h2>LIBRA <span>AI</span></h2><p><span className="lai-dot" />{roleNames[role] || 'Thư viện số'}</p></div><div className="lai-header-actions">
         {role !== 'PUBLIC' && <button type="button" aria-label="Lịch sử trò chuyện" title="Lịch sử trò chuyện" aria-pressed={historyVisible} disabled={busy} onClick={toggleHistory}><History size={19} /></button>}
         <button type="button" aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới" disabled={busy} onClick={newChat}><Plus size={19} /></button>

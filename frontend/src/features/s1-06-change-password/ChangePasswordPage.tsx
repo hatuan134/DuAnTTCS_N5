@@ -1,7 +1,7 @@
 import axios from 'axios'
 import ManualCardLockDetails from '../s1-04-library-card/ManualCardLockDetails'
 import useCardLockExpiry from '../s1-04-library-card/useCardLockExpiry'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 
 import {
@@ -489,7 +489,7 @@ export default function ChangePasswordPage() {
 
             {emailChanged && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <label className="block text-sm font-medium text-amber-900">
+                <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-amber-900">
                   Xác nhận mật khẩu hiện tại
                 </label>
                 <p className="mt-1 text-xs text-amber-700">
@@ -502,6 +502,7 @@ export default function ChangePasswordPage() {
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
+                    id="profile-confirm-password"
                     type={showProfilePassword ? 'text' : 'password'}
                     value={profilePassword}
                     onChange={(event) => {
@@ -746,12 +747,14 @@ function ReadOnlyField({
   label: string
   value: string
 }) {
+  const id = useId()
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
       </label>
       <input
+        id={id}
         value={value}
         readOnly
         disabled
@@ -773,11 +776,11 @@ function EditableField({
   multiline?: boolean
 }) {
   return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
-      </label>
-      <div className="relative">
+      </span>
+      <span className="relative block">
         <span
           className={`absolute left-3 text-slate-400 ${
             multiline ? 'top-3' : 'top-1/2 -translate-y-1/2'
@@ -786,8 +789,8 @@ function EditableField({
           {icon}
         </span>
         {children}
-      </div>
-    </div>
+      </span>
+    </label>
   )
 }
 
@@ -804,9 +807,10 @@ function PasswordField({
   onToggle: () => void
   onChange: (value: string) => void
 }) {
+  const id = useId()
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
       </label>
       <div className="relative">
@@ -815,6 +819,7 @@ function PasswordField({
           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
         />
         <input
+          id={id}
           type={shown ? 'text' : 'password'}
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -837,7 +842,7 @@ function PasswordToggle({
     <button
       type="button"
       onClick={onClick}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+      className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-slate-400 transition hover:text-slate-700"
       aria-label={shown ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
     >
       {shown ? <EyeOff size={18} /> : <Eye size={18} />}

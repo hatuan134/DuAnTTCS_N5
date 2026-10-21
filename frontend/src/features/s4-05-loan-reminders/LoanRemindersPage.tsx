@@ -114,7 +114,7 @@ export default function LoanRemindersPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="loan-reminders-page min-w-0 space-y-6 p-3 sm:p-6">
       <PageHeader
         title="Quản lý gửi email nhắc nhở & Đối soát thử lại"
         description="Theo dõi lịch sử gửi email nhắc sách, tự động gửi lại email thất bại tối đa 3 lần và đối soát nhật ký khi bạn đọc phản ánh chưa nhận được thư."
@@ -154,7 +154,7 @@ export default function LoanRemindersPage() {
       {retryResultMsg && <FeedbackAlert tone={retryResultTone} message={retryResultMsg} onDismiss={() => setRetryResultMsg(null)} />}
 
       {/* Filter Toolbar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+      <div className="reminder-filters rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <div className="flex items-center gap-1.5 font-medium text-slate-700">
             <Filter className="h-4 w-4 text-blue-600" />
@@ -284,8 +284,8 @@ export default function LoanRemindersPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-center text-sm">
+            <div className="overflow-x-auto" role="region" aria-label="Lịch sử nhắc nhở đến hạn" tabIndex={0}>
+              <table className="reminder-history-table min-w-full divide-y divide-slate-200 text-center text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                   <tr>
                     <th className="px-5 py-3.5 text-center">Thời gian gửi</th>
@@ -301,11 +301,11 @@ export default function LoanRemindersPage() {
                 <tbody className="divide-y divide-slate-200 bg-white">
                   {logs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-center">
+                      <td data-label="Thời gian gửi" className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-center">
                         <div className="font-medium text-slate-800">{formatDate(log.sentAt)}</div>
                         <div className="text-xs text-slate-500">Ngày tính: {log.reminderDate}</div>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td data-label="Bạn đọc" className="px-5 py-3.5 text-center">
                         <div className="font-semibold text-slate-800">{log.readerName}</div>
                         <div className="text-xs text-slate-500">{log.recipientEmail || 'Không có email'}</div>
                         {log.readerCardNumber && (
@@ -314,10 +314,10 @@ export default function LoanRemindersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                      <td data-label="Nhóm nhắc" className="px-5 py-3.5 whitespace-nowrap text-center">
                         <StatusBadge status={log.reminderGroup} />
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td data-label="Số sách / Phiếu mượn" className="px-5 py-3.5 text-center">
                         <div className="font-medium text-slate-800">
                           {log.loanItemCount} cuốn
                         </div>
@@ -325,7 +325,7 @@ export default function LoanRemindersPage() {
                           {log.bookTitles}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                      <td data-label="Phí tạm tính" className="px-5 py-3.5 text-center whitespace-nowrap">
                         {typeof log.totalEstimatedFeeVnd === 'number' && log.totalEstimatedFeeVnd > 0 ? (
                           <div className="font-bold text-rose-600">
                             {log.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
@@ -334,7 +334,7 @@ export default function LoanRemindersPage() {
                           <span className="text-slate-400 text-xs">0 đ</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                      <td data-label="Trạng thái" className="px-5 py-3.5 text-center whitespace-nowrap">
                         <StatusBadge status={log.status} />
                         {log.status === 'PENDING_RETRY' && (
                           <div className="text-xs text-purple-700 font-medium mt-1">
@@ -352,14 +352,14 @@ export default function LoanRemindersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 text-center">
+                      <td data-label="Kích hoạt bởi" className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 text-center">
                         {log.triggeredBy === 'SYSTEM_SCHEDULED' ? (
                           <span className="font-medium text-blue-700">Tự động (7h sáng)</span>
                         ) : (
                           <span>Thủ công ({log.triggeredByUserName || 'Thủ thư'})</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                      <td data-label="Thao tác" className="px-5 py-3.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
                           {log.status === 'PENDING_RETRY' && (
                             <Button
