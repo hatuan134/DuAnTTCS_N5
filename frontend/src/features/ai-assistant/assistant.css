@@ -142,3 +142,28 @@
 .lai-reset-position:focus-visible{outline:2px solid #4380e8;outline-offset:2px}
 
 .lai-launcher-moving .lai-launcher-text{display:none!important}
+
+/* Touch controls and the on-screen keyboard must not obscure the composer. */
+@media (max-width:520px) {
+  .lai-window,.lai-large {
+    top:calc(var(--lai-viewport-top, 0px) + 8px);
+    bottom:auto;
+    height:calc(var(--lai-viewport-height, 100dvh) - 16px - env(safe-area-inset-bottom));
+  }
+  .lai-header { flex-wrap:wrap; gap:6px 10px; }
+  .lai-brand { min-width:0; }
+  .lai-header-actions { width:100%; justify-content:flex-end; }
+  .lai-header-actions button,.lai-footer form button { width:44px; height:44px; }
+  .lai-carousel-controls button { width:44px; height:44px; }
+  .lai-footer textarea { font-size:16px; }
+  .lai-footer-note button,.lai-history-delete { min-width:44px; min-height:44px; }
+  .lai-footer { padding:8px 12px; }
+  .lai-disclaimer { font-size:10px!important; }
+}
+@media (max-height:450px) {
+  .lai-header { padding:6px 12px; }
+  .lai-header-actions { width:auto; margin-left:auto; }
+  .lai-brand-icon { display:none; }
+  .lai-brand p { margin-top:0; }
+  .lai-footer { padding-block:5px; }
+}

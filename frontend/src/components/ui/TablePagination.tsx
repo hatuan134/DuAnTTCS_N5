@@ -32,19 +32,19 @@ export default function TablePagination({
         <strong className="text-slate-800">{totalItems}</strong> bản ghi
       </p>
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
           aria-label="Trang trước"
         >
           <ChevronLeft size={16} />
           Trước
         </button>
 
-        <span className="min-w-24 text-center font-medium text-slate-700">
+        <span className="min-w-0 text-center font-medium text-slate-700 sm:min-w-24">
           Trang {page} / {totalPages}
         </span>
 
@@ -52,7 +52,7 @@ export default function TablePagination({
           type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
           aria-label="Trang sau"
         >
           Sau

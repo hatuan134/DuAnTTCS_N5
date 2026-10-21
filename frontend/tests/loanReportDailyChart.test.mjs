@@ -16,6 +16,8 @@ function fixture() {
   let index = 0
   const hooks = {
     ...react,
+    useRef: () => ({ current: null }),
+    useEffect: () => {},
     useState(initial) {
       const i = index++
       if (!(i in states)) states[i] = initial

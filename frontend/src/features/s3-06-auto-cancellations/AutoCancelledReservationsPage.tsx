@@ -11,14 +11,18 @@ import {
   Play,
   RotateCcw,
   Sparkles,
-  BookOpen,
-  User as UserIcon,
 } from 'lucide-react'
 import {
   autoCancellationService,
   type AutoCancelledReservation,
   type AutoCancellationRun,
 } from './autoCancellationService'
+
+const runStatusLabels: Record<string, string> = {
+  SUCCESS: 'Thành công',
+  PARTIAL_FAILURE: 'Thất bại một phần',
+  FAILED: 'Thất bại',
+}
 
 function formatDateTime(isoString: string | null | undefined): string {
   if (!isoString) return '-'
@@ -127,7 +131,7 @@ export default function AutoCancelledReservationsPage() {
   const pagination = useTablePagination(filteredItems, `${searchQuery}:${outcomeFilter}`)
 
   return (
-    <div className="space-y-6">
+    <div className="auto-cancellations-page min-w-0 space-y-6">
       {confirmScan && <ConfirmActionDialog title="Quét đơn quá hạn nhận" description="Bạn có chắc chắn muốn kích hoạt quét và huỷ đơn quá hạn ngay bây giờ không?" confirmLabel="Xác nhận quét" onConfirm={() => void handleTriggerRun()} onCancel={() => setConfirmScan(false)} busy={triggering} />}
       {/* Tiêu đề trang đồng bộ 100% với Kho & Kệ */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -140,7 +144,7 @@ export default function AutoCancelledReservationsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={fetchData}
@@ -194,10 +198,10 @@ export default function AutoCancelledReservationsPage() {
           <p className="text-sm font-medium text-slate-500">Lần quét gần nhất</p>
           {latestRun ? (
             <div className="mt-2">
-              <div className="flex items-center gap-1.5 font-bold text-slate-900">
+              <div className="flex flex-wrap items-center gap-1.5 font-bold text-slate-900">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{latestRun.status}</span>
-                <span className="text-xs font-normal text-slate-400">({latestRun.triggeredBy})</span>
+                <span>{runStatusLabels[latestRun.status] ?? latestRun.status}</span>
+                <span className="text-xs font-normal text-slate-400">({latestRun.triggeredBy === 'SYSTEM' ? 'Hệ thống' : latestRun.triggeredBy})</span>
               </div>
               <p className="mt-0.5 text-xs text-slate-400">{formatDateTime(latestRun.startedAt)}</p>
             </div>
@@ -222,14 +226,15 @@ export default function AutoCancelledReservationsPage() {
             </div>
 
             {/* Bộ lọc theo kết quả bản sao */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+              <label htmlFor="auto-cancellation-outcome" className="text-xs font-semibold text-slate-500">
                 Kết quả bản sao:
-              </span>
+              </label>
               <select
+                id="auto-cancellation-outcome"
                 value={outcomeFilter}
                 onChange={(e) => setOutcomeFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="min-h-11 min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="ALL">Tất cả ({items.length})</option>
                 <option value="TRANSFERRED">Đã chuyển người kế tiếp ({stats.transferred})</option>
@@ -272,8 +277,8 @@ export default function AutoCancelledReservationsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table min-w-full text-sm text-slate-700">
+          <div className="overflow-x-auto" role="region" aria-label="Danh sách đơn huỷ tự động" tabIndex={0}>
+            <table className="auto-cancellations-table data-table min-w-full text-sm text-slate-700">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-3.5">STT</th>
@@ -288,18 +293,15 @@ export default function AutoCancelledReservationsPage() {
               <tbody className="divide-y divide-slate-100">
                 {pagination.pageItems.map((row, index) => (
                   <tr key={row.id} className="transition hover:bg-slate-50/70">
-                    <td className="px-3 py-4 text-slate-500">{pagination.startIndex + index + 1}</td>
+                    <td data-label="STT" className="px-3 py-4 text-slate-500">{pagination.startIndex + index + 1}</td>
                     {/* Cột 1: Mã đơn */}
-                    <td className="px-5 py-4 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
+                    <td data-label="Mã đơn" className="px-5 py-4 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
                       #{row.id}
                     </td>
 
                     {/* Cột 2: Bạn đọc */}
-                    <td className="px-5 py-4 text-center">
+                    <td data-label="Bạn đọc" className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 font-semibold text-xs shrink-0">
-                          <UserIcon className="h-4 w-4" />
-                        </div>
                         <div className="text-left">
                           <div className="font-semibold text-slate-900">
                             {row.readerName || 'Không rõ'}
@@ -312,9 +314,8 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 3: Tên sách & Bản sao */}
-                    <td className="px-5 py-4 max-w-xs text-center">
+                    <td data-label="Đầu sách & Bản sao" className="px-5 py-4 max-w-xs text-center">
                       <div className="flex items-start justify-center gap-2.5 text-left">
-                        <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
                           <div className="font-medium text-slate-900 line-clamp-2">
                             {row.bookTitle}
@@ -327,7 +328,7 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 4: Chờ nhận & Hạn */}
-                    <td className="px-5 py-4 text-xs whitespace-nowrap">
+                    <td data-label="Chờ nhận & Hạn" className="px-5 py-4 text-xs whitespace-nowrap">
                       <div>
                         <span className="text-slate-400">Bắt đầu: </span>
                         <span className="font-medium text-slate-700">{formatDateTime(row.reservedAt)}</span>
@@ -339,7 +340,7 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 5: Thời điểm huỷ */}
-                    <td className="px-5 py-4 text-xs whitespace-nowrap">
+                    <td data-label="Thời điểm huỷ" className="px-5 py-4 text-xs whitespace-nowrap">
                       <div className="font-semibold text-slate-900">
                         {formatDateTime(row.cancelledAt)}
                       </div>
@@ -349,7 +350,7 @@ export default function AutoCancelledReservationsPage() {
                     </td>
 
                     {/* Cột 6: Kết quả bản sao */}
-                    <td className="px-5 py-4">
+                    <td data-label="Kết quả xử lý bản sao" className="px-5 py-4">
                       {row.copyOutcome === 'TRANSFERRED' ? (
                         <div className="space-y-1">
                           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
