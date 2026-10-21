@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { X, Mail, DollarSign, History, AlertTriangle, CheckCircle, XCircle, Info, CreditCard } from 'lucide-react'
+import { X, Mail, DollarSign, History, CheckCircle, XCircle, Info, CreditCard } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Button from '../../components/ui/Button'
-import type { LoanReminderRetryAttempt } from './loanReminderService'
+import { reminderSendResult, type LoanReminderRetryAttempt } from './loanReminderService'
 
 interface EmailPreviewModalProps {
   isOpen: boolean
@@ -34,11 +34,10 @@ export default function EmailPreviewModal({
   totalEstimatedFeeVnd,
   status,
   errorMessage,
-  retryCount,
-  maxRetries = 3,
   attempts,
 }: EmailPreviewModalProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'attempts'>('content')
+  const result = reminderSendResult(status, errorMessage)
 
   if (!isOpen) return null
 
@@ -51,8 +50,9 @@ export default function EmailPreviewModal({
             <div className="flex flex-wrap items-center gap-2">
               <Mail className="h-5 w-5 text-blue-600" />
               <h2 className="text-lg font-bold text-slate-800">Chi tiết email thông báo</h2>
-              <StatusBadge status={reminderGroup} />
-              {status && <StatusBadge status={status} />}
+              <StatusBadge status={reminderGroup.startsWith('OVERDUE_') ? 'OVERDUE_DAILY' : reminderGroup}
+                label={reminderGroup.startsWith('OVERDUE_') ? 'Quá hạn' : undefined} />
+              {status && <StatusBadge status={result.status} label={result.label} />}
               {typeof totalEstimatedFeeVnd === 'number' && totalEstimatedFeeVnd > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-700 border border-rose-200">
                   <DollarSign className="h-3 w-3" />
@@ -70,15 +70,12 @@ export default function EmailPreviewModal({
                   Mã thẻ: {recipientCardNumber}
                 </span>
               )}
-              {typeof retryCount === 'number' && (
-                <span className="text-purple-700 font-medium">
-                  Đã thử lại: {retryCount}/{maxRetries} lần
-                </span>
-              )}
+
             </div>
             <p className="text-sm font-semibold text-slate-700">
               Tiêu đề: <span className="font-normal text-slate-600">{subject}</span>
             </p>
+            {status && result.reason && <p className="text-sm text-red-600">{result.reason}</p>}
           </div>
           <button
             type="button"
@@ -141,7 +138,7 @@ export default function EmailPreviewModal({
               <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
                   <History className="h-4 w-4 text-purple-600" />
-                  Tiến trình gửi và thử lại tự động (Tối đa {maxRetries} lần thử)
+                  Nhật ký xử lý thông báo
                 </h3>
 
                 {attempts && attempts.length > 0 ? (
@@ -152,7 +149,6 @@ export default function EmailPreviewModal({
                           <th className="px-4 py-2.5">Lần gửi</th>
                           <th className="px-4 py-2.5">Thời điểm thực hiện</th>
                           <th className="px-4 py-2.5">Kết quả</th>
-                          <th className="px-4 py-2.5">Nguồn kích hoạt</th>
                           <th className="px-4 py-2.5">Chi tiết lỗi nếu có</th>
                         </tr>
                       </thead>
@@ -171,20 +167,17 @@ export default function EmailPreviewModal({
                               {att.status === 'SUCCESS' ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
                                   <CheckCircle className="h-3.5 w-3.5" />
-                                  Thành công
+                                  Gửi thành công
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-200">
                                   <XCircle className="h-3.5 w-3.5" />
-                                  Thất bại
+                                  Gửi thất bại
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
-                              <div>{att.triggeredByUserName || att.triggeredBy}</div>
-                            </td>
                             <td className="px-4 py-3 text-xs text-red-600 max-w-xs break-words">
-                              {att.errorMessage || <span className="text-slate-400 font-normal">Không có lỗi</span>}
+                              {reminderSendResult(att.status, att.errorMessage).reason || <span className="text-slate-400 font-normal">Không có lỗi</span>}
                             </td>
                           </tr>
                         ))}
@@ -193,21 +186,16 @@ export default function EmailPreviewModal({
                   </div>
                 ) : (
                   <div className="space-y-2 text-sm text-slate-600">
-                    <p>Lần gửi đầu tiên ghi nhận trạng thái: <strong>{status}</strong></p>
-                    {errorMessage && (
+                    <p>Kết quả lượt gửi: <strong>{result.label}</strong></p>
+                    {result.reason && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                        <strong>Lỗi:</strong> {errorMessage}
+                        <strong>Lý do:</strong> {result.reason}
                       </div>
                     )}
                   </div>
                 )}
 
-                {status === 'FAILED_MAX_RETRIES' && (
-                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
-                    Hệ thống đã dừng thử lại sau khi đã thực hiện đủ 3 lần thử thất bại. Không phát sinh lần thử lại thứ 4.
-                  </div>
-                )}
+
               </div>
             </div>
           )}

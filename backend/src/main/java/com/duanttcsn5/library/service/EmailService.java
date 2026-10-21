@@ -298,7 +298,8 @@ public class EmailService {
         }
 
         if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl impl) {
-            if (impl.getUsername() == null || impl.getUsername().isBlank()
+            if (impl.getHost() == null || impl.getHost().isBlank()
+                    || impl.getUsername() == null || impl.getUsername().isBlank()
                     || impl.getPassword() == null || impl.getPassword().isBlank()) {
                 throw new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình.");
             }

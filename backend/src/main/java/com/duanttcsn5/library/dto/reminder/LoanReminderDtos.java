@@ -34,8 +34,15 @@ public class LoanReminderDtos {
             long totalEstimatedFeeVnd,
             String subject,
             String emailContentHtml,
-            boolean alreadySentToday
+            boolean alreadySentToday,
+            String deliveryState
     ) {
+        public LoanReminderGroupDto(Long readerId, String readerName, String readerCardNumber, String recipientEmail,
+                                    String reminderGroup, List<LoanReminderItemDto> items, long totalEstimatedFeeVnd,
+                                    String subject, String emailContentHtml, boolean alreadySentToday) {
+            this(readerId, readerName, readerCardNumber, recipientEmail, reminderGroup, items, totalEstimatedFeeVnd,
+                    subject, emailContentHtml, alreadySentToday, alreadySentToday ? "SENT" : "READY");
+        }
         public LoanReminderGroupDto(Long readerId, String readerName, String recipientEmail, String reminderGroup,
                                     List<LoanReminderItemDto> items, long totalEstimatedFeeVnd, String subject,
                                     String emailContentHtml, boolean alreadySentToday) {
@@ -84,8 +91,15 @@ public class LoanReminderDtos {
             int totalProcessed,
             int succeededCount,
             int stillPendingCount,
-            int maxRetriesReachedCount
-    ) {}
+            int maxRetriesReachedCount,
+            int reviewRequiredCount,
+            int permanentlyFailedCount,
+            int skippedCount
+    ) {
+        public LoanReminderRetryExecutionResult(int total, int sent, int pending, int exhausted) {
+            this(total, sent, pending, exhausted, 0, 0, 0);
+        }
+    }
 
     public record LoanReminderExecutionResult(
             LocalDate date,
@@ -136,8 +150,20 @@ public class LoanReminderDtos {
             String triggeredByUserName,
             boolean isDryRun,
             OffsetDateTime sentAt,
-            List<LoanReminderRetryAttemptDto> attempts
+            List<LoanReminderRetryAttemptDto> attempts,
+            String deliveryState
     ) {
+        public LoanReminderLogResponse(Long id, LocalDate reminderDate, Long readerId, String readerName,
+                String readerCardNumber, String recipientEmail, String reminderGroup, int loanItemCount,
+                long totalEstimatedFeeVnd, int retryCount, int maxRetries, String loanNumbers, String bookTitles,
+                String itemsDetail, String subject, String emailContent, String status, String errorMessage,
+                String triggeredBy, String triggeredByUserName, boolean isDryRun, OffsetDateTime sentAt,
+                List<LoanReminderRetryAttemptDto> attempts) {
+            this(id, reminderDate, readerId, readerName, readerCardNumber, recipientEmail, reminderGroup,
+                    loanItemCount, totalEstimatedFeeVnd, retryCount, maxRetries, loanNumbers, bookTitles, itemsDetail,
+                    subject, emailContent, status, errorMessage, triggeredBy, triggeredByUserName, isDryRun, sentAt,
+                    attempts, status);
+        }
         public LoanReminderLogResponse(
                 Long id, LocalDate reminderDate, Long readerId, String readerName,
                 String recipientEmail, String reminderGroup, int loanItemCount,

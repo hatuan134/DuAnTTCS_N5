@@ -149,9 +149,10 @@ class LoanReminderControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    void librarianCanPreviewTriggerRetryAndReadHistory() throws Exception {
-        authenticateWithRole("LIBRARIAN");
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"LIBRARIAN", "LIBRARY_MANAGER", "ADMIN"})
+    void staffCanPreviewTriggerRetryAndReadHistory(String role) throws Exception {
+        authenticateWithRole(role);
 
         LocalDate today = LocalDate.of(2026, 10, 14);
         when(service.getPreview(today)).thenReturn(new LoanReminderPreviewResponse(today, 2, 3, 0L, Collections.emptyList()));

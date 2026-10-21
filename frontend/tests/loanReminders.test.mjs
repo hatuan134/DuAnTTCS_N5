@@ -18,6 +18,75 @@ function load(path, imports = {}, extra = {}) {
 
 const path = '../src/features/s4-05-loan-reminders/'
 
+test('reminder history only offers current groups and two send outcomes', () => {
+  const hooks = { ...react, useState: value => [value, () => {}], useEffect: () => {}, useCallback: fn => fn }
+  const imports = {
+    react: hooks,
+    './loanReminderService': { loanReminderService: {} },
+    '../s1-02-user-management/accountService': { getApiErrorMessage: () => '' },
+    './EmailPreviewModal': { __esModule: true, default: () => null },
+  }
+  for (const name of ['FeedbackAlert', 'PageHeader', 'Button', 'StatusBadge', 'LoadingState', 'EmptyState', 'TablePagination']) {
+    imports[`../../components/ui/${name}`] = { __esModule: true, default: name }
+  }
+  const page = load(path + 'LoanRemindersPage.tsx', imports).default()
+  const nodes = []
+  function visit(value) {
+    if (Array.isArray(value)) return value.forEach(visit)
+    if (!value || typeof value !== 'object') return
+    nodes.push(value)
+    visit(value.props?.children)
+    visit(value.props?.action)
+  }
+  visit(page)
+  const header = nodes.find(n => n.props?.title === 'Theo dõi email nhắc trả sách tự động')
+  assert.ok(header.props.description.includes('đến khi được trả hoặc xử lý hoàn tất'))
+  assert.deepEqual(nodes.filter(n => n.props?.onClick).map(n => n.props.children).flat().filter(x => typeof x === 'string'), ['Làm mới'])
+  const options = nodes.filter(n => n.type === 'option')
+  assert.ok(options.some(n => n.props.value === 'OVERDUE_DAILY'))
+  assert.ok(!nodes.some(n => n.type === 'optgroup'))
+  assert.deepEqual(options.filter(n => n.props.value).map(n => n.props.value),
+    ['DUE_IN_2_DAYS', 'DUE_TODAY', 'OVERDUE_DAILY', 'SENT', 'FAILED'])
+  assert.ok(!JSON.stringify(page).includes('3 lần'))
+})
+
+test('send outcome belongs to its own log and uncertain results explain why', () => {
+  const { reminderSendResult } = load(path + 'loanReminderService.ts', { '../../core/api/apiClient': { apiClient: {} } })
+  assert.equal(reminderSendResult('SENT', 'old failure').reason, null)
+  assert.equal(reminderSendResult('FAILED_MAX_RETRIES', 'SMTP từ chối').label, 'Gửi thất bại')
+  assert.equal(reminderSendResult('FAILED_MAX_RETRIES', 'SMTP từ chối').reason, 'SMTP từ chối')
+  for (const status of ['FAILED', 'PENDING_RETRY', 'PROCESSING', 'REVIEW_REQUIRED', 'UNKNOWN', 'SKIPPED']) {
+    assert.equal(reminderSendResult(status).status, 'FAILED')
+    assert.ok(reminderSendResult(status).reason)
+  }
+  assert.match(reminderSendResult('REVIEW_REQUIRED').reason, /Chưa xác định/)
+  assert.match(reminderSendResult('PROCESSING').reason, /đang được xử lý/)
+})
+
+test('email audit detail omits trigger source and shows failure reasons', () => {
+  const logic = load(path + 'loanReminderService.ts', { '../../core/api/apiClient': { apiClient: {} } })
+  const imports = {
+    react: { ...react, useState: () => ['attempts', () => {}] },
+    './loanReminderService': logic,
+  }
+  for (const name of ['Modal', 'StatusBadge', 'Button']) {
+    imports[`../../components/ui/${name}`] = { __esModule: true, default: name }
+  }
+  const tree = load(path + 'EmailPreviewModal.tsx', imports).default({
+    isOpen: true, onClose: () => {}, subject: 'Nhắc hạn', recipientName: 'Bạn đọc',
+    recipientEmail: 'reader@example.test', htmlContent: '<p>Nội dung</p>',
+    reminderGroup: 'OVERDUE_7_DAYS', status: 'FAILED_MAX_RETRIES', errorMessage: 'SMTP từ chối',
+    attempts: [{ id: 1, attemptNumber: 1, attemptedAt: '2026-10-21T07:00:00+07:00',
+      status: 'FAILED', errorMessage: 'SMTP từ chối', triggeredBy: 'MANUAL_RETRY', triggeredByUserName: 'Internal actor' }],
+  })
+  const rendered = JSON.stringify(tree)
+  assert.ok(rendered.includes('SMTP từ chối'))
+  assert.ok(rendered.includes('Gửi thất bại'))
+  for (const hidden of ['Nguồn kích hoạt', 'MANUAL_RETRY', 'Internal actor', 'Lượt gửi đã tạm dừng']) {
+    assert.ok(!rendered.includes(hidden))
+  }
+})
+
 test('loanReminderService API methods target correct endpoints', async () => {
   const calls = []
   const mockClient = {

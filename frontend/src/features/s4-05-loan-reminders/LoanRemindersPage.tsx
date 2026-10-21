@@ -1,18 +1,17 @@
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { useState, useEffect, useCallback } from 'react'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
-import { Send, RefreshCw, Eye, Filter } from 'lucide-react'
+import { RefreshCw, Eye, Filter } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
 import LoadingState from '../../components/ui/LoadingState'
 import EmptyState from '../../components/ui/EmptyState'
 import TablePagination from '../../components/ui/TablePagination'
-import TriggerReminderModal from './TriggerReminderModal'
 import EmailPreviewModal from './EmailPreviewModal'
 import {
   loanReminderService,
-  retryFeedback,
+  reminderSendResult,
   type LoanReminderLog,
 } from './loanReminderService'
 
@@ -35,11 +34,7 @@ export default function LoanRemindersPage() {
   const pageSize = 15
 
   // Modals & Action states
-  const [showTriggerModal, setShowTriggerModal] = useState(false)
   const [selectedLogForPreview, setSelectedLogForPreview] = useState<LoanReminderLog | null>(null)
-  const [retrying, setRetrying] = useState(false)
-  const [retryResultTone, setRetryResultTone] = useState<'success' | 'warning' | 'info'>('info')
-  const [retryResultMsg, setRetryResultMsg] = useState<string | null>(null)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -69,42 +64,11 @@ export default function LoanRemindersPage() {
     fetchLogs()
   }, [fetchLogs])
 
-  const handleRetryPendingBatch = async () => {
-    setRetrying(true)
-    setRetryResultMsg(null)
-    try {
-      const res = await loanReminderService.retryPending()
-      const feedback = retryFeedback(res)
-      setRetryResultMsg(feedback.message)
-      setRetryResultTone(feedback.tone)
-      void fetchLogs()
-    } catch (err: any) {
-      setError(getApiErrorMessage(err, 'Lỗi khi thực hiện thử lại các email chờ'))
-    } finally {
-      setRetrying(false)
-    }
-  }
-
-  const handleRetrySingle = async (logId: number) => {
-    setRetrying(true)
-    setRetryResultMsg(null)
-    try {
-      const res = await loanReminderService.retrySingle(logId)
-      const feedback = retryFeedback(res)
-      setRetryResultMsg(feedback.message)
-      setRetryResultTone(feedback.tone)
-      void fetchLogs()
-    } catch (err: any) {
-      setError(getApiErrorMessage(err, 'Lỗi khi thử lại email này'))
-    } finally {
-      setRetrying(false)
-    }
-  }
-
   const formatDate = (isoString?: string) => {
     if (!isoString) return '-'
     const d = new Date(isoString)
     return d.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -116,42 +80,22 @@ export default function LoanRemindersPage() {
   return (
     <div className="loan-reminders-page min-w-0 space-y-6 p-3 sm:p-6">
       <PageHeader
-        title="Quản lý gửi email nhắc nhở & Đối soát thử lại"
-        description="Theo dõi lịch sử gửi email nhắc sách, tự động gửi lại email thất bại tối đa 3 lần và đối soát nhật ký khi bạn đọc phản ánh chưa nhận được thư."
+        title="Theo dõi email nhắc trả sách tự động"
+        description="Hệ thống gửi nhắc lúc 07:00 hằng ngày. Sách quá hạn tiếp tục được nhắc mỗi ngày đến khi được trả hoặc xử lý hoàn tất."
         action={
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="secondary"
               onClick={fetchLogs}
-              disabled={loading || retrying}
+              disabled={loading}
               className="inline-flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Làm mới
             </Button>
-            <Button
-              variant="secondary"
-              onClick={handleRetryPendingBatch}
-              disabled={loading || retrying}
-              className="inline-flex items-center gap-2 text-purple-700 border-purple-300 hover:bg-purple-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} />
-              {retrying ? 'Đang gửi lại...' : 'Thử lại email chờ'}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => setShowTriggerModal(true)}
-              className="inline-flex items-center gap-2"
-            >
-              <Send className="h-4 w-4" />
-              Kích hoạt gửi / Chạy thử
-            </Button>
           </div>
         }
       />
-
-      {/* Retry Result Banner if any */}
-      {retryResultMsg && <FeedbackAlert tone={retryResultTone} message={retryResultMsg} onDismiss={() => setRetryResultMsg(null)} />}
 
       {/* Filter Toolbar */}
       <div className="reminder-filters rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
@@ -189,7 +133,7 @@ export default function LoanRemindersPage() {
 
           <div className="flex items-center gap-2">
             <label htmlFor="filter-date" className="text-xs text-slate-500">
-              Ngày:
+              Ngày nhắc hạn:
             </label>
             <input
               id="filter-date"
@@ -205,7 +149,7 @@ export default function LoanRemindersPage() {
 
           <div className="flex items-center gap-2">
             <label htmlFor="filter-group" className="text-xs text-slate-500">
-              Nhóm:
+              Loại nhắc hạn:
             </label>
             <select
               id="filter-group"
@@ -216,12 +160,10 @@ export default function LoanRemindersPage() {
               }}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="">Tất cả các nhóm</option>
+              <option value="">Tất cả loại nhắc hạn</option>
               <option value="DUE_IN_2_DAYS">Còn 2 ngày tới hạn</option>
               <option value="DUE_TODAY">Đến hạn hôm nay</option>
-              <option value="OVERDUE_1_DAY">Quá hạn 1 ngày</option>
-              <option value="OVERDUE_7_DAYS">Quá hạn 7 ngày</option>
-              <option value="OVERDUE_30_DAYS">Quá hạn 30 ngày</option>
+              <option value="OVERDUE_DAILY">Quá hạn</option>
             </select>
           </div>
 
@@ -238,12 +180,9 @@ export default function LoanRemindersPage() {
               }}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="">Tất cả trạng thái</option>
+              <option value="">Tất cả kết quả gửi</option>
               <option value="SENT">Gửi thành công</option>
-              <option value="PENDING_RETRY">Chờ gửi lại</option>
-              <option value="FAILED_MAX_RETRIES">Thất bại sau 3 lần thử</option>
-              <option value="FAILED">Thất bại (Gốc)</option>
-              <option value="SKIPPED">Đã bỏ qua</option>
+              <option value="FAILED">Gửi thất bại</option>
             </select>
           </div>
 
@@ -279,7 +218,7 @@ export default function LoanRemindersPage() {
           <div className="p-8">
             <EmptyState
               title="Chưa có bản ghi nhắc nhở nào"
-              description="Các email nhắc nhở được hệ thống tự động gửi lúc 7:00 sáng hoặc khi bạn kích hoạt chạy thử nghiệm."
+              description="Lịch sử sẽ xuất hiện khi hệ thống tự động xử lý nhắc hạn lúc 07:00 hằng ngày."
             />
           </div>
         ) : (
@@ -288,7 +227,7 @@ export default function LoanRemindersPage() {
               <table className="reminder-history-table min-w-full divide-y divide-slate-200 text-center text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                   <tr>
-                    <th className="px-5 py-3.5 text-center">Thời gian gửi</th>
+                    <th className="px-5 py-3.5 text-center">Cập nhật lần cuối</th>
                     <th className="px-5 py-3.5 text-center">Bạn đọc</th>
                     <th className="px-5 py-3.5 text-center">Nhóm nhắc</th>
                     <th className="px-5 py-3.5 text-center">Số sách / Phiếu mượn</th>
@@ -299,11 +238,13 @@ export default function LoanRemindersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
-                  {logs.map((log) => (
+                  {logs.map((log) => {
+                    const result = reminderSendResult(log.status, log.errorMessage)
+                    return (
                     <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td data-label="Thời gian gửi" className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-center">
+                      <td data-label="Cập nhật lần cuối" className="px-5 py-3.5 whitespace-nowrap text-slate-600 text-center">
                         <div className="font-medium text-slate-800">{formatDate(log.sentAt)}</div>
-                        <div className="text-xs text-slate-500">Ngày tính: {log.reminderDate}</div>
+                        <div className="text-xs text-slate-500" title="Ngày dùng để xét hạn trả và lập thông báo nhắc hạn">Ngày nhắc hạn: {log.reminderDate.split('-').reverse().join('/')}</div>
                       </td>
                       <td data-label="Bạn đọc" className="px-5 py-3.5 text-center">
                         <div className="font-semibold text-slate-800">{log.readerName}</div>
@@ -315,7 +256,8 @@ export default function LoanRemindersPage() {
                         )}
                       </td>
                       <td data-label="Nhóm nhắc" className="px-5 py-3.5 whitespace-nowrap text-center">
-                        <StatusBadge status={log.reminderGroup} />
+                        <StatusBadge status={log.reminderGroup.startsWith('OVERDUE_') ? 'OVERDUE_DAILY' : log.reminderGroup}
+                          label={log.reminderGroup.startsWith('OVERDUE_') ? 'Quá hạn' : undefined} />
                       </td>
                       <td data-label="Số sách / Phiếu mượn" className="px-5 py-3.5 text-center">
                         <div className="font-medium text-slate-800">
@@ -335,22 +277,7 @@ export default function LoanRemindersPage() {
                         )}
                       </td>
                       <td data-label="Trạng thái" className="px-5 py-3.5 text-center whitespace-nowrap">
-                        <StatusBadge status={log.status} />
-                        {log.status === 'PENDING_RETRY' && (
-                          <div className="text-xs text-purple-700 font-medium mt-1">
-                            Đã thử: {log.retryCount}/3 lần
-                          </div>
-                        )}
-                        {log.status === 'FAILED_MAX_RETRIES' && (
-                          <div className="text-xs text-rose-700 font-bold mt-1">
-                            Đã đủ 3 lần thử
-                          </div>
-                        )}
-                        {log.errorMessage && (
-                          <div className="text-xs text-red-600 mt-1 max-w-[200px] truncate mx-auto" title={log.errorMessage}>
-                            {log.errorMessage}
-                          </div>
-                        )}
+                        <StatusBadge status={result.status} label={result.label} />
                       </td>
                       <td data-label="Kích hoạt bởi" className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 text-center">
                         {log.triggeredBy === 'SYSTEM_SCHEDULED' ? (
@@ -361,18 +288,6 @@ export default function LoanRemindersPage() {
                       </td>
                       <td data-label="Thao tác" className="px-5 py-3.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
-                          {log.status === 'PENDING_RETRY' && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleRetrySingle(log.id)}
-                              disabled={retrying}
-                              className="inline-flex items-center gap-1 text-xs text-purple-700 border-purple-200 hover:bg-purple-50"
-                            >
-                              <RefreshCw className={`h-3 w-3 ${retrying ? 'animate-spin' : ''}`} />
-                              Gửi lại
-                            </Button>
-                          )}
                           <Button
                             variant="secondary"
                             size="sm"
@@ -385,7 +300,7 @@ export default function LoanRemindersPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -400,15 +315,6 @@ export default function LoanRemindersPage() {
           </>
         )}
       </div>
-
-      {/* Trigger Modal */}
-      <TriggerReminderModal
-        isOpen={showTriggerModal}
-        onClose={() => setShowTriggerModal(false)}
-        onSuccess={() => {
-          fetchLogs()
-        }}
-      />
 
       {/* Email View Modal */}
       {selectedLogForPreview && (
