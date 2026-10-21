@@ -86,15 +86,15 @@ export default function TriggerReminderModal({
       <Modal onClose={onClose} label="Chạy thử và kích hoạt gửi email nhắc nhở">
         <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
             <div>
               <h2 className="text-lg font-bold text-slate-800">Kích hoạt gửi nhắc nhở mượn trả</h2>
               <p className="text-sm text-slate-500">
                 Xem trước danh sách bạn đọc đủ điều kiện (trước hạn, đến hạn, quá hạn 1, 7, 30 ngày) và thực hiện gửi
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
+              <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 sm:w-auto">
                 <label htmlFor="target-date" className="text-xs font-semibold text-slate-600">
                   Ngày tính mốc:
                 </label>
@@ -103,11 +103,11 @@ export default function TriggerReminderModal({
                   type="date"
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="min-h-11 min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 sm:w-auto">
                 <label htmlFor="run-mode" className="text-xs font-semibold text-slate-600">
                   Chế độ:
                 </label>
@@ -115,7 +115,7 @@ export default function TriggerReminderModal({
                   id="run-mode"
                   value={simulateFailure ? 'SIMULATE_FAILURE' : 'LIVE'}
                   onChange={(e) => setSimulateFailure(e.target.value === 'SIMULATE_FAILURE')}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:w-auto"
                 >
                   <option value="LIVE">Gửi thực tế qua Email</option>
                   <option value="SIMULATE_FAILURE">Kiểm thử (Mô phỏng lỗi & Thử lại)</option>
@@ -135,7 +135,7 @@ export default function TriggerReminderModal({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-auto p-6 space-y-4">
+          <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6 space-y-4">
             {simulateFailure && (
               <div className="flex items-start gap-2.5 rounded-lg border border-purple-200 bg-purple-50/80 p-3.5 text-xs text-purple-900 shadow-sm">
                 <Info className="h-4 w-4 shrink-0 text-purple-600 mt-0.5" />
@@ -192,7 +192,7 @@ export default function TriggerReminderModal({
                   </span>
                 </div>
 
-                <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm" tabIndex={0} role="region" aria-label="Danh sách nhắc trả, cuộn ngang để xem đủ các cột">
                   <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                       <tr>
@@ -270,7 +270,7 @@ export default function TriggerReminderModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 bg-slate-50 rounded-b-xl">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-4 sm:px-6 bg-slate-50 rounded-b-xl">
             <Button variant="secondary" onClick={onClose} disabled={submitting}>
               Đóng
             </Button>

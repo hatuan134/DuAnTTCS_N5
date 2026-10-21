@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DailyLoanCount } from './loanReportService'
 
 interface DailyLoansChartProps {
@@ -18,9 +18,23 @@ function showDateTick(date: string, index: number, length: number): boolean {
 /** Uses SVG only: no new chart dependency or independent API call. */
 export default function DailyLoansChart({ data, totalBorrowed }: DailyLoansChartProps) {
   const [selected, setSelected] = useState<string | null>(null)
+  const [availableWidth, setAvailableWidth] = useState(1200)
+  const container = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = container.current
+    if (!element) return
+    const resize = () => setAvailableWidth(element.clientWidth)
+    resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [data.length])
   const actualTotal = data.reduce((sum, day) => sum + day.borrowCount, 0)
   const selectedDay = data.find(day => day.date === selected) ?? null
-  const width = Math.max(320, Math.min(1200, data.length * 26 + 95))
+  // Fit ordinary date ranges; retain local scrolling when there are too many
+  // columns to distinguish at a minimum three pixels per day.
+  const naturalWidth = Math.max(320, Math.min(1200, data.length * 26 + 95))
+  const width = Math.max(Math.min(naturalWidth, Math.max(240, data.length * 3 + 95)), Math.min(naturalWidth, availableWidth))
   const height = 310
   const left = 55
   const right = 22
@@ -49,7 +63,7 @@ export default function DailyLoansChart({ data, totalBorrowed }: DailyLoansChart
       </p>}
     </div>
     {data.length > 0 && <div className="px-3 pt-4 pb-3 sm:px-6">
-      <div className="min-w-0 overflow-x-auto" tabIndex={0} aria-label="Cuộn ngang để xem toàn bộ ngày nếu cần">
+      <div ref={container} className="min-w-0 overflow-x-auto" tabIndex={0} aria-label="Cuộn ngang để xem toàn bộ ngày nếu cần">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           width={width}
@@ -85,6 +99,12 @@ export default function DailyLoansChart({ data, totalBorrowed }: DailyLoansChart
                 onMouseEnter={() => setSelected(day.date)}
                 onFocus={() => setSelected(day.date)}
                 onClick={() => setSelected(day.date)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelected(day.date)
+                  }
+                }}
               >
                 <title>{`${formatDate(day.date)}: ${formatNumber(day.borrowCount)} lượt mượn`}</title>
               </rect>
