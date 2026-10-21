@@ -29,6 +29,19 @@ public final class LoanReminderFailureMessages {
     /** Also localizes diagnostics already recorded before S4-00.1, without editing audit rows. */
     public static String message(String raw) {
         if (raw == null || raw.isBlank()) return null;
+        switch (raw) {
+            case "SMTP_AUTH": return "Xác thực SMTP thất bại. Cần kiểm tra cấu hình trước khi xử lý tiếp.";
+            case "SMTP_CONFIG": return "Thiếu hoặc sai cấu hình gửi thư. Email chưa được gửi.";
+            case "SMTP_CONNECT": return "Không kết nối được SMTP trước khi gửi thư; đang chờ thử lại.";
+            case "SMTP_REJECTED": return "SMTP từ chối người nhận. Cần kiểm tra địa chỉ email.";
+            case "SMTP_TEMPORARY_REJECTION": return "SMTP tạm thời từ chối thư; đang chờ thử lại.";
+            case "SMTP_UNKNOWN": return "Chưa xác định SMTP đã nhận thư hay chưa. Cần đối soát; không tự động gửi lại.";
+            case "DB_AFTER_SMTP": return "SMTP đã chấp nhận thư nhưng lỗi lưu kết quả. Cần đối soát; không gửi lại.";
+            case "DB_RESULT_UNKNOWN": return "Lỗi lưu kết quả xử lý. Cần đối soát trước khi gửi lại.";
+            case "NO_LONGER_ELIGIBLE": return "Bỏ qua bản nhắc cũ: đã qua ngày nhắc hoặc thông tin mượn trả đã thay đổi.";
+            case "SIMULATION": return "Mô phỏng lỗi; không gửi SMTP và không đưa vào hàng đợi gửi thật.";
+            default: break;
+        }
         String value = raw.toLowerCase(Locale.ROOT);
         if (value.contains("5.1.1") || value.contains("user unknown") || value.contains("no such user")
                 || value.contains("does not exist") || value.contains("recipient not found")

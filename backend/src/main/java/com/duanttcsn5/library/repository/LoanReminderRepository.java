@@ -23,6 +23,86 @@ import java.util.Optional;
 @Repository
 public class LoanReminderRepository {
 
+    public static String deliveryGroup(String group) {
+        return group.startsWith("OVERDUE_") ? "OVERDUE_DAILY" : group;
+    }
+
+    public String deliveryState(LocalDate date, Long readerId, String group) {
+        var states = jdbc.queryForList("""
+                SELECT CASE WHEN state = 'PROCESSING' AND updated_at < CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+                    THEN 'REVIEW_REQUIRED' ELSE state END FROM loan_reminder_claims
+                WHERE reminder_date = ? AND reader_id = ? AND reminder_group = ?
+                """, String.class, Date.valueOf(date), readerId, deliveryGroup(group));
+        return states.isEmpty() ? "READY" : states.get(0);
+    }
+
+    // Commit reservation and audit payload before SMTP. No database transaction spans SMTP.
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Long claimInitial(LocalDate date,
+            com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderGroupDto group,
+            String itemsJson, String source, Long userId, String userName) {
+        int claimed = jdbc.update("""
+                INSERT INTO loan_reminder_claims (reminder_date, reader_id, reminder_group, state)
+                VALUES (?, ?, ?, 'PROCESSING') ON CONFLICT DO NOTHING
+                """, Date.valueOf(date), group.readerId(), deliveryGroup(group.reminderGroup()));
+        if (claimed == 0) return null;
+        Long id = insertLog(date, group.readerId(), group.readerName(), group.readerCardNumber(),
+                group.recipientEmail(), group.reminderGroup(), group.items().size(), group.totalEstimatedFeeVnd(),
+                0, 3, group.items().stream().map(i -> i.loanNumber()).distinct().collect(java.util.stream.Collectors.joining(", ")),
+                group.items().stream().map(i -> i.bookTitle()).distinct().collect(java.util.stream.Collectors.joining("; ")),
+                itemsJson, group.subject(), group.emailContentHtml(), "PROCESSING", null, source, userId, userName, false);
+        jdbc.update("UPDATE loan_reminder_claims SET log_id = ? WHERE reminder_date = ? AND reader_id = ? AND reminder_group = ?",
+                id, Date.valueOf(date), group.readerId(), deliveryGroup(group.reminderGroup()));
+        return id;
+    }
+
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public boolean claimRetry(Long id, int expectedRetry) {
+        int claimed = jdbc.update("""
+                UPDATE loan_reminder_claims c SET state = 'PROCESSING', updated_at = CURRENT_TIMESTAMP
+                FROM loan_reminder_logs l
+                WHERE c.log_id = ? AND l.id = c.log_id AND c.state = 'PENDING_RETRY'
+                  AND l.status = 'PENDING_RETRY' AND l.retry_count = ? AND l.retry_count < l.max_retries
+                  AND l.is_dry_run = FALSE
+                  AND NOT EXISTS (SELECT 1 FROM loan_reminder_logs s
+                      WHERE s.reminder_date = c.reminder_date AND s.reader_id = c.reader_id
+                        AND (CASE WHEN s.reminder_group LIKE 'OVERDUE_%' THEN 'OVERDUE_DAILY' ELSE s.reminder_group END) = c.reminder_group
+                        AND s.status = 'SENT' AND s.is_dry_run = FALSE)
+                """, id, expectedRetry);
+        if (claimed == 1) jdbc.update("UPDATE loan_reminder_logs SET status = 'PROCESSING' WHERE id = ?", id);
+        return claimed == 1;
+    }
+
+    public boolean retryItemsStillEligible(Long id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT reminder_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+                  AND jsonb_array_length(items_detail) > 0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(items_detail) item
+                    LEFT JOIN loan_items li ON li.id = (item->>'itemId')::bigint
+                    LEFT JOIN book_copies c ON c.id = li.book_copy_id
+                    WHERE li.id IS NULL OR li.returned_at IS NOT NULL
+                      OR li.resolution_reason IN ('RETURNED','LOST','DAMAGED')
+                      OR c.status IS DISTINCT FROM 'BORROWED'
+                      OR li.due_date IS DISTINCT FROM (item->>'dueDate')::timestamptz)
+                FROM loan_reminder_logs WHERE id = ?
+                """, Boolean.class, id));
+    }
+
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void finishDelivery(Long id, String state, int retryCount, String reason, String source) {
+        int changed = jdbc.update("""
+                UPDATE loan_reminder_claims SET state = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE log_id = ? AND state = 'PROCESSING'
+                """, state, id);
+        if (changed != 1) throw new IllegalStateException("Reminder claim ownership lost");
+        updateLogRetryStatus(id, state, retryCount, reason);
+        Integer attempt = jdbc.queryForObject("SELECT COALESCE(MAX(attempt_number), 0) + 1 FROM loan_reminder_retry_attempts WHERE reminder_log_id = ?", Integer.class, id);
+        insertRetryAttempt(id, attempt, "SENT".equals(state) ? "SUCCESS"
+                : "REVIEW_REQUIRED".equals(state) ? "UNKNOWN" : "SKIPPED".equals(state) ? "SKIPPED" : "FAILED",
+                reason, source);
+    }
+
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final JdbcTemplate jdbc;
 
@@ -56,16 +136,11 @@ public class LoanReminderRepository {
      * Find active, unreturned loan items due on:
      * - targetDate + 2 days (DUE_IN_2_DAYS)
      * - targetDate (DUE_TODAY)
-     * - targetDate - 1 day (OVERDUE_1_DAY)
-     * - targetDate - 7 days (OVERDUE_7_DAYS)
-     * - targetDate - 30 days (OVERDUE_30_DAYS)
-     * evaluated in Vietnam time. Excludes non-qualifying days, returned and closed items.
+     * - every past due date (OVERDUE_DAILY)
+     * evaluated in Vietnam time. Excludes returned and resolved items.
      */
     public List<EligibleLoanItemRow> findEligibleItemsForDate(LocalDate targetDate) {
         LocalDate in2Days = targetDate.plusDays(2);
-        LocalDate overdue1 = targetDate.minusDays(1);
-        LocalDate overdue7 = targetDate.minusDays(7);
-        LocalDate overdue30 = targetDate.minusDays(30);
 
         String sql = """
             SELECT li.id AS item_id,
@@ -88,7 +163,8 @@ public class LoanReminderRepository {
             WHERE li.returned_at IS NULL
               AND (li.resolution_reason IS NULL OR li.resolution_reason NOT IN ('RETURNED', 'LOST', 'DAMAGED'))
               AND (c.status = 'BORROWED')
-              AND (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date IN (?, ?, ?, ?, ?)
+              AND ((li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = ?
+                OR (li.due_date AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ?)
             ORDER BY l.borrower_user_id ASC, li.due_date ASC, li.id ASC
             """;
 
@@ -104,21 +180,11 @@ public class LoanReminderRepository {
                 rs.getString("book_title"),
                 rs.getString("copy_barcode"),
                 rs.getObject("due_date", OffsetDateTime.class)
-        ), Date.valueOf(in2Days), Date.valueOf(targetDate),
-           Date.valueOf(overdue1), Date.valueOf(overdue7), Date.valueOf(overdue30));
+        ), Date.valueOf(in2Days), Date.valueOf(targetDate));
     }
 
     public boolean isAlreadySentToday(LocalDate reminderDate, Long readerId, String reminderGroup) {
-        String sql = """
-            SELECT COUNT(*) FROM loan_reminder_logs
-            WHERE reminder_date = ?
-              AND reader_id = ?
-              AND reminder_group = ?
-              AND status IN ('SENT', 'PENDING_RETRY', 'FAILED_MAX_RETRIES')
-              AND is_dry_run = FALSE
-            """;
-        Integer count = jdbc.queryForObject(sql, Integer.class, Date.valueOf(reminderDate), readerId, reminderGroup);
-        return count != null && count > 0;
+        return !"READY".equals(deliveryState(reminderDate, readerId, reminderGroup));
     }
 
     public Long insertLog(
@@ -286,14 +352,14 @@ public class LoanReminderRepository {
                 base.maxRetries(), base.loanNumbers(), base.bookTitles(), base.itemsDetail(),
                 base.subject(), base.emailContent(), base.status(), base.errorMessage(),
                 base.triggeredBy(), base.triggeredByUserName(), base.isDryRun(),
-                base.sentAt(), attempts
+                base.sentAt(), attempts, base.deliveryState()
         ));
     }
 
     public List<LoanReminderLogResponse> findPendingRetryLogs() {
         String sql = """
             SELECT * FROM loan_reminder_logs
-            WHERE status = 'PENDING_RETRY' AND retry_count < max_retries
+            WHERE status = 'PENDING_RETRY' AND retry_count < max_retries AND is_dry_run = FALSE
             ORDER BY sent_at ASC, id ASC
             """;
         return jdbc.query(sql, (rs, rowNum) -> mapLogRow(rs));
@@ -316,12 +382,20 @@ public class LoanReminderRepository {
             params.add(Date.valueOf(date));
         }
         if (reminderGroup != null && !reminderGroup.isBlank()) {
-            sql.append("AND reminder_group = ? ");
-            params.add(reminderGroup.trim());
+            if ("OVERDUE_DAILY".equals(reminderGroup.trim())) {
+                sql.append("AND reminder_group IN ('OVERDUE_DAILY','OVERDUE_1_DAY','OVERDUE_7_DAYS','OVERDUE_30_DAYS') ");
+            } else {
+                sql.append("AND reminder_group = ? ");
+                params.add(reminderGroup.trim());
+            }
         }
         if (status != null && !status.isBlank()) {
-            sql.append("AND status = ? ");
-            params.add(status.trim());
+            if ("FAILED".equals(status.trim())) {
+                sql.append("AND status <> 'SENT' ");
+            } else {
+                sql.append("AND status = ? ");
+                params.add(status.trim());
+            }
         }
         if (cardNumber != null && !cardNumber.isBlank()) {
             sql.append("AND reader_card_number ILIKE ? ");
@@ -353,7 +427,7 @@ public class LoanReminderRepository {
                 l.maxRetries(), l.loanNumbers(), l.bookTitles(), l.itemsDetail(),
                 l.subject(), l.emailContent(), l.status(), l.errorMessage(),
                 l.triggeredBy(), l.triggeredByUserName(), l.isDryRun(),
-                l.sentAt(), attemptsMap.getOrDefault(l.id(), List.of())
+                l.sentAt(), attemptsMap.getOrDefault(l.id(), List.of()), l.deliveryState()
         )).toList();
     }
 
@@ -370,12 +444,20 @@ public class LoanReminderRepository {
             params.add(Date.valueOf(date));
         }
         if (reminderGroup != null && !reminderGroup.isBlank()) {
-            sql.append("AND reminder_group = ? ");
-            params.add(reminderGroup.trim());
+            if ("OVERDUE_DAILY".equals(reminderGroup.trim())) {
+                sql.append("AND reminder_group IN ('OVERDUE_DAILY','OVERDUE_1_DAY','OVERDUE_7_DAYS','OVERDUE_30_DAYS') ");
+            } else {
+                sql.append("AND reminder_group = ? ");
+                params.add(reminderGroup.trim());
+            }
         }
         if (status != null && !status.isBlank()) {
-            sql.append("AND status = ? ");
-            params.add(status.trim());
+            if ("FAILED".equals(status.trim())) {
+                sql.append("AND status <> 'SENT' ");
+            } else {
+                sql.append("AND status = ? ");
+                params.add(status.trim());
+            }
         }
         if (cardNumber != null && !cardNumber.isBlank()) {
             sql.append("AND reader_card_number ILIKE ? ");
@@ -438,7 +520,9 @@ public class LoanReminderRepository {
                 rs.getString("triggered_by_user_name"),
                 rs.getBoolean("is_dry_run"),
                 rs.getObject("sent_at", OffsetDateTime.class),
-                List.of()
+                List.of(),
+                rs.getBoolean("is_dry_run") ? "SIMULATION" : deliveryState(rs.getDate("reminder_date").toLocalDate(),
+                        rs.getLong("reader_id"), rs.getString("reminder_group"))
         );
     }
 }

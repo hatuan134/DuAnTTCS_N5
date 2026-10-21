@@ -4,6 +4,9 @@ interface StatusBadgeProps {
 }
 
 const styles: Record<string, string> = {
+  OVERDUE_DAILY: 'border-rose-200 bg-rose-50 text-rose-700',
+  PROCESSING: 'border-blue-200 bg-blue-50 text-blue-700',
+  REVIEW_REQUIRED: 'border-amber-300 bg-amber-50 text-amber-900',
   ACTIVE: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   AVAILABLE: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   APPROVED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -62,13 +65,19 @@ const labels: Record<string, string> = {
   SENT: 'Đã gửi thành công',
   FAILED: 'Gửi thất bại',
   PENDING_RETRY: 'Chờ gửi lại',
-  FAILED_MAX_RETRIES: 'Thất bại sau 3 lần thử lại',
+  FAILED_MAX_RETRIES: 'Lượt gửi đã tạm dừng',
   SKIPPED: 'Đã bỏ qua',
   DUE_IN_2_DAYS: 'Còn 2 ngày tới hạn',
   DUE_TODAY: 'Đến hạn hôm nay',
   OVERDUE_1_DAY: 'Quá hạn 1 ngày',
   OVERDUE_7_DAYS: 'Quá hạn 7 ngày',
   OVERDUE_30_DAYS: 'Quá hạn 30 ngày',
+  OVERDUE_DAILY: 'Quá hạn · Nhắc hằng ngày',
+  PROCESSING: 'Đang xử lý',
+  REVIEW_REQUIRED: 'Cần đối soát · Không gửi lại',
+  READY: 'Có thể gửi mới',
+  INVALID_EMAIL: 'Email không hợp lệ',
+  SIMULATION: 'Mô phỏng · Không gửi thư',
 }
 
 export default function StatusBadge({

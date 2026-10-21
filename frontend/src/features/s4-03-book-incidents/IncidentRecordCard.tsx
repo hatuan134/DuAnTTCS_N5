@@ -48,7 +48,6 @@ export default function IncidentRecordCard({ record, onUpdated }: { record: Inci
     {error && <FeedbackAlert message={error} tone="error" onDismiss={() => setError('')} />}
     {showPhotos && !loading && <div className="grid gap-3 sm:grid-cols-3">{urls.map((url, index) => <figure key={url}>
       <img src={url} alt={`Ảnh tình trạng ${index + 1}`} className="h-40 w-full rounded-lg object-contain" />
-      <figcaption className="break-all text-xs">{record.photos[index]?.filename}</figcaption>
     </figure>)}</div>}
   </Card>
 }

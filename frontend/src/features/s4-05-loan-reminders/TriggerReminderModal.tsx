@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { Send, Eye, RefreshCw, CheckCircle2, Info } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
@@ -30,6 +30,7 @@ export default function TriggerReminderModal({
     return d.toISOString().split('T')[0]
   })
   const [loading, setLoading] = useState(false)
+  const inFlight = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   const [preview, setPreview] = useState<LoanReminderPreviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,16 +66,21 @@ export default function TriggerReminderModal({
   }, [isOpen, targetDate])
 
   const handleTrigger = async () => {
+    if (inFlight.current) return
+    if (!simulateFailure && !window.confirm('Xác nhận gửi email thật cho các bạn đọc đủ điều kiện trong danh sách?')) return
+    inFlight.current = true
     setSubmitting(true)
     setError(null)
     try {
       const res = await loanReminderService.trigger({ targetDate, simulateFailure })
       setResult(res)
-      setSuccessNotice(`Đã xử lý lượt gửi: ${res.sentCount} thành công, ${res.failedCount} lỗi, ${res.skippedCount} bỏ qua.`)
+      setSuccessNotice(`Đã xử lý lượt gửi: ${res.sentCount} thành công, ${res.failedCount} chưa xác nhận gửi, ${res.skippedCount} bỏ qua.`)
       onSuccess()
+      setPreview(await loanReminderService.getPreview(targetDate))
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Không thể thực hiện gửi email nhắc nhở')
     } finally {
+      inFlight.current = false
       setSubmitting(false)
     }
   }
@@ -90,7 +96,7 @@ export default function TriggerReminderModal({
             <div>
               <h2 className="text-lg font-bold text-slate-800">Kích hoạt gửi nhắc nhở mượn trả</h2>
               <p className="text-sm text-slate-500">
-                Xem trước danh sách bạn đọc đủ điều kiện (trước hạn, đến hạn, quá hạn 1, 7, 30 ngày) và thực hiện gửi
+                Xem trước danh sách bạn đọc đủ điều kiện (trước hạn, đến hạn, quá hạn hằng ngày) và thực hiện gửi
               </p>
             </div>
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
@@ -140,7 +146,7 @@ export default function TriggerReminderModal({
               <div className="flex items-start gap-2.5 rounded-lg border border-purple-200 bg-purple-50/80 p-3.5 text-xs text-purple-900 shadow-sm">
                 <Info className="h-4 w-4 shrink-0 text-purple-600 mt-0.5" />
                 <div>
-                  <span className="font-semibold">Chế độ kiểm thử nghiệp vụ (Sandbox):</span> Hệ thống sẽ mô phỏng lần gửi đầu tiên bị lỗi mạng/từ chối để kiểm tra quy trình đưa vào <em>"Chờ gửi lại"</em>, tự động thử lại tối đa 3 lần và ghi nhật ký đối soát, mà không gửi thư spam tới email thật của bạn đọc.
+                  <span className="font-semibold">Chế độ kiểm thử nghiệp vụ (Sandbox):</span> Hệ thống chỉ ghi nhật ký mô phỏng lỗi. Không gửi SMTP, không tạo hàng đợi gửi thật và không tự gửi lại sau mô phỏng.
                 </div>
               </div>
             )}
@@ -155,7 +161,7 @@ export default function TriggerReminderModal({
                   <p className="font-semibold">Kết quả lượt chạy gửi email</p>
                   <p className="mt-1">
                     Tổng số bạn đọc: <strong>{result.totalRecipients}</strong> | Gửi thành công:{' '}
-                    <strong className="text-emerald-700">{result.sentCount}</strong> | Thất bại:{' '}
+                    <strong className="text-emerald-700">{result.sentCount}</strong> | Chưa xác nhận gửi:{' '}
                     <strong className="text-red-700">{result.failedCount}</strong> | Bỏ qua (đã gửi hoặc email lỗi):{' '}
                     <strong className="text-amber-700">{result.skippedCount}</strong>
                     {typeof result.grandTotalEstimatedFeeVnd === 'number' && result.grandTotalEstimatedFeeVnd > 0 && (
@@ -173,13 +179,13 @@ export default function TriggerReminderModal({
             ) : previewFailed ? <p role="status" className="text-sm text-slate-600">Chưa tải được danh sách xem trước. Nhấn nút tải lại để thử lại.</p> : !preview || preview.reminders.length === 0 ? (
               <EmptyState
                 title="Không có phiếu mượn nào cần gửi nhắc"
-                description={`Không tìm thấy phiếu mượn nào thuộc các mốc nhắc (còn 2 ngày, đến hạn hôm nay, hoặc quá hạn đúng 1, 7, 30 ngày) vào ngày ${targetDate}.`}
+                description={`Không tìm thấy phiếu mượn nào thuộc các mốc nhắc (còn 2 ngày, đến hạn hôm nay, hoặc quá hạn hằng ngày) vào ngày ${targetDate}.`}
               />
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <span>
-                    Tổng số email: <strong>{preview.totalRecipients}</strong> | Tổng số cuốn sách:{' '}
+                    Nhóm đủ điều kiện nghiệp vụ: <strong>{preview.totalRecipients}</strong> | Tổng số cuốn sách:{' '}
                     <strong>{preview.totalItems}</strong>
                     {typeof preview.grandTotalEstimatedFeeVnd === 'number' && preview.grandTotalEstimatedFeeVnd > 0 && (
                       <span className="ml-2 text-rose-700 font-semibold">
@@ -188,7 +194,7 @@ export default function TriggerReminderModal({
                     )}
                   </span>
                   <span className="text-xs text-slate-500">
-                    * Các email đã gửi thành công trong ngày sẽ tự động được bỏ qua
+                    Có thể gửi mới: {preview.reminders.filter(g => g.deliveryState === 'READY').length}. Các nhóm đã xử lý hoặc chờ retry sẽ được bỏ qua.
                   </span>
                 </div>
 
@@ -239,15 +245,7 @@ export default function TriggerReminderModal({
                             )}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
-                            {group.alreadySentToday ? (
-                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                                Đã gửi hôm nay
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                                Sẵn sàng gửi
-                              </span>
-                            )}
+                            <StatusBadge status={group.deliveryState || (group.alreadySentToday ? 'SENT' : 'READY')} />
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <Button
@@ -284,7 +282,7 @@ export default function TriggerReminderModal({
               {submitting
                 ? 'Đang xử lý...'
                 : simulateFailure
-                ? 'Chạy kiểm thử kịch bản gửi lại'
+                ? 'Mô phỏng lỗi (không gửi thư)'
                 : 'Xác nhận gửi nhắc ngay'}
             </Button>
           </div>
