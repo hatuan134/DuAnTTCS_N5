@@ -14,3 +14,16 @@ for(const [name,input,tone,message] of [
 ])test(`old retry action with actual backend DTO: ${name}`,()=>{
  const result=feedback(input);assert.equal(result.tone,tone);assert.ok(result.message.includes(message))
 })
+
+test('unknown SMTP outcome cannot appear as successful retry', () => {
+ const result=feedback({totalProcessed:1,succeededCount:0,stillPendingCount:0,maxRetriesReachedCount:0,reviewRequiredCount:1})
+ assert.equal(result.tone,'warning')
+ assert.ok(result.message.includes('1 cần đối soát'))
+})
+
+test('permanent failure and obsolete reminders have distinct feedback', () => {
+ const result=feedback({totalProcessed:2,succeededCount:0,stillPendingCount:0,maxRetriesReachedCount:0,permanentlyFailedCount:1,skippedCount:1})
+ assert.equal(result.tone,'warning')
+ assert.ok(result.message.includes('1 cần khắc phục'))
+ assert.ok(result.message.includes('1 bỏ qua'))
+})

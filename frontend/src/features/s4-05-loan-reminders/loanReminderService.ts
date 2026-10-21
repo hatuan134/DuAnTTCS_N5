@@ -1,6 +1,23 @@
 import { apiClient } from '../../core/api/apiClient'
 
+/** Presentation only: preserve the transport/audit state used by the backend. */
+export function reminderSendResult(status?: string, errorMessage?: string | null) {
+  if (status === 'SENT' || status === 'SUCCESS') {
+    return { status: 'SENT', label: 'Gửi thành công', reason: null }
+  }
+  const fallback: Record<string, string> = {
+    PROCESSING: 'Lượt gửi đang được xử lý, chưa có xác nhận gửi thành công.',
+    REVIEW_REQUIRED: 'Chưa xác định chắc chắn kết quả gửi. Cần đối soát trước khi gửi lại.',
+    UNKNOWN: 'Chưa xác định chắc chắn kết quả gửi. Cần đối soát trước khi gửi lại.',
+    PENDING_RETRY: 'Lần gửi trước chưa thành công; hệ thống đang chờ thử lại tự động.',
+    SKIPPED: 'Thông báo không được gửi vì không còn đủ điều kiện gửi.',
+    FAILED_MAX_RETRIES: 'Lượt gửi này chưa thành công. Hệ thống vẫn xét nhắc vào ngày tiếp theo nếu sách còn quá hạn.',
+  }
+  return { status: 'FAILED', label: 'Gửi thất bại', reason: errorMessage || fallback[status || ''] || 'Không gửi được email. Vui lòng kiểm tra địa chỉ người nhận và cấu hình gửi thư.' }
+}
+
 export type ReminderGroupType =
+  | 'OVERDUE_DAILY'
   | 'DUE_IN_2_DAYS'
   | 'DUE_TODAY'
   | 'OVERDUE_1_DAY'
@@ -30,6 +47,7 @@ export interface LoanReminderGroupDto {
   subject: string
   emailContentHtml: string
   alreadySentToday: boolean
+  deliveryState?: string
 }
 
 export interface LoanReminderPreviewResponse {
@@ -56,7 +74,7 @@ export interface LoanReminderRetryAttempt {
   reminderLogId: number
   attemptNumber: number
   attemptedAt: string
-  status: 'SUCCESS' | 'FAILED'
+  status: 'SUCCESS' | 'FAILED' | 'UNKNOWN' | 'SKIPPED'
   errorMessage: string | null
   triggeredBy: string
   triggeredByUserName: string | null
@@ -67,6 +85,9 @@ export interface LoanReminderRetryExecutionResult {
   succeededCount: number
   stillPendingCount: number
   maxRetriesReachedCount: number
+  reviewRequiredCount?: number
+  permanentlyFailedCount?: number
+  skippedCount?: number
   executionSummary?: string
 }
 
@@ -75,10 +96,13 @@ export function retryFeedback(result: LoanReminderRetryExecutionResult): { messa
   const succeeded = result.succeededCount ?? 0
   const pending = result.stillPendingCount ?? 0
   const failed = result.maxRetriesReachedCount ?? 0
+  const review = result.reviewRequiredCount ?? 0
+  const permanent = result.permanentlyFailedCount ?? 0
+  const skipped = result.skippedCount ?? 0
   return {
     message: result.executionSummary || (total === 0 ? 'Không có email chờ thử lại.' :
-      `Đã xử lý ${total} email: ${succeeded} thành công, ${pending} chờ thử lại, ${failed} hết lượt thử.`),
-    tone: failed > 0 ? 'warning' : pending > 0 || total === 0 ? 'info' : 'success',
+      `Đã xử lý ${total} email: ${succeeded} thành công, ${pending} chờ thử lại, ${failed} hết lượt thử, ${review} cần đối soát, ${permanent} cần khắc phục, ${skipped} bỏ qua.`),
+    tone: failed + review + permanent > 0 ? 'warning' : pending > 0 || skipped > 0 || total === 0 ? 'info' : 'success',
   }
 }
 
@@ -97,13 +121,14 @@ export interface LoanReminderLog {
   itemsDetail: string
   subject: string
   emailContent: string
-  status: 'SENT' | 'FAILED' | 'PENDING_RETRY' | 'FAILED_MAX_RETRIES' | 'SKIPPED'
+  status: 'SENT' | 'FAILED' | 'PENDING_RETRY' | 'FAILED_MAX_RETRIES' | 'SKIPPED' | 'PROCESSING' | 'REVIEW_REQUIRED'
   errorMessage: string | null
   retryCount: number
   maxRetries: number
   triggeredBy: string
   triggeredByUserName: string | null
   isDryRun: boolean
+  deliveryState?: string
   sentAt: string
   attempts?: LoanReminderRetryAttempt[]
 }

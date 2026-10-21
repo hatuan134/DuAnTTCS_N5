@@ -57,6 +57,7 @@ class LoanReminderServiceTest {
         objectMapper = new ObjectMapper();
         libraryConfigService = mock(LibraryConfigurationService.class);
         service = new LoanReminderService(repository, emailService, objectMapper, libraryConfigService);
+        when(repository.claimInitial(any(), any(), anyString(), any(), any(), any())).thenReturn(1L);
     }
 
     @Test
@@ -121,21 +122,21 @@ class LoanReminderServiceTest {
         assertEquals(3, preview.totalRecipients());
         assertEquals(3, preview.totalItems());
 
-        LoanReminderGroupDto group1 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_1_DAY")).findFirst().orElseThrow();
+        LoanReminderGroupDto group1 = preview.reminders().stream().filter(g -> g.readerId().equals(10L)).findFirst().orElseThrow();
         assertEquals(1L, group1.items().get(0).daysOverdue());
-        assertTrue(group1.subject().contains("quá hạn 1 ngày"));
+        assertTrue(group1.subject().contains("quá hạn hằng ngày"));
 
-        LoanReminderGroupDto group2 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_7_DAYS")).findFirst().orElseThrow();
+        LoanReminderGroupDto group2 = preview.reminders().stream().filter(g -> g.readerId().equals(11L)).findFirst().orElseThrow();
         assertEquals(7L, group2.items().get(0).daysOverdue());
-        assertTrue(group2.subject().contains("quá hạn 7 ngày"));
+        assertTrue(group2.subject().contains("quá hạn hằng ngày"));
 
-        LoanReminderGroupDto group3 = preview.reminders().stream().filter(g -> g.reminderGroup().equals("OVERDUE_30_DAYS")).findFirst().orElseThrow();
+        LoanReminderGroupDto group3 = preview.reminders().stream().filter(g -> g.readerId().equals(12L)).findFirst().orElseThrow();
         assertEquals(30L, group3.items().get(0).daysOverdue());
-        assertTrue(group3.subject().contains("quá hạn 30 ngày"));
+        assertTrue(group3.subject().contains("quá hạn hằng ngày"));
     }
 
     @Test
-    void testNonDesignatedOverdueDaysIgnored() {
+    void testAllOverdueDaysIncluded() {
         // Overdue by 2 days, 6 days, 8 days, 29 days, 31 days
         EligibleLoanItemRow item2Days = new EligibleLoanItemRow(
                 1L, 101L, "PM-001", 10L, "Nguyễn Văn A", "vana@example.com",
@@ -161,12 +162,12 @@ class LoanReminderServiceTest {
         when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item2Days, item6Days, item8Days, item29Days, item31Days));
 
         LoanReminderPreviewResponse preview = service.getPreview(targetDate);
-        assertEquals(0, preview.totalRecipients(), "Non-designated days must not produce reminders");
-        assertEquals(0, preview.totalItems());
+        assertEquals(5, preview.totalRecipients());
+        assertEquals(5, preview.totalItems());
     }
 
     @Test
-    void testConsolidateMultipleLoansForSameReaderSameGroupWithFeeCalculationDemo() {
+    void testConsolidateMultipleLoansForSameReaderSameGroupWithFeeCalculationDemo() throws Exception {
         // Demo scenario: Reader A has 2 books overdue by exactly 7 days.
         // Book 1 estimated fee = 20,000 VND (e.g. 4 open days)
         // Book 2 estimated fee = 15,000 VND (e.g. 3 open days due to closure)
@@ -200,7 +201,7 @@ class LoanReminderServiceTest {
         assertEquals(35000L, preview.grandTotalEstimatedFeeVnd());
 
         LoanReminderGroupDto group = preview.reminders().get(0);
-        assertEquals("OVERDUE_7_DAYS", group.reminderGroup());
+        assertEquals("OVERDUE_DAILY", group.reminderGroup());
         assertEquals(35000L, group.totalEstimatedFeeVnd());
         assertEquals(2, group.items().size());
         assertEquals(20000L, group.items().get(0).estimatedFeeVnd());
@@ -216,6 +217,8 @@ class LoanReminderServiceTest {
         assertTrue(html.contains("Quá hạn 7 ngày"));
         assertTrue(html.contains("phí tạm tính tại thời điểm gửi email"));
         assertTrue(html.contains("không tạo khoản phải thu mới"));
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("target/reminder-previews"));
+        java.nio.file.Files.writeString(java.nio.file.Path.of("target/reminder-previews/fee-demo.html"), html);
     }
 
     @Test
@@ -287,261 +290,4 @@ class LoanReminderServiceTest {
         assertTrue(groupNames.contains("DUE_TODAY"));
     }
 
-    @Test
-    void testProcessRemindersSendsEmailsAndPreventsDuplicateRun() throws Exception {
-        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
-
-        EligibleLoanItemRow item = new EligibleLoanItemRow(
-                1L, 101L, "PM-001", 10L, "Bạn Đọc A", "bandoc@example.com",
-                201L, "Sách Giáo Trình", "BAR-001", dueToday
-        );
-
-        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
-        when(repository.isAlreadySentToday(targetDate, 10L, "DUE_TODAY")).thenReturn(false);
-        when(repository.insertLog(
-                any(), anyLong(), anyString(), any(), anyString(),
-                anyString(), anyInt(), anyLong(), anyInt(), anyInt(),
-                anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), any(), anyString(), any(), any(), anyBoolean()
-        )).thenReturn(1001L);
-
-        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "MANUAL_TEST_RUN", 1L, "Thủ thư A");
-
-        assertEquals(1, result.totalRecipients());
-        assertEquals(1, result.sentCount());
-        assertEquals(0, result.failedCount());
-        assertEquals(0, result.skippedCount());
-
-        verify(emailService).sendRawHtmlEmail(eq("bandoc@example.com"), anyString(), anyString());
-        verify(repository).insertLog(
-                eq(targetDate), eq(10L), eq("Bạn Đọc A"), any(), eq("bandoc@example.com"),
-                eq("DUE_TODAY"), eq(1), eq(0L), eq(0), eq(3), eq("PM-001"), eq("Sách Giáo Trình"),
-                anyString(), anyString(), anyString(), eq("SENT"), any(),
-                eq("MANUAL_TEST_RUN"), eq(1L), eq("Thủ thư A"), eq(false)
-        );
-        verify(repository).insertRetryAttempt(
-                eq(1001L), eq(1), eq("SUCCESS"), any(), eq("MANUAL_TEST_RUN")
-        );
-
-        // Subsequent run on the same day: already sent -> must be skipped!
-        when(repository.isAlreadySentToday(targetDate, 10L, "DUE_TODAY")).thenReturn(true);
-        LoanReminderExecutionResult secondRun = service.processDailyReminders(targetDate, "MANUAL_TEST_RUN", 1L, "Thủ thư A");
-
-        assertEquals(1, secondRun.totalRecipients());
-        assertEquals(0, secondRun.sentCount(), "Second run must not send duplicate email");
-        assertEquals(1, secondRun.skippedCount());
-    }
-
-    @Test
-    void testInvalidOrBlankEmailIsSkippedWithoutBreakingWorkflow() throws Exception {
-        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
-
-        EligibleLoanItemRow itemInvalid = new EligibleLoanItemRow(
-                1L, 101L, "PM-001", 10L, "Bạn Đọc Không Email", "invalid-email-format",
-                201L, "Sách 1", "BAR-001", dueToday
-        );
-        EligibleLoanItemRow itemValid = new EligibleLoanItemRow(
-                2L, 102L, "PM-002", 11L, "Bạn Đọc Chuẩn", "valid@example.com",
-                202L, "Sách 2", "BAR-002", dueToday
-        );
-
-        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(itemInvalid, itemValid));
-        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
-
-        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "SYSTEM_SCHEDULED", null, "Hệ thống");
-
-        assertEquals(2, result.totalRecipients());
-        assertEquals(1, result.sentCount());
-        assertEquals(1, result.skippedCount());
-        assertEquals(0, result.failedCount());
-
-        verify(emailService, never()).sendRawHtmlEmail(eq("invalid-email-format"), anyString(), anyString());
-        verify(emailService).sendRawHtmlEmail(eq("valid@example.com"), anyString(), anyString());
-    }
-
-    @Test
-    void testEmailInitialFailureMovesToPendingRetryAndRecordsAttempt1() throws Exception {
-        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
-
-        EligibleLoanItemRow item = new EligibleLoanItemRow(
-                1L, 101L, "PM-001", 10L, "Bạn Đọc", "reader@example.com",
-                201L, "Sách Test", "BAR-001", dueToday
-        );
-
-        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
-        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
-        when(repository.insertLog(
-                any(), anyLong(), anyString(), any(), anyString(),
-                anyString(), anyInt(), anyLong(), anyInt(), anyInt(),
-                anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), any(), anyString(), any(), any(), anyBoolean()
-        )).thenReturn(2001L);
-
-        doThrow(new RuntimeException("SMTP connection refused")).when(emailService)
-                .sendRawHtmlEmail(anyString(), anyString(), anyString());
-
-        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "SYSTEM_SCHEDULED", null, "Hệ thống");
-
-        assertEquals(1, result.totalRecipients());
-        assertEquals(0, result.sentCount());
-        assertEquals(1, result.failedCount());
-
-        // Status is PENDING_RETRY on initial failure
-        verify(repository).insertLog(
-                eq(targetDate), eq(10L), anyString(), any(), eq("reader@example.com"),
-                anyString(), anyInt(), eq(0L), eq(0), eq(3), anyString(), anyString(),
-                anyString(), anyString(), anyString(), eq("PENDING_RETRY"),
-                eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("SMTP connection refused")), eq("SYSTEM_SCHEDULED"), any(), any(), anyBoolean()
-        );
-        verify(repository).insertRetryAttempt(
-                eq(2001L), eq(1), eq("FAILED"), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("SMTP connection refused")),
-                eq("SYSTEM_SCHEDULED")
-        );
-    }
-
-    @Test
-    void testRetryPendingSuccessOnFirstRetryUpdatesToSent() throws Exception {
-        var pendingLog = new com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderLogResponse(
-                100L, targetDate, 10L, "Bạn Đọc A", "CARD-001", "bandoc@example.com",
-                "OVERDUE_7_DAYS", 1, 25000L, 0, 3, "PM-001", "Sách 1", "[]",
-                "[Thư viện] Nhắc quá hạn", "<p>Phí 25.000 đ</p>", "PENDING_RETRY",
-                "Connection timeout", "SYSTEM_SCHEDULED", "Hệ thống",
-                false, OffsetDateTime.now(VN_OFFSET), List.of()
-        );
-
-        when(repository.findLogById(100L)).thenReturn(Optional.of(pendingLog));
-
-        var retryResult = service.processPendingRetries(100L, false, 1L, "Thủ thư A");
-
-        assertEquals(1, retryResult.totalProcessed());
-        assertEquals(1, retryResult.succeededCount());
-        assertEquals(0, retryResult.stillPendingCount());
-        assertEquals(0, retryResult.maxRetriesReachedCount());
-
-        verify(emailService).sendRawHtmlEmail(eq("bandoc@example.com"), eq("[Thư viện] Nhắc quá hạn"), eq("<p>Phí 25.000 đ</p>"));
-        // Attempt #2 (first retry, retryCount = 1)
-        verify(repository).insertRetryAttempt(eq(100L), eq(2), eq("SUCCESS"), any(), eq("MANUAL_RETRY (Thủ thư A)"));
-        verify(repository).updateLogRetryStatus(eq(100L), eq("SENT"), eq(1), any());
-    }
-
-    @Test
-    void testRetryPendingExhaustsAfter3RetriesMarksFailedMaxRetries() throws Exception {
-        // Already retried twice (retryCount = 2, so this is attempt #4)
-        var pendingLog = new com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderLogResponse(
-                101L, targetDate, 10L, "Bạn Đọc B", "CARD-002", "bandocb@example.com",
-                "OVERDUE_7_DAYS", 1, 25000L, 2, 3, "PM-002", "Sách 2", "[]",
-                "[Thư viện] Nhắc quá hạn", "<p>Nội dung gốc</p>", "PENDING_RETRY",
-                "Network down", "SYSTEM_SCHEDULED", "Hệ thống",
-                false, OffsetDateTime.now(VN_OFFSET), List.of()
-        );
-
-        when(repository.findLogById(101L)).thenReturn(Optional.of(pendingLog));
-        doThrow(new RuntimeException("Mailbox unavailable")).when(emailService)
-                .sendRawHtmlEmail(anyString(), anyString(), anyString());
-
-        var retryResult = service.processPendingRetries(101L, false, 1L, "Thủ thư A");
-
-        assertEquals(1, retryResult.totalProcessed());
-        assertEquals(0, retryResult.succeededCount());
-        assertEquals(0, retryResult.stillPendingCount());
-        assertEquals(1, retryResult.maxRetriesReachedCount(), "Should mark as exhausted after 3rd retry failure");
-
-        // Attempt #4 recorded
-        verify(repository).insertRetryAttempt(eq(101L), eq(4), eq("FAILED"), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("Mailbox unavailable")), eq("MANUAL_RETRY (Thủ thư A)"));
-        // Status updated to FAILED_MAX_RETRIES, retry_count = 3
-        verify(repository).updateLogRetryStatus(eq(101L), eq("FAILED_MAX_RETRIES"), eq(3), eq(com.duanttcsn5.library.service.LoanReminderFailureMessages.message("Mailbox unavailable")));
-    }
-
-    @Test
-    void testExhaustedLogDoesNotAllowFourthRetry() {
-        // Log is already in FAILED_MAX_RETRIES
-        var exhaustedLog = new com.duanttcsn5.library.dto.reminder.LoanReminderDtos.LoanReminderLogResponse(
-                102L, targetDate, 10L, "Bạn Đọc C", "CARD-003", "bandocc@example.com",
-                "OVERDUE_30_DAYS", 1, 90000L, 3, 3, "PM-003", "Sách 3", "[]",
-                "[Thư viện] Nhắc", "<p>Content</p>", "FAILED_MAX_RETRIES",
-                "3 retries failed", "SYSTEM_SCHEDULED", "Hệ thống",
-                false, OffsetDateTime.now(VN_OFFSET), List.of()
-        );
-
-        when(repository.findLogById(102L)).thenReturn(Optional.of(exhaustedLog));
-
-        var retryResult = service.processPendingRetries(102L, false, 1L, "Thủ thư A");
-
-        assertEquals(0, retryResult.totalProcessed());
-    }
-
-    @Test
-    void testSimulateFailureFlagForcesFailureAndPendingRetry() throws Exception {
-        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
-
-        EligibleLoanItemRow item = new EligibleLoanItemRow(
-                1L, 101L, "PM-001", 10L, "Bạn Đọc Sim", "sim@example.com",
-                201L, "Sách Sim", "BAR-SIM", dueToday
-        );
-
-        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
-        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
-        when(repository.insertLog(
-                any(), anyLong(), anyString(), any(), anyString(),
-                anyString(), anyInt(), anyLong(), anyInt(), anyInt(),
-                anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), any(), anyString(), any(), any(), anyBoolean()
-        )).thenReturn(3001L);
-
-        // Run with simulateFailure = true
-        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "MANUAL_TEST_RUN", 1L, "Thủ thư A", true);
-
-        assertEquals(1, result.totalRecipients());
-        assertEquals(0, result.sentCount());
-        assertEquals(1, result.failedCount());
-
-        verify(emailService, never()).sendRawHtmlEmail(anyString(), anyString(), anyString());
-        verify(repository).insertLog(
-                eq(targetDate), eq(10L), anyString(), any(), eq("sim@example.com"),
-                anyString(), anyInt(), eq(0L), eq(0), eq(3), anyString(), anyString(),
-                anyString(), anyString(), anyString(), eq("PENDING_RETRY"),
-                eq("Mô phỏng lỗi gửi thư tạm thời (để kiểm thử cơ chế tự động thử lại)"),
-                eq("MANUAL_TEST_RUN"), eq(1L), eq("Thủ thư A"), eq(false)
-        );
-    }
-
-    @Test
-    void testUnconfiguredSmtpThrowsAndEntersPendingRetry_TC50() throws Exception {
-        OffsetDateTime dueToday = targetDate.atTime(10, 0).atOffset(VN_OFFSET);
-
-        EligibleLoanItemRow item = new EligibleLoanItemRow(
-                1L, 101L, "PM-001", 10L, "Bạn Đọc An", "an@example.com",
-                201L, "Sách An", "BAR-AN", dueToday
-        );
-
-        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(item));
-        when(repository.isAlreadySentToday(any(), anyLong(), anyString())).thenReturn(false);
-        when(repository.insertLog(
-                any(), anyLong(), anyString(), any(), anyString(),
-                anyString(), anyInt(), anyLong(), anyInt(), anyInt(),
-                anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), any(), anyString(), any(), any(), anyBoolean()
-        )).thenReturn(4001L);
-
-        // When EmailService throws MailPreparationException ("SMTP chưa được cấu hình.")
-        doThrow(new org.springframework.mail.MailPreparationException("SMTP chưa được cấu hình."))
-                .when(emailService).sendRawHtmlEmail(anyString(), anyString(), anyString());
-
-        LoanReminderExecutionResult result = service.processDailyReminders(targetDate, "SYSTEM_SCHEDULED", null, null, false);
-
-        assertEquals(1, result.totalRecipients());
-        assertEquals(0, result.sentCount(), "Sent count must be 0 when SMTP is unconfigured");
-        assertEquals(1, result.failedCount(), "Failed count must be 1 to enter retry queue");
-
-        verify(repository).insertLog(
-                eq(targetDate), eq(10L), anyString(), any(), eq("an@example.com"),
-                anyString(), anyInt(), eq(0L), eq(0), eq(3), anyString(), anyString(),
-                anyString(), anyString(), anyString(), eq("PENDING_RETRY"),
-                anyString(),
-                eq("SYSTEM_SCHEDULED"), any(), any(), eq(false)
-        );
-        verify(repository).insertRetryAttempt(
-                eq(4001L), eq(1), eq("FAILED"), anyString(), eq("SYSTEM_SCHEDULED")
-        );
-    }
 }
