@@ -1,4 +1,5 @@
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
+import { InlineDeposits } from '../deposits/DepositPage'
 import ReservationLoanSelection from './ReservationLoanSelection'
 import type { ReaderLoanEligibility } from '../s3-02-direct-loans/directLoanService'
 import { useEffect, useRef, useState } from 'react'
@@ -34,6 +35,7 @@ export default function CreateReservationLoanPanel({
   const [overrideReason, setOverrideReason] = useState('')
   const [selectedIds, setSelectedIds] = useState<number[]>([reservation.id])
   const [selectionReady, setSelectionReady] = useState(false)
+  const [depositBooks, setDepositBooks] = useState<ReadyPickupReservation[]>([])
   const batchExceedsLimit = !!readerCheck && selectedIds.length > readerCheck.remainingBooks
   const overrideReasons = [...(readerCheck?.blockReasons ?? []),
     ...(batchExceedsLimit ? [{ code: 'LOAN_DRAFT_LIMIT_EXCEEDED', message: `Nhận ${selectedIds.length} sách sẽ vượt số sách còn được mượn (${readerCheck?.remainingBooks ?? 0}).` }] : [])]
@@ -169,8 +171,7 @@ export default function CreateReservationLoanPanel({
 
   return <section className="mt-5 border-t border-slate-200 pt-5" aria-labelledby="loan-heading">
     <h4 id="loan-heading" className="text-lg font-semibold text-slate-900">Đối chiếu thẻ và lập phiếu mượn</h4>
-    <p className="mt-2 text-sm text-slate-600">Kiểm tra thẻ của người đến nhận và mã vạch bản sách phía trên trước khi xác nhận.</p>
-    <p className="mt-3 text-sm text-slate-600">Mã thẻ của bạn đọc: <strong className="break-all font-mono text-slate-900">
+    <p className="mt-2 text-sm text-slate-600">Đối chiếu sách và thẻ thực tế trước khi bàn giao. Mã thẻ bạn đọc: <strong className="break-all font-mono text-slate-900">
       {reservation.cardNumber || 'Chưa có thẻ thư viện'}
     </strong></p>
     {error && error !== dismissedError && <FeedbackAlert message={error} tone="error" onDismiss={() => setDismissedError(error)} className="mt-3" />}
@@ -205,11 +206,12 @@ export default function CreateReservationLoanPanel({
         {error && !effective.expired && <Button type="button" variant="secondary" disabled={disabled || submitting}
           onClick={() => { void refreshPreview() }}>Kiểm tra lại trạng thái</Button>}
       </div>
-    </div> : <form className="mt-4 grid min-w-0 gap-5 lg:grid-cols-2 lg:items-start" onSubmit={(event) => { void submit(event) }} noValidate>
-      <div className="min-w-0">
+    </div> : <form className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start" onSubmit={(event) => { void submit(event) }} noValidate>
+      <div className="min-w-0 space-y-4">
         <ReservationLoanSelection reservation={reservation} disabled={disabled || submitting}
-          selectedIds={selectedIds} onReady={setSelectionReady}
+          selectedIds={selectedIds} onReady={setSelectionReady} onBooks={setDepositBooks}
           onChange={ids => { setSelectedIds(ids); requestIdRef.current = null; setError(''); setDismissedError('') }} />
+        <InlineDeposits mode="collect" card={reservation.cardNumber ?? ''} barcodes={depositBooks.flatMap(row => row.barcode ? [row.barcode] : [])} disabled={disabled || submitting || !selectionReady || cardNumber.trim() !== reservation.cardNumber} />
       </div>
       <div className="min-w-0 space-y-4">
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
@@ -235,7 +237,9 @@ export default function CreateReservationLoanPanel({
           value={cardNumber} disabled={disabled || submitting}
           onChange={(event) => { setCardNumber(event.target.value); setError(''); setDismissedError('');
             setOverrideRequested(false); setOverrideReason(''); requestIdRef.current = null }} />
-        {isManager && <section className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+        {isManager && <details open={requireOverride || overrideReasons.length > 0 || !!readerCheckError || overrideRequested} className="rounded-xl border border-amber-200 bg-amber-50 text-sm">
+          <summary className="cursor-pointer px-4 py-3 font-medium text-amber-950">Quyền xử lý ngoại lệ{readerCheck?.eligible && !batchExceedsLimit ? ' · Không cần sử dụng' : ''}</summary>
+          <section className="space-y-3 px-4 pb-4">
           <p className="font-semibold text-amber-950">Quản lý thư viện — bỏ qua chặn đúng một lượt</p>
           {readerCheckError && <FeedbackAlert message={readerCheckError} tone="error"
             onDismiss={() => setReaderCheckError('')} />}
@@ -260,7 +264,7 @@ export default function CreateReservationLoanPanel({
             {!overrideReason.trim() && <span className="mt-1 block text-xs text-red-700">Vui lòng nhập lý do.</span>}
           </label>}
           <p className="text-xs text-amber-900">Vi phạm của bạn đọc không bị xóa. Lượt sau sẽ kiểm tra lại toàn bộ chính sách.</p>
-        </section>}
+        </section></details>}
         <Button type="submit" loading={submitting} className="w-full"
           disabled={disabled || !selectionReady || !reservation.cardNumber || !reservation.copyId || !reservation.barcode || !preview || !!dateError || !!effective.pickupMessage
             || (requireOverride && !overrideRequested)

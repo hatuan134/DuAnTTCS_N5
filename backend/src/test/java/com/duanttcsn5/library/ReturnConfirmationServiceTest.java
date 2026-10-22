@@ -31,7 +31,7 @@ class ReturnConfirmationServiceTest {
         staff = new User(); staff.setId(12L); staff.setFullName("Thủ thư An"); staff.setStatus("ACTIVE");
         Role role = new Role(); role.setCode("LIBRARIAN"); staff.setRole(role);
         when(users.findById(12L)).thenReturn(Optional.of(staff));
-        when(calendar.calculateReturnFee(any(), any(), any())).thenAnswer(call ->
+        when(calendar.calculateItemReturnFee(any(), any(), any(), any())).thenAnswer(call ->
                 ReturnFeeCalculator.calculate(returnedAt, returnedAt, 5000L, java.util.List.of(), java.util.List.of()));
         when(calendar.recordReturnFee(any(), any(), any())).thenAnswer(call -> call.getArgument(2));
     }
@@ -140,7 +140,7 @@ class ReturnConfirmationServiceTest {
                 java.util.stream.IntStream.rangeClosed(1, 7).mapToObj(i ->
                     new ReturnFeeAssessment.WeeklyDay(i, true, LocalTime.of(8, 0), LocalTime.of(17, 0))).toList(),
                 java.util.List.of());
-        when(calendar.calculateReturnFee(any(), any(), any())).thenReturn(unpriced);
+        when(calendar.calculateItemReturnFee(any(), any(), any(), any())).thenReturn(unpriced);
         code(() -> service.confirmReturn(request, 12L), "OVERDUE_FEE_NOT_CONFIGURED");
         verify(loans, never()).findEligiblePendingForReturn(anyLong(), any());
         verify(loans, never()).markReturned(anyLong(), anyLong(), any(), anyLong());

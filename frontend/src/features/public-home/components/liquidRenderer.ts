@@ -200,7 +200,7 @@ export function createLiquidRenderer(canvas: HTMLCanvasElement, host: HTMLElemen
       gl.viewport(0,0,canvas.width,canvas.height)
     }
 
-    const use = (p: Program) => {
+    const bindProgram = (p: Program) => {
       gl.useProgram(p.program)
       gl.uniform1f(p.time,elapsed)
       gl.uniform3f(p.pointer,pointerX,pointerY,pointerPower)
@@ -265,7 +265,7 @@ export function createLiquidRenderer(canvas: HTMLCanvasElement, host: HTMLElemen
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.enable(gl.BLEND)
       gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA)
-      use(liquid)
+      bindProgram(liquid)
       gl.bindBuffer(gl.ARRAY_BUFFER,quad)
       gl.enableVertexAttribArray(quadLoc)
       gl.vertexAttribPointer(quadLoc,2,gl.FLOAT,false,0,0)
@@ -274,7 +274,7 @@ export function createLiquidRenderer(canvas: HTMLCanvasElement, host: HTMLElemen
 
       updateParticles(dt)
       gl.blendFunc(gl.SRC_ALPHA,gl.ONE)
-      use(particles)
+      bindProgram(particles)
       gl.bindBuffer(gl.ARRAY_BUFFER,points)
       gl.bufferSubData(gl.ARRAY_BUFFER,0,particleData)
       gl.enableVertexAttribArray(pointLoc)

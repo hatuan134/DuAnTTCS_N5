@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -11,8 +11,9 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp } from '../s3-01-loans/loanService'
 import { formatVnd } from '../s3-07-returns/ReturnFeeDetails'
-import { feePaymentService, feeTypeLabel, parsePartialAmount, previewFeeAllocation, type FeeCollection, type FeeReader, type FeeReceipt, type FullFeePaymentRequest, type PartialFeePaymentRequest } from './feePaymentService'
+import { feePaymentService, feeTypeLabel, parsePartialAmount, previewFeeAllocation, type FeeCollection, type FeeReceipt, type FullFeePaymentRequest, type PartialFeePaymentRequest } from './feePaymentService'
 import FeeReceiptDialog from './FeeReceiptDialog'
+import FeePaymentList from './FeePaymentList'
 
 export default function FeeCollectionPage() {
   if (!['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Thủ thư hoặc Quản trị viên được thu phí và xem, in lại biên lai.</p>
@@ -20,11 +21,7 @@ export default function FeeCollectionPage() {
 }
 
 export function FeeCollector() {
-  const [query, setQuery] = useState('')
-  const [readers, setReaders] = useState<FeeReader[]>([])
-  const [searched, setSearched] = useState(false)
-  const [appliedQuery, setAppliedQuery] = useState('')
-  const [searching, setSearching] = useState(false)
+  const [listRevision, setListRevision] = useState(0)
   const [loading, setLoading] = useState(false)
   const [collection, setCollection] = useState<FeeCollection | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -44,24 +41,12 @@ export function FeeCollector() {
   const inFlight = useRef(false)
   const request = useRef<FullFeePaymentRequest | PartialFeePaymentRequest | null>(null)
   const version = useRef(0)
-  const busy = searching || loading || collecting || receiptLoading
+  const busy = loading || collecting || receiptLoading
   const locked = busy || uncertain
   const amountInput = mode === 'PARTIAL' && collection ? parsePartialAmount(amountText, collection.totalOutstandingVnd) : null
   const plannedAmount = mode === 'FULL' ? collection?.totalOutstandingVnd ?? 0 : amountInput?.amount ?? 0
   const allocation = collection && mode === 'PARTIAL' ? previewFeeAllocation(collection.fees, plannedAmount) : []
 
-  async function search(event: FormEvent) {
-    event.preventDefault()
-    const value = query.trim()
-    if (locked || !value) return
-    setSearching(true); setFeedback(null); setCollection(null); setReaders([]); setSearched(false); setLoadError(''); request.current = null
-    const generation = ++version.current
-    try {
-      const results = await feePaymentService.search(value)
-      if (generation === version.current) { setReaders(results); setSearched(true); setAppliedQuery(value) }
-    } catch (error) { setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Không tìm được bạn đọc. Vui lòng thử lại.') }) }
-    finally { setSearching(false) }
-  }
   async function select(readerId: number) {
     if (inFlight.current || uncertain) return
     const generation = ++version.current
@@ -82,7 +67,7 @@ export function FeeCollector() {
       const saved = 'amountVnd' in request.current
         ? await feePaymentService.collectPartial(current.reader.id, request.current)
         : await feePaymentService.collect(current.reader.id, request.current)
-      setConfirming(false); setReceipt(saved); request.current = null; setUncertain(false); setAmountText('')
+      setListRevision(value => value + 1); setConfirming(false); setReceipt(saved); request.current = null; setUncertain(false); setAmountText('')
       const after = saved.debtAfterVnd ?? 0
       const updatedFees = current.fees.map(fee => {
         const item = saved.items.find(value => value.feeId === fee.id)
@@ -121,23 +106,7 @@ export function FeeCollector() {
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Thu phí thư viện" description="Tìm bạn đọc, kiểm tra khoản nợ, thu đủ hoặc thu một phần và in biên lai cho từng lần thu." />
     {feedback && <FeedbackAlert {...feedback} onDismiss={() => setFeedback(null)} />}
-    <Card className="p-5">
-      <form onSubmit={event => void search(event)} className="flex flex-col items-end gap-3 sm:flex-row">
-        <div className="min-w-0 flex-1 w-full"><Input label="Mã thẻ hoặc thông tin định danh" required maxLength={255} value={query}
-          placeholder="Mã thẻ, mã bạn đọc, họ tên, email, số điện thoại" disabled={locked} onChange={event => setQuery(event.target.value)} /></div>
-        <Button type="submit" loading={searching} disabled={locked || !query.trim()}>Tìm bạn đọc</Button>
-      </form>
-      {searched && <p className="mt-4 break-words text-sm text-slate-500">Kết quả cho “{appliedQuery}”: {readers.length > 20 ? 'hơn 20 bạn đọc; hãy nhập thông tin cụ thể hơn' : `${readers.length} bạn đọc`}.</p>}
-      {searched && readers.length === 0 && <p className="mt-3 text-sm text-slate-600">Không tìm thấy bạn đọc. Kiểm tra mã thẻ hoặc thử email, số điện thoại.</p>}
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {readers.slice(0, 20).map(reader => <button key={reader.id} type="button" disabled={locked} onClick={() => void select(reader.id)}
-          className={`min-w-0 rounded-xl border p-4 text-left transition hover:border-blue-400 disabled:opacity-50 ${collection?.reader.id === reader.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-          <span className="block break-words font-semibold text-slate-900">{reader.fullName}</span>
-          <span className="mt-1 block break-all text-sm text-slate-600">Thẻ: {reader.cardNumber ?? 'Chưa cấp'} · Mã bạn đọc: {reader.memberCode ?? 'Chưa có'}</span>
-          <span className="mt-1 block break-all text-xs text-slate-500">{reader.email}{reader.phone ? ` · ${reader.phone}` : ''}</span>
-        </button>)}
-      </div>
-    </Card>
+    <FeePaymentList disabled={locked} revision={listRevision} onSelect={id => void select(id)} onReceipt={id => void preview(id)} />
     {loading && <LoadingState />}
     {loadError && <p role="status" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chưa tải được khoản phí. Chọn lại bạn đọc hoặc bấm Tải lại để thử lại.</p>}
     {collection && <>

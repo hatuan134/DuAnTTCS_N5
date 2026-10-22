@@ -11,9 +11,10 @@ interface Props {
   selectedIds: number[]
   onChange: (ids: number[]) => void
   onReady: (ready: boolean) => void
+  onBooks?: (rows: ReadyPickupReservation[]) => void
 }
 
-export default function ReservationLoanSelection({ reservation, disabled, selectedIds, onChange, onReady }: Props) {
+export default function ReservationLoanSelection({ reservation, disabled, selectedIds, onChange, onReady, onBooks }: Props) {
   const [items, setItems] = useState<ReadyPickupReservation[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -21,6 +22,9 @@ export default function ReservationLoanSelection({ reservation, disabled, select
   const [revision, setRevision] = useState(0)
   const callbacks = useRef({ onChange, onReady })
   callbacks.current = { onChange, onReady }
+  const booksCallback = useRef(onBooks)
+  booksCallback.current = onBooks
+  useEffect(() => { booksCallback.current?.(items.filter(row => selectedIds.includes(row.id))) }, [items, selectedIds])
 
   useEffect(() => {
     let active = true

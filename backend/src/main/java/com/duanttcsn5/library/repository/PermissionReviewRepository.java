@@ -60,6 +60,30 @@ public class PermissionReviewRepository {
     public void expireStaleJobs() {
         jdbc.update("UPDATE permission_review_jobs SET state='FAILED',message='Quá thời gian chờ GitHub Actions (90 phút). Kiểm tra Actions và chạy lại.',finished_at=CURRENT_TIMESTAMP WHERE state IN ('STARTING','RUNNING') AND started_at < CURRENT_TIMESTAMP - INTERVAL '90 minutes'");
     }
+    /** Serialize callback retries before testing/inserting the immutable receipt. */
+    public Optional<String> lockCiReceipt(UUID key) {
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 4092))", key.toString());
+        return jdbc.query("SELECT body_sha256 FROM permission_review_ci_receipts WHERE run_key=?",
+                (rs,n) -> rs.getString(1), key).stream().findFirst();
+    }
+    public void createCompletedCiJob(UUID key, String fingerprint) {
+        // Terminal initial state avoids competing with the existing one-active-manual-job index.
+        jdbc.update("""
+                INSERT INTO permission_review_jobs(run_key,state,message,requested_by_name,fingerprint,finished_at)
+                VALUES (?,'FAILED','Đã nhận callback CI; đang kiểm tra bằng chứng.','GitHub Actions',?,CURRENT_TIMESTAMP)
+                ON CONFLICT (run_key) DO NOTHING
+                """, key, fingerprint);
+    }
+    public void saveCiReceipt(UUID key, com.duanttcsn5.library.service.PermissionReviewGitHubCallbackService.CiRun ci, String hash) {
+        jdbc.update("""
+                INSERT INTO permission_review_ci_receipts(run_key,repository,workflow_run_id,run_attempt,commit_sha,
+                    branch,event_name,started_at,completed_at,total_tests,failed_tests,skipped_tests,body_sha256)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, key,ci.repository(),ci.runId(),ci.attempt(),ci.commitSha(),ci.branch(),ci.event(),
+                ci.startedAt(),ci.completedAt(),ci.total(),ci.failed(),ci.skipped(),hash);
+        jdbc.update("UPDATE permission_review_jobs SET started_at=?,finished_at=? WHERE run_key=?",
+                ci.startedAt(),ci.completedAt(),key);
+    }
     public Optional<Long> lockPendingActor(UUID key, String fingerprint) {
         return jdbc.query("SELECT requested_by_user_id FROM permission_review_jobs WHERE run_key=? AND fingerprint=? AND state IN ('STARTING','RUNNING') AND finished_at IS NULL FOR UPDATE",
                 (rs,n) -> (Long)rs.getObject(1), key,fingerprint).stream().findFirst();
@@ -101,6 +125,12 @@ public class PermissionReviewRepository {
         return jdbc.query("SELECT * FROM permission_review_runs WHERE policy_version LIKE 'S4-09.%' ORDER BY imported_at,id",summaryMapper());
     }
     private RowMapper<RunState> runMapper() {
-        return (rs,n) -> new RunState(rs.getObject("run_key",UUID.class),rs.getString("state"),rs.getString("message"),rs.getString("requested_by_name"),rs.getObject("started_at",OffsetDateTime.class),rs.getObject("finished_at",OffsetDateTime.class),rs.getObject("report_id",Long.class));
+        return (rs,n) -> new RunState(rs.getObject("run_key",UUID.class),rs.getString("state"),rs.getString("message"),rs.getString("requested_by_name"),rs.getObject("started_at",OffsetDateTime.class),rs.getObject("finished_at",OffsetDateTime.class),rs.getObject("report_id",Long.class), ciSummary(rs.getObject("run_key",UUID.class)));
+    }
+    private CiSummary ciSummary(UUID key) {
+        return jdbc.query("SELECT * FROM permission_review_ci_receipts WHERE run_key=?", (rs,n) ->
+                new CiSummary(rs.getString("commit_sha"),rs.getString("branch"),rs.getString("event_name"),
+                    "https://github.com/"+rs.getString("repository")+"/actions/runs/"+rs.getLong("workflow_run_id")+"/attempts/"+rs.getInt("run_attempt"),
+                    rs.getInt("total_tests"),rs.getInt("failed_tests"),rs.getInt("skipped_tests")), key).stream().findFirst().orElse(null);
     }
 }

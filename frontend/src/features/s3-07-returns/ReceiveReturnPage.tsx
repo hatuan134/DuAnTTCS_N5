@@ -1,3 +1,4 @@
+import { InlineDeposits } from '../deposits/DepositPage'
 import LoanLookupPanel from '../s3-01-loans/LoanLookupPanel'
 import ConfirmActionDialog from '../../components/ui/ConfirmActionDialog'
 import ReturnFeeDetails, { formatVnd } from './ReturnFeeDetails'
@@ -30,6 +31,7 @@ export default function ReceiveReturnPage() {
   const [barcode, setBarcode] = useState('')
   const [lookupRevision, setLookupRevision] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [depositReturn, setDepositReturn] = useState<{ readerId: number; loanNumber: string; revision: number } | null>(null)
   const [result, setResult] = useState<ReturnLookup | null>(null)
   const [entries, setEntries] = useState<ReturnSessionEntry[]>([])
   const session = useRef<ReturnSessionEntry[]>([])
@@ -117,6 +119,7 @@ export default function ReceiveReturnPage() {
       const data = await returnService.confirm(preview.barcode, preview.itemId!)
       if (!mounted.current) return
       record(returnSessionSuccess(preview, data))
+      if (preview.readerId && preview.loanNumber) setDepositReturn({ readerId: preview.readerId, loanNumber: preview.loanNumber, revision: Date.now() })
       setLookupRevision(value => value + 1)
       setResult(null); setBarcode('')
       setNotice({ message: data.message, tone: 'success' })
@@ -165,6 +168,7 @@ export default function ReceiveReturnPage() {
 
   if (showSummary) return <div className="space-y-5">
     <PageHeader title="Nhận trả sách" description="Lượt nhận trả đã kết thúc. Kiểm tra tổng kết trước khi bắt đầu lượt tiếp theo." />
+    {depositReturn && <InlineDeposits key={depositReturn.revision} mode="return" readerId={depositReturn.readerId} loanNumber={depositReturn.loanNumber} />}
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -241,6 +245,7 @@ export default function ReceiveReturnPage() {
     {decision && <ConfirmActionDialog title="Xác nhận nhận trả" description={decision.description} confirmLabel="Xác nhận" danger={false} onCancel={() => decide(false)} onConfirm={() => decide(true)} />}
     <PageHeader title="Nhận trả sách" description="Tra cứu và xác nhận từng cuốn. Chọn Kết thúc lượt để xem bảng tổng kết sau khi nhận đủ sách."
       action={successCount > 0 && <Button type="button" disabled={busy || confirming} onClick={finishSession}>Kết thúc lượt</Button>} />
+    {depositReturn && !result && !busy && <InlineDeposits key={depositReturn.revision} mode="return" readerId={depositReturn.readerId} loanNumber={depositReturn.loanNumber} />}
     <LoanLookupPanel disabled={busy || confirming || Boolean(decision)} revision={lookupRevision} onSelectCopy={code => {
       if (busy || confirming || decision) return
       changeBarcode(code); void lookup(code)
@@ -269,6 +274,9 @@ export default function ReceiveReturnPage() {
         </> : <Detail label="Phiếu mượn đang mở">Không có phiếu đang mở cho bản sao này.</Detail>}
       </dl>
       {result.itemId !== null && <ReturnFeeDetails fee={result.fee} preview />}
+      {result.readerId != null && result.loanNumber && <section className="mt-5 border-t border-slate-200 pt-4" aria-label="Tiền cọc và hoàn tiền">
+        <InlineDeposits key={result.loanNumber} mode="return" readerId={result.readerId} loanNumber={result.loanNumber} disabled={confirming || Boolean(decision)} />
+      </section>}
       {result.itemId !== null && <div className="mt-5">
         <Button type="button" loading={confirming} disabled={result.fee?.status !== 'READY'} onClick={() => { void confirmReturn() }}>Xác nhận nhận trả</Button>
         <p className="mt-2 text-xs leading-5 text-slate-500">Chỉ xác nhận khi đã nhận sách. Ngày trả được ghi theo thời điểm xác nhận.</p>

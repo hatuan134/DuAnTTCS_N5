@@ -118,7 +118,6 @@ function ReadyPickupDetail({ id }: { id: number }) {
           {item.copyStatus && <div><dt className="text-slate-500">Trạng thái bản sao</dt>
             <dd className="mt-1"><StatusBadge status={item.copyStatus} /></dd></div>}
         </dl>
-        <ReadyPickupEmailPanel key={item.id} reservationId={item.id} />
         <CreateReservationLoanPanel reservation={item} disabled={cancelOpen}
           isManager={['LIBRARY_MANAGER', 'ADMIN'].includes(getCurrentUser()?.role ?? '')}
           requireOverride={getCurrentUser()?.role === 'LIBRARY_MANAGER'}
@@ -129,6 +128,10 @@ function ReadyPickupDetail({ id }: { id: number }) {
             navigate(`/loans/${result.id}`, { state: { loanCreated: true } })
           }}
           onAlreadyConverted={(context) => setItem((current) => current ? { ...current, ...context, converted: true } : current)} />
+        <details className="group mt-5 rounded-xl border border-slate-200 bg-slate-50/60">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700 focus-visible:outline-blue-600">Email thông báo và lịch sử gửi <span className="ml-2 font-normal text-slate-500">— mở để xem</span></summary>
+          <div className="min-w-0 px-4 pb-4"><ReadyPickupEmailPanel key={item.id} reservationId={item.id} /></div>
+        </details>
         {item.converted && <Link to="/loans" className="mt-4 inline-block text-sm font-medium text-blue-700 hover:underline">Mở danh sách phiếu mượn</Link>}
         {(item.converted || item.expired || item.status === 'EXPIRED') && <p className="mt-4 text-sm text-slate-700">
           {item.converted ? 'Đơn đã được loại khỏi danh sách Chờ nhận.' : 'Đơn hết hạn không còn trong danh sách Chờ nhận.'}{' '}

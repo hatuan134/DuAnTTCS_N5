@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
 
 /** Full real-controller/service/JWT/PostgreSQL regression. Each run uses a unique disposable database; transactions execute exactly as in the application. */
 @SpringBootTest(properties={"app.bootstrap-admin.password=","app.scheduling.enabled=false",
-        "app.permission-review.launch-enabled=false","app.pickup-email.automatic-enabled=false",
+        "app.permission-review.launch-enabled=false","app.pickup-email.automatic-enabled=false","app.deposits.activation-enabled=true",
         "spring.main.allow-bean-definition-overriding=true","app.mail.retry-delay-ms=0","spring.datasource.hikari.connection-init-sql=SET lock_timeout='3s'; SET statement_timeout='15s'"})
 @EnabledIfEnvironmentVariable(named="S4_09_2_DB_TEST",matches="true")
 @ContextConfiguration(initializers=FullPermissionDatabaseTest.DatabaseGuard.class)
@@ -106,11 +106,17 @@ class FullPermissionDatabaseTest {
         String filter=System.getProperty("permission.review.filter","");
         return catalog.policy().entries().stream().filter(e->filter.isBlank() || e.id().matches(filter)).flatMap(entry->entry.httpMethods().stream().flatMap(method->
                 entry.rules().entrySet().stream().filter(rule->Set.of("OWN","OVERRIDE").contains(rule.getValue())).map(rule->{
-                    String scenario=rule.getValue().equals("OVERRIDE")?"OVERRIDE":Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine").contains(entry.id())?"OTHER_OWNER":"SPOOFED_OWNER";
+                    String scenario=rule.getValue().equals("OVERRIDE")?"OVERRIDE":Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine","DepositController.accounts","DepositController.history").contains(entry.id())?"OTHER_OWNER":"SPOOFED_OWNER";
                     return DynamicTest.dynamicTest(method+" "+entry.id()+" / "+rule.getKey()+" / "+scenario,()->probe(entry,method,rule.getKey(),scenario));
                 })));
     }
     void probe(PolicyEntry entry,String method,String role,String scenario) throws Exception {
+        if(entry.controller().equals("DepositController")) {
+            var tx=new org.springframework.transaction.support.TransactionTemplate(context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+            tx.executeWithoutResult(status->{try {probeBody(entry,method,role,scenario);}catch(Exception e){throw new RuntimeException(e);}finally{status.setRollbackOnly();}});
+        } else probeBody(entry,method,role,scenario);
+    }
+    void probeBody(PolicyEntry entry,String method,String role,String scenario) throws Exception {
         System.out.println("CHECK "+entry.id()+" "+method+" "+role+" "+scenario);
         Throwable[] failure={null};
         {

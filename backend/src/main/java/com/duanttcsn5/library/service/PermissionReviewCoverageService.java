@@ -38,7 +38,7 @@ public class PermissionReviewCoverageService {
                 if("OVERRIDE".equals(row.policy().rules().get(role.code())) && !results.containsKey(key(row.policy().id(),method,role.code(),"OVERRIDE")))
                     missing.add(new MissingRoleCase(row.policy().id(),method,row.policy().path(),role.code(),"OVERRIDE"));
                 if("OWN".equals(row.policy().rules().get(role.code()))) {
-                    String scope=Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine").contains(row.policy().id())?"OTHER_OWNER":"SPOOFED_OWNER";
+                    String scope=Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine","DepositController.accounts","DepositController.history").contains(row.policy().id())?"OTHER_OWNER":"SPOOFED_OWNER";
                     if(!results.containsKey(key(row.policy().id(),method,role.code(),scope))) missing.add(new MissingRoleCase(row.policy().id(),method,row.policy().path(),role.code(),scope));
                 }
             }

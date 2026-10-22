@@ -368,7 +368,7 @@ public class LoanRepository {
     }
 
     public void insertItem(Long loanId, Long copyId, OffsetDateTime borrowedAt, OffsetDateTime dueAt) {
-        jdbc.update("""
+        insertHandover("""
                 INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date)
                 VALUES (?, ?, ?, ?)
                 """, loanId, copyId, borrowedAt, dueAt);
@@ -376,10 +376,21 @@ public class LoanRepository {
 
     public void insertReservationItem(Long loanId, Long copyId, OffsetDateTime borrowedAt,
                                       OffsetDateTime dueAt, Long reservationId) {
-        jdbc.update("""
+        insertHandover("""
                 INSERT INTO loan_items(loan_id, book_copy_id, borrowed_at, due_date, source_reservation_id)
                 VALUES (?, ?, ?, ?, ?)
                 """, loanId, copyId, borrowedAt, dueAt, reservationId);
+    }
+
+    private void insertHandover(String sql,Object... arguments) {
+        try {jdbc.update(sql,arguments);}
+        catch(org.springframework.dao.DataAccessException error) {
+            String detail=String.valueOf(error.getMostSpecificCause().getMessage());
+            if(detail.contains("DEPOSIT_REQUIRED:") || detail.contains("DEPOSIT_CHANGED:"))
+                throw new com.duanttcsn5.library.exception.ApiException(org.springframework.http.HttpStatus.CONFLICT,
+                    "DEPOSIT_REQUIRED","Chưa xác nhận đủ cọc cho từng cuốn. Mở Tiền đặt cọc, đối chiếu và thu đủ trước khi bàn giao.");
+            throw error;
+        }
     }
 
     /** Filter each item, so partially returned loans retain only their outstanding copies. */

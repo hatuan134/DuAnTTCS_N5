@@ -39,7 +39,8 @@ export interface ReportDetail {
   summary: ReportSummary; evidence: ImportReport; results: CaseResult[]; currentFingerprint: boolean
 }
 export interface ReportPage { items: ReportSummary[]; page: number; size: number; totalItems: number }
-export interface RunState { runKey: string; state: 'STARTING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'; message: string; requestedBy: string; startedAt: string; finishedAt: string | null; reportId: number | null }
+export interface RunState { runKey: string; state: 'STARTING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'; message: string; requestedBy: string; startedAt: string; finishedAt: string | null; reportId: number | null
+  ci?: { commitSha: string; branch: string; event: string; workflowUrl: string; total: number; failed: number; skipped: number } | null }
 export interface Coverage {
   totalApis: number; coveredApis: number; requiredRoleCases: number; coveredRoleCases: number; passedCases: number; failedCases: number
   unresolvedFindings: number; matrixDifferences: number; unknownFunctions: number; currentSource: boolean; serverExecuted: boolean; eligible: boolean

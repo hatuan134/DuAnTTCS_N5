@@ -31,6 +31,21 @@ public class FeePaymentService {
         this.payments = payments; this.users = users;
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public com.duanttcsn5.library.dto.loan.FeeListResponse list(String raw, String status, String type,
+            java.time.LocalDate from, java.time.LocalDate to, int page, Long actorId) {
+        requireLibrarian(actorId);
+        String query = raw == null ? "" : raw.strip();
+        status = status == null ? "" : status; type = type == null ? "" : type;
+        if (query.length()>255 || page<0 || page>1000000 || !java.util.Set.of("","UNPAID","PARTIAL","PAID").contains(status)
+                || !java.util.Set.of("","OVERDUE","COMPENSATION","RECORDED").contains(type)
+                || (from!=null && to!=null && from.isAfter(to)) || (to!=null && to.getYear()>9998))
+            throw error(HttpStatus.BAD_REQUEST,"INVALID_FEE_FILTER","Bộ lọc hoặc trang khoản phí không hợp lệ.");
+        var zone=java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        return payments.list(query,status,type,from==null?null:from.atStartOfDay(zone).toOffsetDateTime(),
+                to==null?null:to.plusDays(1).atStartOfDay(zone).toOffsetDateTime(),page);
+    }
+
     @Transactional(readOnly = true)
     public List<Reader> search(String raw, Long actorId) {
         requireLibrarian(actorId);

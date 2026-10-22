@@ -48,6 +48,14 @@ test('unconfigured fee is unknown, never shown as a zero charge', () => {
 test('historical return with no snapshot explains absence without recalculating', () => {
   assert.match(html(null), /Phiếu cũ chưa ghi nhận/)
 })
+
+test('percentage details use the saved price, percentage and cap rather than the legacy daily amount', () => {
+  const result = html({ ...fee, policyVersion: 'PERCENT-OPEN-DAYS-HALF-UP-V1',
+    percentagePolicyId: 5, coverPrice: 100000, dailyPercent: 1, capPercent: 10,
+    dailyRateVnd: null, rawAmountVnd: 3000, amountVnd: 3000 }, true)
+  for (const value of ['100.000', '1%', '10%', '3.000']) assert.ok(result.includes(value), value)
+  assert.doesNotMatch(result, /5.000 VND/)
+})
 test('preview tells staff that actual return time and active rate are applied at confirmation', () => {
   assert.match(html(fee, true), /Phí trễ hạn dự kiến/)
   assert.match(html(fee, true), /Khi xác nhận/)

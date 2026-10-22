@@ -79,6 +79,7 @@ export type ClosedDateForm = {
   reason: string
 }
 
+export type PercentagePolicy = { id: number; dailyPercent: number; capPercent: number | null; effectiveAt: string; createdAt: string; creatorName: string; previousPolicyId: number | null }
 export type OverdueFeeSetting = {
   dailyRateVnd: number | null
   updatedAt: string | null
@@ -86,6 +87,12 @@ export type OverdueFeeSetting = {
 }
 
 export const librarySettingsService = {
+  async percentagePolicies(page = 0): Promise<{ current: PercentagePolicy | null; history: PercentagePolicy[] }> {
+    return (await apiClient.get<{ current: PercentagePolicy | null; history: PercentagePolicy[] }>('/library-settings/overdue-percentage-policies', { params: { page } })).data
+  },
+  async savePercentagePolicy(value: { dailyPercent: number; capPercent: number | null; effectiveAt: string | null }): Promise<{ current: PercentagePolicy | null; history: PercentagePolicy[] }> {
+    return (await apiClient.post<{ current: PercentagePolicy | null; history: PercentagePolicy[] }>('/library-settings/overdue-percentage-policies', value)).data
+  },
   async getOverdueFee(): Promise<OverdueFeeSetting> {
     return (await apiClient.get<OverdueFeeSetting>('/library-settings/overdue-fee')).data
   },

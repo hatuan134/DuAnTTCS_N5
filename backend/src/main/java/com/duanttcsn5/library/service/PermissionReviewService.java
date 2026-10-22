@@ -52,18 +52,22 @@ public class PermissionReviewService {
     @PreAuthorize("permitAll()")
     @Transactional
     public ReportDetail importAutomatedReport(ImportReport report, Long actorId) {
-        return saveReport(report, actorId);
+        return saveReport(report, actorId, actorId == null);
     }
 
     private ReportDetail saveReport(ImportReport report, Long actorId) {
+        return saveReport(report, actorId, false);
+    }
+
+    private ReportDetail saveReport(ImportReport report, Long actorId, boolean system) {
         var actor = actorId == null ? null : users.findById(actorId).orElse(null);
-        if (actor == null || !"ACTIVE".equals(actor.getStatus()) || actor.getRole() == null
-                || !"ADMIN".equals(actor.getRole().getCode())) {
+        if (!system && (actor == null || !"ACTIVE".equals(actor.getStatus()) || actor.getRole() == null
+                || !"ADMIN".equals(actor.getRole().getCode()))) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Chỉ Quản trị hệ thống được lưu biên bản rà soát.");
         }
         String fingerprint = inspector.inspect().fingerprint();
-        if (!catalog.policy().version().equals(report.policyVersion())) throw invalid("Biên bản sử dụng phiên bản bảng quyền khác.");
-        if (!fingerprint.equals(report.fingerprint())) {
+        if (!system && !catalog.policy().version().equals(report.policyVersion())) throw invalid("Biên bản sử dụng phiên bản bảng quyền khác.");
+        if (!system && !fingerprint.equals(report.fingerprint())) {
             throw new ApiException(HttpStatus.CONFLICT, "PERMISSION_BUILD_CHANGED",
                     "Source hoặc bảng quyền đã thay đổi. Chạy lại bộ kiểm thử trên đúng bản đang chạy rồi nhập kết quả.");
         }
@@ -74,6 +78,20 @@ public class PermissionReviewService {
         Set<String> keys = new HashSet<>();
         List<CaseResult> results = new ArrayList<>();
         for (EvidenceCase test : report.checks()) {
+            // Signed CI may finish before deployment. Preserve that build's evidence;
+            // currentFingerprint/coverage still prevent acceptance of a different build.
+            if (system && !fingerprint.equals(report.fingerprint())) {
+                if (!keys.add(test.endpointId() + ":" + test.httpMethod() + ":" + test.role() + ":" + test.scenario()))
+                    throw invalid("Biên bản chứa trường hợp kiểm thử trùng lặp.");
+                boolean denied = Set.of(401, 403, 404, 405).contains(test.expectedStatus());
+                boolean passed = Boolean.TRUE.equals(test.assertionsPassed()) && test.actualStatus() == test.expectedStatus()
+                        && (!denied || Boolean.TRUE.equals(test.resourceUnchanged()));
+                if (test.httpMethod() == null || test.testedAt().isBefore(report.startedAt())
+                        || test.testedAt().isAfter(report.completedAt()) || test.detectedAt().isAfter(test.testedAt()))
+                    throw invalid("Bằng chứng của phiên bản khác thiếu phương thức hoặc có thời gian không hợp lệ.");
+                results.add(new CaseResult(test, "REVIEW", test.endpointId(), "UNKNOWN", passed ? "PASS" : "OPEN", passed));
+                continue;
+            }
             PolicyEntry entry = catalog.find(test.endpointId()).orElseThrow(() -> invalid("API không thuộc phạm vi: " + test.endpointId()));
             if (!keys.add(test.endpointId() + ":" + test.httpMethod() + ":" + test.role() + ":" + test.scenario())) throw invalid("Biên bản chứa trường hợp kiểm thử trùng lặp.");
             if (report.schemaVersion() == 2 && (test.httpMethod() == null || !entry.httpMethods().contains(test.httpMethod()))) {
@@ -98,7 +116,7 @@ public class PermissionReviewService {
                     "ANONYMOUS".equals(test.role()) ? (entry.rules().containsValue("PUBLIC") ? "PUBLIC" : "LOGIN_REQUIRED") : entry.rules().get(test.role()), outcome, passed));
         }
         Long id;
-        try { id = repository.insert(report, results, actorId, actor.getFullName()); }
+        try { id = repository.insert(report, results, actorId, system ? "GitHub Actions" : actor.getFullName()); }
         catch (DuplicateKeyException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "PERMISSION_REPORT_DUPLICATE", "Lần kiểm thử này đã có biên bản; không lưu trùng.");
         }

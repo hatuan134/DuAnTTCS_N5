@@ -56,7 +56,7 @@ export default function EmailPreviewModal({
               {typeof totalEstimatedFeeVnd === 'number' && totalEstimatedFeeVnd > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-700 border border-rose-200">
                   <DollarSign className="h-3 w-3" />
-                  Phí tạm tính: {totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                  Phần phí đã ước tính: {totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
                 </span>
               )}
             </div>

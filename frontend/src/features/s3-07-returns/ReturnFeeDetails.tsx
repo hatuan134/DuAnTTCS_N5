@@ -18,14 +18,15 @@ export default function ReturnFeeDetails({ fee, preview = false, incident = fals
       <Field label="Hạn trả">{formatLoanTimestamp(fee.dueAt)}</Field>
       <Field label={preview ? 'Thời điểm tra cứu' : incident ? 'Ngày ghi nhận sự cố' : 'Ngày trả thực tế'}>{formatLoanTimestamp(fee.returnedAt)}</Field>
       <Field label="Số ngày mở cửa trễ hạn">{ready || fee.status === 'OVERDUE_FEE_NOT_CONFIGURED' ? `${fee.overdueDays} ngày` : 'Chưa xác định'}</Field>
-      <Field label="Mức phí áp dụng mỗi ngày">{fee.dailyRateVnd === null ? 'Chưa khai báo' : formatVnd(fee.dailyRateVnd)}</Field>
+      <Field label="Mức phí áp dụng mỗi ngày">{fee.dailyPercent != null ? `${fee.dailyPercent}% giá bìa` : fee.dailyRateVnd === null ? 'Chưa khai báo' : formatVnd(fee.dailyRateVnd)}</Field>
+      {fee.percentagePolicyId != null && <><Field label="Giá bìa lúc bàn giao">{formatVnd(fee.coverPrice!)}</Field><Field label="Giới hạn từng cuốn">{fee.capPercent == null ? 'Không giới hạn' : `${fee.capPercent}% giá bìa`}</Field><Field label="Phiên bản chính sách">#{fee.percentagePolicyId}</Field></>}
       <Field label="Tiền trước làm tròn">{fee.rawAmountVnd === null ? 'Chưa xác định' : formatVnd(fee.rawAmountVnd)}</Field>
       <Field label={preview ? 'Số tiền phải thu dự kiến' : 'Số tiền phải thu đã ghi nhận'}>
         <span className={fee.amountVnd ? 'text-red-700' : 'text-emerald-700'}>{fee.amountVnd === null ? 'Chưa xác định' : formatVnd(fee.amountVnd)}</span>
       </Field>
     </dl>
     <p className="mt-3 text-xs leading-5 text-slate-600">{incident ? 'Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày ghi nhận sự cố.' : 'Chỉ đếm ngày mở cửa sau hạn trả đến hết ngày trả.'} Làm tròn tổng phí đến 1.000 VND; đúng 500 đồng làm lên.</p>
-    {preview ? <p className="mt-1 text-xs leading-5 text-slate-600">Khi xác nhận, hệ thống tính lại theo ngày trả thực tế và mức phí đang có hiệu lực.</p>
+    {preview ? <p className="mt-1 text-xs leading-5 text-slate-600">{fee.percentagePolicyId != null ? 'Khi xác nhận, tính theo ngày trả thực tế; chính sách % và giá bìa được giữ theo snapshot lúc bàn giao.' : 'Khi xác nhận, hệ thống tính lại theo ngày trả thực tế và mức phí đang có hiệu lực. Phiếu cũ giữ cơ chế phí cũ.'}</p>
       : ready && <p className="mt-1 text-xs leading-5 text-slate-600">{fee.feeId === null ? 'Không tạo khoản phải thu vì phí bằng 0 VND.' : `Đã tạo khoản phải thu #${fee.feeId}.`} Kết quả giữ nguyên khi cấu hình thay đổi.</p>}
     {!preview && ready && fee.feeId != null && <Link to={`/overdue-fees/${fee.feeId}`} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:underline">Xem chi tiết khoản phí và đề nghị miễn giảm →</Link>}
     {fee.excludedDates.length > 0 && <details className="mt-3 text-sm">

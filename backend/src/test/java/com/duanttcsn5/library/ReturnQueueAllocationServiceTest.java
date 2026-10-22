@@ -40,7 +40,7 @@ class ReturnQueueAllocationServiceTest {
         var staff = new User(); staff.setId(12L); staff.setStatus("ACTIVE");
         var role = new Role(); role.setCode("LIBRARIAN"); staff.setRole(role);
         when(users.findById(12L)).thenReturn(Optional.of(staff));
-        when(calendar.calculateReturnFee(any(), any(), any())).thenAnswer(call ->
+        when(calendar.calculateItemReturnFee(any(), any(), any(), any())).thenAnswer(call ->
                 ReturnFeeCalculator.calculate(returnedAt, returnedAt, 5000L, java.util.List.of(), java.util.List.of()));
         when(calendar.recordReturnFee(any(), any(), any())).thenAnswer(call -> call.getArgument(2));
         when(loans.lockTitleForReturn(9L, "LIB-001")).thenReturn(Optional.of(10L));

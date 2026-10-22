@@ -13,6 +13,8 @@ import java.util.Optional;
 public class ReadyPickupNotificationRepository {
     private final JdbcTemplate jdbc;
     public ReadyPickupNotificationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public String financialSnapshot(long id) {return jdbc.queryForObject("SELECT financial_snapshot::text FROM ready_pickup_notifications WHERE id=?",String.class,id);}
+    public String depositEstimate(long reservation) {return jdbc.queryForObject("SELECT deposit_reservation_estimate(?)::text",String.class,reservation);}
 
     public record Event(long id, long reservationId, String recipientEmail, String readerName,
                         String bookTitle, OffsetDateTime pickupDeadline, String pickupLocation,

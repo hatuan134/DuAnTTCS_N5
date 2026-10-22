@@ -19,6 +19,15 @@ public class FeePaymentController {
     private final FeePaymentService service;
     public FeePaymentController(FeePaymentService service) { this.service = service; }
 
+    @GetMapping
+    public com.duanttcsn5.library.dto.loan.FeeListResponse list(
+            @RequestParam(defaultValue="") String query, @RequestParam(defaultValue="") String status,
+            @RequestParam(defaultValue="") String type, @RequestParam(required=false) java.time.LocalDate from,
+            @RequestParam(required=false) java.time.LocalDate to, @RequestParam(defaultValue="0") int page,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        return service.list(query,status,type,from,to,page,actor == null ? null : actor.id());
+    }
+
     @GetMapping("/readers")
     public List<FeeCollectionResponse.Reader> search(@RequestParam String query, @AuthenticationPrincipal UserPrincipal actor) {
         return service.search(query, actor == null ? null : actor.id());

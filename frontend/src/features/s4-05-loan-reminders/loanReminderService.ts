@@ -34,7 +34,7 @@ export interface LoanReminderItemDto {
   dueDate: string
   daysOverdue: number
   openOverdueDays?: number
-  estimatedFeeVnd: number
+  estimatedFeeVnd: number | null
 }
 
 export interface LoanReminderGroupDto {
@@ -131,6 +131,15 @@ export interface LoanReminderLog {
   deliveryState?: string
   sentAt: string
   attempts?: LoanReminderRetryAttempt[]
+}
+
+/** Old logs without item snapshots remain unknown; never infer a zero fee. */
+export function reminderFeeIncomplete(itemsDetail: string): boolean {
+  try {
+    const items: unknown = JSON.parse(itemsDetail)
+    return !Array.isArray(items) || items.length === 0 || items.some(item =>
+      !item || typeof item.estimatedFeeVnd !== 'number' || !Number.isFinite(item.estimatedFeeVnd))
+  } catch { return true }
 }
 
 export interface LoanReminderHistoryResponse {

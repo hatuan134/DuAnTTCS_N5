@@ -47,6 +47,7 @@ function imports(h, role = 'LIBRARIAN') {
     '../s1-02-user-management/accountService': { getApiErrorMessage: e => e.message },
     '../s3-01-loans/loanService': { formatLoanTimestamp: s => s },
     '../s3-07-returns/ReturnFeeDetails': { formatVnd: vnd },
+    './FeePaymentList': component(() => null),
     './FeeReceiptDialog': component(() => react.createElement('p', {}, 'Biên lai')),
   }
 }
@@ -68,9 +69,7 @@ function collector({ collect = async () => receipt, collectPartial, detail, role
   const render = () => { h.begin(); return module.FeeCollector() }
   function click(label) { const node = find(render(), e => e.props?.children === label && e.props.onClick); assert.ok(node, label); return node.props.onClick() }
   async function select() {
-    find(render(), e => e.props?.label === 'Mã thẻ hoặc thông tin định danh').props.onChange({ target: { value: 'THE-007' } })
-    find(render(), e => e.type === 'form').props.onSubmit({ preventDefault() {} }); await flush()
-    find(render(), e => e.props.onClick && e.props.children?.[0]?.props?.children === reader.fullName).props.onClick(); await flush()
+    find(render(), e => typeof e.props?.onSelect === 'function').props.onSelect(reader.id); await flush()
   }
   async function pay() { click('Thu đủ'); find(render(), e => e.props?.confirmLabel === 'Xác nhận thu đủ').props.onConfirm(); await flush() }
   function partialAmount(value) {

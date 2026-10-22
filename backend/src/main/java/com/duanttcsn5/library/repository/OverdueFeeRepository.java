@@ -22,10 +22,44 @@ import org.springframework.jdbc.core.RowMapper;
 /** Fee storage extends the existing JDBC lending and reader_fees domain. */
 @Repository
 public class OverdueFeeRepository {
+    public record PercentageSnapshot(Long policyId, java.math.BigDecimal coverPrice,
+            java.math.BigDecimal dailyPercent, java.math.BigDecimal capPercent) {}
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
     public OverdueFeeRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
         this.jdbc = jdbc; this.mapper = mapper;
+    }
+    public Optional<PercentageSnapshot> percentageSnapshot(Long itemId) {
+        return jdbc.query("""
+                SELECT s.policy_id,s.cover_price,p.daily_percent,p.cap_percent
+                FROM loan_item_overdue_policies s JOIN overdue_percentage_policies p ON p.id=s.policy_id WHERE s.item_id=?
+                """, (rs,n)->new PercentageSnapshot(rs.getLong(1),rs.getBigDecimal(2),rs.getBigDecimal(3),rs.getBigDecimal(4)),itemId).stream().findFirst();
+    }
+    public List<com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy> percentagePolicies(int page) {
+        return percentagePolicies(" ORDER BY p.id DESC LIMIT 20 OFFSET ?", (long)page*20);
+    }
+    public com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy currentPercentagePolicy() {
+        return percentagePolicies(" WHERE p.effective_at <= statement_timestamp() ORDER BY p.effective_at DESC,p.id DESC LIMIT 1").stream().findFirst().orElse(null);
+    }
+    private List<com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy> percentagePolicies(String suffix,Object... args) {
+        return jdbc.query("""
+                SELECT p.*,u.full_name FROM overdue_percentage_policies p JOIN users u ON u.id=p.created_by
+                """+suffix, (rs,n)->new com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy(
+                    rs.getLong("id"),rs.getBigDecimal("daily_percent"),rs.getBigDecimal("cap_percent"),
+                    rs.getObject("effective_at",OffsetDateTime.class),rs.getObject("created_at",OffsetDateTime.class),
+                    rs.getLong("created_by"),rs.getString("full_name"),rs.getObject("previous_policy_id",Long.class)),args);
+    }
+    public void addPercentagePolicy(com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Request request,Long actor) {
+        jdbc.queryForList("SELECT id FROM library_overdue_fee_settings WHERE id=1 FOR UPDATE");
+        int inserted=jdbc.update("""
+                INSERT INTO overdue_percentage_policies(daily_percent,cap_percent,effective_at,created_at,created_by,previous_policy_id)
+                SELECT ?,?,COALESCE(?,statement_timestamp()),statement_timestamp(),u.id,
+                    (SELECT max(id) FROM overdue_percentage_policies)
+                FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.status='ACTIVE'
+                  AND r.code IN ('ADMIN','LIBRARY_MANAGER')
+                """,request.dailyPercent(),request.capPercent(),request.effectiveAt(),actor);
+        if(inserted!=1)throw new com.duanttcsn5.library.exception.ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "OVERDUE_FEE_MANAGER_REQUIRED","Chỉ Admin hoặc Quản lý thư viện được thay đổi chính sách.");
     }
     public OverdueFeeSettingResponse settings() {
         return jdbc.queryForObject("SELECT daily_rate_vnd, updated_at, updated_by FROM library_overdue_fee_settings WHERE id = 1",

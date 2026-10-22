@@ -4,6 +4,7 @@ import com.duanttcsn5.library.dto.loan.FeeCollectionResponse.Fee;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse.Reader;
 import com.duanttcsn5.library.dto.loan.FeeCollectionResponse.PaymentSummary;
 import com.duanttcsn5.library.dto.loan.FeeReceiptResponse;
+import com.duanttcsn5.library.dto.loan.FeeListResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -39,6 +40,53 @@ public class FeePaymentRepository {
                   OR strpos(coalesce(u.phone, ''), ?) > 0)
                 ORDER BY u.full_name, u.id LIMIT 21
                 """, READER_MAPPER, query, query, query, query, query);
+    }
+
+    public FeeListResponse list(String query, String status, String type,
+            OffsetDateTime from, OffsetDateTime until, int page) {
+        var parameters = new java.util.ArrayList<Object>();
+        StringBuilder where = new StringBuilder(" WHERE 1=1 ");
+        if (!query.isEmpty()) {
+            where.append(" AND (strpos(lower(concat_ws(' ',full_name,card_number,member_code,email,phone,loan_number)),lower(?)) > 0)");
+            parameters.add(query);
+        }
+        if (!status.isEmpty()) { where.append(" AND payment_status=?"); parameters.add(status); }
+        if (!type.isEmpty()) { where.append(" AND fee_type=?"); parameters.add(type); }
+        if (from != null) { where.append(" AND created_at >= ?"); parameters.add(from); }
+        if (until != null) { where.append(" AND created_at < ?"); parameters.add(until); }
+        String cte = """
+                WITH fees AS (
+                  SELECT f.*, u.full_name,u.email,u.phone,p.member_code,c.card_number,c.status AS card_status,
+                    l.id AS loan_id,l.loan_number,
+                    CASE WHEN f.compensation_item_id IS NOT NULL THEN 'COMPENSATION'
+                         WHEN f.return_item_id IS NOT NULL THEN 'OVERDUE' ELSE 'RECORDED' END AS fee_type,
+                    f.amount_vnd-f.paid_amount_vnd-f.waived_amount_vnd AS outstanding,
+                    CASE WHEN f.amount_vnd=f.paid_amount_vnd+f.waived_amount_vnd THEN 'PAID'
+                         WHEN f.paid_amount_vnd>0 THEN 'PARTIAL' ELSE 'UNPAID' END AS payment_status
+                  FROM reader_fees f JOIN users u ON u.id=f.reader_user_id
+                  LEFT JOIN reader_profiles p ON p.user_id=u.id LEFT JOIN library_cards c ON c.user_id=u.id
+                  LEFT JOIN loan_items li ON li.id=COALESCE(f.return_item_id,f.compensation_item_id)
+                  LEFT JOIN loans l ON l.id=li.loan_id
+                  WHERE NOT EXISTS (SELECT 1 FROM book_incidents i JOIN book_incident_adjustments a ON a.incident_id=i.id
+                    WHERE i.compensation_fee_id=f.id AND a.status='CONFIRMED')
+                )
+                """;
+        Long count = jdbc.queryForObject(cte + " SELECT count(*) FROM fees" + where, Long.class, parameters.toArray());
+        parameters.add(10); parameters.add((long)page*10);
+        // Only ten page rows enter the receipt lookup. No application-side N+1 queries.
+        var items = jdbc.query(cte + ", selected AS (SELECT * FROM fees" + where
+                + " ORDER BY (outstanding>0) DESC,created_at DESC,id DESC LIMIT ? OFFSET ?) " + """
+                SELECT s.*, receipt.payment_id FROM selected s
+                LEFT JOIN LATERAL (SELECT i.payment_id FROM fee_payment_items i
+                  WHERE i.reader_fee_id=s.id ORDER BY i.payment_id DESC LIMIT 1) receipt ON true
+                ORDER BY (s.outstanding>0) DESC,s.created_at DESC,s.id DESC
+                """, (rs,n) -> new FeeListResponse.Item(rs.getLong("id"),
+                    new Reader(rs.getLong("reader_user_id"),rs.getString("full_name"),rs.getString("card_number"),
+                        rs.getString("member_code"),rs.getString("email"),rs.getString("phone"),rs.getString("card_status")),
+                    rs.getString("fee_type"),rs.getString("description"),rs.getObject("loan_id",Long.class),rs.getString("loan_number"),
+                    rs.getLong("amount_vnd"),rs.getLong("paid_amount_vnd"),rs.getLong("waived_amount_vnd"),rs.getLong("outstanding"),
+                    rs.getString("payment_status"),rs.getObject("created_at",OffsetDateTime.class),rs.getObject("payment_id",Long.class)), parameters.toArray());
+        return new FeeListResponse(items,page,10,count == null ? 0 : count);
     }
 
     public Optional<Reader> reader(Long id, boolean lock) {
@@ -132,7 +180,7 @@ public class FeePaymentRepository {
                 rs.getLong("reader_user_id"), rs.getString("reader_name"), rs.getString("card_number"),
                 rs.getObject("collected_by", Long.class), rs.getString("collector_name"),
                 rs.getObject("collected_at", OffsetDateTime.class), rs.getLong("total_amount_vnd"),
-                rs.getLong("debt_before_vnd"), rs.getLong("debt_after_vnd"), rs.getString("payment_mode"), items(id)), id)
+                rs.getLong("debt_before_vnd"), rs.getLong("debt_after_vnd"), rs.getString("payment_mode"), items(id),rs.getString("funding_source")), id)
                 .stream().findFirst();
     }
 

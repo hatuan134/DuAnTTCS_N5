@@ -38,7 +38,7 @@ class PermissionReviewCoverageTest {
             String scenario="STANDARD";
             cases.add(result(e,method,role,scenario,true));
             if("OVERRIDE".equals(e.rules().get(role)))cases.add(result(e,method,role,"OVERRIDE",true));
-            if("OWN".equals(e.rules().get(role)))cases.add(result(e,method,role,Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine").contains(e.id())?"OTHER_OWNER":"SPOOFED_OWNER",true));
+            if("OWN".equals(e.rules().get(role)))cases.add(result(e,method,role,Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine","DepositController.accounts","DepositController.history").contains(e.id())?"OTHER_OWNER":"SPOOFED_OWNER",true));
         }
         set(cases,true,2,"REGRESSION");
     }
