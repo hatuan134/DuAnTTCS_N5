@@ -145,6 +145,7 @@ public class ReadyPickupNotificationService {
     }
     private void attempt(Event event,boolean simulateFailure,Long actorId) {
         OffsetDateTime started=now();
+        if(event.notificationType().startsWith("DEPOSIT_")) {attemptDeposit(event,started,simulateFailure,actorId);return;}
         var state=repository.lockReservation(event.reservationId()).orElse(null);
         if (CANCELLATION_TYPE.equals(event.notificationType())) {
             attemptCancellation(event,state,started,simulateFailure,actorId);
@@ -155,6 +156,13 @@ public class ReadyPickupNotificationService {
         String subject=reminder ? lastDaySubject(event.reservationId()) : "Sách đã sẵn sàng để nhận — Đơn #"+event.reservationId();
         String html=reminder ? lastDayContent(event.readerName(),event.reservationId(),event.bookTitle(),event.pickupDeadline(),location)
                 : content(event,location);
+        String estimate=DepositEmailContent.estimate(repository.depositEstimate(event.reservationId()));
+        if(!estimate.isEmpty()) {
+            String closing="</td></tr></table></td></tr></table></body>";
+            int headingEnd=html.indexOf("</h2>");
+            html=headingEnd>=0?html.substring(0,headingEnd+5)+estimate+html.substring(headingEnd+5)
+                :html.contains(closing)?html.replace(closing,estimate+closing):html.replace("</body>",estimate+"</body>");
+        }
         repository.saveContent(event.id(),location,subject,html);
         if(state==null || !"READY_FOR_PICKUP".equals(state.status()) || state.converted()
                 || (!reminder && !repository.isLatest(event))) {
@@ -218,6 +226,28 @@ public class ReadyPickupNotificationService {
                         reply!=null && reply>=500?"SMTP từ chối thư. Vui lòng kiểm tra email và cấu hình gửi.":
                         "Không xác định được SMTP đã nhận thư hay chưa. Không tự gửi lại để tránh trùng.",started,false,actorId);
             }
+        }
+    }
+
+    private void attemptDeposit(Event event,OffsetDateTime started,boolean simulateFailure,Long actorId) {
+        String snapshot=repository.financialSnapshot(event.id());
+        if(snapshot==null) {finish(event,"FAILED","MISSING_FINANCIAL_SNAPSHOT","Thiếu snapshot giao dịch; không suy diễn trạng thái tiền.",started,false,actorId);return;}
+        String subject=DepositEmailContent.subject(event.notificationType(),snapshot);
+        String html=DepositEmailContent.render(event.readerName(),event.notificationType(),snapshot);
+        repository.saveContent(event.id(),"",subject,html);
+        if(!validEmail(event.recipientEmail())) {finish(event,"SKIPPED","INVALID_EMAIL","Bạn đọc chưa có email hợp lệ.",started,false,actorId);return;}
+        long remaining=Duration.between(now(),event.sendBefore()).toMillis();
+        if(remaining<1000) {finish(event,"FAILED","SEND_WINDOW_EXPIRED","Đã hết thời gian gửi thông báo giao dịch.",started,false,actorId);return;}
+        if(simulateFailure) {retry(event,"SIMULATED_FAILURE","Mô phỏng lỗi gửi; chưa gửi thư thật.",started,true,actorId);return;}
+        try {
+            emails.sendRawHtmlEmailStrict(event.recipientEmail().trim(),subject,html,remaining);
+            finish(event,"SENT",null,null,started,false,actorId);
+        } catch(MailAuthenticationException | MailPreparationException e) {
+            finish(event,"FAILED","SMTP_NOT_CONFIGURED","SMTP chưa sẵn sàng. Không thay đổi giao dịch tiền đã ghi nhận.",started,false,actorId);
+        } catch(Exception e) {
+            if(e instanceof org.springframework.mail.MailSendException send && send.getFailedMessages().isEmpty())
+                retry(event,"SMTP_TEMPORARY_FAILURE","Chưa kết nối được SMTP; thử lại trong thời hạn gửi.",started,false,actorId);
+            else finish(event,"FAILED","DELIVERY_UNCERTAIN","Chưa xác định kết quả SMTP; không tự gửi lại để tránh trùng.",started,false,actorId);
         }
     }
     private void attemptCancellation(Event event,ReadyPickupNotificationRepository.ReservationState state,
@@ -288,8 +318,10 @@ public class ReadyPickupNotificationService {
         String date=deadline==null?"Chưa khai báo":DATE.format(deadline.atZoneSameInstant(ZONE));
         String cancelled=cancelledAt==null?"Chưa ghi nhận":DATE.format(cancelledAt.atZoneSameInstant(ZONE));
         return """
-                <!doctype html><html lang="vi"><head><meta charset="UTF-8"></head>
-                <body style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.6">
+                <!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;line-height:1.6">
+                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="width:100%%;table-layout:fixed"><tr><td align="center">
+                <table role="presentation" width="100%%" style="width:100%%;max-width:640px;table-layout:fixed;background:#fff"><tr><td style="padding:20px;overflow-wrap:anywhere;word-break:break-word">
                 <h2>Thư viện LIBRA — Hủy do quá hạn nhận</h2><p>Kính gửi %s,</p>
                 <p>Đơn đặt giữ <strong>#%d</strong> đã chuyển sang <strong>Đã hủy</strong> vì bạn chưa đến nhận sách trước hạn.</p>
                 <p>Tên sách: <strong>%s</strong><br>Lý do hủy: <strong>Quá hạn nhận</strong>
@@ -303,7 +335,7 @@ public class ReadyPickupNotificationService {
                 tài khoản hoạt động, thẻ hợp lệ và còn hạn, không bị khóa; chưa mượn đầu sách này,
                 không có đơn đang hiệu lực cho cùng đầu sách và còn trong giới hạn tối đa 3 đơn đặt giữ đang hiệu lực.</p>
                 <p>Nếu thẻ bị khóa hoặc hết hạn, vui lòng liên hệ thủ thư để được xử lý hoặc gia hạn trước khi đặt lại.</p>
-                <p>Email được gửi tự động từ Thư viện LIBRA.</p></body></html>
+                <p>Email được gửi tự động từ Thư viện LIBRA.</p></td></tr></table></td></tr></table></body></html>
                 """.formatted(escape(reader),id,escape(book),escape(date),escape(cancelled),escape(link));
     }
     public com.duanttcsn5.library.dto.book.PickupCancellationDtos.Preview previewCancellation(long id,OffsetDateTime checkTime) {
@@ -381,15 +413,17 @@ if (current instanceof jakarta.mail.SendFailedException) {
     public static String content(Event event,String location) {
         String deadline=event.pickupDeadline()==null?"Chưa khai báo":DATE.format(event.pickupDeadline().atZoneSameInstant(ZONE));
         return """
-                <!doctype html><html lang="vi"><head><meta charset="UTF-8"></head>
-                <body style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.6">
+                <!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;line-height:1.6">
+                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="width:100%%;table-layout:fixed"><tr><td align="center">
+                <table role="presentation" width="100%%" style="width:100%%;max-width:640px;table-layout:fixed;background:#fff"><tr><td style="padding:20px;overflow-wrap:anywhere;word-break:break-word">
                 <h2>Thư viện LIBRA — Sách đã sẵn sàng</h2><p>Kính gửi %s,</p>
                 <p>Đơn đặt giữ <strong>#%d</strong> đã chuyển sang <strong>Chờ nhận</strong>.</p>
                 <p>Tên sách: <strong>%s</strong><br>Hạn cuối nhận: <strong>%s (giờ Việt Nam, UTC+07:00)</strong>
                 <br>Địa điểm nhận: <strong>%s</strong></p>
                 <p>Vui lòng mang thẻ thư viện đến quầy nhận trước hạn. Bạn có thể xem thông tin trong mục
                 “Đơn đặt giữ của tôi” trên trang cá nhân.</p><p>Email được gửi tự động từ Thư viện LIBRA.</p>
-                </body></html>
+                </td></tr></table></td></tr></table></body></html>
                 """.formatted(escape(event.readerName()),event.reservationId(),escape(event.bookTitle()),
                 escape(deadline),escape(location==null || location.isBlank()?"Chưa khai báo":location));
     }

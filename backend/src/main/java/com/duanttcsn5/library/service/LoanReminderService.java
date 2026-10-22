@@ -295,7 +295,7 @@ public class LoanReminderService {
                 LocalDate dueLocalDate = i.dueDate().atZoneSameInstant(VN_ZONE).toLocalDate();
                 long calendarOverdueDays = 0L;
                 long openOverdueDays = 0L;
-                long estimatedFee = 0L;
+                Long estimatedFee = groupType.startsWith("OVERDUE_") ? null : 0L;
 
                 if (groupType.startsWith("OVERDUE_")) {
                     calendarOverdueDays = Math.max(0L, ChronoUnit.DAYS.between(dueLocalDate, targetDate));
@@ -304,7 +304,7 @@ public class LoanReminderService {
                     if (libraryConfigurationService != null) {
                         try {
                             OffsetDateTime asOf = targetDate.atTime(7, 0).atZone(VN_ZONE).toOffsetDateTime();
-                            ReturnFeeAssessment assessment = libraryConfigurationService.previewReturnFee(i.dueDate(), asOf);
+                            ReturnFeeAssessment assessment = libraryConfigurationService.previewItemReturnFee(i.itemId(),i.dueDate(), asOf);
                             if (assessment != null) {
                                 openOverdueDays = assessment.overdueDays();
                                 if (assessment.amountVnd() != null) {
@@ -331,7 +331,7 @@ public class LoanReminderService {
                 ));
             }
 
-            long totalEstimatedFeeVnd = itemDtos.stream().mapToLong(LoanReminderItemDto::estimatedFeeVnd).sum();
+            long totalEstimatedFeeVnd = itemDtos.stream().mapToLong(i -> i.estimatedFeeVnd() == null ? 0L : i.estimatedFeeVnd()).sum();
             String deliveryState = repository.deliveryState(targetDate, first.readerId(), groupType);
             if (deliveryState == null) deliveryState = "READY";
             boolean alreadySent = !"READY".equals(deliveryState);
@@ -397,7 +397,7 @@ public class LoanReminderService {
                 </td></tr>
                 """.formatted(escapeHtml(item.bookTitle()), escapeHtml(item.loanNumber()), escapeHtml(item.copyBarcode()),
                     item.dueDate().atZoneSameInstant(VN_ZONE).format(DATE_FORMATTER), overdue ? "#b91c1c" : "#2563eb",
-                    status, item.daysOverdue(), overdue ? formatCurrency(item.estimatedFeeVnd()) + " đ" : "0 đ (Trong hạn)",
+                    status, item.daysOverdue(), overdue ? (item.estimatedFeeVnd() == null ? "Chưa xác định — vui lòng liên hệ thủ thư" : formatCurrency(item.estimatedFeeVnd()) + " đ") : "0 đ (Trong hạn)",
                     overdue ? "<p style=\"margin:6px 0;color:#64748b;font-size:13px;\">Ngày mở cửa tính phí: "
                             + item.openOverdueDays() + "</p>" : ""));
         }
@@ -430,7 +430,7 @@ public class LoanReminderService {
                     %s
                     <tr><td style="padding:16px;background-color:#eff6ff;">
                       <p style="margin:0;color:#475569;">Tổng phí trễ hạn tạm tính</p>
-                      <p style="margin:4px 0;font-size:24px;font-weight:bold;color:#1e3a8a;">%s đ</p>
+                      <p style="margin:4px 0;font-size:24px;font-weight:bold;color:#1e3a8a;">%s</p>
                     </td></tr>
                     <tr><td style="padding:20px 16px;font-size:13px;color:#475569;">%s</td></tr>
                     <tr><td style="padding:20px 16px;border-top:1px solid #e2e8f0;background-color:#f8fafc;font-size:12px;color:#64748b;">
@@ -443,7 +443,7 @@ public class LoanReminderService {
               </table>
             </body></html>
             """.formatted(title, escapeHtml(readerName), targetDate.format(DATE_FORMATTER), items.size(), cards,
-                formatCurrency(totalEstimatedFeeVnd), notice);
+                items.stream().anyMatch(i -> i.estimatedFeeVnd() == null) ? "Chưa xác định đầy đủ; phần đã ước tính: " + formatCurrency(totalEstimatedFeeVnd) + " đ" : formatCurrency(totalEstimatedFeeVnd) + " đ", notice);
     }
 
     private void recordInitialLog(

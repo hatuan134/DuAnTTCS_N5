@@ -2,7 +2,6 @@ import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
 const require = createS4Require(import.meta.url)

@@ -166,7 +166,7 @@ export default function TriggerReminderModal({
                     <strong className="text-amber-700">{result.skippedCount}</strong>
                     {typeof result.grandTotalEstimatedFeeVnd === 'number' && result.grandTotalEstimatedFeeVnd > 0 && (
                       <span>
-                        {' '}| Tổng phí tạm tính: <strong>{result.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ</strong>
+                        {' '}| Phần phí đã ước tính: <strong>{result.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ</strong>
                       </span>
                     )}
                   </p>
@@ -189,7 +189,7 @@ export default function TriggerReminderModal({
                     <strong>{preview.totalItems}</strong>
                     {typeof preview.grandTotalEstimatedFeeVnd === 'number' && preview.grandTotalEstimatedFeeVnd > 0 && (
                       <span className="ml-2 text-rose-700 font-semibold">
-                        | Tổng phí tạm tính: {preview.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
+                        | Phần phí đã ước tính: {preview.grandTotalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
                       </span>
                     )}
                   </span>
@@ -228,7 +228,7 @@ export default function TriggerReminderModal({
                                   <span className="text-slate-500">{it.copyBarcode}</span>)
                                   {it.daysOverdue > 0 && (
                                     <span className="ml-1 text-rose-600 font-medium">
-                                      - Quá hạn {it.daysOverdue} ngày ({it.estimatedFeeVnd.toLocaleString('vi-VN')} đ)
+                                      - Quá hạn {it.daysOverdue} ngày ({it.estimatedFeeVnd == null ? 'Chưa xác định phí' : `${it.estimatedFeeVnd.toLocaleString('vi-VN')} đ`})
                                     </span>
                                   )}
                                 </div>
@@ -236,7 +236,7 @@ export default function TriggerReminderModal({
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            {typeof group.totalEstimatedFeeVnd === 'number' && group.totalEstimatedFeeVnd > 0 ? (
+                            {group.items.some(item => item.estimatedFeeVnd == null) ? <span className="text-xs text-amber-700">Chưa xác định đủ phí</span> : typeof group.totalEstimatedFeeVnd === 'number' && group.totalEstimatedFeeVnd > 0 ? (
                               <div className="font-bold text-rose-600">
                                 {group.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
                               </div>

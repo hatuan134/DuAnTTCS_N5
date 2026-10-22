@@ -18,6 +18,13 @@ function load(path, imports = {}, extra = {}) {
 
 const path = '../src/features/s4-05-loan-reminders/'
 
+test('unknown reminder fees are distinct from known zero and malformed historical snapshots', () => {
+  const { reminderFeeIncomplete } = load(path + 'loanReminderService.ts', { '../../core/api/apiClient': { apiClient: {} } })
+  assert.equal(reminderFeeIncomplete('[{"estimatedFeeVnd":0}]'), false)
+  assert.equal(reminderFeeIncomplete('[{"estimatedFeeVnd":15000}]'), false)
+  for (const value of ['[{"estimatedFeeVnd":null}]', '[{}]', '[]', 'null', 'broken']) assert.equal(reminderFeeIncomplete(value), true)
+})
+
 test('reminder history only offers current groups and two send outcomes', () => {
   const hooks = { ...react, useState: value => [value, () => {}], useEffect: () => {}, useCallback: fn => fn }
   const imports = {

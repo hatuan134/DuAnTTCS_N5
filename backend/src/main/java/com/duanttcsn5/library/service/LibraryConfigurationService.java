@@ -96,6 +96,41 @@ public class LibraryConfigurationService {
 
     public Long lockReturnFeeRate() { return overdueFees.lockRate(); }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','LIBRARY_MANAGER','LIBRARIAN')")
+    @Transactional(readOnly=true)
+    public com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Page percentagePolicies(int page) {
+        if(page<0 || page>100000)throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAGE","Trang không hợp lệ.");
+        return new com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Page(overdueFees.currentPercentagePolicy(),overdueFees.percentagePolicies(page));
+    }
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','LIBRARY_MANAGER')")
+    @Transactional
+    public com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Page addPercentagePolicy(
+            com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Request request,Long actorId,String ip) {
+        var rate=request==null?null:request.dailyPercent();var cap=request==null?null:request.capPercent();
+        if(rate==null || rate.signum()<=0 || rate.compareTo(java.math.BigDecimal.valueOf(100))>0 || rate.scale()>4
+                || (cap!=null && (cap.signum()<=0 || cap.compareTo(java.math.BigDecimal.valueOf(10000))>0 || cap.scale()>4))
+                || (request.effectiveAt()!=null && request.effectiveAt().isBefore(OffsetDateTime.now())))
+            throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PERCENTAGE_POLICY","Tỷ lệ phải lớn hơn 0, tối đa 100%/ngày; giới hạn tối đa 10.000%, tối đa 4 số thập phân. Không hồi tố hiệu lực.");
+        overdueFees.addPercentagePolicy(request,actorId);
+        auditLogRepository.insert(actorId,"OVERDUE_PERCENTAGE_POLICY_CREATED","LIBRARY_CONFIGURATION","1",
+                "{\"dailyPercent\":"+rate+",\"capPercent\":"+cap+"}",ip);
+        return percentagePolicies(0);
+    }
+
+    @Transactional(readOnly=true)
+    public ReturnFeeAssessment previewItemReturnFee(Long itemId,OffsetDateTime dueAt,OffsetDateTime returnedAt) {
+        var policy=overdueFees.percentageSnapshot(itemId);
+        if(policy.isEmpty())return previewReturnFee(dueAt,returnedAt);
+        // Reuse exactly the legacy calendar rules; 0 is only a dummy rate for counting open days.
+        return ReturnFeeCalculator.percentage(calculateReturnFee(dueAt,returnedAt,0L),policy.get());
+    }
+
+    public ReturnFeeAssessment calculateItemReturnFee(Long itemId,OffsetDateTime dueAt,OffsetDateTime returnedAt,Long legacyRate) {
+        var policy=overdueFees.percentageSnapshot(itemId);
+        return policy.isEmpty()?calculateReturnFee(dueAt,returnedAt,legacyRate):
+                ReturnFeeCalculator.percentage(calculateReturnFee(dueAt,returnedAt,0L),policy.get());
+    }
+
     @Transactional(readOnly = true)
     public ReturnFeeAssessment previewReturnFee(OffsetDateTime dueAt, OffsetDateTime returnedAt) {
         return calculateReturnFee(dueAt, returnedAt, overdueFees.settings().dailyRateVnd());

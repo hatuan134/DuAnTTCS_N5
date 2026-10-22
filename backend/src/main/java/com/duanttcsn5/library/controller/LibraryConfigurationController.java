@@ -44,6 +44,20 @@ public class LibraryConfigurationController {
         this.service = service;
     }
 
+    @GetMapping("/overdue-percentage-policies")
+    @PreAuthorize("hasAnyRole('LIBRARIAN','LIBRARY_MANAGER','ADMIN')")
+    public com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Page percentagePolicies(@RequestParam(defaultValue="0") int page) {
+        return service.percentagePolicies(page);
+    }
+
+    @PostMapping("/overdue-percentage-policies")
+    @PreAuthorize("hasAnyRole('LIBRARY_MANAGER','ADMIN')")
+    public com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Page addPercentagePolicy(
+            @RequestBody com.duanttcsn5.library.dto.libraryconfig.PercentageOverduePolicy.Request request,
+            @AuthenticationPrincipal UserPrincipal actor,HttpServletRequest servletRequest) {
+        return service.addPercentagePolicy(request,actor==null?null:actor.id(),servletRequest.getRemoteAddr());
+    }
+
     @GetMapping("/overdue-fee")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'LIBRARY_MANAGER', 'ADMIN')")
     public ResponseEntity<OverdueFeeSettingResponse> getOverdueFee() {

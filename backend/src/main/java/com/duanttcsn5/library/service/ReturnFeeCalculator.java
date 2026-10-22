@@ -17,6 +17,27 @@ public final class ReturnFeeCalculator {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private ReturnFeeCalculator() {}
 
+    public static ReturnFeeAssessment percentage(ReturnFeeAssessment calendar,
+            com.duanttcsn5.library.repository.OverdueFeeRepository.PercentageSnapshot policy) {
+        var price=policy.coverPrice();var percent=policy.dailyPercent();var cap=policy.capPercent();
+        String status=calendar.status(), message=calendar.message();Long raw=null, amount=null;
+        if(price==null || price.signum()<=0 || percent==null || percent.signum()<=0
+                || percent.compareTo(java.math.BigDecimal.valueOf(100))>0 || (cap!=null && cap.signum()<=0)) {
+            status="OVERDUE_POLICY_INVALID";message="Thiếu giá bìa hoặc chính sách hợp lệ; chưa thể xác định phí.";
+        } else if("READY".equals(status)) {
+            try {
+                var exact=price.multiply(percent).movePointLeft(2).multiply(java.math.BigDecimal.valueOf(calendar.overdueDays()));
+                var rounded=exact.divide(java.math.BigDecimal.valueOf(1000),0,java.math.RoundingMode.HALF_UP).multiply(java.math.BigDecimal.valueOf(1000));
+                if(cap!=null) rounded=rounded.min(price.multiply(cap).movePointLeft(2).setScale(0,java.math.RoundingMode.DOWN));
+                raw=exact.setScale(0,java.math.RoundingMode.HALF_UP).longValueExact();amount=rounded.longValueExact();
+                message="Phí theo giá bìa và chính sách lúc bàn giao; làm tròn 1.000 VND, không vượt giới hạn từng cuốn.";
+            } catch(ArithmeticException ex) {status="OVERDUE_FEE_AMOUNT_OVERFLOW";message="Số tiền vượt giới hạn xử lý.";}
+        }
+        return new ReturnFeeAssessment(status,message,"PERCENT-OPEN-DAYS-HALF-UP-V1",calendar.dueAt(),calendar.returnedAt(),
+                calendar.overdueDays(),null,raw,amount,null,calendar.excludedDates(),calendar.weeklySchedule(),calendar.closedDates(),
+                policy.policyId(),price,percent,cap);
+    }
+
     public static ReturnFeeAssessment calculate(OffsetDateTime dueAt, OffsetDateTime returnedAt,
             Long rate, List<WeeklyDay> weekly, List<ClosedDay> closures) {
         if (dueAt == null) return result("MISSING_DUE_DATE", "Phiếu chưa có hạn trả; chưa thể tính phí.",

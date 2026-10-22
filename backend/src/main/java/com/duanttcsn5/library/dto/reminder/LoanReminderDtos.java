@@ -16,7 +16,7 @@ public class LoanReminderDtos {
             OffsetDateTime dueDate,
             long daysOverdue,
             long openOverdueDays,
-            long estimatedFeeVnd
+            Long estimatedFeeVnd
     ) {
         public LoanReminderItemDto(Long itemId, Long loanId, String loanNumber, Long bookId, String bookTitle,
                                    String copyBarcode, OffsetDateTime dueDate, long daysOverdue, long estimatedFeeVnd) {
@@ -54,7 +54,7 @@ public class LoanReminderDtos {
                                     List<LoanReminderItemDto> items, String subject, String emailContentHtml,
                                     boolean alreadySentToday) {
             this(readerId, readerName, null, recipientEmail, reminderGroup, items,
-                    items != null ? items.stream().mapToLong(LoanReminderItemDto::estimatedFeeVnd).sum() : 0L,
+                    items != null ? items.stream().mapToLong(i -> i.estimatedFeeVnd() == null ? 0L : i.estimatedFeeVnd()).sum() : 0L,
                     subject, emailContentHtml, alreadySentToday);
         }
     }

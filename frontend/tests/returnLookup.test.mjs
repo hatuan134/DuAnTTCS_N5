@@ -2,7 +2,6 @@ import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
 const require = createS4Require(import.meta.url)
@@ -41,6 +40,7 @@ function fixture(role = 'LIBRARIAN', lookup = async () => openItem()) {
   const names = ['ConfirmActionDialog', 'Button', 'Card', 'EmptyState', 'FeedbackAlert', 'Input', 'PageHeader']
   const dependencies = Object.fromEntries(names.map(n => [`../../components/ui/${n}`, { __esModule: true, default: Object.assign(() => null, { displayName: n }) }]))
   dependencies['../s3-01-loans/LoanLookupPanel'] = { __esModule: true, default: LookupPanel }
+  dependencies['../deposits/DepositPage'] = { InlineDeposits: Object.assign(() => null, { displayName: 'InlineDeposits' }) }
   dependencies['../../components/ui/TablePagination'] = { __esModule: true, default: Object.assign(() => null, { displayName: 'TablePagination' }) }
   dependencies['../../hooks/useTablePagination'] = { __esModule: true, default: items => ({ pageItems: items, startIndex: 0, page: 1, totalPages: 1, totalItems: items.length, pageSize: 10, goToPage() {} }) }
   dependencies.react = hooks
@@ -124,6 +124,15 @@ for (const role of ['LIBRARIAN', 'ADMIN', 'LIBRARY_MANAGER']) test(`${role} find
   assert.equal(f.find('FeedbackAlert').props.tone, 'success')
   f.dismiss(); assert.equal(f.find('FeedbackAlert'), undefined); assert.ok(f.text().includes('Nguyễn An'))
 })
+test('lookup shows deposit settlement for the exact reader and loan before confirming return', async () => {
+  const f = fixture(); f.input('LIB-001'); f.submit(); await flush(); f.render()
+  const deposit = f.find('InlineDeposits')
+  assert.equal(deposit.props.mode, 'return')
+  assert.equal(deposit.props.readerId, 20)
+  assert.equal(deposit.props.loanNumber, 'PM-008')
+  assert.equal(f.calls.length, 1)
+})
+
 test('overdue displays server-calculated days, never recalculates using browser timezone', async () => {
   const f = fixture('LIBRARIAN', async () => openItem({ status: 'OVERDUE', overdueDays: 3 }));
   f.input('LIB-001'); f.submit(); await flush(); f.render()

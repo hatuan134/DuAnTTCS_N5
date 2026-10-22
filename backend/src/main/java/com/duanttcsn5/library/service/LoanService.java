@@ -180,7 +180,7 @@ public class LoanService {
     // S4-03.3: reopening an incident item retains its original overdue-fee snapshot.
     private ReturnFeeAssessment recordedOrPreviewReturnFee(Long loanId,Long itemId,OffsetDateTime dueAt,OffsetDateTime checkedAt) {
         ReturnFeeAssessment saved=configuration.getRecordedReturnFees(loanId).get(itemId);
-        return saved==null?configuration.previewReturnFee(dueAt,checkedAt):saved;
+        return saved==null?configuration.previewItemReturnFee(itemId,dueAt,checkedAt):saved;
     }
     /** S3-07.3: return one copy and allocate it to the first eligible FIFO waiter atomically. */
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
@@ -225,7 +225,7 @@ public class LoanService {
                 throw new ApiException(HttpStatus.CONFLICT, "RETURN_BEFORE_BORROWED_AT",
                         "Ngày giờ hệ thống đang trước ngày mượn. Chưa thể ghi nhận trả sách.");
             }
-            ReturnFeeAssessment fee = recordedFee == null ? configuration.calculateReturnFee(candidate.dueAt(), returnedAt, dailyRate) : recordedFee;
+            ReturnFeeAssessment fee = recordedFee == null ? configuration.calculateItemReturnFee(candidate.itemId(),candidate.dueAt(), returnedAt, dailyRate) : recordedFee;
             if (!"READY".equals(fee.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, fee.status(), fee.message());
             }

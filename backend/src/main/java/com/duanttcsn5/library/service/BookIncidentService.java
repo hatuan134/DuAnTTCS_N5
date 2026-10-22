@@ -71,8 +71,8 @@ public class BookIncidentService {
     private ReturnFeeAssessment fee(Item item,OffsetDateTime at,boolean lock) {
         ReturnFeeAssessment saved=configuration.getRecordedReturnFees(item.loanId()).get(item.itemId());
         if(saved!=null) return saved; // Never mutate paid/waived/recorded principal.
-        ReturnFeeAssessment fee=lock?configuration.calculateReturnFee(item.dueAt(),at,configuration.lockReturnFeeRate())
-                :configuration.previewReturnFee(item.dueAt(),at);
+        ReturnFeeAssessment fee=lock?configuration.calculateItemReturnFee(item.itemId(),item.dueAt(),at,configuration.lockReturnFeeRate())
+                :configuration.previewItemReturnFee(item.itemId(),item.dueAt(),at);
         if(!"READY".equals(fee.status())) throw error(HttpStatus.CONFLICT,fee.status(),fee.message());
         return fee;
     }

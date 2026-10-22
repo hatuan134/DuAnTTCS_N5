@@ -8,6 +8,10 @@ export interface ReturnFeeAssessment {
   returnedAt: string
   overdueDays: number
   dailyRateVnd: number | null
+  percentagePolicyId?: number | null
+  coverPrice?: number | null
+  dailyPercent?: number | null
+  capPercent?: number | null
   rawAmountVnd: number | null
   amountVnd: number | null
   feeId: number | null

@@ -401,9 +401,16 @@ public class AiTools {
             case "getOverdueFeePolicy" -> {
                 access.staffId(); if(libraryConfiguration==null) throw invalid();
                 var cfg=libraryConfiguration.getOverdueFeeSetting();
-                var rows=List.of(map("title","Mức phí quá hạn mỗi ngày",
+                var rows=new java.util.ArrayList<java.util.Map<String,Object>>();
+                rows.add(map("title","Chính sách cũ cho sách chưa có snapshot %",
                     "status",cfg.dailyRateVnd()==null?"Chưa cấu hình":cfg.dailyRateVnd()+" đồng/ngày"));
-                yield result(new Block("records","Phí quá hạn",rows,map("total",1),List.of()),false);
+                for(var policy:libraryConfiguration.percentagePolicies(0).history()) {
+                    rows.add(map("title","Phiên bản chính sách % #"+policy.id(),
+                        "status",policy.dailyPercent()+"% giá bìa/ngày; "
+                            +(policy.capPercent()==null?"không giới hạn": "trần "+policy.capPercent()+"% giá bìa")
+                            +"; hiệu lực "+policy.effectiveAt()+". Chỉ áp dụng cho bàn giao mới; từng cuốn giữ snapshot lúc bàn giao."));
+                }
+                yield result(new Block("records","Phí quá hạn — các phiên bản gần nhất",rows,map("total",rows.size()),List.of()),false);
             }
             case "getCompensationFactors" -> {
                 access.staffId(); if(bookIncidents==null) throw invalid();

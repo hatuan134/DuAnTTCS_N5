@@ -9,6 +9,14 @@ export interface FeeReader {
   phone: string | null
   cardStatus: string | null
 }
+export interface FeeListItem {
+  id: number; reader: FeeReader; feeType: ReaderFee['feeType']; description: string | null
+  loanId: number | null; loanNumber: string | null; amountVnd: number; paidAmountVnd: number
+  waivedAmountVnd: number; outstandingAmountVnd: number; paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID'
+  createdAt: string; latestPaymentId: number | null
+}
+export interface FeeList { items: FeeListItem[]; page: number; size: number; totalItems: number }
+export interface FeeFilters { query: string; status: string; type: string; from: string; to: string }
 export interface ReaderFee {
   id: number
   feeType: 'OVERDUE' | 'RECORDED' | 'COMPENSATION'
@@ -46,6 +54,7 @@ export interface PartialFeePaymentRequest extends FullFeePaymentRequest {
 export interface FeeReceipt extends PaymentSummary {
   debtBeforeVnd: number
   paymentMode: 'FULL' | 'PARTIAL'
+  fundingSource?: 'CASH' | 'DEPOSIT_OFFSET'
   readerId: number
   readerName: string
   cardNumber: string | null
@@ -61,6 +70,9 @@ export interface FeeReceipt extends PaymentSummary {
   }[]
 }
 export const feePaymentService = {
+  async list(filters: FeeFilters, page: number, signal?: AbortSignal): Promise<FeeList> {
+    return (await apiClient.get<FeeList>('/fee-payments', { params: { ...filters, from: filters.from || undefined, to: filters.to || undefined, page }, signal })).data
+  },
   async search(query: string): Promise<FeeReader[]> {
     return (await apiClient.get<FeeReader[]>('/fee-payments/readers', { params: { query } })).data
   },

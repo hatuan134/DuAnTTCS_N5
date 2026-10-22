@@ -19,6 +19,7 @@ export function ReceiptContent({ receipt }: { receipt: FeeReceipt }) {
       <div><dt className="inline text-slate-500">Bạn đọc: </dt><dd className="inline break-words font-semibold">{receipt.readerName}</dd></div>
       <div><dt className="inline text-slate-500">Mã thẻ: </dt><dd className="inline break-all">{receipt.cardNumber ?? 'Chưa cấp thẻ'}</dd></div>
       <div><dt className="inline text-slate-500">Mã giao dịch: </dt><dd className="inline break-all">{receipt.transactionNumber}</dd></div>
+      <div><dt className="inline text-slate-500">Nguồn thanh toán: </dt><dd className="inline">{receipt.fundingSource === 'DEPOSIT_OFFSET' ? 'Khấu trừ tiền cọc đã giữ' : 'Thu tại quầy'}</dd></div>
     </dl>
     <ol className="divide-y divide-slate-200 border-y border-slate-200">
       {receipt.items.map(item => <li key={item.feeId} className="flex flex-wrap items-start justify-between gap-2 py-3 text-sm">
@@ -28,7 +29,7 @@ export function ReceiptContent({ receipt }: { receipt: FeeReceipt }) {
       </li>)}
     </ol>
     <p className="my-5 flex flex-wrap justify-between gap-2 text-lg font-bold"><span>Tổng tiền đã thu</span><span>{formatVnd(receipt.totalAmountVnd)}</span></p>
-    <p className="text-sm">Chỉ ghi số tiền thực tế nhận trong lần thanh toán này.</p>
+    <p className="text-sm">{receipt.fundingSource === 'DEPOSIT_OFFSET' ? 'Đã chuyển phần cọc được xác nhận sang thanh toán nghĩa vụ; không thu thêm tiền mặt trong giao dịch này.' : 'Chỉ ghi số tiền thực tế nhận trong lần thanh toán này.'}</p>
     <p className="mt-2 text-sm">Số dư nợ sau lần thu: <strong>{formatVnd(receipt.debtAfterVnd ?? 0)}</strong>.</p>
     <p className="mt-2 text-sm">{(receipt.debtAfterVnd ?? 0) > 0 ? 'Bạn đọc vẫn còn nợ phí.' : 'Bạn đọc đã hết nợ phí tại thời điểm thu.'}</p>
     <p className="mt-5 break-words text-right text-sm">Thủ thư thu: <strong>{receipt.collectorName}</strong></p>
