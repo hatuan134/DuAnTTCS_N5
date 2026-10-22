@@ -83,6 +83,13 @@ public final class PermissionReviewDtos {
             int unknownFunctions, boolean currentSource, boolean serverExecuted, boolean eligible,
             List<MissingRoleCase> missing, List<String> reasons, Completion completion) {}
     public record RunState(UUID runKey, String state, String message, String requestedBy,
-            OffsetDateTime startedAt, OffsetDateTime finishedAt, Long reportId) {}
+            OffsetDateTime startedAt, OffsetDateTime finishedAt, Long reportId, CiSummary ci) {
+        public RunState(UUID runKey, String state, String message, String requestedBy,
+                OffsetDateTime startedAt, OffsetDateTime finishedAt, Long reportId) {
+            this(runKey,state,message,requestedBy,startedAt,finishedAt,reportId,null);
+        }
+    }
+    public record CiSummary(String commitSha, String branch, String event, String workflowUrl,
+            int total, int failed, int skipped) {}
     public record ExportReport(ReportDetail report, Coverage coverage, List<ReportDetail> sprintReports) {}
 }

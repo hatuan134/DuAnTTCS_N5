@@ -98,6 +98,19 @@ class LoanReminderServiceTest {
     }
 
     @Test
+    void unavailableFeeIsUnknownInReminderInsteadOfZero() throws Exception {
+        var due=targetDate.minusDays(1).atTime(17,0).atOffset(VN_OFFSET);
+        when(repository.findEligibleItemsForDate(targetDate)).thenReturn(List.of(new EligibleLoanItemRow(
+                1L,101L,"PM-UNKNOWN",10L,"Reader","reader@example.invalid",201L,"Book","BAR-UNKNOWN",due)));
+        when(libraryConfigService.previewItemReturnFee(any(),any(),any())).thenThrow(new IllegalStateException("Unavailable"));
+        var group=service.getPreview(targetDate).reminders().get(0);
+        org.junit.jupiter.api.Assertions.assertNull(group.items().get(0).estimatedFeeVnd());
+        assertTrue(group.emailContentHtml().contains("Chưa xác định — vui lòng liên hệ thủ thư"));
+        assertTrue(group.emailContentHtml().contains("Chưa xác định đầy đủ"));
+        verify(emailService,never()).sendRawHtmlEmail(anyString(),anyString(),anyString());
+    }
+
+    @Test
     void testOverdue1Day7Days30DaysClassification() {
         OffsetDateTime due1DayAgo = targetDate.minusDays(1).atTime(17, 0).atOffset(VN_OFFSET);
         OffsetDateTime due7DaysAgo = targetDate.minusDays(7).atTime(17, 0).atOffset(VN_OFFSET);
@@ -193,7 +206,7 @@ class LoanReminderServiceTest {
                 3L, 5000L, 15000L, 15000L, null, List.of(), List.of(), List.of()
         );
 
-        when(libraryConfigService.previewReturnFee(eq(due7DaysAgo), any())).thenReturn(assessment1, assessment2);
+        when(libraryConfigService.previewItemReturnFee(any(), eq(due7DaysAgo), any())).thenReturn(assessment1, assessment2);
 
         LoanReminderPreviewResponse preview = service.getPreview(targetDate);
         assertEquals(1, preview.totalRecipients(), "Consolidated into 1 email for Reader A");

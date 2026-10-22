@@ -20,7 +20,10 @@ import java.util.UUID;
 /** Signed one-time callback from GitHub Actions, never from a browser account. */
 @Service
 public class PermissionReviewGitHubCallbackService {
-    public record Callback(UUID runKey, String fingerprint, boolean passed, ImportReport report) {}
+    public record CiRun(String repository, long runId, int attempt, String commitSha, String branch,
+            String event, java.time.OffsetDateTime startedAt, java.time.OffsetDateTime completedAt,
+            int total, int failed, int skipped) {}
+    public record Callback(UUID runKey, String fingerprint, boolean passed, ImportReport report, CiRun ci) {}
     private final GitHubPermissionReviewGateway gateway;
     private final PermissionReviewRepository repository;
     private final PermissionReviewService reviews;
@@ -59,7 +62,20 @@ public class PermissionReviewGitHubCallbackService {
         catch (Exception ex) { throw invalid(); }
         if (message == null || message.runKey() == null || message.fingerprint() == null
                 || !message.fingerprint().matches("[a-f0-9]{64}")) throw invalid();
-        Long actor = repository.lockPendingActor(message.runKey(), message.fingerprint())
+        String bodyHash = null;
+        if (message.ci() != null) {
+            validateCi(message.ci());
+            try { bodyHash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8))); }
+            catch (Exception ex) { throw new IllegalStateException(ex); }
+            var previous = repository.lockCiReceipt(message.runKey());
+            if (previous.isPresent()) {
+                if (!previous.get().equals(bodyHash)) throw new ApiException(HttpStatus.CONFLICT,
+                        "PERMISSION_CALLBACK_REPLAY_CHANGED", "Callback đã lưu có nội dung khác; không ghi đè lịch sử.");
+                return;
+            }
+            repository.createCompletedCiJob(message.runKey(), message.fingerprint());
+        }
+        Long actor = message.ci() != null ? null : repository.lockPendingActor(message.runKey(), message.fingerprint())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PERMISSION_CALLBACK_NOT_PENDING",
                         "Lần chạy không còn chờ nhận kết quả hoặc dấu vân tay không khớp."));
         Long reportId = null;
@@ -71,11 +87,28 @@ public class PermissionReviewGitHubCallbackService {
                 throw invalid();
             reportId = reviews.importAutomatedReport(report, actor).summary().id();
         }
-        boolean succeeded = message.passed() && reportId != null;
+        boolean succeeded = message.passed() && reportId != null
+                && message.report().checks().stream().allMatch(c -> Boolean.TRUE.equals(c.assertionsPassed())
+                    && c.expectedStatus() == c.actualStatus()
+                    && (!java.util.Set.of(401,403,404,405).contains(c.expectedStatus()) || Boolean.TRUE.equals(c.resourceUnchanged())))
+                && (message.ci() == null || (message.ci().total() > 0 && message.ci().failed() == 0 && message.ci().skipped() == 0
+                    && message.ci().total() == message.report().checks().size()));
         repository.finishJob(message.runKey(), succeeded ? "SUCCEEDED" : "FAILED",
                 succeeded ? "GitHub Actions đã hoàn thành. Mở biên bản để xem từng ca kiểm thử."
                         : "GitHub Actions chưa đạt hoặc không xuất được biên bản. Mở workflow trong GitHub Actions để xem chi tiết.",
                 reportId);
+        if (message.ci() != null) repository.saveCiReceipt(message.runKey(), message.ci(), bodyHash);
+    }
+
+    private void validateCi(CiRun ci) {
+        if (!gateway.acceptsRepository(ci.repository()) || ci.runId() < 1 || ci.attempt() < 1
+                || ci.commitSha() == null || !ci.commitSha().matches("[a-f0-9]{40,64}")
+                || !"main".equals(ci.branch()) || ci.event() == null
+                || !java.util.Set.of("push", "schedule", "workflow_dispatch").contains(ci.event())
+                || ci.startedAt() == null || ci.completedAt() == null || ci.startedAt().isAfter(ci.completedAt())
+                || ci.completedAt().isAfter(java.time.OffsetDateTime.now().plusMinutes(5))
+                || ci.total() < 0 || ci.failed() < 0 || ci.skipped() < 0
+                || (long)ci.failed() + ci.skipped() > ci.total()) throw invalid();
     }
 
     private ApiException forbidden() { return new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_REVIEW_SIGNATURE", "Chữ ký callback không hợp lệ."); }

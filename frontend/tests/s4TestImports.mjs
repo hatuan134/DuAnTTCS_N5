@@ -19,5 +19,7 @@ export function createS4Require(url) {
       ? { __esModule: true, default: field }
       : name.endsWith('/LoanLookupPanel') || name === './LoanLookupPanel'
         ? { __esModule: true, default: () => null }
-        : native(name), native)
+        : name.endsWith('/deposits/DepositPage')
+          ? { InlineDeposits: () => null }
+          : native(name), native)
 }

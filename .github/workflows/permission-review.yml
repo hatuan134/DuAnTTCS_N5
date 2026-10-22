@@ -1,15 +1,19 @@
 name: LIBRA S4-09 - Kiem thu phan quyen
 
 on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 19 * * *' # 02:00 Asia/Ho_Chi_Minh, following calendar day
   workflow_dispatch:
     inputs:
       run_key:
         description: 'UUID cua yeu cau tren LIBRA'
-        required: true
+        required: false
         type: string
       fingerprint:
         description: 'SHA256 ma tran quyen cua backend dang chay'
-        required: true
+        required: false
         type: string
 
 permissions:
@@ -21,6 +25,7 @@ concurrency:
 
 jobs:
   review:
+    if: github.ref == 'refs/heads/main'
     name: PostgreSQL cach ly + 4 vai tro + bao cao
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -60,8 +65,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "$RUN_KEY" ]]; then RUN_KEY=$(cat /proc/sys/kernel/random/uuid); fi
           [[ "$RUN_KEY" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
-          [[ "$EXPECTED_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+          [[ -z "$EXPECTED_FINGERPRINT" || "$EXPECTED_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+          echo "RUN_KEY=$RUN_KEY" >> "$GITHUB_ENV"
+          echo "REVIEW_STARTED_AT=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
           DB_NAME="s4092_review_${RUN_KEY//-/}"
           echo "DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
           echo "PERMISSION_REVIEW_RUN_KEY=$RUN_KEY" >> "$GITHUB_ENV"
@@ -70,7 +78,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Cai JDK 17
@@ -112,22 +120,7 @@ jobs:
           test -n "$CALLBACK_SECRET"
           test -n "$CALLBACK_URL"
           [[ "$CALLBACK_URL" == https://* ]]
-          python3 - <<'PY'
-          import hashlib,hmac,json,os,pathlib,time
-          path=pathlib.Path(os.environ.get('PERMISSION_REVIEW_RESULT', '/nonexistent'))
-          report=json.loads(path.read_text(encoding='utf-8')) if path.exists() else None
-          if report is not None:
-              if report.get('runKey')!=os.environ['RUN_KEY'] or report.get('fingerprint')!=os.environ['EXPECTED_FINGERPRINT']:
-                  # A mismatch is evidence of differing deployed/CI builds, never treated as success.
-                  report=None
-          ok = os.environ.get('TEST_EXIT')=='0' and report is not None
-          payload={'runKey':os.environ['RUN_KEY'], 'fingerprint':os.environ['EXPECTED_FINGERPRINT'], 'passed':ok, 'report':report}
-          body=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
-          stamp=str(int(time.time()))
-          sig=hmac.new(os.environ['CALLBACK_SECRET'].encode(),stamp.encode()+b'.'+body,hashlib.sha256).hexdigest()
-          pathlib.Path(os.environ['RUNNER_TEMP'],'callback.json').write_bytes(body)
-          pathlib.Path(os.environ['RUNNER_TEMP'],'callback.headers').write_text(f'X-Libra-Timestamp: {stamp}\nX-Libra-Signature: sha256={sig}\n')
-          PY
+          node scripts/qa/permission-review-callback.mjs
           curl --fail-with-body --silent --show-error --retry 3 --retry-delay 4 \
             --connect-timeout 10 --max-time 60 \
             -H 'Content-Type: application/json' \
@@ -139,8 +132,11 @@ jobs:
         if: ${{ always() && steps.validate.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: s4092-result-${{ inputs.run_key }}
-          path: ${{ runner.temp }}/s4092-result.json
+          name: s4092-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/s4092-result.json
+            ${{ runner.temp }}/callback.json
+            backend/target/surefire-reports/*.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -150,7 +146,17 @@ jobs:
         env:
           TEST_EXIT: ${{ steps.tests.outputs.exit_code }}
         run: |
-          if [[ "$TEST_EXIT" != 0 ]]; then
+          if [[ "$TEST_EXIT" != 0 || ! -f "$RUNNER_TEMP/review-passed" || "$(cat "$RUNNER_TEMP/review-passed")" != true ]]; then
             echo 'Bộ kiểm thử không đạt hoặc chưa chạy xong. Xem kết quả trên LIBRA và log step Maven.'
             exit 1
           fi
+
+      - name: Don database rieng cua lan chay
+        if: ${{ always() && steps.database.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DB_NAME" =~ ^s4092_review_[a-f0-9]{32}$ ]]
+          [[ "$DB_NAME" != "$PERMISSION_REVIEW_LIVE_DB" ]]
+          export PGHOST=127.0.0.1 PGPORT=5433 PGUSER="$DB_USERNAME" PGPASSWORD="$DB_PASSWORD"
+          psql -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE $DB_NAME WITH (FORCE);"

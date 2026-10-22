@@ -12,6 +12,7 @@ import EmailPreviewModal from './EmailPreviewModal'
 import {
   loanReminderService,
   reminderSendResult,
+  reminderFeeIncomplete,
   type LoanReminderLog,
 } from './loanReminderService'
 
@@ -268,7 +269,7 @@ export default function LoanRemindersPage() {
                         </div>
                       </td>
                       <td data-label="Phí tạm tính" className="px-5 py-3.5 text-center whitespace-nowrap">
-                        {typeof log.totalEstimatedFeeVnd === 'number' && log.totalEstimatedFeeVnd > 0 ? (
+                        {reminderFeeIncomplete(log.itemsDetail) ? <span className="text-xs text-amber-700">Chưa xác định đủ phí</span> : typeof log.totalEstimatedFeeVnd === 'number' && log.totalEstimatedFeeVnd > 0 ? (
                           <div className="font-bold text-rose-600">
                             {log.totalEstimatedFeeVnd.toLocaleString('vi-VN')} đ
                           </div>

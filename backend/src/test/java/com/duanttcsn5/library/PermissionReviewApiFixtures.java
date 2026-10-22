@@ -135,6 +135,13 @@ class PermissionReviewApiFixtures {
         if(id.equals("ReadyPickupNotificationController.runCancellation"))jdbc.update("UPDATE book_reservations SET reserved_at=CURRENT_TIMESTAMP-interval '3 days',hold_started_at=CURRENT_TIMESTAMP-interval '2 days',pickup_deadline=CURRENT_TIMESTAMP-interval '1 hour' WHERE id=?",value("reservationId"));
         if(e.controller().equals("LoanReminderController"))jdbc.update("UPDATE loan_items SET due_date=CURRENT_TIMESTAMP WHERE id=?",value("itemId"));
         if(e.rules().containsValue("OWN")) ownershipFixtures(e,scenario);
+        if(e.controller().equals("DepositController")) {
+            var repo=context.getBean(DepositRepository.class);
+            repo.policy(new com.duanttcsn5.library.dto.loan.DepositDtos.PolicyRequest(new BigDecimal("50"),null),users.get("ADMIN"));
+            long account=repo.account(reader,value("copyId"),repo.current(),new BigDecimal("50000"),25000,staff);
+            values.put("depositAccountId",account);values.put("kind","COLLECT");
+            if(scenario.equals("OTHER_OWNER"))values.put("readerId",users.get("OTHER_READER"));
+        }
     }
     void ownershipFixtures(PolicyEntry entry,String scenario) {
         long other=users.get("OTHER_READER");
@@ -207,7 +214,7 @@ class PermissionReviewApiFixtures {
                     evidence.add(new EvidenceCase(e.id(),role,"OVERRIDE",200,null,200,null,at,at,"Fixture điều kiện luồng ngoại lệ.",null,method,true));
                 }
                 if("OWN".equals(e.rules().get(role))) {
-                    String scope=Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine").contains(e.id())?"OTHER_OWNER":"SPOOFED_OWNER";int code=scope.equals("OTHER_OWNER")?404:expected;
+                    String scope=Set.of("LoanController.loanDetail","LoanController.checkMyRenewal","BookReservationController.cancelMine","DepositController.accounts","DepositController.history").contains(e.id())?"OTHER_OWNER":"SPOOFED_OWNER";int code=scope.equals("OTHER_OWNER")?404:expected;
                     evidence.add(new EvidenceCase(e.id(),role,scope,code,null,code,true,at,at,"Fixture kiểm tra điều kiện biên bản.",null,method,true));
                 }
             }
@@ -240,6 +247,11 @@ class PermissionReviewApiFixtures {
         boolean override=scenario.equals("OVERRIDE");
         Object body=null;
         switch(e.id()) {
+            case "DepositController.policy" -> body=Map.of("percentage",50,"effectiveAt",OffsetDateTime.now().plusYears(1).toString());
+            case "DepositController.prepare" -> body=Map.of("cardNumber",cardNumber,"barcodes",List.of(freeBarcode));
+            case "DepositController.accounts" -> request.param("readerId",text("readerId"));
+            case "DepositController.transact" -> body=Map.of("requestKey",UUID.randomUUID().toString(),"accountIds",List.of(value("depositAccountId")),"expectedAmountVnd",25000,"confirmation","COLLECT");
+            case "LibraryConfigurationController.addPercentagePolicy" -> body=Map.of("dailyPercent",1,"capPercent",100,"effectiveAt",OffsetDateTime.now().plusYears(2).toString());
             case "AiController.chat", "AiController.stream" -> body=Map.of("message","Xin chào thư viện LIBRA");
             case "AuthController.login" -> {String who=role.equals("ANONYMOUS")?"READER":role;body=Map.of("email",jdbc.queryForObject("SELECT email FROM users WHERE id=?",String.class,users.get(who)),"password",password);}
             case "AuthController.refresh" -> body=Map.of("refreshToken",refresh.get(role.equals("ANONYMOUS")?"READER":role));

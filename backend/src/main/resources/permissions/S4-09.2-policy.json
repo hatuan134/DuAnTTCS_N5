@@ -1067,6 +1067,25 @@
       "mutating": false
     },
     {
+      "id": "FeePaymentController.list",
+      "module": "FEES",
+      "label": "Danh sach khoan phi",
+      "controller": "FeePaymentController",
+      "handler": "list",
+      "path": "/api/v1/fee-payments",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Same scope as existing fee collection; read only.",
+      "mutating": false
+    },
+    {
       "id": "FeePaymentController.search",
       "module": "FEES",
       "label": "Tìm bạn đọc để thu phí",
@@ -3839,6 +3858,158 @@
         "READER": "ALLOW"
       },
       "condition": "Yêu cầu đăng nhập; AiHistoryStore kiểm tra sở hữu hội thoại của chính tài khoản.",
+      "mutating": true
+    },
+    {
+      "id": "LibraryConfigurationController.percentagePolicies",
+      "module": "CONFIG",
+      "label": "Lịch sử phí phần trăm",
+      "controller": "LibraryConfigurationController",
+      "handler": "percentagePolicies",
+      "path": "/api/v1/library-settings/overdue-percentage-policies",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Chính sách mới chỉ áp dụng cho bàn giao mới.",
+      "mutating": false
+    },
+    {
+      "id": "LibraryConfigurationController.addPercentagePolicy",
+      "module": "CONFIG",
+      "label": "Cấu hình phí phần trăm",
+      "controller": "LibraryConfigurationController",
+      "handler": "addPercentagePolicy",
+      "path": "/api/v1/library-settings/overdue-percentage-policies",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Chính sách mới chỉ áp dụng cho bàn giao mới.",
+      "mutating": true
+    },
+    {
+      "id": "DepositController.policies",
+      "module": "LOANS",
+      "label": "Deposit policies",
+      "controller": "DepositController",
+      "handler": "policies",
+      "path": "/api/v1/deposits/policies",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
+      "mutating": false
+    },
+    {
+      "id": "DepositController.policy",
+      "module": "LOANS",
+      "label": "Deposit policy",
+      "controller": "DepositController",
+      "handler": "policy",
+      "path": "/api/v1/deposits/policies",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "DENY",
+        "READER": "DENY"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
+      "mutating": true
+    },
+    {
+      "id": "DepositController.prepare",
+      "module": "LOANS",
+      "label": "Deposit prepare",
+      "controller": "DepositController",
+      "handler": "prepare",
+      "path": "/api/v1/deposits/prepare",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
+      "mutating": true
+    },
+    {
+      "id": "DepositController.accounts",
+      "module": "LOANS",
+      "label": "Deposit accounts",
+      "controller": "DepositController",
+      "handler": "accounts",
+      "path": "/api/v1/deposits",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "OWN"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
+      "mutating": false
+    },
+    {
+      "id": "DepositController.history",
+      "module": "LOANS",
+      "label": "Deposit history",
+      "controller": "DepositController",
+      "handler": "history",
+      "path": "/api/v1/deposits/readers/{readerId}/transactions",
+      "httpMethods": [
+        "GET"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "ALLOW",
+        "LIBRARIAN": "ALLOW",
+        "READER": "OWN"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
+      "mutating": false
+    },
+    {
+      "id": "DepositController.transact",
+      "module": "LOANS",
+      "label": "Deposit transact",
+      "controller": "DepositController",
+      "handler": "transact",
+      "path": "/api/v1/deposits/readers/{readerId}/{kind}",
+      "httpMethods": [
+        "POST"
+      ],
+      "rules": {
+        "ADMIN": "ALLOW",
+        "LIBRARY_MANAGER": "DENY",
+        "LIBRARIAN": "ALLOW",
+        "READER": "DENY"
+      },
+      "condition": "Deposits: authenticated roles and reader ownership; confirmed immutable transactions.",
       "mutating": true
     }
   ]

@@ -2,7 +2,6 @@ import { createS4Require } from './s4TestImports.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -97,7 +96,7 @@ function harness(api = {}) {
     detail: async () => detail, importReport: async () => detail,
     latestRun: async () => null, coverage: async () => ({ totalApis: 191, coveredApis: 1, requiredRoleCases: 764, coveredRoleCases: 1, passedCases: 1, failedCases: 0, unresolvedFindings: 0, missing: [], eligible: false, reasons: ['Còn thiếu kiểm thử'], completion: null }),
     exportReport: async () => ({ report: detail, coverage: {}, sprintReports: [] }), ...api,
-  }, hooks), { AbortController, File: class {} })
+  }, hooks), { AbortController, File: class {}, window: { setInterval: () => 1, clearInterval: () => {} } })
   function render() { cursor = 0; tree = module.PermissionReviewWorkspace(); for (const effect of pending.splice(0)) effect(); return tree }
   render()
   return { render, node: predicate => find(tree, predicate),
@@ -107,45 +106,36 @@ function harness(api = {}) {
   }
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
-test('invalid file produces temporary warning while fixed file validation remains after dismissal', async () => {
+
+test('automatic review opens a compact overview and switches sections without manual controls', async () => {
   const page = harness(); await settle(); page.render()
-  page.choose({ name: 'broken.json', size: 10, text: async () => 'broken' }); await settle(); page.render()
-  assert.equal(page.notice().props.tone, 'warning')
-  page.notice().props.onDismiss(); page.render(); assert.equal(page.notice(), undefined)
-  assert.ok(page.node(node => node.type === 'p' && node.props.role === 'alert'))
-  assert.equal(page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.disabled, true)
+  assert.equal(page.node(node => node.type === 'input' && node.props.type === 'file'), undefined)
+  assert.equal(page.node(node => node.type === 'select'), undefined)
+  page.node(node => node.type === 'button' && node.props.children === 'Ma trận quyền').props.onClick(); page.render()
+  assert.ok(page.node(node => node.type === 'select'))
+  assert.equal(page.node(node => node.type === 'p' && String(node.props.children).includes('S4-00.1:')), undefined)
+  page.node(node => node.type === 'button' && node.props.children === 'Lịch sử').props.onClick(); page.render()
+  assert.equal(page.node(node => node.type === 'select'), undefined)
+  assert.ok(page.node(node => node.props?.title === 'Chưa có biên bản'))
   page.unmount()
 })
-test('successful import resists double submit and keeps the report open after temporary success dismissal', async () => {
-  let resolve, calls = 0
-  const pending = new Promise(done => { resolve = done })
-  const page = harness({ importReport: async () => { calls++; return pending } }); await settle(); page.render()
-  page.choose({ name: 'simulation.json', size: 2000, text: async () => JSON.stringify(report) }); await settle(); page.render()
-  const button = page.node(node => node.props?.children?.[1] === 'Lưu biên bản')
-  button.props.onClick(); button.props.onClick(); assert.equal(calls, 1)
-  resolve(detail); await settle(); page.render()
-  assert.equal(page.notice().props.tone, 'success'); assert.ok(page.modal())
-  page.notice().props.onDismiss(); page.render(); assert.equal(page.notice(), undefined); assert.ok(page.modal())
-  assert.match(renderToStaticMarkup(page.modal()), /MÔ PHỎNG/)
+
+test('latest automatic evidence warns about discrepancies and a different running build', async () => {
+  const page = harness({
+    latestRun: async () => ({ runKey: 'ci', state: 'FAILED', reportId: 1, startedAt: report.startedAt,
+      finishedAt: report.completedAt, requestedBy: 'GitHub Actions', message: 'Kiểm thử chưa đạt' }),
+    detail: async () => ({ ...detail, currentFingerprint: false, summary: { ...detail.summary, failedCount: 1 } }),
+  })
+  await settle(); page.render(); await settle(); page.render()
+  const alert = page.node(node => node.props?.role === 'alert')
+  assert.ok(alert)
+  assert.match(JSON.stringify(alert.props.children), /Có sai lệch/)
+  assert.match(JSON.stringify(alert.props.children), /khác máy chủ hiện tại/)
+  assert.equal(undefined, page.node(node => node.type === 'summary' && String(node.props.children).includes('Công cụ nâng cao')))
   page.unmount()
 })
-test('API rejection leaves the selected evidence available for retry and shows error feedback', async () => {
-  const page = harness({ importReport: async () => { throw new Error('Source đã thay đổi. Chạy lại kiểm thử.') } }); await settle(); page.render()
-  page.choose({ name: 'regression.json', size: 2000, text: async () => JSON.stringify(report) }); await settle(); page.render()
-  page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.onClick(); await settle(); page.render()
-  assert.equal(page.notice().props.tone, 'error'); assert.match(page.notice().props.message, /Source đã thay đổi/)
-  assert.equal(page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.disabled, false)
-  page.unmount()
-})
-test('closing the report early never remounts its temporary notification outside the modal', async () => {
-  const page = harness(); await settle(); page.render()
-  page.choose({ name: 'simulation.json', size: 2000, text: async () => JSON.stringify(report) }); await settle(); page.render()
-  page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.onClick(); await settle(); page.render()
-  assert.ok(page.notice()); assert.ok(page.modal())
-  page.modal().props.onClose(); page.render()
-  assert.equal(page.modal(), undefined); assert.equal(page.notice(), undefined)
-  page.unmount()
-})
+
+
 
 
 test('role and comparison-state filters distinguish unknown rights from a concrete mismatch', () => {
@@ -163,11 +153,4 @@ test('server-run, progress, coverage, confirmation and export use protected revi
   await api.startRun(); await api.latestRun(); await api.runStatus('run-key'); await api.coverage(7); await api.complete(7); await api.exportReport(7)
   assert.deepEqual(calls.map(call => call[1]), ['/permission-review/runs', '/permission-review/runs/latest', '/permission-review/runs/run-key', '/permission-review/reports/7/coverage', '/permission-review/reports/7/complete', '/permission-review/reports/7/export'])
   assert.equal(calls[0].length, 2)
-})
-test('a missing-coverage report keeps completion disabled', async () => {
-  const page = harness(); await settle(); page.render()
-  page.choose({ name: 'simulation.json', size: 2000, text: async () => JSON.stringify(report) }); await settle(); page.render()
-  page.node(node => node.props?.children?.[1] === 'Lưu biên bản').props.onClick(); await settle(); page.render(); await settle(); page.render()
-  const button = page.node(node => node.props?.children?.[1] === 'Xác nhận hoàn tất rà soát')
-  assert.equal(button.props.disabled, true); page.unmount()
 })

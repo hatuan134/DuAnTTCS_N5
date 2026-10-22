@@ -39,6 +39,10 @@ public class GitHubPermissionReviewGateway {
 
     public String callbackSecret() { return callbackSecret; }
 
+    public boolean acceptsRepository(String value) {
+        return !owner.isBlank() && !repository.isBlank() && (owner + "/" + repository).equals(value);
+    }
+
     public void dispatch(UUID key, String fingerprint) throws Exception {
         requireConfigured();
         if (!fingerprint.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("Invalid fingerprint");

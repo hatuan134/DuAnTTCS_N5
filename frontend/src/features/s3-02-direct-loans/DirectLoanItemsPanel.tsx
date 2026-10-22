@@ -1,3 +1,4 @@
+import { InlineDeposits } from '../deposits/DepositPage'
 import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import FeedbackAlert from '../../components/ui/FeedbackAlert'
 import { useEffect, useRef, useState } from 'react'
@@ -285,6 +286,7 @@ export default function DirectLoanItemsPanel({ reader, onCreated, onLockChange, 
   </Card>
 
   return <Card className="p-4 sm:p-6">
+    <InlineDeposits mode="collect" card={reader.cardNumber} barcodes={validItems.map(row => row.barcode)} disabled={frozen} />
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <h3 className="text-lg font-semibold text-slate-900">Sách trong lượt mượn</h3>

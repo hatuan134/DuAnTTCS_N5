@@ -1,6 +1,6 @@
 import TimedFieldMessage from '../../components/ui/TimedFieldMessage'
 import { useEffect, useRef, useState } from 'react'
-import { Download, FileCheck2, Play, RefreshCw, ShieldCheck, Upload, X } from 'lucide-react'
+import { Download, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -12,8 +12,8 @@ import TablePagination from '../../components/ui/TablePagination'
 import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import {
-  comparisonStatus, downloadReport, formatReviewTime, gateLabels, parseReportFile, permissionReviewService, ruleLabels, selectEntries,
-  type Coverage, type RunState, type ImportReport, type Inspection, type ReportDetail, type ReportPage, type ReviewedEntry,
+  comparisonStatus, downloadReport, formatReviewTime, gateLabels, permissionReviewService, ruleLabels, selectEntries,
+  type Coverage, type RunState, type Inspection, type ReportDetail, type ReportPage, type ReviewedEntry,
 } from './permissionReviewService'
 
 export default function PermissionReviewPage() {
@@ -31,18 +31,20 @@ export function PermissionReviewWorkspace() {
   const [revision, setRevision] = useState(0), [reportPage, setReportPage] = useState(0), [page, setPage] = useState(1)
   const [module, setModule] = useState(''), [query, setQuery] = useState(''), [differences, setDifferences] = useState(false)
   const [role, setRole] = useState(''), [comparison, setComparison] = useState('')
-  const [run, setRun] = useState<RunState | null>(null), [starting, setStarting] = useState(false)
+  const [run, setRun] = useState<RunState | null>(null)
+  const [tab, setTab] = useState<'overview' | 'matrix' | 'history'>('overview')
+  const [latestReport, setLatestEvidence] = useState<ReportDetail | null>(null)
+  const latestReportId = run?.reportId
+  const latestEvidence = latestReport?.summary.id === latestReportId ? latestReport : null
   const [coverage, setCoverage] = useState<Coverage | null>(null), [coverageError, setCoverageError] = useState('')
   const [confirming, setConfirming] = useState(false), [confirmOpen, setConfirmOpen] = useState(false), [exporting, setExporting] = useState(false)
   const [resultPage, setResultPage] = useState(1), [resultRole, setResultRole] = useState(''), [resultOutcome, setResultOutcome] = useState('')
-  const startLock = useRef(false), confirmLock = useRef(false)
+  const confirmLock = useRef(false)
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null)
   const [report, setReport] = useState<ReportDetail | null>(null), [opening, setOpening] = useState<number | null>(null)
-  const [file, setFile] = useState<ImportReport | null>(null), [filename, setFilename] = useState(''), [fileError, setFileError] = useState('')
-  const [importing, setImporting] = useState(false)
-  const importLock = useRef(false), fileVersion = useRef(0), alive = useRef(true)
+  const alive = useRef(true)
   const detailController = useRef<AbortController | null>(null)
-  useEffect(() => { alive.current = true; return () => { alive.current = false; detailController.current?.abort(); fileVersion.current++ } }, [])
+  useEffect(() => { alive.current = true; return () => { alive.current = false; detailController.current?.abort() } }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -53,6 +55,18 @@ export function PermissionReviewWorkspace() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [revision])
+  useEffect(() => {
+    if (!latestReportId) return
+    const controller = new AbortController()
+    permissionReviewService.detail(latestReportId, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setLatestEvidence(value) })
+      .catch(() => { if (!controller.signal.aborted) setLatestEvidence(null) })
+    return () => controller.abort()
+  }, [latestReportId, revision])
+  useEffect(() => {
+    const timer = window.setInterval(() => setRevision(value => value + 1), 60000)
+    return () => window.clearInterval(timer)
+  }, [])
   useEffect(() => {
     const controller = new AbortController()
     setReportsLoading(true)
@@ -92,13 +106,6 @@ export function PermissionReviewWorkspace() {
       .catch(error => { if (!controller.signal.aborted) setCoverageError(getApiErrorMessage(error, 'Không tải được điều kiện hoàn tất. Đóng và mở lại biên bản để thử lại.')) })
     return () => controller.abort()
   }, [report?.summary.id])
-  async function startRun() {
-    if (startLock.current) return
-    startLock.current = true; setStarting(true); setFeedback(null)
-    try { const value = await permissionReviewService.startRun(); if (alive.current) { setRun(value); setFeedback({ tone: 'success', message: 'Đã gửi yêu cầu kiểm thử. Trạng thái GitHub Actions và biên bản sẽ cập nhật tại đây.' }) } }
-    catch (error) { if (alive.current) setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Không bắt đầu được kiểm thử toàn bộ.') }) }
-    finally { startLock.current = false; if (alive.current) setStarting(false) }
-  }
   async function confirmCompletion() {
     if (!report || !coverage?.eligible || confirmLock.current) return
     confirmLock.current = true; setConfirming(true); setFeedback(null)
@@ -112,32 +119,6 @@ export function PermissionReviewWorkspace() {
     try { const exported = await permissionReviewService.exportReport(report.summary.id); if (alive.current) { downloadReport(report, exported); setFeedback({ tone: 'success', message: 'Đã xuất biên bản đầy đủ cùng lịch sử rà soát trong sprint.' }) } }
     catch (error) { if (alive.current) setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Không xuất được biên bản. Vui lòng thử lại.') }) }
     finally { if (alive.current) setExporting(false) }
-  }
-  async function chooseFile(selected?: File) {
-    const version = ++fileVersion.current
-    setFile(null); setFilename(selected?.name ?? ''); setFileError('')
-    if (!selected) return
-    try {
-      if (selected.size > 1024 * 1024) throw new Error('Biên bản tối đa 1 MB. Chọn tệp JSON kết quả của bộ kiểm thử phân quyền.')
-      const parsed = parseReportFile(await selected.text())
-      if (alive.current && version === fileVersion.current) setFile(parsed)
-    } catch (error) {
-      if (!alive.current || version !== fileVersion.current) return
-      const message = error instanceof Error ? error.message : 'Không đọc được tệp biên bản.'
-      setFileError(message); setFeedback({ tone: 'warning', message })
-    }
-  }
-  async function importFile() {
-    if (!file || importLock.current) return
-    importLock.current = true; setImporting(true); setFeedback(null)
-    try {
-      const saved = await permissionReviewService.importReport(file)
-      if (!alive.current) return
-      setReport(saved); setFile(null); setFilename(''); setFileError(''); setReportPage(0); setRevision(value => value + 1)
-      setFeedback({ tone: 'success', message: 'Đã lưu biên bản #' + saved.summary.id + '. Kết quả được phân loại theo bằng chứng kiểm thử.' })
-    } catch (error) {
-      if (alive.current) setFeedback({ tone: 'error', message: getApiErrorMessage(error, 'Không lưu được biên bản rà soát.') })
-    } finally { importLock.current = false; if (alive.current) setImporting(false) }
   }
   async function openReport(id: number) {
     detailController.current?.abort()
@@ -154,26 +135,40 @@ export function PermissionReviewWorkspace() {
   const visibleResults = report?.results.filter(item => (!resultRole || item.test.role === resultRole) && (!resultOutcome || item.outcome === resultOutcome)) ?? []
   const resultPages = Math.max(1, Math.ceil(visibleResults.length / 20))
   const resultCurrent = Math.min(resultPage, resultPages)
-  const running = Boolean(run && ['STARTING', 'RUNNING'].includes(run.state))
   const notify = feedback && <FeedbackAlert {...feedback} onDismiss={() => setFeedback(null)} />
   function closeReport() { setReport(null); setFeedback(null) }
   const paginationClass = 'px-3 sm:px-5 [&>div]:flex-wrap [&>div>span]:min-w-0'
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Rà soát phân quyền" description="Đối chiếu toàn bộ API, kiểm thử bốn vai trò và xác nhận kết quả rà soát."
-      action={<Button type="button" variant="secondary" disabled={loading || importing} onClick={() => setRevision(value => value + 1)}><RefreshCw size={16} />Làm mới</Button>} />
+      action={<Button type="button" variant="secondary" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={16} />Làm mới</Button>} />
     {!report && notify}
-    {loading ? <LoadingState /> : !data ? <Card className="p-6"><EmptyState title="Chưa tải được bảng phân quyền" description="Bấm Làm mới để thử lại khi kết nối máy chủ hoạt động." /></Card> : <>
+    <nav aria-label="Nội dung rà soát" className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
+      {([{ id: 'overview', label: 'Tổng quan' }, { id: 'matrix', label: 'Ma trận quyền' }, { id: 'history', label: 'Lịch sử' }] as const).map(item =>
+        <button key={item.id} type="button" aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)} className={'min-h-11 flex-1 rounded-lg px-2 text-sm font-semibold transition-colors ' + (tab === item.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>{item.label}</button>)}
+    </nav>
+    {tab === 'overview' && <Card className="space-y-3 p-4 sm:p-5" aria-live="polite">
+      <h2 className="font-semibold text-slate-900">Kết quả kiểm thử mới nhất</h2>
+      <p className="text-sm text-slate-600">{run ? `${run.state === 'SUCCEEDED' ? 'Đã hoàn tất' : run.state === 'FAILED' ? 'Chưa đạt / chưa hoàn tất' : 'Đang chạy'} · ${formatReviewTime(run.finishedAt ?? run.startedAt)}` : 'Chưa nhận được kết quả kiểm thử tự động.'}</p>
+      {latestEvidence && <>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="API đã kiểm tra" value={new Set(latestEvidence.evidence.checks.map(c => c.endpointId + ':' + c.httpMethod)).size} />
+          <Metric label="Ca kiểm thử" value={latestEvidence.summary.caseCount} />
+          <Metric label="Sai lệch chưa đạt" value={latestEvidence.summary.failedCount} warning={latestEvidence.summary.failedCount > 0} />
+        </div>
+        {(latestEvidence.summary.failedCount > 0 || !latestEvidence.currentFingerprint) && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          {latestEvidence.summary.failedCount > 0 ? 'Có sai lệch cần kiểm tra. ' : ''}
+          {!latestEvidence.currentFingerprint ? 'Mã nguồn đã kiểm thử khác máy chủ hiện tại; chưa thể dùng kết quả này để nghiệm thu bản đang chạy.' : ''}
+        </p>}
+        <p className="break-all text-xs text-slate-500">{latestEvidence.summary.sourceReference}</p>
+        <Button variant="secondary" disabled={opening !== null} onClick={() => void openReport(latestEvidence.summary.id)}>Mở biên bản mới nhất</Button>
+      </>}
+    </Card>}
+    {tab === 'matrix' && (loading ? <LoadingState /> : !data ? <Card className="p-6"><EmptyState title="Chưa tải được bảng phân quyền" description="Bấm Làm mới để thử lại khi kết nối máy chủ hoạt động." /></Card> : <>
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Tổng API nghiệp vụ" value={data.totalApis ?? data.reviewedFunctions} />
         <Metric label="Thao tác lệch cổng quyền" value={data.differentFunctions} warning={data.differentFunctions > 0} />
         <Metric label="Thao tác chưa xác định" value={data.unresolvedFunctions} warning={data.unresolvedFunctions > 0} />
       </div>
-      <Card className="space-y-3 p-4 sm:p-5">
-        <h2 className="flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck size={19} />Căn cứ đối chiếu</h2>
-        <p className="text-sm leading-6 text-slate-600">{data.decision} Phiên bản {data.policyVersion}. Đối chiếu lúc {formatReviewTime(data.inspectedAt)}.</p>
-        <p className="text-sm leading-6 text-slate-600">Quyền thực tế bên dưới là cổng kiểm tra vai trò của API đang chạy. Quyền theo dữ liệu cá nhân và luồng ngoại lệ còn được kiểm tra ở tầng nghiệp vụ; xem bằng chứng trong biên bản kiểm thử để xác nhận các điều kiện này.</p>
-        <details className="text-sm"><summary className="cursor-pointer font-medium text-slate-700">Xem dấu vân tay bản kiểm thử</summary><code className="mt-2 block break-all rounded-lg bg-slate-50 p-3 text-xs">{data.fingerprint}</code></details>
-      </Card>
       <Card className="space-y-4 p-4 sm:p-5">
         <div className="grid items-end gap-3 md:grid-cols-2">
           <label className="text-sm font-medium text-slate-700">Phân hệ
@@ -193,43 +188,36 @@ export function PermissionReviewWorkspace() {
       {entries.length ? <div className="space-y-4">{entries.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(entry => <ComparisonCard key={entry.policy.id} entry={entry} data={data} roleFilter={role} />)}
         <TablePagination className={paginationClass} page={currentPage} totalItems={entries.length} totalPages={totalPages} pageSize={pageSize} onPageChange={setPage} /></div>
         : <Card className="p-5"><EmptyState title={differences ? 'Không có sai lệch cổng quyền theo bộ lọc' : 'Không có chức năng phù hợp'} description="Thay đổi phân hệ hoặc từ khóa để xem các thao tác khác. Kết quả này không thay thế kiểm thử API và kiểm thử sở hữu dữ liệu." /></Card>}
-    </>}
-    <Card className="space-y-4 p-4 sm:p-5">
+    </>)}
+    {tab === 'overview' && <Card className="space-y-4 p-4 sm:p-5">
       <h2 className="font-semibold text-slate-900">Kiểm thử phân quyền toàn hệ thống</h2>
       <p className="text-sm leading-6 text-slate-600">Kiểm tra từng API bằng bốn vai trò và người chưa đăng nhập trên PostgreSQL thử nghiệm tách biệt. Trên bản web, tác vụ chạy tại GitHub Actions (không dùng database Production); kết quả được xác thực và lưu tự động.</p>
-      <Button type="button" onClick={() => void startRun()} disabled={starting || running || !data} loading={starting}><Play size={17} />Chạy kiểm thử toàn bộ</Button>
+      <p className="text-sm text-slate-600">Tự động chạy khi cập nhật main và hằng ngày lúc 02:00 (giờ Việt Nam). Chỉ hiển thị kết quả đã nhận được; chưa có báo cáo không có nghĩa là đã đạt.</p>
       {run && <div className={'space-y-2 rounded-xl border p-4 text-sm ' + (run.state === 'FAILED' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50')} aria-live="polite">
         <p className="font-semibold">{run.state === 'STARTING' ? 'Đang chuẩn bị' : run.state === 'RUNNING' ? 'Đang kiểm thử' : run.state === 'SUCCEEDED' ? 'Đã chạy xong' : 'Chưa hoàn tất kiểm thử'}</p>
         <p className="leading-6">{run.message}</p><p className="text-xs text-slate-500">Yêu cầu bởi {run.requestedBy} · {formatReviewTime(run.startedAt)}</p>
+        {run.ci && <div className="space-y-2 break-words">
+          <p>{run.ci.total - run.ci.failed - run.ci.skipped} đạt · {run.ci.failed} chưa đạt · {run.ci.skipped} bỏ qua</p>
+          <p className="break-all">Commit đã kiểm thử: {run.ci.commitSha} · {run.ci.branch}</p>
+          <p>Kết thúc: {formatReviewTime(run.finishedAt ?? run.startedAt)}. Mở biên bản để đối chiếu với mã nguồn máy chủ đang chạy.</p>
+          <a className="font-medium text-blue-700 underline" href={run.ci.workflowUrl} target="_blank" rel="noreferrer">Mở GitHub Actions</a>
+        </div>}
         {run.reportId && <Button type="button" variant="secondary" loading={opening === run.reportId} disabled={opening !== null} onClick={() => void openReport(run.reportId!)}>Xem kết quả kiểm thử</Button>}
       </div>}
-    </Card>
-    <Card className="space-y-4 p-4 sm:p-5">
-      <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Upload size={18} />Nhập kết quả kiểm thử</h2>
-      <p className="text-sm leading-6 text-slate-600">Chọn tệp JSON do bộ kiểm thử riêng tạo ra. Thao tác này chỉ lưu bằng chứng và biên bản, không chạy giao dịch mượn, trả hoặc thu tiền trên hệ thống đang dùng. Biên bản mô phỏng luôn được ghi rõ.</p>
-      <label className="block text-sm font-medium text-slate-700">Tệp kết quả JSON (tối đa 1 MB)
-        <span className="mt-2 flex min-h-11 min-w-0 flex-wrap items-center gap-3 rounded-xl border border-slate-300 p-2 focus-within:ring-4 focus-within:ring-blue-100">
-          <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold">Chọn tệp JSON</span>
-          <span className="min-w-0 break-all text-sm font-normal text-slate-500">{filename || 'Chưa chọn tệp'}</span>
-          <input type="file" accept=".json,application/json" disabled={importing} aria-invalid={Boolean(fileError)} aria-describedby={fileError ? 'review-file-error' : undefined}
-            onChange={event => { const selected = event.target.files?.[0]; event.currentTarget.value = ''; void chooseFile(selected) }} className="sr-only" />
-        </span></label>
-      {fileError && <TimedFieldMessage id="review-file-error" className="break-words text-sm text-red-700">{fileError}</TimedFieldMessage>}
-      {file && <p className="break-words text-sm text-slate-600">{filename} · {file.kind === 'SIMULATION' ? 'Mô phỏng riêng' : 'Kiểm thử hồi quy'} · {file.checks.length} trường hợp</p>}
-      <Button type="button" disabled={!file || importing || !data} loading={importing} onClick={() => void importFile()}><FileCheck2 size={17} />Lưu biên bản</Button>
-    </Card>
-    <Card className="overflow-hidden">
+    </Card>}
+    {tab === 'history' && <Card className="overflow-hidden">
       <div className="border-b border-slate-200 p-4 sm:p-5"><h2 className="font-semibold text-slate-900">Biên bản rà soát đã lưu</h2><p className="mt-1 text-sm text-slate-500">Số sai lệch và số đã khắc phục được tính riêng trong từng biên bản.</p></div>
-      {reportsLoading ? <LoadingState /> : !reports ? <p className="p-5 text-sm text-slate-600">Chưa tải được biên bản. Bấm Làm mới để thử lại.</p> : !reports.items.length ? <div className="p-5"><EmptyState title="Chưa có biên bản" description="Bấm Chạy kiểm thử toàn bộ để tạo biên bản; hoặc nhập kết quả từ bộ kiểm thử riêng." /></div> : <>
+      {reportsLoading ? <LoadingState /> : !reports ? <p className="p-5 text-sm text-slate-600">Chưa tải được biên bản. Bấm Làm mới để thử lại.</p> : !reports.items.length ? <div className="p-5"><EmptyState title="Chưa có biên bản" description="Kết quả sẽ xuất hiện tại đây khi hệ thống hoàn tất kiểm thử và lưu tự động." /></div> : <>
         <div className="divide-y divide-slate-200">{reports.items.map(item => <article key={item.id} className="space-y-3 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold text-slate-900">Biên bản #{item.id} <span className={'ml-2 rounded-lg px-2 py-1 text-xs ' + (item.kind === 'SIMULATION' ? 'bg-amber-50 text-amber-800' : 'bg-blue-50 text-blue-800')}>{item.kind === 'SIMULATION' ? 'Mô phỏng riêng' : 'Hồi quy'}</span></h3>
             <Button type="button" variant="secondary" size="sm" loading={opening === item.id} disabled={opening !== null} onClick={() => void openReport(item.id)}>Xem biên bản</Button></div>
           <p className="break-words text-sm text-slate-600">{item.caseCount} trường hợp · {item.detectedCount} sai lệch · {item.fixedCount} đã khắc phục · {item.failedCount} chưa đạt</p>
+          <p className="break-all text-xs text-slate-500">Nguồn / phiên bản: {item.sourceReference}</p>
           <p className="break-words text-xs leading-5 text-slate-500">Chạy bởi {item.executedBy} · {formatReviewTime(item.completedAt)}. Nhập bởi {item.importedBy} · {formatReviewTime(item.importedAt)}. Môi trường: {item.environment}.</p>
         </article>)}</div>
         <TablePagination className={paginationClass} page={reportPage + 1} totalItems={reports.totalItems} totalPages={Math.max(1, Math.ceil(reports.totalItems / reports.size))} pageSize={reports.size} onPageChange={value => setReportPage(value - 1)} />
       </>}
-    </Card>
+    </Card>}
     {report && <Modal label={'Biên bản rà soát #' + report.summary.id} onClose={closeReport}>
       <section className="max-h-[85dvh] w-[min(960px,calc(100vw-32px))] overflow-y-auto rounded-2xl bg-white p-4 sm:p-6">
         <div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold text-slate-900">Biên bản rà soát #{report.summary.id}</h2><Button type="button" variant="ghost" size="sm" onClick={closeReport} aria-label="Đóng biên bản"><X size={18} /></Button></div>
