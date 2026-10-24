@@ -49,6 +49,7 @@ function imports(h, role = 'LIBRARIAN') {
     '../s3-07-returns/ReturnFeeDetails': { formatVnd: vnd },
     './FeePaymentList': component(() => null),
     './FeeReceiptDialog': component(() => react.createElement('p', {}, 'Biên lai')),
+    '../deposits/DepositReconciliationSummary': component(() => react.createElement('p', {}, 'Đối soát tiền cọc')),
   }
 }
 function find(tree, predicate) {

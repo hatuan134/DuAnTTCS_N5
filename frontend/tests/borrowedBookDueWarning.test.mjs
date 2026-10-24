@@ -7,35 +7,34 @@ import vm from 'node:vm'
 import ts from 'typescript'
 
 const require = createRequire(import.meta.url)
-function load(path, imports = {}) {
-  const context = { exports: {}, require: (name) => imports[name] ?? require(name) }
-  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText, context)
-  return context.exports
-}
-const component = load('../src/features/s3-04-my-borrowed-books/BorrowedBookDueWarning.tsx', {
-  '../../components/ui/StatusBadge': load('../src/components/ui/StatusBadge.tsx'),
-}).default
-const render = (remainingDays) => renderToStaticMarkup(component({ remainingDays }))
+const context = { exports: {}, require }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/features/s3-04-my-borrowed-books/BorrowedBookDueWarning.tsx', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+}).outputText, context)
+const render = (remainingDays) => renderToStaticMarkup(context.exports.default({ remainingDays }))
 
-test('null deadline and invalid differences never fabricate warnings', () => {
-  for (const value of [null, NaN, Infinity, -Infinity, 0.5, -0.5, Number.MAX_SAFE_INTEGER + 1]) assert.equal(render(value), '')
-})
-test('three or more days have no warning', () => {
-  for (const value of [3, 4, 15]) assert.equal(render(value), '')
-})
-test('two one and zero days have amber upcoming badge without lateness', () => {
-  for (const value of [2, 1, 0]) {
-    const html = render(value)
-    assert.match(html, /Sắp đến hạn/); assert.match(html, /border-amber-200/)
-    assert.doesNotMatch(html, /Quá hạn|Trễ/)
+test('unknown or invalid day counts show a neutral message, never a negative sign', () => {
+  for (const value of [null, NaN, Infinity, -Infinity, 0.5, -0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.match(render(value), /Chưa xác định hạn trả/)
+    assert.doesNotMatch(render(value), /Quá hạn|Sắp đến hạn/)
   }
 })
-test('past days have red overdue badge and positive exact late count', () => {
+test('three or more remaining days show friendly positive numbers', () => {
+  for (const value of [3, 4, 15]) {
+    const html = render(value)
+    assert.match(html, new RegExp(`Còn ${value} ngày`))
+    assert.doesNotMatch(html, /Quá hạn/)
+  }
+})
+test('two/one days are upcoming, zero is due today rather than upcoming', () => {
+  for (const value of [1, 2]) assert.match(render(value), new RegExp(`Sắp đến hạn · Còn ${value} ngày`))
+  assert.match(render(0), /Đến hạn hôm nay/)
+  assert.doesNotMatch(render(0), /Sắp đến hạn/)
+})
+test('overdue days are positive user-facing day counts, never signed numerals', () => {
   for (const value of [-1, -7, -31]) {
     const html = render(value)
-    assert.match(html, /Quá hạn/); assert.match(html, /border-red-200/)
-    assert.ok(html.includes(`Trễ ${-value} ngày`)); assert.doesNotMatch(html, /Sắp đến hạn|Trễ -/)
+    assert.match(html, new RegExp(`Quá hạn ${-value} ngày`))
+    assert.doesNotMatch(html, /Trễ -|>-/)
   }
 })

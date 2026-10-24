@@ -34,6 +34,7 @@ export interface PaymentSummary {
   totalAmountVnd: number
   collectorName: string
   debtAfterVnd: number
+  fundingSource?: 'CASH' | 'DEPOSIT_OFFSET'
 }
 export interface FeeCollection {
   reader: FeeReader
