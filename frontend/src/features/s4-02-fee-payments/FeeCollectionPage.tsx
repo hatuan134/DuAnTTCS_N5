@@ -14,6 +14,7 @@ import { formatVnd } from '../s3-07-returns/ReturnFeeDetails'
 import { feePaymentService, feeTypeLabel, parsePartialAmount, previewFeeAllocation, type FeeCollection, type FeeReceipt, type FullFeePaymentRequest, type PartialFeePaymentRequest } from './feePaymentService'
 import FeeReceiptDialog from './FeeReceiptDialog'
 import FeePaymentList from './FeePaymentList'
+import DepositReconciliationSummary from '../deposits/DepositReconciliationSummary'
 
 export default function FeeCollectionPage() {
   if (!['LIBRARIAN', 'ADMIN'].includes(getCurrentUser()?.role ?? '')) return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Chỉ Thủ thư hoặc Quản trị viên được thu phí và xem, in lại biên lai.</p>
@@ -166,12 +167,13 @@ export function FeeCollector() {
             </dl>
           </section>)}</div>}
       </Card>
+      <DepositReconciliationSummary readerId={collection.reader.id} revision={listRevision} />
       <Card className="p-5"><h2 className="font-semibold text-slate-900">Giao dịch đã thu và biên lai</h2>
         {receiptLoading && <p role="status" className="mt-3 text-sm text-slate-500">Đang tải biên lai...</p>}
         {collection.payments.length === 0 && <p className="mt-3 text-sm text-slate-500">Bạn đọc chưa có giao dịch thu phí được ghi nhận.</p>}
         <div className="mt-3 divide-y divide-slate-100">{collection.payments.map(payment => <div key={payment.id} className="flex flex-col justify-between gap-3 py-3 sm:flex-row sm:items-center">
           <div className="min-w-0"><p className="break-all text-sm font-semibold text-slate-900">{payment.receiptNumber} · {payment.transactionNumber}</p>
-            <p className="mt-1 break-words text-sm text-slate-500">{formatLoanTimestamp(payment.collectedAt)} · {payment.collectorName}</p><p className="mt-1 text-sm font-semibold">{formatVnd(payment.totalAmountVnd)}</p><p className="mt-1 text-xs text-slate-500">Số dư sau lần thu: {formatVnd(payment.debtAfterVnd ?? 0)}</p></div>
+            <p className="mt-1 break-words text-sm text-slate-500">{formatLoanTimestamp(payment.collectedAt)} · {payment.collectorName}</p><p className="mt-1 text-sm font-semibold">{formatVnd(payment.totalAmountVnd)}</p><p className="mt-1 text-xs text-slate-500">Số dư sau lần thu: {formatVnd(payment.debtAfterVnd ?? 0)}</p><p className="mt-1 text-xs font-medium text-slate-700">{payment.fundingSource === 'DEPOSIT_OFFSET' ? 'Nguồn: Khấu trừ tiền cọc (không thu thêm tiền mặt)' : 'Nguồn: Thu tại quầy'}</p></div>
           <Button variant="secondary" disabled={locked} onClick={() => void preview(payment.id)}>Xem / in lại biên lai</Button>
         </div>)}</div>
       </Card>

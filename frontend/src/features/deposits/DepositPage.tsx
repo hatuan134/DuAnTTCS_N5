@@ -17,7 +17,10 @@ import DepositPolicyPanel from './DepositPolicyPanel'
 export default function DepositPage() {
   const role = getCurrentUser()?.role ?? ''
   if (!['ADMIN', 'LIBRARY_MANAGER', 'LIBRARIAN', 'READER'].includes(role)) return <p role="alert">Vui lòng đăng nhập để xem tiền cọc.</p>
-  if (role !== 'READER') return <div className="space-y-5"><PageHeader title="Tiền đặt cọc" description="Cấu hình chính sách cọc cho các lượt bàn giao mới." /><DepositPolicyPanel readOnly={!['ADMIN', 'LIBRARY_MANAGER'].includes(role)} /></div>
+  if (role !== 'READER') return <div className="space-y-5"><PageHeader title="Tiền đặt cọc" description="Chính sách cọc và đối soát giao dịch; có thể tra cứu cọc của phiếu đã trả sách." />
+    <DepositPolicyPanel readOnly={!['ADMIN', 'LIBRARY_MANAGER'].includes(role)} />
+    <Deposits role={role} />
+  </div>
   return <Deposits role={role} />
 }
 type DepositContext = { mode: 'collect' | 'return'; card?: string; barcodes?: string[]; readerId?: number; loanNumber?: string; disabled?: boolean }
@@ -43,6 +46,9 @@ function Deposits({ role, context }: { role: string; context?: DepositContext })
   const [confirmation, setConfirmation] = useState<PendingDeposit | null>(recovery.pending)
   const [uncertain, setUncertain] = useState(!!recovery.pending), pending = useRef(false)
   const [receipt, setReceipt] = useState<DepositTransaction | null>(null)
+  // Khi chọn chứng từ trong lịch sử, chuyển tới thẻ chứng từ phía trên trang.
+  const receiptSectionRef = useRef<HTMLDivElement>(null)
+  const [receiptScrollRequest, setReceiptScrollRequest] = useState(0)
   const [history, setHistory] = useState<DepositTransaction[]>([]), [historyReader, setHistoryReader] = useState<number | null>(null), [historyPage, setHistoryPage] = useState(0), [historyTotal, setHistoryTotal] = useState(0)
   useEffect(() => {
     if (context?.mode === 'collect') return
@@ -77,6 +83,23 @@ function Deposits({ role, context }: { role: string; context?: DepositContext })
     depositService.history(historyReader, historyPage).then(data => { if (active) { setHistory(data.items); setHistoryTotal(data.totalItems) } }).catch(e => { if (active) setError(getApiErrorMessage(e, 'Không tải được lịch sử.')) })
     return () => { active = false }
   }, [historyReader, historyPage, revision])
+  function showReceipt(transaction: DepositTransaction) {
+    setReceipt(transaction)
+    // Mỗi lần bấm đều cuộn, kể cả khi người dùng chọn lại cùng một chứng từ.
+    setReceiptScrollRequest(value => value + 1)
+  }
+  useEffect(() => {
+    if (!receipt || receiptScrollRequest === 0) return
+    const section = receiptSectionRef.current
+    if (!section) return
+    section.focus({ preventScroll: true })
+    section.scrollIntoView({
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    })
+  }, [receipt, receiptScrollRequest])
+
   function confirm(accounts: DepositAccount[], kind: DepositKind) {
     if (confirmation || busy || loading || context?.disabled || !accounts.length || (kind === 'COLLECT' && preparedSelection !== selection)) return
     const selected = accounts.filter(a => depositActionAmount(a, kind) > 0)
@@ -94,7 +117,7 @@ function Deposits({ role, context }: { role: string; context?: DepositContext })
       savePendingDeposit(sessionStorage, actor, confirmation)
       const saved = await depositService.transact(confirmation.reader, confirmation.kind, confirmation.request)
       clearPendingDeposit(sessionStorage, actor)
-      setReceipt(saved); setNotice(`Đã ghi nhận ${depositKindLabel[saved.kind].toLowerCase()} ${formatVnd(saved.totalVnd)} · ${saved.transactionNumber}`)
+      showReceipt(saved); setNotice(`Đã ghi nhận ${depositKindLabel[saved.kind].toLowerCase()} ${formatVnd(saved.totalVnd)} · ${saved.transactionNumber}`)
       setConfirmation(null); setUncertain(false); setPrepared([]); setRevision(v => v + 1)
     } catch (e) {
       const status = isAxiosError(e) ? e.response?.status : undefined
@@ -108,7 +131,8 @@ function Deposits({ role, context }: { role: string; context?: DepositContext })
     } finally { pending.current = false; setBusy(false) }
   }
   return <div className="space-y-5">
-    {context ? <h3 className="font-semibold">{context.mode === 'collect' ? 'Thu tiền cọc trước bàn giao' : 'Đối soát và hoàn cọc'}</h3> : <PageHeader title="Tiền đặt cọc" description="Mượn sách miễn phí. Cọc là tiền giữ tạm thời theo từng cuốn, được đối soát khi trả sách." />}
+    {context ? <h3 className="font-semibold">{context.mode === 'collect' ? 'Thu tiền cọc trước bàn giao' : 'Đối soát và hoàn cọc'}</h3> : role === 'READER' ? <PageHeader title="Tiền đặt cọc" description="Mượn sách miễn phí. Cọc là tiền giữ tạm thời theo từng cuốn, được đối soát khi trả sách." /> :
+      <h2 className="text-lg font-bold text-slate-900">Tra cứu và đối soát khoản cọc</h2>}
     {recovery.error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">{recovery.error}</p>}
     {error && <FeedbackAlert tone="error" message={error} onDismiss={() => setError('')} />}
     {notice && <FeedbackAlert tone="success" message={notice} onDismiss={() => setNotice('')} />}
@@ -129,17 +153,22 @@ function Deposits({ role, context }: { role: string; context?: DepositContext })
       {uncertain && <p role="alert">Chưa xác định kết quả lần trước. Giữ nguyên nội dung và mã giao dịch khi thử lại; không thu/hoàn tiền lần thứ hai.</p>}
       <div className="flex flex-wrap gap-2"><Button type="button" loading={busy} onClick={() => void submit()}>{uncertain ? 'Đối chiếu / thử lại cùng giao dịch' : 'Xác nhận đã thực hiện'}</Button><Button type="button" variant="secondary" disabled={busy || uncertain} onClick={() => setConfirmation(null)}>Hủy</Button></div>
     </Card>}
-    {receipt && <Card className="space-y-2 p-4"><h2 className="font-semibold">Chứng từ {receipt.transactionNumber}</h2><p>{depositKindLabel[receipt.kind]} · {formatVnd(receipt.totalVnd)}</p><p className="text-sm">{receipt.actorName} · {formatLoanTimestamp(receipt.recordedAt)}</p>{receipt.entries.map(e => <p key={e.accountId} className="text-sm">Phân bổ cọc #{e.accountId}: {formatVnd(e.amountVnd)}</p>)}{receipt.feePaymentId && <p className="text-sm">Biên lai phí #{receipt.feePaymentId} đã ghi nhận từ khấu trừ cọc, xem trong Thu phí và biên lai.</p>}</Card>}
+    {receipt && <div id="deposit-receipt-details" ref={receiptSectionRef} tabIndex={-1} className="scroll-mt-24 outline-none"><Card className="space-y-2 p-4"><h2 className="font-semibold">Chứng từ {receipt.transactionNumber}</h2><p>{depositKindLabel[receipt.kind]} · {formatVnd(receipt.totalVnd)}</p><p className="text-sm">{receipt.actorName} · {formatLoanTimestamp(receipt.recordedAt)}</p>{receipt.entries.map(e => <p key={e.accountId} className="text-sm">Phân bổ cọc #{e.accountId}: {formatVnd(e.amountVnd)}</p>)}{receipt.feePaymentId && <p className="text-sm">Biên lai phí #{receipt.feePaymentId} đã ghi nhận từ khấu trừ cọc, xem trong Thu phí và biên lai.</p>}</Card></div>}
     {!context && <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); setPage(0); setSearch(query.trim()); setRevision(v => v + 1) }}><div className="min-w-0 flex-1"><Input label="Tìm tên bạn đọc, mã thẻ, mã vạch, sách hoặc phiếu mượn" value={query} maxLength={255} onChange={e => setQuery(e.target.value)} /></div><Button type="submit">Tìm kiếm</Button><Button type="button" variant="secondary" onClick={() => { setQuery(''); setSearch(''); setPage(0); setRevision(v => v + 1) }}>Tất cả</Button></form>}
     {context?.mode === 'return' && <p className="text-sm text-slate-600">Cọc được theo dõi riêng từng cuốn trong phiếu {context.loanNumber}. Chỉ hoàn sau khi đã nhận trả và thanh toán hoặc khấu trừ hết nghĩa vụ của cuốn đó. Xác nhận hoàn tiền sau khi đã giao tiền cho bạn đọc.</p>}
     {context?.mode !== 'collect' && <>{loading ? <p role="status">Đang tải tiền cọc…</p> : error ? <Button type="button" variant="secondary" onClick={() => setRevision(v => v + 1)}>Tải lại tiền cọc</Button> : rows.length === 0 ? <Card className="p-5">{context?.mode === 'return' ? 'Phiếu này chưa có khoản cọc được ghi nhận để hoàn. Phiếu cũ không bị áp thêm nghĩa vụ cọc.' : 'Chưa có khoản cọc phù hợp.'}</Card> : <div className="grid gap-4 lg:grid-cols-2">{rows.map(a => <Card key={a.id} className="min-w-0 space-y-3 p-4"><div><h2 className="break-words font-semibold">{a.bookTitle}</h2><p className="break-words text-sm text-slate-600">{a.readerName} · {a.cardNumber ?? 'Chưa có mã thẻ'} · {a.barcode}</p></div>
       <p className="text-sm">{a.loanNumber ?? 'Chưa bàn giao'} · {a.itemId ? a.returnedAt ? 'Đã trả / xử lý' : 'Đang mượn' : 'Chuẩn bị nhận sách'}</p>
       <dl className="grid grid-cols-2 gap-2 text-sm">{[['Cọc cần nộp', a.requiredVnd], ['Đã thu', a.collectedVnd], ['Đang giữ', a.heldVnd], ['Đã hoàn', a.refundedVnd], ['Đã khấu trừ', a.deductedVnd], ['Nghĩa vụ còn thiếu', a.outstandingVnd]].map(([label, amount]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="font-semibold">{formatVnd(Number(amount))}</dd></div>)}</dl>
       <p className="text-xs text-slate-500">Giá bìa {formatVnd(a.coverPrice)} · Cọc {a.percentage}% · Chính sách #{a.policyId}</p>
-      {context?.mode === 'return' && a.itemId && !a.returnedAt && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">Chưa nhận trả cuốn này — tiền cọc tiếp tục được giữ, chưa thể hoàn hoặc khấu trừ.</p>}
-      <div className="flex flex-wrap gap-2">{canCollect && (['COLLECT', 'DEDUCT', 'REFUND'] as const).filter(kind => context?.mode !== 'return' || kind !== 'COLLECT').filter(kind => depositActionAmount(a, kind) > 0).map(kind => <Button type="button" key={kind} size="sm" disabled={busy || !!confirmation} onClick={() => confirm([a], kind)}>{depositKindLabel[kind]} {formatVnd(depositActionAmount(a, kind))}</Button>)}<Button type="button" size="sm" variant="secondary" onClick={() => { setHistory([]); setHistoryPage(0); setHistoryReader(a.readerId) }}>Lịch sử giao dịch</Button></div>
+      {a.itemId !== null && a.returnedAt && a.heldVnd > 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="status">
+        {a.outstandingVnd > 0 ? `Đã trả sách, còn nghĩa vụ ${formatVnd(a.outstandingVnd)}. Vui lòng liên hệ thư viện để đối soát trước khi hoàn cọc.`
+          : `Đã trả sách, còn ${formatVnd(a.heldVnd)} đang giữ — chờ đối soát hoàn cọc. Vui lòng liên hệ thủ thư; hệ thống không tự chuyển tiền.`}
+      </p>}
+      {a.itemId !== null && !a.returnedAt && a.heldVnd > 0 && <p className="rounded-lg bg-blue-50 p-2 text-sm text-blue-900">Sách đang mượn — tiền cọc tiếp tục được giữ đến khi trả hoặc xử lý xong.</p>}
+      {a.itemId !== null && a.returnedAt && a.heldVnd === 0 && <p className="rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">Đã tất toán cọc theo lịch sử hoàn/khấu trừ.</p>}
+      <div className="flex flex-wrap gap-2">{canCollect && (['DEDUCT', 'REFUND'] as const).filter(kind => depositActionAmount(a, kind) > 0).map(kind => <Button type="button" key={kind} size="sm" disabled={busy || !!confirmation} onClick={() => confirm([a], kind)}>{depositKindLabel[kind]} {formatVnd(depositActionAmount(a, kind))}</Button>)}<Button type="button" size="sm" variant="secondary" onClick={() => { setHistory([]); setHistoryPage(0); setHistoryReader(a.readerId) }}>Lịch sử giao dịch</Button></div>
     </Card>)}</div>}
     <TablePagination page={page + 1} pageSize={10} totalItems={total} totalPages={Math.max(1, Math.ceil(total / 10))} onPageChange={p => setPage(p - 1)} /></>}
-    {historyReader !== null && <Card className="space-y-3 p-4"><h2 className="font-semibold">Lịch sử cọc bạn đọc #{historyReader}</h2>{history.map(t => <div key={t.id} className="border-b border-slate-100 py-2 text-sm"><p>{t.transactionNumber} · {depositKindLabel[t.kind]} · {formatVnd(t.totalVnd)}</p><p>{t.actorName} · {formatLoanTimestamp(t.recordedAt)}</p><Button type="button" size="sm" variant="secondary" onClick={() => setReceipt(t)}>Xem chứng từ</Button></div>)}{!history.length && <p>Chưa có giao dịch.</p>}<TablePagination page={historyPage + 1} pageSize={10} totalItems={historyTotal} totalPages={Math.max(1, Math.ceil(historyTotal / 10))} onPageChange={p => setHistoryPage(p - 1)} /></Card>}
+    {historyReader !== null && <Card className="space-y-3 p-4"><h2 className="font-semibold">Lịch sử cọc bạn đọc #{historyReader}</h2>{history.map(t => <div key={t.id} className="border-b border-slate-100 py-2 text-sm"><p>{t.transactionNumber} · {depositKindLabel[t.kind]} · {formatVnd(t.totalVnd)}</p><p>{t.actorName} · {formatLoanTimestamp(t.recordedAt)}</p><Button type="button" size="sm" variant="secondary" onClick={() => showReceipt(t)} aria-controls="deposit-receipt-details">Xem chứng từ</Button></div>)}{!history.length && <p>Chưa có giao dịch.</p>}<TablePagination page={historyPage + 1} pageSize={10} totalItems={historyTotal} totalPages={Math.max(1, Math.ceil(historyTotal / 10))} onPageChange={p => setHistoryPage(p - 1)} /></Card>}
   </div>
 }

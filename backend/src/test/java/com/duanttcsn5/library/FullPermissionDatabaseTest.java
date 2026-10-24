@@ -24,6 +24,11 @@ import tools.jackson.databind.ObjectMapper;
 import java.nio.file.*;
 import java.sql.Connection;
 import java.time.OffsetDateTime;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
@@ -119,7 +124,19 @@ class FullPermissionDatabaseTest {
     void probeBody(PolicyEntry entry,String method,String role,String scenario) throws Exception {
         System.out.println("CHECK "+entry.id()+" "+method+" "+role+" "+scenario);
         Throwable[] failure={null};
-        {
+        // The run endpoint legitimately rejects a real request before the configured 07:00 send time.
+        // Exercise permission/allowed-path behavior at 08:00 on the SAME Vietnam calendar date,
+        // without relaxing the production rule or touching Production data.
+        boolean pickupRun = entry.id().equals("PickupLastDayReminderController.run") && method.equals("POST");
+        ReadyPickupNotificationService pickupService = pickupRun ? context.getBean(ReadyPickupNotificationService.class) : null;
+        Clock previousClock = pickupRun ? (Clock) ReflectionTestUtils.getField(pickupService, "clock") : null;
+        try {
+            if (pickupRun) {
+                ZoneId vietnam = ZoneId.of("Asia/Ho_Chi_Minh");
+                LocalDate runDate = LocalDate.now(vietnam);
+                ReflectionTestUtils.setField(pickupService, "clock",
+                        Clock.fixed(runDate.atTime(LocalTime.of(8, 0)).atZone(vietnam).toInstant(), vietnam));
+            }
             try {
                 fixtures.prepare(entry,role,scenario);
                 var request=fixtures.request(entry,method,role,scenario);
@@ -144,6 +161,8 @@ class FullPermissionDatabaseTest {
                         +(entry.module().equals("REVIEW")?" Tác vụ khởi chạy lồng nhau chỉ ghi nhận yêu cầu; không tạo tiến trình Maven con trong test.":""),
                         historical==null?null:historical.get("correction").asText(),method,assertions));
             } catch(Throwable error){failure[0]=error;}
+        } finally {
+            if (pickupRun) ReflectionTestUtils.setField(pickupService, "clock", previousClock);
         }
         if(failure[0]!=null)throw new AssertionError(entry.id()+" / "+role+" / "+scenario+": "+failure[0].getMessage(),failure[0]);
     }
