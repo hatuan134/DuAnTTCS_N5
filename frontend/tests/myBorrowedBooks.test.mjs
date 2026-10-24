@@ -89,14 +89,15 @@ test('empty reader sees honest empty state', async () => {
 })
 test('one book shows all required fields in Vietnam calendar and today zero', async () => {
   const f = await pageFixture('MyBorrowedBooksPage.tsx', { data: [book] })
-  for (const value of ['Mắt biếc', 'LIB-001', '08/10/2026', '0 ngày', 'Ngày mượn', 'Hạn trả', 'Số ngày còn lại']) assert.ok(f.html().includes(value), value)
+  for (const value of ['Mắt biếc', 'LIB-001', '08/10/2026', 'Đến hạn hôm nay', 'Ngày mượn', 'Hạn trả', 'Tình trạng hạn trả']) assert.ok(f.html().includes(value), value)
 })
 test('all copies including same title negative days and missing due dates are shown', async () => {
   const f = await pageFixture('MyBorrowedBooksPage.tsx', { data: [book,
     { ...book, id: 2, barcode: 'LIB-002', remainingDays: -1 },
     { ...book, id: 3, barcode: 'LIB-003', dueAt: null, remainingDays: null }] })
-  for (const value of ['LIB-001', 'LIB-002', 'LIB-003', '-1 ngày', 'Chưa có hạn trả', 'Chưa xác định']) assert.ok(f.html().includes(value))
-  assert.match(f.html(), /Sắp đến hạn/); assert.match(f.html(), /Quá hạn/); assert.match(f.html(), /Trễ 1 ngày/)
+  for (const value of ['LIB-001', 'LIB-002', 'LIB-003', 'Quá hạn 1 ngày', 'Chưa có hạn trả', 'Chưa xác định']) assert.ok(f.html().includes(value))
+  assert.match(f.html(), /Đến hạn hôm nay/); assert.match(f.html(), /Quá hạn 1 ngày/)
+  assert.doesNotMatch(f.html(), />-1 ngày/)
   assert.doesNotMatch(f.html(), /href=.*loans/)
 })
 test('staff never requests reader books', async () => {
@@ -117,17 +118,16 @@ test('client supplies no reader identity', async () => {
   assert.equal(url, '/loans/me/borrowed-books')
 })
 
-for (const [days, label, late] of [[5, null, null], [3, null, null], [2, 'Sắp đến hạn', null],
-  [1, 'Sắp đến hạn', null], [0, 'Sắp đến hạn', null], [-1, 'Quá hạn', 'Trễ 1 ngày'], [-12, 'Quá hạn', 'Trễ 12 ngày']]) {
-  test(`day ${days}: both mobile and desktop rows display the exact warning`, async () => {
+for (const [days, label] of [[5, 'Còn 5 ngày'], [3, 'Còn 3 ngày'], [2, 'Sắp đến hạn · Còn 2 ngày'],
+  [1, 'Sắp đến hạn · Còn 1 ngày'], [0, 'Đến hạn hôm nay'], [-1, 'Quá hạn 1 ngày'], [-12, 'Quá hạn 12 ngày']]) {
+  test(`day ${days}: desktop and mobile agree on the natural-language status`, async () => {
     const f = await pageFixture('MyBorrowedBooksPage.tsx', { data: [{ ...book, remainingDays: days }] })
     const html = f.html()
-    // The explanation includes Sắp đến hạn; count actual badge text only.
-    const badges = html.match(/>Sắp đến hạn<|>Quá hạn</g) ?? []
-    assert.equal(badges.length, label ? 2 : 0)
-    if (label) assert.equal(badges.filter((value) => value === `>${label}<`).length, 2)
-    if (late) assert.equal((html.match(new RegExp(`>${late}<`, 'g')) ?? []).length, 2)
-    else assert.doesNotMatch(html, />Trễ \d+ ngày</)
+    assert.equal(html.split(label).length - 1, 2)
+    if (days < 0) {
+      assert.doesNotMatch(html, new RegExp(`>${days} ngày`))
+      assert.match(html, /Không thể gia hạn/)
+    }
   })
 }
 test('missing legacy deadline has no warning on either layout', async () => {

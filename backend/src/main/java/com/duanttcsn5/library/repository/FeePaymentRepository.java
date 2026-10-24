@@ -167,11 +167,11 @@ public class FeePaymentRepository {
 
     public List<PaymentSummary> payments(Long readerId) {
         return jdbc.query("""
-                SELECT id, transaction_number, receipt_number, collected_at, total_amount_vnd, collector_name, debt_after_vnd
+                SELECT id, transaction_number, receipt_number, collected_at, total_amount_vnd, collector_name, debt_after_vnd, funding_source
                 FROM fee_payments WHERE reader_user_id = ? ORDER BY collected_at DESC, id DESC
                 """, (rs, n) -> new PaymentSummary(rs.getLong("id"), rs.getString("transaction_number"),
                 rs.getString("receipt_number"), rs.getObject("collected_at", OffsetDateTime.class),
-                rs.getLong("total_amount_vnd"), rs.getString("collector_name"), rs.getLong("debt_after_vnd")), readerId);
+                rs.getLong("total_amount_vnd"), rs.getString("collector_name"), rs.getLong("debt_after_vnd"), rs.getString("funding_source")), readerId);
     }
 
     public Optional<FeeReceiptResponse> receipt(Long id) {

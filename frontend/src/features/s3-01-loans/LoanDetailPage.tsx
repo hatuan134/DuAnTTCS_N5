@@ -10,6 +10,7 @@ import { getCurrentUser } from '../../core/auth/authStorage'
 import { getApiErrorMessage } from '../s1-02-user-management/accountService'
 import { formatLoanTimestamp, loanRoles, loanService } from './loanService'
 import type { LoanDetail } from './loanService'
+import DepositReconciliationSummary from '../deposits/DepositReconciliationSummary'
 
 export default function LoanDetailPage() {
   const { loanId } = useParams()
@@ -109,6 +110,7 @@ function LoanDetails({ id, viewerId, reader, justCreated }: { id: number; viewer
             </li>)}
           </ol>}
       </Card>
+      <DepositReconciliationSummary readerId={loan.readerId} loanId={loan.id} loanNumber={loan.loanNumber} />
     </div>}
   </div>
 }

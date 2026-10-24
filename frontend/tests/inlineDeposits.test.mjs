@@ -21,9 +21,11 @@ function page(role) {
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/features/deposits/DepositPage.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, context)
   return context.exports
 }
-test('staff deposit page contains configuration without collection or search', () => {
-  assert.equal(renderToStaticMarkup(React.createElement(page('ADMIN').default)).includes('<form'), false)
-  assert.match(renderToStaticMarkup(React.createElement(page('ADMIN').default)), /policy/)
+test('staff deposit page provides policy and a separate post-return reconciliation search', () => {
+  const html = renderToStaticMarkup(React.createElement(page('ADMIN').default))
+  assert.match(html, /policy/)
+  assert.match(html, /Tra cứu và đối soát khoản cọc/)
+  assert.match(html, /<form/)
 })
 test('embedded collection uses selected books without nesting a form inside the loan form', () => {
   const html = renderToStaticMarkup(React.createElement(page('LIBRARIAN').InlineDeposits, { mode: 'collect', card: 'TV-1', barcodes: ['A', 'B'] }))
